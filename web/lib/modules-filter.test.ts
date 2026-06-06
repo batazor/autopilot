@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { filterModules } from "./modules-filter";
+import {
+  createModuleSearchIndex,
+  filterModuleSearchIndex,
+  filterModules,
+} from "./modules-filter";
 import type { ModuleRow } from "@/lib/config-pages";
 
 function mod(overrides: Partial<ModuleRow>): ModuleRow {
@@ -81,5 +85,26 @@ describe("filterModules", () => {
   it("can match multiple rows on a shared token", () => {
     // every fixture row has storage_key starting with "wos/"
     expect(filterModules(ROWS, "wos/")).toHaveLength(3);
+  });
+
+  it("filters a precomputed search index with the same matching rules", () => {
+    const index = createModuleSearchIndex(ROWS);
+
+    expect(filterModuleSearchIndex(index, "HEROES").map((m) => m.id)).toEqual([
+      "heroes",
+    ]);
+    expect(filterModuleSearchIndex(index, "redeem").map((m) => m.id)).toEqual([
+      "gift_codes",
+    ]);
+  });
+
+  it("keeps empty indexed searches in the original order", () => {
+    const index = createModuleSearchIndex(ROWS);
+
+    expect(filterModuleSearchIndex(index, "").map((m) => m.id)).toEqual([
+      "heroes",
+      "mail",
+      "gift_codes",
+    ]);
   });
 });

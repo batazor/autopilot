@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppListbox, AppSwitch, AppTabs } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { NewModuleDialog } from "@/components/modules/NewModuleDialog";
@@ -16,7 +25,10 @@ import {
 } from "@/lib/api";
 import type { ModuleRow, ScenarioRow } from "@/lib/config-pages";
 import { editDslHref } from "@/lib/debug-links";
-import { filterModules } from "@/lib/modules-filter";
+import {
+  createModuleSearchIndex,
+  filterModuleSearchIndex,
+} from "@/lib/modules-filter";
 import type { WikiScope } from "@/lib/wiki";
 
 const GAME_TABS: { id: string; label: string }[] = [
@@ -152,6 +164,172 @@ function ModuleScenarios({
   );
 }
 
+const ModuleTableRow = memo(function ModuleTableRow({
+  module,
+  open,
+  busyKey,
+  onToggleExpanded,
+  onToggleScenario,
+}: {
+  module: ModuleRow;
+  open: boolean;
+  busyKey: string | null;
+  onToggleExpanded: (storageKey: string) => void;
+  onToggleScenario: (row: ScenarioRow) => void;
+}) {
+  const hasEnabledState = module.enabled_on > 0 || module.enabled_off > 0;
+
+  return (
+    <Fragment>
+      <tr
+        className={[
+          "module-row",
+          open ? "module-row--open" : "",
+          module.scenario_count === 0 ? "module-row--empty" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <td className="module-table__expander">
+          {module.scenario_count > 0 ? (
+            <button
+              type="button"
+              className="btn-icon module-expand-button"
+              aria-expanded={open}
+              aria-label={`${open ? "Hide" : "Show"} scenarios for ${
+                module.title
+              }`}
+              onClick={() => onToggleExpanded(module.storage_key)}
+            >
+              <Icon
+                name="chevron-right"
+                size="sm"
+                className={
+                  open
+                    ? "module-expand-icon module-expand-icon--open"
+                    : "module-expand-icon"
+                }
+              />
+            </button>
+          ) : (
+            <span className="module-expand-placeholder">
+              <Icon name="dot" size="sm" />
+            </span>
+          )}
+        </td>
+        <td>
+          <div className="module-title-cell">
+            <div className="module-title-line">
+              <strong>{module.title}</strong>
+              <span
+                className={`module-kind-pill ${
+                  module.core
+                    ? "module-kind-pill--core"
+                    : "module-kind-pill--custom"
+                }`}
+              >
+                {module.core ? "Core" : "Custom"}
+              </span>
+            </div>
+            <code>{module.storage_key}</code>
+            {module.description ? <p>{module.description}</p> : null}
+          </div>
+        </td>
+        <td className="module-path-cell">
+          <code>{module.rel_path}</code>
+        </td>
+        <td>
+          <div className="module-scenario-summary">
+            <strong>{module.scenario_count}</strong>
+            <span>
+              {module.scenario_count === 1 ? "scenario" : "scenarios"}
+            </span>
+          </div>
+        </td>
+        <td>
+          <div className="module-enabled-stack">
+            {module.enabled_on ? (
+              <span className="status-pill status-idle">
+                {module.enabled_on} on
+              </span>
+            ) : null}
+            {module.enabled_off ? (
+              <span className="status-pill module-status-muted">
+                {module.enabled_off} off
+              </span>
+            ) : null}
+            {!hasEnabledState ? (
+              <span className="status-pill module-status-muted">Default</span>
+            ) : null}
+          </div>
+        </td>
+        <td>
+          <div className="module-docs-stack">
+            <span
+              className={`status-pill ${
+                module.wiki ? "module-status-wiki" : "module-status-muted"
+              }`}
+            >
+              <Icon name="wiki" size="sm" />
+              {module.wiki ? "Wiki" : "No wiki"}
+            </span>
+            <span
+              className={`status-pill ${
+                module.has_analyze
+                  ? "module-status-analyze"
+                  : "module-status-muted"
+              }`}
+            >
+              <Icon name="optimizer" size="sm" />
+              {module.has_analyze ? "Analyzer" : "No analyzer"}
+            </span>
+          </div>
+        </td>
+        <td>
+          <div className="module-row-actions">
+            <Link
+              href={editDslHref({ module: module.storage_key })}
+              className="module-action-link"
+            >
+              <Icon name="edit-dsl" size="sm" />
+              DSL
+            </Link>
+            <Link
+              href={editDslHref({
+                module: module.storage_key,
+                newScenario: true,
+              })}
+              className="module-action-link"
+            >
+              <Icon name="plus" size="sm" />
+              Scenario
+            </Link>
+            <Link
+              href={`/analyze?scope=${encodeURIComponent(module.storage_key)}`}
+              className="module-action-link"
+            >
+              <Icon name="optimizer" size="sm" />
+              Analyze
+            </Link>
+          </div>
+        </td>
+      </tr>
+      {open && module.scenarios.length > 0 && (
+        <tr key={`${module.storage_key}-detail`} className="module-detail-row">
+          <td colSpan={7}>
+            <ModuleScenarios
+              moduleKey={module.storage_key}
+              scenarios={module.scenarios}
+              busyKey={busyKey}
+              onToggle={onToggleScenario}
+            />
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+});
+
 export default function ModulesPage() {
   const { showSuccess } = useFeedback();
   const [game, setGame] = useState<string>(GAME_TABS[0]?.id ?? "wos");
@@ -164,34 +342,67 @@ export default function ModulesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  const requestIdRef = useRef(0);
+  const deferredFilter = useDeferredValue(filter);
 
   const reload = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setError(null);
     setLoading(true);
     try {
       const mods = await fetchModules(scope, game);
-      setModules(mods);
+      if (requestIdRef.current === requestId) {
+        setModules(mods);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (requestIdRef.current === requestId) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, [scope, game]);
 
   useEffect(() => {
-    fetchWikiScopes(game).then(setScopes).catch(() => {});
+    let active = true;
+    fetchWikiScopes(game)
+      .then((nextScopes) => {
+        if (active) setScopes(nextScopes);
+      })
+      .catch(() => {
+        if (active) setScopes([]);
+      });
+    return () => {
+      active = false;
+    };
   }, [game]);
 
-  // Reset module scope when switching games because scopes are game-specific.
-  useEffect(() => {
+  const handleGameChange = useCallback((nextGame: string) => {
+    setGame(nextGame);
     setScope("all");
-  }, [game]);
+    setExpanded(new Set());
+  }, []);
+
+  const handleScopeChange = useCallback((nextScope: string) => {
+    setScope(nextScope);
+    setExpanded(new Set());
+  }, []);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const filtered = useMemo(() => filterModules(modules, filter), [modules, filter]);
+  const moduleSearchIndex = useMemo(
+    () => createModuleSearchIndex(modules),
+    [modules],
+  );
+  const filtered = useMemo(
+    () => filterModuleSearchIndex(moduleSearchIndex, deferredFilter),
+    [moduleSearchIndex, deferredFilter],
+  );
 
   const scopeOptions = useMemo(() => {
     const mapped = scopes.map((s) => ({ value: s.key, label: s.label }));
@@ -225,16 +436,16 @@ export default function ModulesPage() {
     [filtered],
   );
 
-  function toggleExpanded(storageKey: string) {
+  const toggleExpanded = useCallback((storageKey: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(storageKey)) next.delete(storageKey);
       else next.add(storageKey);
       return next;
     });
-  }
+  }, []);
 
-  async function toggleScenario(row: ScenarioRow) {
+  const toggleScenario = useCallback(async (row: ScenarioRow) => {
     const next = row.enabled !== true;
     setBusy(row.key);
     try {
@@ -248,7 +459,7 @@ export default function ModulesPage() {
     } finally {
       setBusy(null);
     }
-  }
+  }, [reload, showSuccess]);
 
   return (
     <>
@@ -295,7 +506,7 @@ export default function ModulesPage() {
       <AppTabs
         tabs={GAME_TABS.map((g) => ({ key: g.id, label: g.label, title: g.id }))}
         selectedKey={game}
-        onChange={setGame}
+        onChange={handleGameChange}
         renderPanels={false}
       />
       <div className="module-toolbar">
@@ -303,7 +514,7 @@ export default function ModulesPage() {
           inline
           label="Scope"
           value={scope}
-          onChange={setScope}
+          onChange={handleScopeChange}
           options={scopeOptions}
           minWidth={160}
         />
@@ -444,164 +655,15 @@ export default function ModulesPage() {
               <tbody>
                 {filtered.map((m) => {
                   const open = expanded.has(m.storage_key);
-                  const hasEnabledState = m.enabled_on > 0 || m.enabled_off > 0;
                   return (
-                    <Fragment key={m.storage_key}>
-                      <tr
-                        className={[
-                          "module-row",
-                          open ? "module-row--open" : "",
-                          m.scenario_count === 0 ? "module-row--empty" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                      >
-                        <td className="module-table__expander">
-                          {m.scenario_count > 0 ? (
-                            <button
-                              type="button"
-                              className="btn-icon module-expand-button"
-                              aria-expanded={open}
-                              aria-label={`${open ? "Hide" : "Show"} scenarios for ${
-                                m.title
-                              }`}
-                              onClick={() => toggleExpanded(m.storage_key)}
-                            >
-                              <Icon
-                                name="chevron-right"
-                                size="sm"
-                                className={
-                                  open
-                                    ? "module-expand-icon module-expand-icon--open"
-                                    : "module-expand-icon"
-                                }
-                              />
-                            </button>
-                          ) : (
-                            <span className="module-expand-placeholder">
-                              <Icon name="dot" size="sm" />
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="module-title-cell">
-                            <div className="module-title-line">
-                              <strong>{m.title}</strong>
-                              <span
-                                className={`module-kind-pill ${
-                                  m.core
-                                    ? "module-kind-pill--core"
-                                    : "module-kind-pill--custom"
-                                }`}
-                              >
-                                {m.core ? "Core" : "Custom"}
-                              </span>
-                            </div>
-                            <code>{m.storage_key}</code>
-                            {m.description ? <p>{m.description}</p> : null}
-                          </div>
-                        </td>
-                        <td className="module-path-cell">
-                          <code>{m.rel_path}</code>
-                        </td>
-                        <td>
-                          <div className="module-scenario-summary">
-                            <strong>{m.scenario_count}</strong>
-                            <span>
-                              {m.scenario_count === 1
-                                ? "scenario"
-                                : "scenarios"}
-                            </span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="module-enabled-stack">
-                            {m.enabled_on ? (
-                              <span className="status-pill status-idle">
-                                {m.enabled_on} on
-                              </span>
-                            ) : null}
-                            {m.enabled_off ? (
-                              <span className="status-pill module-status-muted">
-                                {m.enabled_off} off
-                              </span>
-                            ) : null}
-                            {!hasEnabledState ? (
-                              <span className="status-pill module-status-muted">
-                                Default
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="module-docs-stack">
-                            <span
-                              className={`status-pill ${
-                                m.wiki
-                                  ? "module-status-wiki"
-                                  : "module-status-muted"
-                              }`}
-                            >
-                              <Icon name="wiki" size="sm" />
-                              {m.wiki ? "Wiki" : "No wiki"}
-                            </span>
-                            <span
-                              className={`status-pill ${
-                                m.has_analyze
-                                  ? "module-status-analyze"
-                                  : "module-status-muted"
-                              }`}
-                            >
-                              <Icon name="optimizer" size="sm" />
-                              {m.has_analyze ? "Analyzer" : "No analyzer"}
-                            </span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="module-row-actions">
-                            <Link
-                              href={editDslHref({ module: m.storage_key })}
-                              className="module-action-link"
-                            >
-                              <Icon name="edit-dsl" size="sm" />
-                              DSL
-                            </Link>
-                            <Link
-                              href={editDslHref({
-                                module: m.storage_key,
-                                newScenario: true,
-                              })}
-                              className="module-action-link"
-                            >
-                              <Icon name="plus" size="sm" />
-                              Scenario
-                            </Link>
-                            <Link
-                              href={`/analyze?scope=${encodeURIComponent(m.storage_key)}`}
-                              className="module-action-link"
-                            >
-                              <Icon name="optimizer" size="sm" />
-                              Analyze
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                      {open && m.scenarios.length > 0 && (
-                        <tr
-                          key={`${m.storage_key}-detail`}
-                          className="module-detail-row"
-                        >
-                          <td colSpan={7}>
-                            <ModuleScenarios
-                              moduleKey={m.storage_key}
-                              scenarios={m.scenarios}
-                              busyKey={busy}
-                              onToggle={toggleScenario}
-                            />
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+                    <ModuleTableRow
+                      key={m.storage_key}
+                      module={m}
+                      open={open}
+                      busyKey={open ? busy : null}
+                      onToggleExpanded={toggleExpanded}
+                      onToggleScenario={toggleScenario}
+                    />
                   );
                 })}
               </tbody>
