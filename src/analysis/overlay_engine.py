@@ -73,17 +73,23 @@ def _hybrid_sliding_matched(
     threshold: float,
     res: TemplateMatchResult,
 ) -> bool:
-    """Sliding search: both pHash and NCC at the peak must clear ``threshold``.
+    """Sliding search: pHash, NCC *and* color at the peak must all clear ``threshold``.
 
-    Uses ``min(pHash, NCC)`` so a high pHash alone cannot confirm a weak structural match.
+    Uses ``min(pHash, NCC, color)`` so neither a high pHash alone (weak structural
+    match) nor a strong grayscale match on the wrong color (e.g. a disabled grey
+    button matching a blue template — pHash/NCC are colour-blind) can confirm a
+    hit. ``score_color`` is per-pixel BGR similarity; on the pHash-only fast path
+    it mirrors ``score``, so this is a no-op there and only adds teeth where a real
+    colour score was computed.
     """
+    candidates = [float(score)]
     score_ncc = res.get("score_ncc")
-    effective = (
-        float(score)
-        if score_ncc is None
-        else min(float(score), float(score_ncc))
-    )
-    return effective >= threshold
+    if score_ncc is not None:
+        candidates.append(float(score_ncc))
+    score_color = res.get("score_color")
+    if score_color is not None:
+        candidates.append(float(score_color))
+    return min(candidates) >= threshold
 
 
 def _load_template_cached(path: Path) -> np.ndarray | None:
