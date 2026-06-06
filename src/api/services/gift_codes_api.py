@@ -54,7 +54,7 @@ def _build_row(code: Any, player_ids: list[str], registry: Any) -> dict[str, Any
 def build_gift_codes_view(*, query: str = "", game: str = "wos") -> dict[str, Any]:
     codes = list_codes(game=game)
     registry = load_devices()
-    player_ids = list(dict.fromkeys(registry.all_player_ids()))
+    player_ids = list(dict.fromkeys(registry.all_player_ids(game=game)))
     for c in codes:
         for pid in c.user_for:
             if pid not in player_ids:

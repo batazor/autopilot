@@ -23,6 +23,14 @@ def test_is_expired_treats_naive_datetime_as_utc() -> None:
     assert code.is_expired() is True
 
 
+def test_kingshot_calendar_date_does_not_expire_before_api_confirmation() -> None:
+    past = _now_utc() - timedelta(days=1)
+    code = GiftCode(name="PROTECTNATURE", game="kingshot", expires=past)
+    assert code.is_expired() is False
+    assert code.is_effectively_expired() is False
+    assert code.needs_redemption("player1") is True
+
+
 def test_is_expired_skips_sentinel_year_zero() -> None:
     sentinel = datetime(1970, 1, 1, tzinfo=UTC)
     code = GiftCode(name="UNKNOWN_EXPIRY", expires=sentinel)

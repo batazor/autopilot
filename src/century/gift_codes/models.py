@@ -29,7 +29,13 @@ class GiftCode(BaseModel):
 
     model_config = {"populate_by_name": True, "extra": "allow"}
 
+    def uses_calendar_expiry(self) -> bool:
+        """Whether ``expires`` should make the code terminal without an API check."""
+        return self.game != "kingshot"
+
     def is_expired(self) -> bool:
+        if not self.uses_calendar_expiry():
+            return False
         if self.expires is None:
             return False
         now = datetime.now(tz=UTC)
