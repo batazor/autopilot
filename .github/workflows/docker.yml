@@ -90,7 +90,9 @@ jobs:
             BUILD_VERSION=${{ steps.meta.outputs.version }}
             BUILD_REVISION=${{ github.sha }}
           # Per-service cache scopes so the bot and ocr builds don't evict
-          # each other's layers.
+          # each other's layers. ``ignore-error`` keeps a transient GHA cache
+          # backend outage (Azure 400 HTML page) from failing the whole build —
+          # it logs a warning and skips the cache export instead.
           cache-from: type=gha,scope=${{ matrix.service.name }}
-          cache-to: type=gha,scope=${{ matrix.service.name }},mode=max
+          cache-to: type=gha,scope=${{ matrix.service.name }},mode=max,ignore-error=true
           provenance: false
