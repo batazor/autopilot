@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { BuildingLevelsTable } from "@/components/player-state/BuildingLevelsTable";
 import { CollapsiblePanel } from "@/components/player-state/CollapsiblePanel";
 import { HeroTileGrid } from "@/components/player-state/HeroTileGrid";
 import { SearchField } from "@/components/player-state/SearchField";
-import { AppConfirmDialog, AppListbox, AppTabs } from "@/components/headless";
+import { AppConfirmDialog } from "@/components/headless";
 import { useFleet } from "@/components/FleetContextProvider";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
@@ -28,14 +28,6 @@ import type {
   PlayerStateView,
 } from "@/lib/types";
 
-type TabKey = "redis" | "persisted" | "heroes";
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "redis", label: "Redis (live)" },
-  { key: "persisted", label: "Persisted (SQLite)" },
-  { key: "heroes", label: "Heroes" },
-];
-
 /** Sections stay expanded when the list is short. */
 const COLLAPSE_BUILDINGS_ABOVE = 18;
 const COLLAPSE_HEROES_ABOVE = 10;
@@ -53,6 +45,15 @@ function filterHeroRows<T extends HeroStateRow | HeroMissingRow>(
 
 function countLabel(shown: number, total: number): string {
   return shown === total ? String(total) : `${shown} / ${total}`;
+}
+
+function matchesBuilding(r: { id: string; building: string; category: string; level: number | string }, q: string): boolean {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return [r.id, r.building, r.category, String(r.level)]
+    .join(" ")
+    .toLowerCase()
+    .includes(needle);
 }
 
 function DataTable({
@@ -133,13 +134,11 @@ function PlayerHeaderCard({
   nickname,
   kid,
   stoveLevel,
-  fieldCount,
 }: {
   avatar: string;
   nickname: string;
   kid: string;
   stoveLevel: string;
-  fieldCount: number;
 }) {
   const displayName = nickname || "—";
   return (
@@ -177,9 +176,6 @@ function PlayerHeaderCard({
                 Stove {stoveLevel}
               </span>
             ) : null}
-            <span className="text-wos-text-muted">
-              {fieldCount} hash field{fieldCount === 1 ? "" : "s"}
-            </span>
           </div>
         </div>
       </div>
@@ -187,146 +183,66 @@ function PlayerHeaderCard({
   );
 }
 
-function PersistedPanel({
-  persisted,
-  syncing,
-  onSync,
-  bldgFilter,
+function HeroesSection({
+  heroView,
+  heroFilter,
 }: {
-  persisted: PlayerPersistedView;
-  syncing: boolean;
-  onSync: () => void;
-  bldgFilter: string;
+  heroView: NonNullable<NonNullable<PlayerPersistedView["player"]>["heroes"]>;
+  heroFilter: string;
 }) {
-  const p = persisted.player;
-  if (persisted.parse_error) {
-    return (
-      <section className="panel">
-        <div className="error-banner">Cannot parse state DB: {persisted.parse_error}</div>
-        {persisted.raw_yaml ? (
-          <pre className="max-h-96 overflow-auto rounded-lg border border-wos-border-subtle bg-wos-panel-raised p-3 text-xs">
-            {persisted.raw_yaml}
-          </pre>
-        ) : null}
-      </section>
-    );
-  }
-  if (!p) {
-    return (
-      <section className="panel">
-        <p className="meta">Player not found in `{persisted.state_path}`.</p>
-      </section>
-    );
-  }
-
-  const s = p.summary;
-  const timers = p.event_timers ?? [];
-  const timerTotal = timers.length;
-  const bldgTotal = p.building_levels.length;
-  const bldgNeedle = bldgFilter.trim().toLowerCase();
-  const bldgShown = bldgNeedle
-    ? p.building_levels.filter((r) =>
-        [r.id, r.building, r.category, String(r.level)]
-          .join(" ")
-          .toLowerCase()
-          .includes(bldgNeedle),
-      ).length
-    : bldgTotal;
-
+  const owned = filterHeroRows(heroView.owned, heroFilter);
+  const locked = filterHeroRows(heroView.locked, heroFilter);
+  const missing = filterHeroRows(heroView.missing, heroFilter);
   return (
     <>
-      <div className="toolbar">
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={syncing}
-          onClick={onSync}
-        >
-          {syncing ? "Syncing…" : "Sync from Century API"}
-        </button>
-        <span className="meta">
-          File: <code>{persisted.state_path}</code>
-        </span>
-      </div>
       <MetricsRow
         items={[
-          { label: "Power", value: String(s.power ?? "—") },
-          { label: "Gems", value: String(s.gems ?? "—") },
-          { label: "Furnace Lv", value: String(s.furnace_level ?? "—") },
-          { label: "Furnace pwr", value: String(s.furnace_power ?? "—") },
+          { label: "Owned", value: String(heroView.metrics.owned) },
+          { label: "Locked", value: String(heroView.metrics.locked) },
+          { label: "In registry", value: String(heroView.metrics.registry_total) },
+          { label: "Notify", value: heroView.metrics.notify ? "yes" : "no" },
         ]}
       />
       <CollapsiblePanel
-        title="Event timers"
-        meta={String(timerTotal)}
-        defaultOpen={timerTotal > 0 && timerTotal <= 8}
+        title="Heroes · owned"
+        meta={countLabel(owned.length, heroView.owned.length)}
+        defaultOpen={heroView.owned.length <= COLLAPSE_HEROES_ABOVE}
       >
-        <DataTable
-          columns={[
-            { key: "event", label: "Event" },
-            { key: "status", label: "Status" },
-            { key: "remaining", label: "Remaining", align: "right" },
-            { key: "reset_at", label: "Reset at" },
-            { key: "raw_text", label: "OCR" },
-            { key: "confidence", label: "Conf", align: "right" },
-            { key: "source_region", label: "Source" },
-          ]}
-          rows={timers}
-        />
-      </CollapsiblePanel>
-      <CollapsiblePanel title="Buildings HUD" defaultOpen>
-        <DataTable
-          columns={[
-            { key: "queue1", label: "Queue 1" },
-            { key: "queue2", label: "Queue 2" },
-            { key: "hud", label: "HUD" },
-          ]}
-          rows={[p.buildings_hud]}
-        />
+        <HeroTileGrid rows={owned} locked={false} />
+        <details className="player-state-subsection">
+          <summary className="meta">Table view</summary>
+          <HeroTable rows={owned} locked={false} />
+        </details>
       </CollapsiblePanel>
       <CollapsiblePanel
-        title="Building levels"
-        meta={countLabel(bldgShown, bldgTotal)}
-        defaultOpen={bldgTotal <= COLLAPSE_BUILDINGS_ABOVE}
+        title="Heroes · collecting shards"
+        meta={countLabel(locked.length, heroView.locked.length)}
+        defaultOpen={heroView.locked.length <= COLLAPSE_HEROES_ABOVE}
       >
-        <BuildingLevelsTable rows={p.building_levels} filter={bldgFilter} />
-      </CollapsiblePanel>
-      <CollapsiblePanel title="Resources" defaultOpen={false}>
-        <DataTable
-          columns={[
-            { key: "wood", label: "Wood", align: "right" },
-            { key: "food", label: "Food", align: "right" },
-            { key: "iron", label: "Iron", align: "right" },
-            { key: "meat", label: "Meat", align: "right" },
-            { key: "silver_keys", label: "Silver keys", align: "right" },
-            { key: "gold_keys", label: "Gold keys", align: "right" },
-            { key: "diamond", label: "Diamond", align: "right" },
-          ]}
-          rows={[p.resources]}
-        />
+        <HeroTileGrid rows={locked} locked />
+        <details className="player-state-subsection">
+          <summary className="meta">Table view</summary>
+          <HeroTable rows={locked} locked />
+        </details>
       </CollapsiblePanel>
       <CollapsiblePanel
-        title="Alliance / Exploration / Arena"
-        defaultOpen={false}
+        title="Heroes · not yet seen"
+        meta={countLabel(missing.length, heroView.missing.length)}
+        defaultOpen={heroView.missing.length <= COLLAPSE_HEROES_ABOVE}
       >
-        <DataTable
-          columns={[
-            { key: "alliance", label: "Alliance" },
-            { key: "alliance_power", label: "Alliance power", align: "right" },
-            { key: "members", label: "Members" },
-            { key: "exploration_level", label: "Expl Lv", align: "right" },
-            { key: "exploration_power", label: "Expl power", align: "right" },
-            { key: "arena_rank", label: "Arena rank", align: "right" },
-            { key: "arena_power", label: "Arena power", align: "right" },
-            { key: "contentment", label: "Contentment" },
-          ]}
-          rows={[p.alliance_block]}
-        />
-      </CollapsiblePanel>
-      <CollapsiblePanel title="Full JSON record" defaultOpen={false}>
-        <pre className="max-h-96 overflow-auto rounded-lg border border-wos-border-subtle bg-wos-panel-raised p-3 text-xs">
-          {JSON.stringify(p.gamer, null, 2)}
-        </pre>
+        {missing.length ? (
+          <DataTable
+            columns={[
+              { key: "id", label: "ID" },
+              { key: "hero", label: "Hero" },
+              { key: "rarity", label: "Rarity" },
+              { key: "class", label: "Class" },
+            ]}
+            rows={missing}
+          />
+        ) : (
+          <p className="meta">No heroes matched the filter.</p>
+        )}
       </CollapsiblePanel>
     </>
   );
@@ -334,9 +250,6 @@ function PersistedPanel({
 
 function PlayerStatePageInner() {
   const params = useSearchParams();
-  const router = useRouter();
-  const tabParam = (params.get("tab") as TabKey) || "redis";
-  const tab: TabKey = TABS.some((t) => t.key === tabParam) ? tabParam : "redis";
   const urlPlayerId = params.get("player_id");
   const playerTouchedRef = useRef(Boolean(urlPlayerId));
   const [playerTouched, setPlayerTouched] = useState(Boolean(urlPlayerId));
@@ -361,7 +274,6 @@ function PlayerStatePageInner() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [bldgFilter, setBldgFilter] = useState("");
   const [heroFilter, setHeroFilter] = useState("");
-  const [fieldFilter, setFieldFilter] = useState("");
 
   useEffect(() => {
     if (!instanceId) {
@@ -394,21 +306,15 @@ function PlayerStatePageInner() {
     setPlayerId(next);
   };
 
-  const setTab = (key: TabKey) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", key);
-    router.replace(url.pathname + url.search);
-  };
-
   const refreshLive = useCallback(async () => {
-    if (!playerId || tab !== "redis") return;
+    if (!playerId) return;
     try {
       setLive(await fetchPlayerState(playerId));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [playerId, tab]);
+  }, [playerId]);
 
   const refreshPersisted = useCallback(async () => {
     if (!playerId) return;
@@ -423,7 +329,7 @@ function PlayerStatePageInner() {
   useDashboardEventStream({
     topics: ["player"],
     playerId: playerId || undefined,
-    enabled: tab === "redis" && Boolean(playerId),
+    enabled: Boolean(playerId),
     onEvent: () => {
       void refreshLive();
     },
@@ -431,10 +337,14 @@ function PlayerStatePageInner() {
   });
 
   useEffect(() => {
-    if (playerId && (tab === "persisted" || tab === "heroes")) {
-      void refreshPersisted();
+    if (!playerId) {
+      setLive(null);
+      setPersisted(null);
+      return;
     }
-  }, [playerId, tab, refreshPersisted]);
+    void refreshLive();
+    void refreshPersisted();
+  }, [playerId, refreshLive, refreshPersisted]);
 
   const onSync = async () => {
     if (!playerId || syncing) return;
@@ -445,8 +355,7 @@ function PlayerStatePageInner() {
       showSuccess(
         `Synced ${result.nickname} · stove ${result.stove_level} · KID ${result.kid}`,
       );
-      await refreshPersisted();
-      if (tab === "redis") await refreshLive();
+      await Promise.all([refreshPersisted(), refreshLive()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -465,13 +374,7 @@ function PlayerStatePageInner() {
     setError(null);
     try {
       const result = await deletePlayer(playerId);
-      const sqliteSum = Object.values(result.sqlite || {}).reduce(
-        (a, b) => a + b,
-        0,
-      );
-      showSuccess(
-        `Deleted ${result.player_id} · Redis: ${result.redis_keys_deleted} key(s) · SQLite: ${sqliteSum} rows`,
-      );
+      showSuccess(`Deleted player ${result.player_id}`);
       setLive(null);
       setPersisted(null);
       setPlayerId("");
@@ -486,27 +389,32 @@ function PlayerStatePageInner() {
     }
   };
 
-  const heroView = persisted?.player?.heroes;
-
-  const filteredHashFields = useMemo(() => {
-    if (!live?.fields) return [];
-    const q = fieldFilter.trim().toLowerCase();
-    const entries = Object.entries(live.fields);
-    if (!q) return entries;
-    return entries.filter(
-      ([k, v]) => k.toLowerCase().includes(q) || v.toLowerCase().includes(q),
-    );
-  }, [live?.fields, fieldFilter]);
-
   const bannerError = error ?? playersError ?? instancesError;
+
+  const p = persisted?.player ?? null;
+  const summary = p?.summary ?? {};
+  const liveActive = Boolean(live && live.field_count > 0);
+
+  // Prefer the freshest source for overlapping fields: live (worker) where
+  // present, otherwise the last saved snapshot.
+  const nickname = live?.nickname || String(summary.nickname ?? "") || "";
+  const avatar = live?.avatar_image || "";
+  const kid = live?.kid || "";
+  const stoveLevel = live?.stove_level || "";
+  const buildingRows = liveActive
+    ? live!.building_levels
+    : p?.building_levels ?? [];
+  const buildingShown = buildingRows.filter((r) => matchesBuilding(r, bldgFilter)).length;
+
+  const heroView = p?.heroes;
+  const hasAnyData = liveActive || Boolean(p);
 
   return (
     <>
       <FleetPageHeader title="Player state" showPlayer />
       <p className="muted">
-        <strong>Redis</strong> — live <code>wos:player:&lt;id&gt;:state</code> from
-        the worker. <strong>Persisted</strong> — <code>db/state/wos.db</code>. Pick an
-        instance to pre-select the active player from Redis.
+        Current state for the selected player. Pick an instance to pre-select its
+        active player.
       </p>
       <ErrorBanner message={bannerError} />
 
@@ -514,8 +422,7 @@ function PlayerStatePageInner() {
         <div className="min-w-0 flex-1 text-sm text-wos-text-secondary">
           {suggestedPlayer ? (
             <>
-              Active player on instance:{" "}
-              <code>{suggestedPlayer || "—"}</code>
+              Active player on instance: <code>{suggestedPlayer || "—"}</code>
               {!playerTouched && playerId === suggestedPlayer ? (
                 <span className="text-wos-text-muted"> (auto-selected)</span>
               ) : null}
@@ -548,6 +455,16 @@ function PlayerStatePageInner() {
           Refresh now
         </button>
         {playerId ? (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={syncing}
+            onClick={onSync}
+          >
+            {syncing ? "Syncing…" : "Sync from Century API"}
+          </button>
+        ) : null}
+        {playerId ? (
           <Link
             href={playerStatsHref(playerId, { instanceId })}
             className="btn-secondary"
@@ -561,21 +478,14 @@ function PlayerStatePageInner() {
             className="btn-danger"
             disabled={deleting}
             onClick={onDelete}
-            title="Wipe this player's Redis state and SQLite records"
+            title="Wipe all data for this player"
           >
             {deleting ? "Deleting…" : "Delete player"}
           </button>
         ) : null}
       </div>
 
-      <AppTabs
-        tabs={TABS}
-        selectedKey={tab}
-        onChange={(key) => setTab(key as TabKey)}
-        renderPanels={false}
-      />
-
-      {tab === "redis" ? (
+      {playerId ? (
         <div className="player-state-filters">
           <SearchField
             label="Buildings"
@@ -583,26 +493,6 @@ function PlayerStatePageInner() {
             onChange={setBldgFilter}
             placeholder="id, name, category, level…"
           />
-          <SearchField
-            label="Redis fields"
-            value={fieldFilter}
-            onChange={setFieldFilter}
-            placeholder="hash key or value…"
-          />
-        </div>
-      ) : null}
-      {tab === "persisted" ? (
-        <div className="player-state-filters">
-          <SearchField
-            label="Buildings"
-            value={bldgFilter}
-            onChange={setBldgFilter}
-            placeholder="id, name, category, level…"
-          />
-        </div>
-      ) : null}
-      {tab === "heroes" ? (
-        <div className="player-state-filters">
           <SearchField
             label="Heroes"
             value={heroFilter}
@@ -612,194 +502,126 @@ function PlayerStatePageInner() {
         </div>
       ) : null}
 
-      {tab === "redis" ? (
-        live && live.field_count > 0 ? (
-          <>
-            <PlayerHeaderCard
-              avatar={live.avatar_image}
-              nickname={live.nickname}
-              kid={live.kid}
-              stoveLevel={live.stove_level}
-              fieldCount={live.field_count}
-            />
-            <CollapsiblePanel
-              title="Building levels"
-              meta={countLabel(
-                live.building_levels.filter((r) => {
-                  const q = bldgFilter.trim().toLowerCase();
-                  if (!q) return true;
-                  return [r.id, r.building, r.category, String(r.level)]
-                    .join(" ")
-                    .toLowerCase()
-                    .includes(q);
-                }).length,
-                live.building_levels.length,
-              )}
-              defaultOpen={
-                live.building_levels.length <= COLLAPSE_BUILDINGS_ABOVE
-              }
-            >
-              <BuildingLevelsTable
-                rows={live.building_levels}
-                filter={bldgFilter}
-              />
-            </CollapsiblePanel>
-            <CollapsiblePanel
-              title="All hash fields"
-              meta={countLabel(
-                filteredHashFields.length,
-                Object.keys(live.fields).length,
-              )}
-              defaultOpen={false}
-            >
-              {filteredHashFields.length ? (
-                <div className="data-table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Key</th>
-                        <th>Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHashFields.map(([k, v]) => (
-                        <tr key={k}>
-                          <td>
-                            <code>{k}</code>
-                          </td>
-                          <td>
-                            <code>{v || "—"}</code>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="meta">No hash fields matched the filter.</p>
-              )}
-            </CollapsiblePanel>
-          </>
-        ) : (
-          <section className="panel">
-            <p className="meta">
-              No Redis hash yet for this player — start the worker or pick another
-              id.
-            </p>
-          </section>
-        )
-      ) : null}
-
-      {tab === "persisted" && persisted ? (
-        <PersistedPanel
-          persisted={persisted}
-          syncing={syncing}
-          onSync={onSync}
-          bldgFilter={bldgFilter}
-        />
-      ) : null}
-
-      {tab === "heroes" && persisted?.player ? (
-        <>
-          <div className="toolbar">
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={syncing}
-              onClick={onSync}
-            >
-              Sync from Century API
-            </button>
+      {!playerId ? (
+        <section className="panel">
+          <p className="meta m-0">Pick a player to see their state.</p>
+        </section>
+      ) : persisted?.parse_error ? (
+        <section className="panel">
+          <div className="error-banner">
+            Cannot read player data: {persisted.parse_error}
           </div>
-          {heroView ? (
-            <>
-              <MetricsRow
-                items={[
-                  { label: "Owned", value: String(heroView.metrics.owned) },
-                  { label: "Locked", value: String(heroView.metrics.locked) },
-                  {
-                    label: "In registry",
-                    value: String(heroView.metrics.registry_total),
-                  },
-                  {
-                    label: "Notify",
-                    value: heroView.metrics.notify ? "yes" : "no",
-                  },
-                ]}
-              />
-              {(() => {
-                const owned = filterHeroRows(heroView.owned, heroFilter);
-                const locked = filterHeroRows(heroView.locked, heroFilter);
-                const missing = filterHeroRows(heroView.missing, heroFilter);
-                return (
-                  <>
-                    <CollapsiblePanel
-                      title="Owned"
-                      meta={countLabel(owned.length, heroView.owned.length)}
-                      defaultOpen={heroView.owned.length <= COLLAPSE_HEROES_ABOVE}
-                    >
-                      <HeroTileGrid rows={owned} locked={false} />
-                      <details className="player-state-subsection">
-                        <summary className="meta">Table view</summary>
-                        <HeroTable rows={owned} locked={false} />
-                      </details>
-                    </CollapsiblePanel>
-                    <CollapsiblePanel
-                      title="Locked · collecting shards"
-                      meta={countLabel(locked.length, heroView.locked.length)}
-                      defaultOpen={heroView.locked.length <= COLLAPSE_HEROES_ABOVE}
-                    >
-                      <HeroTileGrid rows={locked} locked />
-                      <details className="player-state-subsection">
-                        <summary className="meta">Table view</summary>
-                        <HeroTable rows={locked} locked />
-                      </details>
-                    </CollapsiblePanel>
-                    <CollapsiblePanel
-                      title="Not yet seen"
-                      meta={countLabel(missing.length, heroView.missing.length)}
-                      defaultOpen={heroView.missing.length <= COLLAPSE_HEROES_ABOVE}
-                    >
-                      {missing.length ? (
-                        <DataTable
-                          columns={[
-                            { key: "id", label: "ID" },
-                            { key: "hero", label: "Hero" },
-                            { key: "rarity", label: "Rarity" },
-                            { key: "class", label: "Class" },
-                          ]}
-                          rows={missing}
-                        />
-                      ) : (
-                        <p className="meta">No heroes matched the filter.</p>
-                      )}
-                    </CollapsiblePanel>
-                  </>
-                );
-              })()}
-            </>
-          ) : (
-            <p className="meta">No hero data for this player.</p>
-          )}
-        </>
-      ) : null}
-
-      {tab === "heroes" && persisted && !persisted.player ? (
+        </section>
+      ) : !hasAnyData ? (
         <section className="panel">
           <p className="meta m-0">
-            No persisted record — open the{" "}
-            <button
-              type="button"
-              className="underline underline-offset-2 hover:text-wos-link-hover"
-              style={{ color: "var(--wos-link)" }}
-              onClick={() => setTab("persisted")}
-            >
-              Persisted
-            </button>{" "}
-            tab or run scenarios that persist state.
+            No data for this player yet — start the worker, run scenarios, or sync
+            from the Century API.
           </p>
         </section>
-      ) : null}
+      ) : (
+        <>
+          <PlayerHeaderCard
+            avatar={avatar}
+            nickname={nickname}
+            kid={kid}
+            stoveLevel={stoveLevel}
+          />
+
+          <MetricsRow
+            items={[
+              { label: "Power", value: String(summary.power ?? "—") },
+              { label: "Gems", value: String(summary.gems ?? "—") },
+              { label: "Furnace Lv", value: String(summary.furnace_level ?? "—") },
+              { label: "Furnace pwr", value: String(summary.furnace_power ?? "—") },
+            ]}
+          />
+
+          {p?.event_timers?.length ? (
+            <CollapsiblePanel
+              title="Event timers"
+              meta={String(p.event_timers.length)}
+              defaultOpen={p.event_timers.length <= 8}
+            >
+              <DataTable
+                columns={[
+                  { key: "event", label: "Event" },
+                  { key: "status", label: "Status" },
+                  { key: "remaining", label: "Remaining", align: "right" },
+                  { key: "reset_at", label: "Reset at" },
+                  { key: "raw_text", label: "OCR" },
+                  { key: "confidence", label: "Conf", align: "right" },
+                  { key: "source_region", label: "Source" },
+                ]}
+                rows={p.event_timers}
+              />
+            </CollapsiblePanel>
+          ) : null}
+
+          <CollapsiblePanel
+            title="Building levels"
+            meta={countLabel(buildingShown, buildingRows.length)}
+            defaultOpen={buildingRows.length <= COLLAPSE_BUILDINGS_ABOVE}
+          >
+            <BuildingLevelsTable rows={buildingRows} filter={bldgFilter} />
+          </CollapsiblePanel>
+
+          {p ? (
+            <CollapsiblePanel title="Buildings HUD" defaultOpen>
+              <DataTable
+                columns={[
+                  { key: "queue1", label: "Queue 1" },
+                  { key: "queue2", label: "Queue 2" },
+                  { key: "hud", label: "HUD" },
+                ]}
+                rows={[p.buildings_hud]}
+              />
+            </CollapsiblePanel>
+          ) : null}
+
+          {p ? (
+            <CollapsiblePanel title="Resources" defaultOpen={false}>
+              <DataTable
+                columns={[
+                  { key: "wood", label: "Wood", align: "right" },
+                  { key: "food", label: "Food", align: "right" },
+                  { key: "iron", label: "Iron", align: "right" },
+                  { key: "meat", label: "Meat", align: "right" },
+                  { key: "silver_keys", label: "Silver keys", align: "right" },
+                  { key: "gold_keys", label: "Gold keys", align: "right" },
+                  { key: "diamond", label: "Diamond", align: "right" },
+                ]}
+                rows={[p.resources]}
+              />
+            </CollapsiblePanel>
+          ) : null}
+
+          {p ? (
+            <CollapsiblePanel
+              title="Alliance / Exploration / Arena"
+              defaultOpen={false}
+            >
+              <DataTable
+                columns={[
+                  { key: "alliance", label: "Alliance" },
+                  { key: "alliance_power", label: "Alliance power", align: "right" },
+                  { key: "members", label: "Members" },
+                  { key: "exploration_level", label: "Expl Lv", align: "right" },
+                  { key: "exploration_power", label: "Expl power", align: "right" },
+                  { key: "arena_rank", label: "Arena rank", align: "right" },
+                  { key: "arena_power", label: "Arena power", align: "right" },
+                  { key: "contentment", label: "Contentment" },
+                ]}
+                rows={[p.alliance_block]}
+              />
+            </CollapsiblePanel>
+          ) : null}
+
+          {heroView ? (
+            <HeroesSection heroView={heroView} heroFilter={heroFilter} />
+          ) : null}
+        </>
+      )}
 
       <AppConfirmDialog
         open={deleteConfirmOpen}
@@ -812,16 +634,7 @@ function PlayerStatePageInner() {
         variant="danger"
         busy={deleting}
       >
-        <p>This will wipe all data for this player. This is irreversible.</p>
-        <ul className="mt-2 list-disc pl-5">
-          <li>
-            Redis: <code>wos:player:&lt;id&gt;:*</code> (state, scenario, TTL)
-          </li>
-          <li>
-            SQLite: <code>gamers</code>, <code>player_power_daily</code>,{" "}
-            <code>player_level_events</code>
-          </li>
-        </ul>
+        <p>This will permanently wipe all data for this player. This is irreversible.</p>
       </AppConfirmDialog>
     </>
   );
