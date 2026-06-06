@@ -1,6 +1,7 @@
 """License API service: fingerprint + status + admin issuer + user import."""
 from __future__ import annotations
 
+import hmac
 import os
 from typing import Any
 
@@ -40,7 +41,10 @@ def authorize_admin(provided_token: str | None) -> None:
             status_code=403,
             detail=f"set {ADMIN_TOKEN_ENV} in the environment to enable the issuer endpoint",
         )
-    if not provided_token or provided_token != expected:
+    # Constant-time compare so a wrong token can't be recovered byte-by-byte via
+    # response timing. compare_digest needs equal-length ASCII; the admin token
+    # is operator-set ASCII, and an empty provided_token is rejected first.
+    if not provided_token or not hmac.compare_digest(provided_token, expected):
         raise HTTPException(status_code=401, detail="invalid admin token")
 
 
