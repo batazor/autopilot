@@ -49,6 +49,11 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Fish detect",
         description: "Fishing Tournament model debugger",
       },
+      {
+        href: "/notify-monitor",
+        label: "Notify monitor",
+        description: "Android notification events per player",
+      },
     ],
   },
   {
@@ -71,11 +76,6 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/map-stitch",
         label: "Map stitch",
         description: "Capture + stitch the world map over scrcpy",
-      },
-      {
-        href: "/notify-monitor",
-        label: "Notify monitor",
-        description: "Android notification events per player",
       },
       {
         href: "/queue",

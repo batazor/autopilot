@@ -510,131 +510,13 @@ def test_connect_sockets_connects_control_before_video_metadata() -> None:
     assert events.index("control:connect") < events.index("video:recv:64")
 
 
-# ---------------------------------------------------------------------------
-# H.264 NAL fan-out — WebSocket subscribers
-# ---------------------------------------------------------------------------
-
-
-def test_subscribe_video_returns_independent_queues() -> None:
-    """Each subscriber owns its own queue; one consumer falling behind must
-    not starve the other (the fanout drops on a full queue per subscriber)."""
-    from adb.scrcpy import VideoPacket
-
-    client = ScrcpyClient(serial="x", adb_bin="/bin/true")
-    s1 = client.subscribe_video()
-    s2 = client.subscribe_video()
-    assert s1.queue is not s2.queue
-    assert s1.desynced is not s2.desynced
-
-    pkt = VideoPacket(pts=1, is_config=False, is_key=True, payload=b"idr")
-    client._fanout_video_packet(pkt)
-    assert s1.queue.get_nowait() is pkt
-    assert s2.queue.get_nowait() is pkt
-
-
-def test_unsubscribe_video_stops_delivery() -> None:
-    from adb.scrcpy import VideoPacket
-
-    client = ScrcpyClient(serial="x", adb_bin="/bin/true")
-    sub = client.subscribe_video()
-    client.unsubscribe_video(sub)
-    client._fanout_video_packet(
-        VideoPacket(pts=0, is_config=False, is_key=False, payload=b"x")
-    )
-    assert sub.queue.empty()
-
-
-def test_fanout_drops_and_flags_desync_when_queue_full() -> None:
-    """A wedged subscriber must not block the reader thread, but silent drops
-    corrupt the H.264 reference chain (a missed IDR makes all following
-    deltas undecodable). So the fanout also sets ``desynced`` so the
-    consumer can drain + wait for the next keyframe instead of feeding
-    out-of-sequence frames to WebCodecs."""
-    from adb.scrcpy import VideoPacket
-
-    client = ScrcpyClient(serial="x", adb_bin="/bin/true")
-    sub = client.subscribe_video()
-    # Fill the queue to maxsize without ever draining.
-    while not sub.queue.full():
-        sub.queue.put_nowait(
-            VideoPacket(pts=0, is_config=False, is_key=False, payload=b"f")
-        )
-    assert not sub.desynced.is_set()  # baseline: no drops yet
-    overflow = VideoPacket(pts=99, is_config=False, is_key=False, payload=b"drop")
-    # Must not raise; the drop is silent on the reader thread.
-    client._fanout_video_packet(overflow)
-    # Drain one to verify the overflow was indeed dropped (queue still full of
-    # the original maxsize items, not of ``overflow``).
-    head = sub.queue.get_nowait()
-    assert head.payload == b"f"
-    # And the consumer is informed via desynced so it can resync.
-    assert sub.desynced.is_set()
-
-
-def test_latest_codec_config_is_none_before_any_packet() -> None:
-    client = ScrcpyClient(serial="x", adb_bin="/bin/true")
-    assert client.latest_codec_config() is None
-
-
-def test_close_signals_subscribers_with_end_sentinel() -> None:
-    """``close()`` must wake blocked subscribers immediately.
-
-    Without this, a WebSocket consumer parked in ``queue.get(timeout=N)``
-    would hang on every scrcpy shutdown until the WS idle timeout fired —
-    visible to operators as a multi-second freeze.
-    """
-    client = ScrcpyClient(serial="close-wake", adb_bin="/bin/true")
-    sub = client.subscribe_video()
-    # Fake the lifecycle bits ``close()`` would otherwise touch so we don't
-    # actually have to run a scrcpy server here.
-    client._proc = None
-    client._video_sock = None
-    client._control_sock = None
-
-    client.close()
-
-    # The sentinel ``None`` is queued so the consumer wakes immediately.
-    assert sub.queue.get_nowait() is None
-    # Belt-and-braces: desynced flag is also set, so consumers that gate on
-    # the event (instead of polling the queue) wake up too.
-    assert sub.desynced.is_set()
-
-
-def test_close_signal_evicts_oldest_when_subscriber_queue_full() -> None:
-    """If a wedged consumer left its queue full at shutdown, ``close()`` must
-    still deliver the sentinel — drop the oldest packet to make room rather
-    than block the teardown.
-    """
-    from adb.scrcpy import VideoPacket
-
-    client = ScrcpyClient(serial="close-full", adb_bin="/bin/true")
-    sub = client.subscribe_video()
-    while not sub.queue.full():
-        sub.queue.put_nowait(
-            VideoPacket(pts=0, is_config=False, is_key=False, payload=b"f")
-        )
-    client._proc = None
-    client._video_sock = None
-    client._control_sock = None
-
-    client.close()
-
-    # The sentinel must be the LAST item we get back — everything older was
-    # already in the queue; the eviction makes one slot for ``None``.
-    last: object = "<unset>"
-    while not sub.queue.empty():
-        last = sub.queue.get_nowait()
-    assert last is None
-
-
 def test_lookup_scrcpy_client_does_not_register_a_new_one() -> None:
     """``lookup_scrcpy_client`` must never create — only observe.
 
-    The WebSocket video route relies on this: if a UI probe arrived before
-    the worker had a chance to assign its instance-slot port and resolved
-    adb binary, a creating-on-lookup helper would poison the registry with
-    a default-port / default-adb client the worker could never replace,
-    breaking scrcpy start after the first UI probe.
+    If a probe arrived before the worker had a chance to assign its
+    instance-slot port and resolved adb binary, a creating-on-lookup helper
+    would poison the registry with a default-port / default-adb client the
+    worker could never replace, breaking scrcpy start after the first probe.
     """
     from adb.scrcpy import (
         close_scrcpy_client,

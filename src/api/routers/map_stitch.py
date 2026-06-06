@@ -27,7 +27,7 @@ router = APIRouter(prefix="/api/map-stitch", tags=["map-stitch"])
 
 
 class CaptureBody(BaseModel):
-    serial: str = "localhost:5555"
+    instance_id: str
     rows: int = Field(default=3, ge=1, le=12)
     cols: int = Field(default=5, ge=1, le=12)
     overlap: float = Field(default=0.30, ge=0.0, lt=1.0)
@@ -40,11 +40,35 @@ class SaveBody(BaseModel):
     name: str = "map"
 
 
+def _capture_target(body: CaptureBody) -> tuple[str, str]:
+    """Return ``(serial, instance_id)`` for a capture request."""
+    instance_id = body.instance_id.strip()
+    if not instance_id:
+        msg = "missing instance_id"
+        raise ValueError(msg)
+    try:
+        from config.devices import load_devices
+
+        for entry in load_devices().devices:
+            aliases = {entry.name, entry.adb_serial, entry.effective_serial}
+            if instance_id in aliases:
+                serial = entry.effective_serial
+                if serial:
+                    return serial, entry.name
+                break
+    except Exception as exc:
+        msg = f"failed to resolve instance {instance_id!r}: {exc}"
+        raise ValueError(msg) from exc
+    msg = f"unknown instance: {instance_id!r}"
+    raise ValueError(msg)
+
+
 @router.post("/capture")
 def post_capture(body: CaptureBody) -> dict[str, str]:
     try:
+        serial, instance_id = _capture_target(body)
         job_id = start_capture_job(
-            serial=body.serial, rows=body.rows, cols=body.cols,
+            serial=serial, instance_id=instance_id, rows=body.rows, cols=body.cols,
             overlap=body.overlap, swipe_ms=body.swipe_ms,
             settle_s=body.settle_s, home=body.home,
         )

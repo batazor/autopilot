@@ -14,7 +14,6 @@ from api.services.click_approval_overlay import (
     image_dimensions,
     load_preview_bytes,
 )
-from api.services.scrcpy_status import scrcpy_stream_available
 from config.loader import load_settings
 from config.paths import repo_root
 from config.trace_links import tempo_trace_url
@@ -625,12 +624,6 @@ def get_approval_view(
             "mtime": mtime,
             "width": width,
             "height": height,
-        },
-        "stream": {
-            # True iff the H.264 WebSocket endpoint can serve this instance
-            # right now — i.e. the worker has already started scrcpy AND the
-            # reader received at least one config (SPS+PPS) packet.
-            "available": scrcpy_stream_available(instance_id),
         },
         "overlays": overlays,
         "instance_state": instance_state,

@@ -15,6 +15,16 @@
     @apply mt-1.5 flex flex-col gap-0.5 text-xs;
   }
 
+  .gallery-section {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 420px;
+  }
+
+  .gallery-thumb-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 190px;
+  }
+
   .edit-dsl-layout,
   .edit-scenarios-layout {
     @apply grid items-start gap-4 lg:grid-cols-[minmax(240px,300px)_1fr];

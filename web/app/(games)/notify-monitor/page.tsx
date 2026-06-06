@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { FleetContextProvider } from "@/components/FleetContextProvider";
 import { AppTabs } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
+import { Icon, type IconName } from "@/components/ui/Icon";
+import { PageLoading } from "@/components/ui/Spinner";
 import { ApiError } from "@/lib/api";
 import { downloadCsv, type CsvColumn } from "@/lib/csv";
 import {
@@ -56,17 +59,38 @@ function ExportCsvButton<T>({
   return (
     <button
       type="button"
-      className="btn"
+      className="btn-secondary"
       disabled={rows.length === 0}
       onClick={() => downloadCsv(filename, rows, columns)}
       title={rows.length === 0 ? "Nothing to export" : `Export ${rows.length} row(s) to CSV`}
     >
+      <Icon name="arrow-down" size="sm" />
       Export CSV
     </button>
   );
 }
 
-export default function NotifyMonitorPage() {
+function NotifyEmpty({
+  icon,
+  title,
+  hint,
+}: {
+  icon: IconName;
+  title: string;
+  hint?: string;
+}) {
+  return (
+    <div className="nm-empty">
+      <span className="nm-empty__icon" aria-hidden>
+        <Icon name={icon} size="lg" />
+      </span>
+      <div className="nm-empty__title">{title}</div>
+      {hint ? <div className="nm-empty__hint">{hint}</div> : null}
+    </div>
+  );
+}
+
+function NotifyMonitorPageContent() {
   const { showSuccess } = useFeedback();
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [games, setGames] = useState<NotifyGame[]>([]);
@@ -99,10 +123,11 @@ export default function NotifyMonitorPage() {
     }
   };
 
+  const running = !!status?.monitor.running;
   const toggleMonitor = async () => {
     if (!status) return;
     try {
-      await notifySetMonitor(status.monitor.running ? "stop" : "start");
+      await notifySetMonitor(running ? "stop" : "start");
       refreshStatus();
     } catch (e) {
       setError(errMsg(e));
@@ -110,17 +135,35 @@ export default function NotifyMonitorPage() {
   };
 
   return (
-    <>
-      <FleetPageHeader title="Notify monitor">
-        <div className="toolbar-actions">
-          <button type="button" className="btn" onClick={pollNow}>
-            Poll now
-          </button>
-          <button type="button" className="btn" onClick={toggleMonitor}>
-            {status?.monitor.running ? "Stop monitor" : "Start monitor"}
-          </button>
-        </div>
+    <div className="nm-page">
+      <FleetPageHeader
+        title="Notify monitor"
+        titleBadge={
+          status ? (
+            <span className={`status-pill ${running ? "pill-live" : "pill-offline"}`}>
+              <span className="status-pill__dot" aria-hidden />
+              {running ? "Running" : "Stopped"}
+            </span>
+          ) : null
+        }
+      >
+        Watches Android notifications per player and turns them into bot events.
       </FleetPageHeader>
+
+      <div className="toolbar-actions" style={{ marginBottom: 14 }}>
+        <button type="button" className="btn-secondary" onClick={pollNow}>
+          <Icon name="refresh" size="sm" />
+          Poll now
+        </button>
+        <button
+          type="button"
+          className={running ? "btn-danger" : "btn-primary"}
+          onClick={toggleMonitor}
+        >
+          <Icon name={running ? "stop" : "play"} size="sm" />
+          {running ? "Stop monitor" : "Start monitor"}
+        </button>
+      </div>
 
       <ErrorBanner message={error} onRetry={refreshStatus} />
 
@@ -143,11 +186,56 @@ export default function NotifyMonitorPage() {
           { key: "settings", label: "Settings", panel: <SettingsTab onChange={refreshStatus} /> },
         ]}
       />
-    </>
+    </div>
+  );
+}
+
+export default function NotifyMonitorPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <FleetContextProvider>
+        <NotifyMonitorPageContent />
+      </FleetContextProvider>
+    </Suspense>
   );
 }
 
 // --- Dashboard --------------------------------------------------------------
+
+function StatusCell({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="nm-statusbar__group">
+      <span className="nm-statusbar__label">{label}</span>
+      <span className="nm-statusbar__value">{children}</span>
+    </div>
+  );
+}
+
+type MetricTone = "neutral" | "ok" | "warn" | "danger" | "accent";
+
+function MetricCard({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string | number;
+  tone?: MetricTone;
+}) {
+  return (
+    <div className={`stat-card${tone !== "neutral" ? ` stat-card--${tone}` : ""}`}>
+      <span className="stat-card__accent" aria-hidden />
+      <div className="stat-card__value">{value}</div>
+      <div className="stat-card__label">{label}</div>
+    </div>
+  );
+}
 
 function DashboardTab({ status, games }: { status: NotifyStatus | null; games: NotifyGame[] }) {
   const [events, setEvents] = useState<NotifyEvent[]>([]);
@@ -167,33 +255,63 @@ function DashboardTab({ status, games }: { status: NotifyStatus | null; games: N
 
   const m = status?.monitor;
   const c = status?.counts;
-  const cards: [string, string | number][] = [
-    ["Monitor", m ? (m.running ? "running" : "stopped") : "—"],
-    ["Redis", m ? (m.redis.connected ? "connected" : "down") : "—"],
-    ["Active players", c ? `${c.active_players} / ${c.players}` : "—"],
-    ["Patterns", c?.patterns ?? "—"],
-    ["Events", c?.events ?? "—"],
-    ["Unrecognized", c?.unrecognized ?? "—"],
-    ["Published", m?.redis.published_count ?? "—"],
-  ];
+  const running = !!m?.running;
+  const redisOk = !!m?.redis.connected;
+  const deviceCount = status?.adb_devices.length ?? 0;
 
   return (
     <section className="panel">
-      <div className="stat-grid">
-        {cards.map(([label, value]) => (
-          <div key={label} className="stat-card">
-            <div className="stat-card__value">{value}</div>
-            <div className="stat-card__label">{label}</div>
+      <div className="nm-statusbar">
+        <StatusCell label="Monitor">
+          <span
+            className={`nm-dot ${m && running ? "nm-dot--on" : "nm-dot--off"}`}
+            aria-hidden
+          />
+          {m ? (running ? "Running" : "Stopped") : "—"}
+        </StatusCell>
+        <span className="nm-statusbar__divider" aria-hidden />
+        <StatusCell label="Redis">
+          <span
+            className={`nm-dot ${m ? (redisOk ? "nm-dot--on" : "nm-dot--err") : "nm-dot--off"}`}
+            aria-hidden
+          />
+          {m ? (redisOk ? "Connected" : "Down") : "—"}
+        </StatusCell>
+        <span className="nm-statusbar__divider" aria-hidden />
+        <StatusCell label="Last poll">{m?.last_poll_human || "No poll yet"}</StatusCell>
+        <span className="nm-statusbar__divider" aria-hidden />
+        <StatusCell label="Devices">
+          {deviceCount ? (
+            <span title={status?.adb_devices.join(", ")}>{deviceCount} connected</span>
+          ) : (
+            <span className="muted">none</span>
+          )}
+        </StatusCell>
+        {m?.last_error ? (
+          <div className="nm-statusbar__error">
+            <Icon name="warning" size="sm" />
+            <span className="mono">{m.last_error}</span>
           </div>
-        ))}
+        ) : null}
       </div>
-      <p className="muted" style={{ margin: "8px 0" }}>
-        {m?.last_poll_human ? `Last poll ${m.last_poll_human}` : "No poll yet"}
-        {status?.adb_devices.length ? ` · ${status.adb_devices.length} device(s): ${status.adb_devices.join(", ")}` : " · no devices"}
-        {m?.last_error ? ` · error: ${m.last_error}` : ""}
-      </p>
 
-      <div className="toolbar-actions" style={{ margin: "12px 0" }}>
+      <div className="stat-grid">
+        <MetricCard
+          label="Active players"
+          value={c ? `${c.active_players} / ${c.players}` : "—"}
+          tone="accent"
+        />
+        <MetricCard label="Patterns" value={c?.patterns ?? "—"} />
+        <MetricCard label="Events" value={c?.events ?? "—"} tone="ok" />
+        <MetricCard
+          label="Unrecognized"
+          value={c?.unrecognized ?? "—"}
+          tone={c && c.unrecognized > 0 ? "warn" : "neutral"}
+        />
+        <MetricCard label="Published" value={m?.redis.published_count ?? "—"} />
+      </div>
+
+      <div className="toolbar-actions" style={{ margin: "16px 0 12px" }}>
         <select value={game} onChange={(e) => setGame(e.target.value)}>
           <option value="">All games</option>
           {games.map((g) => (
@@ -202,7 +320,8 @@ function DashboardTab({ status, games }: { status: NotifyStatus | null; games: N
             </option>
           ))}
         </select>
-        <button type="button" className="btn" onClick={load}>
+        <button type="button" className="btn-secondary" onClick={load}>
+          <Icon name="refresh" size="sm" />
           Refresh
         </button>
         <ExportCsvButton
@@ -217,7 +336,7 @@ function DashboardTab({ status, games }: { status: NotifyStatus | null; games: N
             { header: "raw_text", value: (e) => e.raw_text },
           ]}
         />
-        <span className="muted">{events.length} event(s)</span>
+        <span className="nm-count">{events.length} event(s)</span>
       </div>
 
       <div className="data-table-wrap">
@@ -234,14 +353,18 @@ function DashboardTab({ status, games }: { status: NotifyStatus | null; games: N
           <tbody>
             {events.length === 0 ? (
               <tr>
-                <td colSpan={5} className="muted" style={{ textAlign: "center", padding: 24 }}>
-                  no events yet
+                <td colSpan={5}>
+                  <NotifyEmpty
+                    icon="inbox-empty"
+                    title="No events yet"
+                    hint="Recognized notifications will appear here as they arrive."
+                  />
                 </td>
               </tr>
             ) : (
               events.map((ev) => (
                 <tr key={ev.id}>
-                  <td className="mono">{ev.timestamp}</td>
+                  <td className="mono muted">{ev.timestamp}</td>
                   <td>
                     <GameTag game={ev.game} />
                   </td>
@@ -306,30 +429,38 @@ function PlayersTab({ games, onChange }: { games: NotifyGame[]; onChange: () => 
   return (
     <section className="panel">
       <ErrorBanner message={error} />
-      <div className="toolbar-actions" style={{ marginBottom: 12 }}>
-        <input placeholder="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} />
-        <select value={game} onChange={(e) => setGame(e.target.value)}>
-          {games.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-        <button type="button" className="btn btn-primary" onClick={add}>
+      <div className="nm-card">
+        <div className="nm-card__title">
+          <span className="nm-card__title-icon" aria-hidden>
+            <Icon name="plus" size="sm" />
+          </span>
           Add player
-        </button>
-        <ExportCsvButton
-          filename="notify-players.csv"
-          rows={players}
-          columns={[
-            { header: "id", value: (p) => p.id },
-            { header: "nickname", value: (p) => p.nickname },
-            { header: "game", value: (p) => p.game },
-            { header: "active", value: (p) => (p.active ? "yes" : "no") },
-            { header: "created_at", value: (p) => p.created_at },
-          ]}
-        />
-        <span className="muted">Players are also auto-discovered from recognized events.</span>
+        </div>
+        <div className="toolbar-actions">
+          <input placeholder="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          <select value={game} onChange={(e) => setGame(e.target.value)}>
+            {games.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn btn-primary" onClick={add}>
+            Add player
+          </button>
+          <ExportCsvButton
+            filename="notify-players.csv"
+            rows={players}
+            columns={[
+              { header: "id", value: (p) => p.id },
+              { header: "nickname", value: (p) => p.nickname },
+              { header: "game", value: (p) => p.game },
+              { header: "active", value: (p) => (p.active ? "yes" : "no") },
+              { header: "created_at", value: (p) => p.created_at },
+            ]}
+          />
+        </div>
+        <p className="muted nm-card__note">Players are also auto-discovered from recognized events.</p>
       </div>
       <div className="data-table-wrap">
         <table className="data-table">
@@ -343,23 +474,36 @@ function PlayersTab({ games, onChange }: { games: NotifyGame[]; onChange: () => 
             </tr>
           </thead>
           <tbody>
-            {players.map((p) => (
-              <tr key={p.id}>
-                <td>{p.nickname}</td>
-                <td>
-                  <GameTag game={p.game} />
-                </td>
-                <td>
-                  <input type="checkbox" checked={!!p.active} onChange={() => toggle(p)} />
-                </td>
-                <td className="mono muted">{p.created_at}</td>
-                <td>
-                  <button type="button" className="btn btn-danger" onClick={() => remove(p)}>
-                    Delete
-                  </button>
+            {players.length === 0 ? (
+              <tr>
+                <td colSpan={5}>
+                  <NotifyEmpty
+                    icon="list-empty"
+                    title="No players yet"
+                    hint="Add one above, or let recognized events discover them automatically."
+                  />
                 </td>
               </tr>
-            ))}
+            ) : (
+              players.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.nickname}</td>
+                  <td>
+                    <GameTag game={p.game} />
+                  </td>
+                  <td>
+                    <input type="checkbox" checked={!!p.active} onChange={() => toggle(p)} />
+                  </td>
+                  <td className="mono muted">{p.created_at}</td>
+                  <td>
+                    <button type="button" className="btn btn-danger" onClick={() => remove(p)}>
+                      <Icon name="trash" size="sm" />
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -452,9 +596,14 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
     <section className="panel">
       <ErrorBanner message={error} />
 
-      <div className="panel-subtle" style={{ padding: 12, marginBottom: 12 }}>
-        <strong>Add pattern</strong>
-        <div className="toolbar-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
+      <div className="nm-card">
+        <div className="nm-card__title">
+          <span className="nm-card__title-icon" aria-hidden>
+            <Icon name="plus" size="sm" />
+          </span>
+          Add pattern
+        </div>
+        <div className="toolbar-actions">
           <select value={game} onChange={(e) => setGame(e.target.value)}>
             {games.map((g) => (
               <option key={g.id} value={g.id}>
@@ -483,9 +632,14 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
         </div>
       </div>
 
-      <div className="panel-subtle" style={{ padding: 12, marginBottom: 12 }}>
-        <strong>Test a pattern</strong>
-        <div className="toolbar-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
+      <div className="nm-card">
+        <div className="nm-card__title">
+          <span className="nm-card__title-icon" aria-hidden>
+            <Icon name="search" size="sm" />
+          </span>
+          Test a pattern
+        </div>
+        <div className="toolbar-actions">
           <input
             placeholder="regex"
             className="mono"
@@ -499,21 +653,29 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
             value={testText}
             onChange={(e) => setTestText(e.target.value)}
           />
-          <button type="button" className="btn" onClick={runTest}>
+          <button type="button" className="btn-secondary" onClick={runTest}>
             Test
           </button>
           {testResult ? (
-            <span className="mono">
-              {!testResult.ok
-                ? `error: ${testResult.error}`
-                : testResult.matched
-                  ? `✓ match: "${testResult.match}"${
-                      testResult.groups && Object.keys(testResult.groups).length
-                        ? ` groups=${JSON.stringify(testResult.groups)}`
-                        : ""
-                    }`
-                  : "✗ no match"}
-            </span>
+            !testResult.ok ? (
+              <span className="nm-test-result nm-test-result--err">
+                <Icon name="warning" size="sm" />
+                error: {testResult.error}
+              </span>
+            ) : testResult.matched ? (
+              <span className="nm-test-result nm-test-result--ok">
+                <Icon name="check" size="sm" />
+                match: &quot;{testResult.match}&quot;
+                {testResult.groups && Object.keys(testResult.groups).length
+                  ? ` groups=${JSON.stringify(testResult.groups)}`
+                  : ""}
+              </span>
+            ) : (
+              <span className="nm-test-result nm-test-result--no">
+                <Icon name="close" size="sm" />
+                no match
+              </span>
+            )
           ) : null}
         </div>
       </div>
@@ -527,7 +689,8 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
             </option>
           ))}
         </select>
-        <button type="button" className="btn" onClick={load}>
+        <button type="button" className="btn-secondary" onClick={load}>
+          <Icon name="refresh" size="sm" />
           Refresh
         </button>
         <ExportCsvButton
@@ -543,6 +706,7 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
             { header: "active", value: (p) => (p.active ? "yes" : "no") },
           ]}
         />
+        <span className="nm-count">{patterns.length} pattern(s)</span>
       </div>
 
       <div className="data-table-wrap">
@@ -559,52 +723,65 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
             </tr>
           </thead>
           <tbody>
-            {patterns.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  <GameTag game={p.game} />
-                </td>
-                <td>
-                  <input
-                    defaultValue={p.event_type}
-                    style={{ width: 160 }}
-                    onBlur={(e) => e.target.value !== p.event_type && edit(p, "event_type", e.target.value)}
+            {patterns.length === 0 ? (
+              <tr>
+                <td colSpan={7}>
+                  <NotifyEmpty
+                    icon="list-empty"
+                    title="No patterns"
+                    hint="Add a pattern above, or promote one from the Unrecognized tab."
                   />
-                </td>
-                <td>
-                  <input
-                    defaultValue={p.pattern_regex}
-                    className="mono"
-                    style={{ width: 260 }}
-                    onBlur={(e) => e.target.value !== p.pattern_regex && edit(p, "pattern_regex", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    defaultValue={p.description}
-                    style={{ width: 180 }}
-                    onBlur={(e) => e.target.value !== p.description && edit(p, "description", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    defaultValue={p.scenario}
-                    className="mono"
-                    placeholder="—"
-                    style={{ width: 170 }}
-                    onBlur={(e) => e.target.value !== p.scenario && edit(p, "scenario", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input type="checkbox" checked={!!p.active} onChange={(e) => edit(p, "active", e.target.checked)} />
-                </td>
-                <td>
-                  <button type="button" className="btn btn-danger" onClick={() => remove(p)}>
-                    Delete
-                  </button>
                 </td>
               </tr>
-            ))}
+            ) : (
+              patterns.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <GameTag game={p.game} />
+                  </td>
+                  <td>
+                    <input
+                      defaultValue={p.event_type}
+                      style={{ width: 160 }}
+                      onBlur={(e) => e.target.value !== p.event_type && edit(p, "event_type", e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      defaultValue={p.pattern_regex}
+                      className="mono"
+                      style={{ width: 260 }}
+                      onBlur={(e) => e.target.value !== p.pattern_regex && edit(p, "pattern_regex", e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      defaultValue={p.description}
+                      style={{ width: 180 }}
+                      onBlur={(e) => e.target.value !== p.description && edit(p, "description", e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      defaultValue={p.scenario}
+                      className="mono"
+                      placeholder="—"
+                      style={{ width: 170 }}
+                      onBlur={(e) => e.target.value !== p.scenario && edit(p, "scenario", e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input type="checkbox" checked={!!p.active} onChange={(e) => edit(p, "active", e.target.checked)} />
+                  </td>
+                  <td>
+                    <button type="button" className="btn btn-danger" onClick={() => remove(p)}>
+                      <Icon name="trash" size="sm" />
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -655,15 +832,16 @@ function UnrecognizedTab({ onChange }: { onChange: () => void }) {
     <section className="panel">
       <ErrorBanner message={error} />
       <div className="toolbar-actions" style={{ marginBottom: 12 }}>
-        <label>
+        <label className="nm-check">
           <input
             type="checkbox"
             checked={includeReviewed}
             onChange={(e) => setIncludeReviewed(e.target.checked)}
-          />{" "}
+          />
           show reviewed
         </label>
-        <button type="button" className="btn" onClick={load}>
+        <button type="button" className="btn-secondary" onClick={load}>
+          <Icon name="refresh" size="sm" />
           Refresh
         </button>
         <ExportCsvButton
@@ -677,6 +855,7 @@ function UnrecognizedTab({ onChange }: { onChange: () => void }) {
             { header: "reviewed", value: (u) => (u.reviewed ? "yes" : "no") },
           ]}
         />
+        <span className="nm-count">{rows.length} row(s)</span>
       </div>
       <div className="data-table-wrap">
         <table className="data-table">
@@ -692,28 +871,33 @@ function UnrecognizedTab({ onChange }: { onChange: () => void }) {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="muted" style={{ textAlign: "center", padding: 24 }}>
-                  nothing unrecognized
+                <td colSpan={5}>
+                  <NotifyEmpty
+                    icon="check"
+                    title="Nothing unrecognized"
+                    hint="Every captured notification matched a known pattern."
+                  />
                 </td>
               </tr>
             ) : (
               rows.map((u) => (
                 <tr key={u.id}>
-                  <td className="mono">{u.timestamp}</td>
+                  <td className="mono muted">{u.timestamp}</td>
                   <td>
                     <GameTag game={u.game} />
                   </td>
                   <td className="muted">{u.raw_text}</td>
-                  <td>{u.reviewed ? "✓" : "—"}</td>
+                  <td>{u.reviewed ? <Icon name="check" size="sm" /> : "—"}</td>
                   <td>
                     <div className="toolbar-actions">
                       {!u.reviewed ? (
-                        <button type="button" className="btn" onClick={() => review(u.id)}>
+                        <button type="button" className="btn-secondary" onClick={() => review(u.id)}>
                           Mark reviewed
                         </button>
                       ) : null}
                       <button type="button" className="btn btn-primary" onClick={() => promote(u)}>
-                        Promote →
+                        Promote
+                        <Icon name="chevron-right" size="sm" />
                       </button>
                     </div>
                   </td>
@@ -764,32 +948,43 @@ function SettingsTab({ onChange }: { onChange: () => void }) {
   };
 
   return (
-    <section className="panel" style={{ maxWidth: 520 }}>
+    <section className="panel">
       <ErrorBanner message={error} />
-      <div className="form-field">
-        <label htmlFor="nm-interval">Polling interval (seconds)</label>
-        <input
-          id="nm-interval"
-          type="number"
-          min={1}
-          value={interval}
-          onChange={(e) => setIntervalValue(Number(e.target.value))}
-        />
+      <div className="nm-card" style={{ maxWidth: 520 }}>
+        <div className="nm-card__title">
+          <span className="nm-card__title-icon" aria-hidden>
+            <Icon name="config" size="sm" />
+          </span>
+          Monitor settings
+        </div>
+        <div className="form-field">
+          <label htmlFor="nm-interval">Polling interval (seconds)</label>
+          <input
+            id="nm-interval"
+            type="number"
+            min={1}
+            value={interval}
+            onChange={(e) => setIntervalValue(Number(e.target.value))}
+          />
+        </div>
+        <div className="form-field" style={{ marginTop: 12 }}>
+          <label htmlFor="nm-serial">ADB serial (blank = default device)</label>
+          <input id="nm-serial" placeholder="emulator-5554" value={serial} onChange={(e) => setSerial(e.target.value)} />
+        </div>
+        <div className="form-field" style={{ marginTop: 12 }}>
+          <label htmlFor="nm-adb">ADB path</label>
+          <input id="nm-adb" value={adbPath} onChange={(e) => setAdbPath(e.target.value)} />
+        </div>
+        <label className="nm-check" style={{ marginTop: 14 }}>
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          monitor enabled
+        </label>
+        <div style={{ marginTop: 18 }}>
+          <button type="button" className="btn btn-primary" onClick={save}>
+            Save settings
+          </button>
+        </div>
       </div>
-      <div className="form-field" style={{ marginTop: 12 }}>
-        <label htmlFor="nm-serial">ADB serial (blank = default device)</label>
-        <input id="nm-serial" placeholder="emulator-5554" value={serial} onChange={(e) => setSerial(e.target.value)} />
-      </div>
-      <div className="form-field" style={{ marginTop: 12 }}>
-        <label htmlFor="nm-adb">ADB path</label>
-        <input id="nm-adb" value={adbPath} onChange={(e) => setAdbPath(e.target.value)} />
-      </div>
-      <label style={{ display: "block", marginTop: 12 }}>
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> monitor enabled
-      </label>
-      <button type="button" className="btn btn-primary" style={{ marginTop: 16 }} onClick={save}>
-        Save settings
-      </button>
     </section>
   );
 }

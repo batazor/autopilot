@@ -19,6 +19,7 @@ from dashboard.area_doc import load_json
 from dashboard.reference_preview import list_reference_pngs
 
 _REPO = repo_root()
+_IMAGE_CACHE: dict[Path, tuple[int, int, bytes]] = {}
 
 
 def _request_game() -> str:
@@ -103,7 +104,10 @@ def list_gallery(*, scope: str = "all", query: str = "") -> dict[str, Any]:
             if p not in seen_paths:
                 seen_paths.add(p)
                 paths.append(p)
-    paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    stats_by_path: dict[Path, Any] = {}
+    for p in paths:
+        stats_by_path[p] = p.stat()
+    paths.sort(key=lambda p: stats_by_path[p].st_mtime, reverse=True)
     paths = paths[:500]
     q = query.strip().lower()
     items: list[dict[str, Any]] = []
@@ -127,7 +131,8 @@ def list_gallery(*, scope: str = "all", query: str = "") -> dict[str, Any]:
                 "name": p.name,
                 "group": group,
                 "screen_ids": sids,
-                "size_bytes": p.stat().st_size,
+                "size_bytes": stats_by_path[p].st_size,
+                "mtime_ms": int(stats_by_path[p].st_mtime * 1000),
             }
         )
     return {"scope": scope, "items": items, "count": len(items)}
@@ -160,4 +165,13 @@ def read_gallery_image(rel: str) -> bytes:
     if not path.is_file() or path.suffix.lower() != ".png":
         msg = "not found"
         raise FileNotFoundError(msg)
-    return path.read_bytes()
+    stat = path.stat()
+    cache_key = (stat.st_mtime_ns, stat.st_size)
+    cached = _IMAGE_CACHE.get(path)
+    if cached is not None and cached[:2] == cache_key:
+        return cached[2]
+    data = path.read_bytes()
+    _IMAGE_CACHE[path] = (*cache_key, data)
+    if len(_IMAGE_CACHE) > 256:
+        _IMAGE_CACHE.pop(next(iter(_IMAGE_CACHE)))
+    return data

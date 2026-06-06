@@ -30,6 +30,7 @@ export type GalleryItem = {
   group: string;
   screen_ids: string[];
   size_bytes: number;
+  mtime_ms: number;
 };
 
 export type AdbDeviceRow = {

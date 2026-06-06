@@ -49,6 +49,7 @@ class MapStitchJob(TypedDict):
     log: str
     error: str
     # echoed params
+    instance_id: str
     serial: str
     rows: int
     cols: int
@@ -196,6 +197,7 @@ def _stitch_worker(job_id: str) -> None:
 def start_capture_job(
     *,
     serial: str,
+    instance_id: str,
     rows: int,
     cols: int,
     overlap: float,
@@ -216,7 +218,7 @@ def start_capture_job(
     job: MapStitchJob = MapStitchJob(
         job_id=job_id, state="queued", captured=0, total=rows * cols, frames=[],
         map_ready=False, log="", error="",
-        serial=serial, rows=rows, cols=cols, overlap=round(overlap, 3),
+        instance_id=instance_id, serial=serial, rows=rows, cols=cols, overlap=round(overlap, 3),
         swipe_ms=swipe_ms, settle_s=settle_s, home=home,
     )
     with _JOBS_LOCK:

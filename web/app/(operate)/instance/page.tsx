@@ -13,11 +13,9 @@ import { StatusPill } from "@/components/StatusPill";
 import { playerStateHref } from "@/lib/fleet-links";
 import {
   fetchInstanceDetail,
-  h264StreamUrl,
   instancePreviewUrl,
   postInstanceCommand,
 } from "@/lib/api";
-import { isWebCodecsSupported } from "@/lib/h264VideoStream";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import type { InstanceDetail } from "@/lib/types";
 import Link from "next/link";
@@ -32,10 +30,6 @@ function InstancePageInner() {
   const [switchPlayer, setSwitchPlayer] = useState("");
   const [busy, setBusy] = useState(false);
   const [previewKey, setPreviewKey] = useState(() => Date.now());
-  // When scrcpy is live we render H.264 video; if the stream drops mid-session
-  // (worker stopped, scrcpy restart) we flip this off so the rolling PNG takes
-  // over without the operator having to refresh the page.
-  const [streamClosed, setStreamClosed] = useState(false);
   const taskTypeRef = useRef(taskType);
   const taskPlayerRef = useRef(taskPlayer);
   taskTypeRef.current = taskType;
@@ -69,23 +63,16 @@ function InstancePageInner() {
 
   useEffect(() => {
     revisionRef.current = undefined;
-    setStreamClosed(false);
   }, [instanceId]);
-
-  const streamAvailable = Boolean(
-    detail?.stream?.available && !streamClosed && isWebCodecsSupported(),
-  );
 
   // Roll the preview cache-buster every second so the <img> URL stays in step
   // with the worker's rolling PNG write cadence — nothing publishes a dashboard
   // event when the file is rewritten, so polling here is the lightest fix.
-  // Skip while the WebCodecs stream is active: the canvas draws every VideoFrame
-  // on its own, and bumping previewKey would just trigger needless renders.
   useEffect(() => {
-    if (!instanceId || streamAvailable) return;
+    if (!instanceId) return;
     const id = setInterval(() => setPreviewKey(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [instanceId, streamAvailable]);
+  }, [instanceId]);
 
   useDashboardEventStream({
     topics: ["instance", "queue"],
@@ -111,18 +98,10 @@ function InstancePageInner() {
     }
   };
 
-  const streamUrl = streamAvailable && instanceId ? h264StreamUrl(instanceId) : null;
   const previewUrl =
-    !streamUrl && detail?.preview_available && instanceId
+    detail?.preview_available && instanceId
       ? instancePreviewUrl(instanceId, previewKey)
       : null;
-  const handleStreamClosed = useCallback(() => {
-    // Server closed the WebSocket (scrcpy restart, worker stop, browser
-    // tab throttled). Stay on the rolling PNG for the rest of this page
-    // load — reopening here would loop if the stream is genuinely broken.
-    // The operator can refresh or switch instances to retry.
-    setStreamClosed(true);
-  }, []);
 
   const bannerError = error ?? instancesError;
 
@@ -237,14 +216,12 @@ function InstancePageInner() {
 
         <section className="panel">
           <h2>Preview</h2>
-          {streamUrl || previewUrl ? (
+          {previewUrl ? (
             <ApprovalCanvas
-              streamUrl={streamUrl}
               imageUrl={previewUrl}
               width={720}
               height={1280}
               overlays={[]}
-              onStreamClosed={handleStreamClosed}
             />
           ) : (
             <p className="meta">

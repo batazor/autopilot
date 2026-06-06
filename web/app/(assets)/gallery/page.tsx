@@ -41,6 +41,8 @@ const GAME_OPTIONS: { value: string; label: string }[] = [
   { value: "wos", label: "Whiteout Survival" },
   { value: "kingshot", label: "Kingshot" },
 ];
+const GALLERY_BATCH_SIZE = 80;
+const EAGER_IMAGE_COUNT = 12;
 
 function normalizeGame(value: string | null): string {
   return GAME_OPTIONS.some((g) => g.value === value) ? (value as string) : "wos";
@@ -74,6 +76,9 @@ function GalleryPageInner() {
   const [previewRegions, setPreviewRegions] = useState<EditorRegion[]>([]);
   const [previewScope, setPreviewScope] = useState<string | null>(null);
   const [showRegions, setShowRegions] = useState(true);
+  const [visibleLimit, setVisibleLimit] = useState(GALLERY_BATCH_SIZE);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     fetchLabelingScopes()
@@ -105,6 +110,7 @@ function GalleryPageInner() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setVisibleLimit(GALLERY_BATCH_SIZE);
     fetchGallery(scope, query)
       .then((data) => {
         if (!cancelled) {
@@ -156,6 +162,41 @@ function GalleryPageInner() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
 
+  const visibleCount = Math.min(visibleLimit, items.length);
+  const hasMoreItems = visibleCount < items.length;
+  const visibleGroups = useMemo(() => {
+    let remaining = visibleLimit;
+    const out: typeof groups = [];
+    for (const group of groups) {
+      if (remaining <= 0) break;
+      const list = group.list.slice(0, remaining);
+      if (list.length > 0) {
+        out.push({ ...group, list });
+      }
+      remaining -= list.length;
+    }
+    return out;
+  }, [groups, visibleLimit]);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasMoreItems) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setVisibleLimit((limit) =>
+          Math.min(limit + GALLERY_BATCH_SIZE, items.length),
+        );
+      },
+      {
+        root: scrollRef.current,
+        rootMargin: "640px 0px",
+      },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreItems, items.length]);
+
   const clearSearch = useCallback(() => {
     setRawQuery("");
     setQuery("");
@@ -205,6 +246,8 @@ function GalleryPageInner() {
     if (previewScope) url.set("module", previewScope);
     return `/labeling?${url.toString()}`;
   }, [preview, previewScope]);
+
+  let renderedImageIndex = 0;
 
   return (
     <>
@@ -282,6 +325,13 @@ function GalleryPageInner() {
                     groups
                   </>
                 ) : null}
+                {hasMoreItems ? (
+                  <>
+                    {" "}
+                    · showing{" "}
+                    <strong className="text-wos-text">{visibleCount}</strong>
+                  </>
+                ) : null}
               </>
             )}
           </div>
@@ -295,9 +345,12 @@ function GalleryPageInner() {
           </div>
         ) : null}
 
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto">
-          {groups.map((g) => (
-            <section key={g.name} className="flex flex-col gap-2">
+        <div
+          ref={scrollRef}
+          className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto"
+        >
+          {visibleGroups.map((g) => (
+            <section key={g.name} className="gallery-section flex flex-col gap-2">
               <div className="sticky top-0 z-10 flex items-baseline gap-2 bg-wos-bg pb-1">
                 <h2 className="text-sm font-semibold text-wos-text">
                   {g.name}
@@ -307,35 +360,49 @@ function GalleryPageInner() {
                 </span>
               </div>
               <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
-                {g.list.map((it) => (
-                  <li key={it.rel}>
-                    <button
-                      type="button"
-                      onClick={() => setPreview(it)}
-                      className="group flex w-full flex-col gap-1 rounded border border-wos-border bg-wos-surface p-2 text-left transition hover:border-accent"
-                      title={it.rel}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={galleryImageUrl(it.rel)}
-                        alt={it.name}
-                        loading="lazy"
-                        className="h-28 w-full rounded bg-black/40 object-contain"
-                      />
-                      <span className="truncate text-xs text-wos-text">
-                        {it.name}
-                      </span>
-                      <span className="truncate text-[10px] text-wos-text-muted">
-                        {it.screen_ids.length > 0
-                          ? it.screen_ids.join(", ")
-                          : "—"}
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                {g.list.map((it) => {
+                  const imageIndex = renderedImageIndex++;
+                  return (
+                    <li key={it.rel} className="gallery-thumb-card">
+                      <button
+                        type="button"
+                        onClick={() => setPreview(it)}
+                        className="group flex w-full flex-col gap-1 rounded border border-wos-border bg-wos-surface p-2 text-left transition hover:border-accent"
+                        title={it.rel}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={galleryImageUrl(it.rel, it.mtime_ms)}
+                          alt={it.name}
+                          loading={
+                            imageIndex < EAGER_IMAGE_COUNT ? "eager" : "lazy"
+                          }
+                          decoding="async"
+                          className="h-28 w-full rounded bg-black/40 object-contain"
+                        />
+                        <span className="truncate text-xs text-wos-text">
+                          {it.name}
+                        </span>
+                        <span className="truncate text-[10px] text-wos-text-muted">
+                          {it.screen_ids.length > 0
+                            ? it.screen_ids.join(", ")
+                            : "—"}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}
+          {hasMoreItems ? (
+            <div
+              ref={loadMoreRef}
+              className="flex justify-center pb-4 text-xs text-wos-text-muted"
+            >
+              Loading more references…
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -405,8 +472,9 @@ function GalleryPageInner() {
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={galleryImageUrl(preview.rel)}
+                    src={galleryImageUrl(preview.rel, preview.mtime_ms)}
                     alt={preview.name}
+                    decoding="async"
                     className="h-full w-full object-contain"
                   />
                   {showRegions

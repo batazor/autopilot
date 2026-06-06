@@ -118,12 +118,6 @@ export type ClickApprovalView = {
     height: number;
     mtime?: number | null;
   };
-  /** Live H.264 WebSocket stream capability for this instance.
-   *  ``available: true`` only when scrcpy is currently running AND has
-   *  received its codec config. */
-  stream: {
-    available: boolean;
-  };
   instance_state: Record<string, string>;
   current_screen: string;
   active_player: string;
@@ -295,9 +289,6 @@ export type InstanceDetail = {
   runnable_scenarios: string[];
   preview_available: boolean;
   preview_mtime: number | null;
-  stream: {
-    available: boolean;
-  };
   history: InstanceHistoryRow[];
   state: Record<string, string>;
   revision?: string;
@@ -789,6 +780,7 @@ export type MapStitchJob = {
   map_ready: boolean;
   log: string;
   error: string;
+  instance_id?: string;
   serial: string;
   rows: number;
   cols: number;
@@ -799,7 +791,7 @@ export type MapStitchJob = {
 };
 
 export type MapStitchParams = {
-  serial: string;
+  instance_id: string;
   rows: number;
   cols: number;
   overlap: number;

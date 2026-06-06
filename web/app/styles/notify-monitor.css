@@ -1,38 +1,8 @@
-/* Notify-monitor debug page — local classes not covered by the shared system. */
+/* Notify-monitor page styles.
+   NOTE: .toolbar-actions / .form-field / .badge / .mono are reused by other
+   pages too (gift-codes, player-state, …) — keep them defined here. */
 
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.stat-card {
-  background: var(--wos-panel-raised, var(--wos-panel));
-  border: 1px solid var(--wos-border);
-  border-radius: 10px;
-  padding: 14px;
-}
-
-.stat-card__value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--wos-text);
-}
-
-.stat-card__label {
-  color: var(--wos-text-muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-top: 2px;
-}
-
-.panel-subtle {
-  background: var(--wos-surface, var(--wos-panel));
-  border: 1px solid var(--wos-border-subtle, var(--wos-border));
-  border-radius: 10px;
-}
+/* --- shared primitives ----------------------------------------------------- */
 
 .toolbar-actions {
   display: flex;
@@ -71,4 +41,316 @@
 .mono {
   font-family: var(--font-mono);
   font-size: 13px;
+}
+
+/* --- form controls (scoped to the notify-monitor page) --------------------- */
+
+.nm-page input:not([type="checkbox"]):not([type="radio"]),
+.nm-page select {
+  appearance: none;
+  border: 1px solid var(--wos-border-subtle);
+  border-radius: 8px;
+  background: var(--wos-input);
+  color: var(--wos-text);
+  padding: 7px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nm-page input.mono {
+  font-family: var(--font-mono);
+}
+
+.nm-page input:not([type="checkbox"]):not([type="radio"])::placeholder {
+  color: var(--wos-text-muted);
+}
+
+.nm-page input:not([type="checkbox"]):not([type="radio"]):focus,
+.nm-page select:focus {
+  outline: none;
+  border-color: var(--wos-accent);
+  box-shadow: var(--wos-accent-shadow);
+}
+
+.nm-page input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--wos-accent);
+  cursor: pointer;
+}
+
+/* the data-table inline-edit inputs read as plain text until focused */
+.nm-page .data-table input:not([type="checkbox"]) {
+  background: transparent;
+  border-color: transparent;
+}
+
+.nm-page .data-table input:not([type="checkbox"]):hover {
+  border-color: var(--wos-border-subtle);
+}
+
+.nm-page .data-table input:not([type="checkbox"]):focus {
+  background: var(--wos-input);
+}
+
+/* --- status bar (dashboard control strip) ---------------------------------- */
+
+.nm-statusbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 22px;
+  padding: 14px 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--wos-border-subtle);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--wos-panel-raised), var(--wos-panel));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.nm-statusbar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nm-statusbar__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--wos-text-muted);
+}
+
+.nm-statusbar__value {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wos-text);
+}
+
+.nm-statusbar__divider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--wos-border-subtle);
+}
+
+.nm-statusbar__error {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--wos-status-danger-bg);
+  color: var(--wos-status-danger-fg);
+  font-size: 13px;
+}
+
+.nm-statusbar__error .mono {
+  word-break: break-word;
+}
+
+/* status dot */
+.nm-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--wos-text-muted);
+}
+
+.nm-dot--on {
+  background: var(--wos-probe-match, #22c55e);
+  animation: nm-pulse 2s ease-in-out infinite;
+}
+
+.nm-dot--off {
+  background: var(--wos-text-muted);
+}
+
+.nm-dot--err {
+  background: var(--color-danger, #f87171);
+}
+
+@keyframes nm-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nm-dot--on {
+    animation: none;
+  }
+}
+
+/* --- metric cards ---------------------------------------------------------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 16px 14px;
+  border: 1px solid var(--wos-border-subtle);
+  border-radius: 14px;
+  background: var(--wos-panel);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--wos-border-hover);
+  transform: translateY(-1px);
+}
+
+.stat-card__accent {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--wos-border);
+}
+
+.stat-card--accent .stat-card__accent {
+  background: var(--wos-accent);
+}
+
+.stat-card--ok .stat-card__accent {
+  background: var(--wos-status-ok-fg);
+}
+
+.stat-card--warn .stat-card__accent {
+  background: var(--wos-status-warn-fg);
+}
+
+.stat-card--danger .stat-card__accent {
+  background: var(--color-danger, #f87171);
+}
+
+.stat-card__value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--wos-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card__label {
+  margin-top: 6px;
+  color: var(--wos-text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* --- section cards (add / test / settings forms) --------------------------- */
+
+.nm-card {
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--wos-border-subtle);
+  border-radius: 14px;
+  background: var(--wos-surface);
+}
+
+.nm-card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wos-text);
+}
+
+.nm-card__title-icon {
+  display: inline-flex;
+  color: var(--wos-accent);
+}
+
+.nm-card__note {
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
+/* --- pattern test result chip ---------------------------------------------- */
+
+.nm-test-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.nm-test-result--ok {
+  background: var(--wos-status-ok-bg);
+  color: var(--wos-status-ok-fg);
+}
+
+.nm-test-result--no {
+  background: var(--wos-panel-raised);
+  color: var(--wos-text-secondary);
+}
+
+.nm-test-result--err {
+  background: var(--wos-status-danger-bg);
+  color: var(--wos-status-danger-fg);
+}
+
+/* --- misc ------------------------------------------------------------------ */
+
+.nm-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--wos-text-muted);
+}
+
+.nm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--wos-text-secondary);
+}
+
+/* empty-state cell inside data tables */
+.nm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.nm-empty__icon {
+  display: inline-flex;
+  color: var(--wos-text-muted);
+  opacity: 0.7;
+}
+
+.nm-empty__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wos-text-secondary);
+}
+
+.nm-empty__hint {
+  max-width: 380px;
+  font-size: 12px;
+  color: var(--wos-text-muted);
 }

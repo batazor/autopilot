@@ -31,4 +31,8 @@ def get_image(path: str = Query(..., description="Repo-relative PNG path")) -> R
         data = svc.read_gallery_image(path)
     except (ValueError, FileNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return Response(content=data, media_type="image/png")
+    return Response(
+        content=data,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )

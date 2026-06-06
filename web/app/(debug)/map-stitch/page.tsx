@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useFleet } from "@/components/FleetContextProvider";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { AppCheckbox } from "@/components/headless";
 import {
@@ -36,9 +37,9 @@ const ACTIVE: ReadonlySet<MapStitchState> = new Set([
 
 export default function MapStitchPage() {
   const queryClient = useQueryClient();
+  const { instanceId, instancesError } = useFleet();
 
   // capture parameters
-  const [serial, setSerial] = useState("localhost:5555");
   const [rows, setRows] = useState(3);
   const [cols, setCols] = useState(5);
   const [overlap, setOverlap] = useState(0.3);
@@ -68,16 +69,18 @@ export default function MapStitchPage() {
   });
 
   const capture = useMutation({
-    mutationFn: () =>
-      startMapCapture({
-        serial,
+    mutationFn: () => {
+      if (!instanceId) throw new Error("no instance selected");
+      return startMapCapture({
+        instance_id: instanceId,
         rows,
         cols,
         overlap,
         swipe_ms: swipeMs,
         settle_s: settleS,
         home,
-      }),
+      });
+    },
     onSuccess: (res) => {
       setJobId(res.job_id);
       setError(null);
@@ -133,8 +136,8 @@ export default function MapStitchPage() {
         ) : null}
       </FleetPageHeader>
 
-      {error || jobErr ? (
-        <div className="error-banner">{error ?? jobErr}</div>
+      {error || jobErr || instancesError ? (
+        <div className="error-banner">{error ?? jobErr ?? instancesError}</div>
       ) : null}
       {job?.state === "error" && job.error ? (
         <div className="error-banner">{job.error}</div>
@@ -151,15 +154,6 @@ export default function MapStitchPage() {
         className="toolbar"
         style={{ flexWrap: "wrap", alignItems: "flex-end", marginBottom: "1rem", gap: "1rem" }}
       >
-        <label>
-          Device serial
-          <input
-            type="text"
-            value={serial}
-            onChange={(e) => setSerial(e.target.value)}
-            style={{ display: "block", width: 160 }}
-          />
-        </label>
         <label>
           Rows
           <input
@@ -228,7 +222,7 @@ export default function MapStitchPage() {
           type="button"
           className="btn-primary"
           onClick={() => capture.mutate()}
-          disabled={busy}
+          disabled={busy || !instanceId}
           title="Start the grid-swipe capture"
         >
           {capturing ? "Capturing…" : "Start capture"}

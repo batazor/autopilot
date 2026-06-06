@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import queue
 import random
 import secrets
 import socket
@@ -69,12 +68,8 @@ _DOWNLOAD_CACHE = Path.home() / ".cache" / "wos-autopilot" / "scrcpy"
 _MIN_SERVER_JAR_SIZE = 700_000
 
 # Frame meta flags (scrcpy v4). The high bit marks a session packet (video
-# size/update, no payload). Media packets use the next two high bits of PTS
-# for config/keyframe.
+# size/update, no payload).
 _PACKET_FLAG_SESSION = 1 << 63
-_PACKET_FLAG_CONFIG = 1 << 62
-_PACKET_FLAG_KEY_FRAME = 1 << 61
-_PTS_MASK = (1 << 61) - 1
 
 # Control message types.
 _CTRL_INJECT_TOUCH_EVENT = 2
@@ -374,44 +369,6 @@ class _CachedFrame:
     captured_at: float
 
 
-@dataclass(slots=True, frozen=True)
-class VideoPacket:
-    """One H.264 packet from scrcpy's video socket.
-
-    ``payload`` is raw Annex-B (with ``00 00 00 01`` start codes). ``is_config``
-    means SPS+PPS — the consumer must keep this for decoder init.  ``is_key``
-    marks a random-access point; consumers that join mid-stream should drop
-    delta frames until the next key arrives.
-    """
-
-    pts: int
-    is_config: bool
-    is_key: bool
-    payload: bytes
-
-
-@dataclass(slots=True)
-class VideoSubscription:
-    """Per-subscriber state for the H.264 NAL fan-out.
-
-    ``queue`` carries packets from the reader thread, or ``None`` as the
-    end-of-stream sentinel pushed by :meth:`ScrcpyClient.close`. ``desynced``
-    is set by the reader whenever a ``put_nowait`` fails (slow consumer);
-    the consumer must then drain the queue and wait for the next keyframe
-    before resuming decode, otherwise WebCodecs will error on a delta that
-    references a dropped IDR.
-    """
-
-    queue: queue.Queue[VideoPacket | None]
-    desynced: threading.Event
-
-
-# Subscriber queue depth — at ~30 FPS this absorbs ~4s of buffering, plenty
-# for transient stalls (decoder thread parked on a long socket read) without
-# letting a hung consumer balloon memory.
-_VIDEO_SUBSCRIBER_QUEUE_SIZE = 120
-
-
 class ScrcpyClient:
     """Single ``scrcpy-server`` process per ADB serial; one video socket + one control socket.
 
@@ -452,17 +409,6 @@ class ScrcpyClient:
         self._device_name: str = ""
         self._codec_size: tuple[int, int] | None = None
         self._last_error: str | None = None
-        # Raw H.264 NAL fan-out for in-process consumers (browser MSE / WebCodecs
-        # via WebSocket). Each subscriber owns a bounded queue; the reader drops
-        # frames silently when a slow consumer can't keep up — but sets the
-        # subscriber's ``desynced`` flag so the consumer can resync from the
-        # next keyframe instead of feeding a corrupted stream to its decoder.
-        self._video_subscribers: list[VideoSubscription] = []
-        self._subscribers_lock = threading.Lock()
-        # Last config packet (concatenated SPS+PPS in Annex-B). Cached so a
-        # subscriber that joins mid-stream can initialise its decoder before
-        # the next keyframe arrives.
-        self._video_codec_config: bytes | None = None
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -646,12 +592,6 @@ class ScrcpyClient:
 
     def close(self) -> None:
         self._stop.set()
-        # Wake any blocked subscribers immediately. Without this, a WebSocket
-        # consumer parked in ``queue.get(timeout=N)`` would have to wait the
-        # full ``_NAL_IDLE_TIMEOUT_S`` on the WS side before noticing scrcpy
-        # ended — visible to operators as a multi-second freeze on every
-        # bot restart or scrcpy death.
-        self._signal_subscribers_closed()
         for sock in (self._video_sock, self._control_sock):
             with contextlib.suppress(Exception):
                 if sock is not None:
@@ -709,16 +649,6 @@ class ScrcpyClient:
                     self._last_error = f"video socket read failed: {exc}"
                     logger.warning("scrcpy %s: %s", self.serial, self._last_error)
                 return
-            is_config = bool(pts_flags & _PACKET_FLAG_CONFIG)
-            is_key = bool(pts_flags & _PACKET_FLAG_KEY_FRAME)
-            pts = pts_flags & _PTS_MASK
-            if is_config:
-                # Cache so a subscriber joining mid-stream can initialise its
-                # decoder before the next keyframe arrives.
-                self._video_codec_config = payload
-            self._fanout_video_packet(
-                VideoPacket(pts=pts, is_config=is_config, is_key=is_key, payload=payload)
-            )
             if decoder is None:
                 decoder = _H264Decoder()
             frames = decoder.decode(payload)
@@ -729,80 +659,6 @@ class ScrcpyClient:
             with self._cache_lock:
                 self._cache = _CachedFrame(image=img, captured_at=time.monotonic())
             self._frame_event.set()
-
-    def _fanout_video_packet(self, pkt: VideoPacket) -> None:
-        """Push ``pkt`` to every active subscriber; flag desync on a full queue.
-
-        Dropping rather than blocking is deliberate — the decoder thread feeds
-        the in-process BGR cache (the bot's hot path) and must not stall on a
-        slow WebSocket consumer. But silent drops corrupt the H.264 reference
-        chain: a missed IDR makes every following delta undecodable, and
-        WebCodecs will error rather than skip. So when the queue is full we
-        also set the subscriber's ``desynced`` flag — the consumer drains
-        whatever is left and resumes from the next keyframe.
-        """
-        with self._subscribers_lock:
-            if not self._video_subscribers:
-                return
-            subs = list(self._video_subscribers)
-        for sub in subs:
-            try:
-                sub.queue.put_nowait(pkt)
-            except queue.Full:
-                sub.desynced.set()
-
-    def subscribe_video(self) -> VideoSubscription:
-        """Register a new subscriber to the raw H.264 NAL fan-out.
-
-        Returns a :class:`VideoSubscription` whose ``queue`` carries packets
-        and whose ``desynced`` event is set by the reader on a queue overflow.
-        Consumers must check ``desynced`` between packets and resync (drain +
-        wait-for-next-key) when it fires. The caller should also fetch
-        :meth:`latest_codec_config` before draining the queue if it joined
-        mid-stream and needs to initialise its decoder. Always pair with
-        :meth:`unsubscribe_video` to release the slot.
-        """
-        sub = VideoSubscription(
-            queue=queue.Queue(maxsize=_VIDEO_SUBSCRIBER_QUEUE_SIZE),
-            desynced=threading.Event(),
-        )
-        with self._subscribers_lock:
-            self._video_subscribers.append(sub)
-        return sub
-
-    def unsubscribe_video(self, sub: VideoSubscription) -> None:
-        """Drop a subscriber registered via :meth:`subscribe_video`."""
-        with self._subscribers_lock, contextlib.suppress(ValueError):
-            self._video_subscribers.remove(sub)
-
-    def _signal_subscribers_closed(self) -> None:
-        """Push the end-of-stream sentinel (``None``) into every subscriber.
-
-        Makes :meth:`close` wake up consumers blocked on ``queue.get`` right
-        away. If a subscriber's queue is full we evict the oldest packet to
-        make room — we're tearing down so the stream is doomed anyway, and
-        a stale frame is worse than a clean close.
-        """
-        with self._subscribers_lock:
-            subs = list(self._video_subscribers)
-        for sub in subs:
-            sub.desynced.set()  # belt-and-braces: also signal via flag
-            try:
-                sub.queue.put_nowait(None)
-            except queue.Full:
-                with contextlib.suppress(queue.Empty):
-                    sub.queue.get_nowait()
-                with contextlib.suppress(queue.Full):
-                    sub.queue.put_nowait(None)
-
-    def latest_codec_config(self) -> bytes | None:
-        """Return the most recently observed config (SPS+PPS) packet, or None.
-
-        Returned bytes are Annex-B (``00 00 00 01`` start codes between NALs).
-        ``None`` means the reader hasn't received a config packet yet — which
-        only happens at the very first moments after ``start()``.
-        """
-        return self._video_codec_config
 
     def read_latest_frame_bgr(
         self,

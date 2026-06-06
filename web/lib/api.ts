@@ -393,28 +393,6 @@ export function clickApprovalImageUrl(
   return `${base}/api/instances/${encodeURIComponent(instanceId)}/click-approval/image?${q}`;
 }
 
-export function h264StreamUrl(instanceId: string): string {
-  // ``new WebSocket(...)`` requires an absolute ws:// or wss:// URL — a
-  // path-relative string raises SyntaxError.
-  //
-  // Default: same-origin via ``window.location``. Works in prod (Next + API
-  // behind one origin) and in dev where Next's ``rewrites`` proxy WebSocket
-  // upgrades. If a deployment can't proxy WS upgrades through Next, set
-  // ``NEXT_PUBLIC_WOS_WS_BASE`` (e.g. ``ws://127.0.0.1:8765``) to hit FastAPI
-  // directly — CORS doesn't gate WebSockets, so this is safe in dev.
-  //
-  // SSR returns an empty string; the caller treats that as "stream not
-  // available yet" and skips opening the socket until hydration runs.
-  if (typeof window === "undefined") return "";
-  const override = (process.env.NEXT_PUBLIC_WOS_WS_BASE || "").trim();
-  if (override) {
-    const trimmed = override.replace(/\/$/, "");
-    return `${trimmed}/api/instances/${encodeURIComponent(instanceId)}/stream.h264.ws`;
-  }
-  const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${scheme}//${window.location.host}/api/instances/${encodeURIComponent(instanceId)}/stream.h264.ws`;
-}
-
 export async function submitDecision(
   instanceId: string,
   decision: "approve" | "reject" | "skip",
@@ -1523,8 +1501,13 @@ export async function fetchGallery(
   return apiFetch(`/api/gallery?${params}`);
 }
 
-export function galleryImageUrl(rel: string): string {
-  return `${base}/api/gallery/image?path=${encodeURIComponent(rel)}&t=${Date.now()}`;
+export function galleryImageUrl(
+  rel: string,
+  cacheKey?: number | string | null,
+): string {
+  const q = new URLSearchParams({ path: rel });
+  q.set("t", String(cacheKey ?? Date.now()));
+  return `${base}/api/gallery/image?${q}`;
 }
 
 export async function fetchAdbStatus(): Promise<AdbStatus> {
