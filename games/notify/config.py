@@ -24,7 +24,9 @@ LOG_PATH = Path(os.environ.get("NM_LOG_PATH", DEFAULT_LOG_PATH))
 # The bot's canonical state DB (devices + per-player gamer state). Read-only
 # here: used to resolve a notification's nickname -> gamer.id (queue player_id)
 # and the monitored adb serial -> device name (queue instance_id).
-DEFAULT_STATE_DB_PATH = PACKAGE_DIR.parent / "db" / "state" / "state.db"
+# Package now lives at games/notify/, so the repo root is two levels up.
+REPO_ROOT = PACKAGE_DIR.parent.parent
+DEFAULT_STATE_DB_PATH = REPO_ROOT / "db" / "state" / "state.db"
 STATE_DB_PATH = Path(os.environ.get("NM_STATE_DB_PATH", DEFAULT_STATE_DB_PATH))
 
 # --- runtime defaults (seeded into the settings table on first run) --------

@@ -1,6 +1,6 @@
 """Notification monitor routes — back the Debug ▸ Notify monitor page.
 
-Reuses the standalone :mod:`notify_monitor` package (SQLite data layer, dumpsys
+Reuses the standalone :mod:`games.notify` package (SQLite data layer, dumpsys
 parser, Redis publisher, background poll loop) but serves it through the main
 dashboard API under ``/api/notify/*`` so it travels with the bot instead of a
 separate :8800 process. The background poll thread is started once on import
@@ -12,9 +12,9 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from notify_monitor import config as nm_config
-from notify_monitor import db as nm_db
-from notify_monitor.service import MonitorService
+from games.notify import config as nm_config
+from games.notify import db as nm_db
+from games.notify.service import MonitorService
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/notify", tags=["notify"])
@@ -97,7 +97,7 @@ def list_games() -> list[dict[str, Any]]:
 
 @router.get("/status")
 def get_status() -> dict[str, Any]:
-    from notify_monitor import adb_reader
+    from games.notify import adb_reader
 
     return {
         "monitor": _monitor.status(),
@@ -108,7 +108,7 @@ def get_status() -> dict[str, Any]:
 
 @router.post("/poll")
 def poll_now() -> dict[str, Any]:
-    from notify_monitor import adb_reader
+    from games.notify import adb_reader
 
     try:
         return {"ok": True, "summary": _monitor.poll_once()}

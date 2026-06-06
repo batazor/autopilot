@@ -5,8 +5,7 @@ from __future__ import annotations
 import re
 
 import pytest
-
-from notify_monitor import parser
+from games.notify import parser
 
 SAMPLE_DUMPSYS = """
 Current Notification List:

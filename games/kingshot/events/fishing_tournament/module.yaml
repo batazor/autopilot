@@ -1,0 +1,12 @@
+id: fishing_tournament
+title: Fishing Tournament
+description: Limited-time Fishing Tournament event; opens from the main_city event strip.
+# Fast reaction: capture ~10 fps while a fishing scenario runs (overrides the
+# global rolling-capture interval; see config/capture_rate.py).
+capture_interval_ms: 100
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: fishing_tournament
+wiki: false
