@@ -17,6 +17,7 @@ from config.loader import (
     SchedulerConfig,
     Settings,
     WorkerConfig,
+    get_settings,
     reset_settings,
     set_settings,
 )
@@ -54,9 +55,19 @@ class _FakeController:
 
 @pytest.fixture(autouse=True)
 def _clean_settings() -> Iterator[None]:
+    # These tests mutate the global settings singleton, so start from a clean
+    # slate and restore whatever was bound before (the session-scoped settings
+    # from conftest) on teardown — otherwise a bare reset_settings() leaves the
+    # global cleared and later tests that read it error with "not initialized".
+    try:
+        saved = get_settings()
+    except RuntimeError:
+        saved = None
     reset_settings()
     yield
     reset_settings()
+    if saved is not None:
+        set_settings(saved)
 
 
 def _patch_controller(
