@@ -6,16 +6,18 @@ the end-to-end ``_maybe_push_scenario`` enqueue path with a fake Redis client.
 from __future__ import annotations
 
 import json
-import sqlite3
 
 import pytest
 from games.notify import config, state_lookup
 from games.notify.publisher import RedisPublisher
 from games.notify.service import MonitorService
 
+from config import sqlcipher
+
 
 def _make_state_db(path) -> None:
-    conn = sqlite3.connect(path)
+    # Seed an encrypted DB with the app key — state_lookup reads via SQLCipher.
+    conn = sqlcipher.connect(path)
     conn.executescript(
         """
         CREATE TABLE gamers (

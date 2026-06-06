@@ -30,6 +30,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import event, func
 from sqlmodel import Field, Session, SQLModel, UniqueConstraint, col, create_engine, select
 
+from config import sqlcipher
+
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
@@ -112,11 +114,14 @@ def _make_engine(path: str) -> Engine:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(
         f"sqlite:///{path}",
+        module=sqlcipher.DBAPI_MODULE,
         connect_args={"check_same_thread": False, "timeout": 30},
     )
 
     @event.listens_for(engine, "connect")
     def _set_pragmas(dbapi_conn, _record) -> None:  # noqa: ANN001 - sqlalchemy hook
+        # Unlock the database before any other pragma/read touches its pages.
+        sqlcipher.apply_key_pragmas(dbapi_conn)
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA foreign_keys=ON")

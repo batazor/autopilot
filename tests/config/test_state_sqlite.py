@@ -53,10 +53,10 @@ def test_list_gamers_by_power_filters_on_generated_column(sqlite_state: Path) ->
 
 
 def test_list_gamers_by_power_uses_index(sqlite_state: Path) -> None:
-    import sqlite3
+    from config import sqlcipher
 
     save_state_db(StateDB(gamers=[GamerState(id=1, power=100)]))
-    conn = sqlite3.connect(str(sqlite_state))
+    conn = sqlcipher.connect(sqlite_state)
     try:
         plan = conn.execute(
             "EXPLAIN QUERY PLAN SELECT state_json FROM gamers "

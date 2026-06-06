@@ -9,14 +9,22 @@ the worker queue, and neither lives in the monitor's own SQLite:
   where ``instance_id`` is the device *name*; the monitor is configured with the
   device's adb serial.
 
-All helpers open the DB read-only and degrade to ``None`` on any error (missing
-file, locked DB, schema drift) so a notification is never dropped just because
-the lookup failed — the caller logs and skips the push.
+``state.db`` is SQLCipher-encrypted, so these read through a SQLAlchemy engine
+built on the shared key (see :mod:`config.sqlcipher`). The connection is opened
+``mode=ro`` so this side never creates or writes the bot's DB. All helpers
+degrade to ``None`` on any error (missing file, locked DB, schema drift) so a
+notification is never dropped just because the lookup failed — the caller logs
+and skips the push.
 """
 from __future__ import annotations
 
-import sqlite3
+import threading
 from typing import TYPE_CHECKING
+
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.exc import SQLAlchemyError
+
+from config import sqlcipher
 
 from . import config
 from .logging_setup import get_logger
@@ -24,19 +32,46 @@ from .logging_setup import get_logger
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from sqlalchemy.engine import Engine
+
 log = get_logger("state_lookup")
 
+_engines: dict[str, Engine] = {}
+_engines_lock = threading.Lock()
 
-def _connect(db_path: Path) -> sqlite3.Connection | None:
+
+def _engine(db_path: Path) -> Engine | None:
+    """Return a cached read-only, key-unlocked engine for ``db_path``.
+
+    Returns ``None`` (and logs) if the file is missing — the lookups treat that
+    as "can't resolve" rather than an error.
+    """
     if not db_path.exists():
         log.warning("state DB not found at %s; cannot resolve queue ids", db_path)
         return None
-    try:
-        # uri=True + mode=ro: never create or write the bot's DB from here.
-        return sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=2.0)
-    except sqlite3.Error as exc:
-        log.warning("state DB open failed (%s): %s", db_path, exc)
-        return None
+    key = str(db_path)
+    with _engines_lock:
+        engine = _engines.get(key)
+        if engine is None:
+            # `creator` opens the file ourselves with mode=ro: SQLCipher can key
+            # a read-only connection (PRAGMA key only sets the in-memory cipher
+            # context), and ro guarantees we never create -wal/-shm or mutate the
+            # worker's DB from the monitor side.
+            def _open() -> sqlcipher.Connection:
+                return sqlcipher.DBAPI_MODULE.connect(
+                    f"file:{db_path}?mode=ro", uri=True, timeout=2.0
+                )
+
+            engine = create_engine(
+                "sqlite://", module=sqlcipher.DBAPI_MODULE, creator=_open
+            )
+
+            @event.listens_for(engine, "connect")
+            def _unlock(dbapi_conn, _record) -> None:  # noqa: ANN001 - sqlalchemy hook
+                sqlcipher.apply_key_pragmas(dbapi_conn)
+
+            _engines[key] = engine
+        return engine
 
 
 def resolve_player_id(
@@ -50,22 +85,23 @@ def resolve_player_id(
     nick = (nickname or "").strip()
     if not nick:
         return None
-    conn = _connect(db_path or config.STATE_DB_PATH)
-    if conn is None:
+    engine = _engine(db_path or config.STATE_DB_PATH)
+    if engine is None:
         return None
     try:
-        row = conn.execute(
-            "SELECT player_id FROM gamers "
-            "WHERE game = ? "
-            "AND lower(json_extract(state_json, '$.nickname')) = lower(?) "
-            "LIMIT 1",
-            (game, nick),
-        ).fetchone()
-    except sqlite3.Error as exc:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT player_id FROM gamers "
+                    "WHERE game = :game "
+                    "AND lower(json_extract(state_json, '$.nickname')) = lower(:nick) "
+                    "LIMIT 1"
+                ),
+                {"game": game, "nick": nick},
+            ).fetchone()
+    except SQLAlchemyError as exc:
         log.warning("gamer lookup failed for %r: %s", nick, exc)
         return None
-    finally:
-        conn.close()
     if not row or row[0] is None:
         return None
     return str(row[0])
@@ -79,19 +115,18 @@ def resolve_instance_id(adb_serial: str, *, db_path: Path | None = None) -> str 
     serial = (adb_serial or "").strip()
     if not serial:
         return None
-    conn = _connect(db_path or config.STATE_DB_PATH)
-    if conn is None:
+    engine = _engine(db_path or config.STATE_DB_PATH)
+    if engine is None:
         return None
     try:
-        row = conn.execute(
-            "SELECT name FROM devices WHERE adb_serial = ? LIMIT 1",
-            (serial,),
-        ).fetchone()
-    except sqlite3.Error as exc:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT name FROM devices WHERE adb_serial = :serial LIMIT 1"),
+                {"serial": serial},
+            ).fetchone()
+    except SQLAlchemyError as exc:
         log.warning("device lookup failed for %r: %s", serial, exc)
         return None
-    finally:
-        conn.close()
     if not row or not row[0]:
         return None
     return str(row[0])

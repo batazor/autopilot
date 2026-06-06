@@ -24,7 +24,6 @@ tracking table and their changes were applied by the old idempotent code.
 from __future__ import annotations
 
 import logging
-import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -32,7 +31,10 @@ from typing import TYPE_CHECKING
 from sqlalchemy import event
 from sqlmodel import Session, create_engine
 
+from config import sqlcipher
+
 if TYPE_CHECKING:
+    import sqlite3
     from collections.abc import Callable, Sequence
     from pathlib import Path
 
@@ -54,11 +56,15 @@ def get_engine(path: Path) -> Engine:
             path.parent.mkdir(parents=True, exist_ok=True)
             engine = create_engine(
                 f"sqlite:///{key}",
+                module=sqlcipher.DBAPI_MODULE,
                 connect_args={"check_same_thread": False, "timeout": 30.0},
             )
 
             @event.listens_for(engine, "connect")
             def _set_pragmas(dbapi_conn, _record) -> None:  # noqa: ANN001 - sqlalchemy hook
+                # Unlock the database FIRST — every pragma/read below it needs the
+                # decrypted pages. Must precede any other statement on the conn.
+                sqlcipher.apply_key_pragmas(dbapi_conn)
                 cur = dbapi_conn.cursor()
                 cur.execute("PRAGMA journal_mode=WAL")
                 cur.execute("PRAGMA foreign_keys=ON")
@@ -118,7 +124,9 @@ def apply_migrations(
     raw = engine.raw_connection()
     try:
         conn = raw.driver_connection
-        conn.row_factory = sqlite3.Row
+        # driver_connection is a sqlcipher3 connection now, whose cursors only
+        # accept the matching Row factory — stdlib sqlite3.Row raises TypeError.
+        conn.row_factory = sqlcipher.DBAPI_MODULE.Row
         conn.execute(
             "CREATE TABLE IF NOT EXISTS _schema_migrations ("
             "name TEXT PRIMARY KEY, applied_at REAL NOT NULL)"

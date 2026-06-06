@@ -273,8 +273,8 @@ def test_set_profile_game_overrides_device_default(sqlite_db: Path) -> None:
     upsert_device("bs1", game="wos")
     upsert_device_gamer("bs1", "111", "alice")
     # Profile id of the first profile under bs1
-    import sqlite3
-    conn = sqlite3.connect(str(sqlite_db))
+    from config import sqlcipher
+    conn = sqlcipher.connect(sqlite_db)
     profile_id = conn.execute(
         "SELECT id FROM device_profiles WHERE device_name = ? ORDER BY id LIMIT 1", ("bs1",)
     ).fetchone()[0]
@@ -358,11 +358,12 @@ def test_last_active_player_survives_other_device_writes(sqlite_db: Path) -> Non
 
 def test_last_active_player_migration_on_legacy_db(sqlite_db: Path) -> None:
     """A DB created before the column exists gains it on first open (no crash)."""
-    import sqlite3
+    from config import sqlcipher
 
     # Simulate a legacy state.db: a devices table without last_active_player.
+    # Still SQLCipher-encrypted (legacy = old schema, not old crypto).
     sqlite_db.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(sqlite_db))
+    conn = sqlcipher.connect(sqlite_db)
     conn.execute(
         "CREATE TABLE devices (name TEXT PRIMARY KEY, adb_serial TEXT NOT NULL "
         "DEFAULT '', screenshot_backend TEXT NOT NULL DEFAULT '', "

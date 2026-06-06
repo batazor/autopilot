@@ -93,3 +93,7 @@ result/
 # The WAL/SHM sidecars are transient — never commit them (checkpoint before add).
 games/wos/events/dreamscape_memory/scenes.db-wal
 games/wos/events/dreamscape_memory/scenes.db-shm
+
+# Plaintext backups left by scripts/encrypt_databases.py. They hold the
+# UNENCRYPTED data the SQLCipher migration just protected — never commit them.
+*.plaintext.bak

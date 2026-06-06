@@ -33,6 +33,7 @@ dependencies = [
     "pyjwt[crypto]>=2.9",
     "av>=12.0",
     "sqlmodel>=0.0.22",
+    "sqlcipher3-wheels>=0.5",
 ]
 
 [project.optional-dependencies]
