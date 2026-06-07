@@ -1,6 +1,6 @@
 # Pushed when the "New Intel in the Lighthouse" push notification fires.
 # the notify service classifies that notification as event_type `intel_lighthouse`
-# (see games/notify/config.py); the event → push bridge enqueues this key.
+# (see src/modules/notify/config.py); the event → push bridge enqueues this key.
 # Placeholder skeleton — steps are filled in later via the UI labeling flow.
 name: Lighthouse Intel
 enabled: true

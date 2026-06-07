@@ -9,9 +9,9 @@ import pytest
 
 @pytest.fixture
 def db(tmp_path, monkeypatch):
-    from games.notify import config
+    from modules.notify import config
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "test.db")
-    db_mod = importlib.import_module("games.notify.db")
+    db_mod = importlib.import_module("modules.notify.db")
     db_mod.init_db()
     return db_mod
 
@@ -77,8 +77,8 @@ def test_seed_sets_scenario_for_intel(db):
 
 
 def test_seed_backfills_scenario_without_clobbering_edits(db):
-    from games.notify import migrations
-    from games.notify.db import _engine
+    from modules.notify import migrations
+    from modules.notify.db import _engine
 
     rows = {(p["game"], p["event_type"]): p for p in db.list_patterns()}
     # operator cleared intel's scenario (simulating a stale/pre-migration DB)
@@ -94,7 +94,7 @@ def test_seed_backfills_scenario_without_clobbering_edits(db):
 
 
 def test_matcher_returns_scenario(db):
-    from games.notify.parser import PatternMatcher
+    from modules.notify.parser import PatternMatcher
 
     m = PatternMatcher(ttl_seconds=0.0)
     res = m.match("New Intel in the Lighthouse — the Lighthouse has new Intel, check it", "wos")

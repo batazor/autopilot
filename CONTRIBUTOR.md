@@ -51,7 +51,7 @@ Edit `src/config/settings.yaml` (`redis.url`, `ocr.tesseract_cmd`, worker settin
 
 ## Encrypted databases (SQLCipher)
 
-Every SQLite database (`db/state/state.db`, `games/notify/data/notify_monitor.db`, the dreamscape `scenes.db`) is **encrypted at rest with SQLCipher**. The key is baked into the app (`src/config/sqlcipher.py:APP_SYSTEM_KEY`); there is nothing to configure. Fresh installs work transparently — new DBs are created encrypted.
+Every SQLite database (`db/state/state.db`, `src/modules/notify/data/notify_monitor.db`, the dreamscape `scenes.db`) is **encrypted at rest with SQLCipher**. The key is baked into the app (`src/config/sqlcipher.py:APP_SYSTEM_KEY`); there is nothing to configure. Fresh installs work transparently — new DBs are created encrypted.
 
 **Upgrading an existing checkout/deployment that still has plaintext DBs:** run the one-shot migration **once, with the bot/API/worker stopped**, before starting the new code. The keyed engine cannot read a plaintext file, so this must happen while nothing holds the DBs open:
 

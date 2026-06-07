@@ -1,4 +1,4 @@
-"""Entry point: `python -m games.notify` (or `uv run python -m games.notify`).
+"""Entry point: `python -m modules.notify` (or `uv run python -m modules.notify`).
 
 Starts the FastAPI app via uvicorn. The monitor thread is launched in the
 app's lifespan startup hook, so this single process runs both the poller and
@@ -24,7 +24,7 @@ def main() -> None:
     args = parser.parse_args()
 
     uvicorn.run(
-        "games.notify.app:app",
+        "modules.notify.app:app",
         host=args.host,
         port=args.port,
         reload=args.reload,

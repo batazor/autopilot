@@ -40,10 +40,10 @@ def _target_paths() -> list[Path]:
     with env overrides like ``NM_DB_PATH`` and the test path hooks.
     """
     paths = [state_db_path(), dreamscape_db.db_path()]
-    # notify lives under games/; import lazily so a missing optional package
-    # doesn't abort the whole migration.
+    # notify lives under src/modules/; import lazily so a missing optional
+    # package doesn't abort the whole migration.
     try:
-        from notify import config as notify_config
+        from modules.notify import config as notify_config
 
         paths.append(Path(notify_config.DB_PATH))
     except ImportError as exc:

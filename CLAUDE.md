@@ -90,6 +90,8 @@ src/
   api/                # FastAPI (Redis, labeling, wiki, queue — backs Next.js)
   dashboard/          # Dashboard-backing helpers (Redis state, labeling, area.json, previews)
   worker/             # Worker process entry; supervisor (multiprocess restart, backoff)
+  modules/            # Game-agnostic services (not per-game DSL modules)
+    notify/           # Notification monitor (dumpsys → Redis queue); import `modules.notify`
 
 web/                  # Next.js operator dashboard (see web/README.md)
 
@@ -108,7 +110,6 @@ games/                # Per-game module tree (Phase 3: replaces top-level module
     core/             # Core features (main_city)
     alliance/         # Alliance operations (help)
     events/           # Event-specific automations (fishing_tournament)
-  notify/             # Game-agnostic notification monitor (dumpsys → Redis queue; not a DSL module)
 
 temporal/             # Live ADB rolling/approval previews (gitignored, regenerated per tick)
 db/state/state.db     # SQLite (SQLCipher-encrypted): devices + accounts + per-player state (canonical, multi-game)
@@ -267,7 +268,7 @@ uv run python -c "from config import sqlcipher; \
 
 #### Database encryption (SQLCipher)
 
-Every SQLite database the app owns (`db/state/state.db`, `games/notify/data/notify_monitor.db`, the dreamscape `scenes.db`) is **encrypted at rest with SQLCipher**. `src/config/sqlcipher.py` is the single wiring point:
+Every SQLite database the app owns (`db/state/state.db`, `src/modules/notify/data/notify_monitor.db`, the dreamscape `scenes.db`) is **encrypted at rest with SQLCipher**. `src/config/sqlcipher.py` is the single wiring point:
 
 - One application-wide key, `APP_SYSTEM_KEY` (baked into the Nuitka build — no env/file/keychain lookup). No per-user derivation, no machine fingerprinting.
 - All persistence goes through SQLAlchemy: `config.orm.get_engine()` (covers `state.db` + `scenes.db`) and notify's `_make_engine` build on `sqlcipher.DBAPI_MODULE` and call `sqlcipher.apply_key_pragmas()` first in their `connect` hook. **Do not open these DBs with the stdlib `sqlite3` module** — use `sqlcipher.connect()` (one-off) or an engine.

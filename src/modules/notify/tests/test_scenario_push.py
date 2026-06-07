@@ -8,11 +8,11 @@ from __future__ import annotations
 import json
 
 import pytest
-from games.notify import config, state_lookup
-from games.notify.publisher import RedisPublisher
-from games.notify.service import MonitorService
 
 from config import sqlcipher
+from modules.notify import config, state_lookup
+from modules.notify.publisher import RedisPublisher
+from modules.notify.service import MonitorService
 
 
 def _make_state_db(path) -> None:
@@ -89,7 +89,7 @@ def test_maybe_push_enqueues_mapped_scenario(tmp_path, monkeypatch):
     _make_state_db(db)
     monkeypatch.setattr(config, "STATE_DB_PATH", db)
     # no operator override -> derive instance from serial
-    monkeypatch.setattr("games.notify.db.get_setting", lambda _k, d=None: d)
+    monkeypatch.setattr("modules.notify.db.get_setting", lambda _k, d=None: d)
 
     svc, pub = _service_with_fake_redis()
     svc._maybe_push_scenario("intel_lighthouse", "intel_lighthouse", "wos", "batazor", "127.0.0.1:5555")
@@ -108,7 +108,7 @@ def test_no_scenario_does_not_enqueue(tmp_path, monkeypatch):
     db = tmp_path / "state.db"
     _make_state_db(db)
     monkeypatch.setattr(config, "STATE_DB_PATH", db)
-    monkeypatch.setattr("games.notify.db.get_setting", lambda _k, d=None: d)
+    monkeypatch.setattr("modules.notify.db.get_setting", lambda _k, d=None: d)
 
     svc, pub = _service_with_fake_redis()
     # a pattern with no scenario set -> informational event only, no push
@@ -120,7 +120,7 @@ def test_unknown_nickname_skips_push(tmp_path, monkeypatch):
     db = tmp_path / "state.db"
     _make_state_db(db)
     monkeypatch.setattr(config, "STATE_DB_PATH", db)
-    monkeypatch.setattr("games.notify.db.get_setting", lambda _k, d=None: d)
+    monkeypatch.setattr("modules.notify.db.get_setting", lambda _k, d=None: d)
 
     svc, pub = _service_with_fake_redis()
     svc._maybe_push_scenario("intel_lighthouse", "intel_lighthouse", "wos", "ghost", "127.0.0.1:5555")
@@ -132,7 +132,7 @@ def test_operator_instance_override_wins(tmp_path, monkeypatch):
     _make_state_db(db)
     monkeypatch.setattr(config, "STATE_DB_PATH", db)
     monkeypatch.setattr(
-        "games.notify.db.get_setting",
+        "modules.notify.db.get_setting",
         lambda k, d=None: "bs9" if k == "instance_id" else d,
     )
 
@@ -149,7 +149,7 @@ def test_push_lands_in_real_queue(tmp_path, monkeypatch, redis_sync):
     db = tmp_path / "state.db"
     _make_state_db(db)
     monkeypatch.setattr(config, "STATE_DB_PATH", db)
-    monkeypatch.setattr("games.notify.db.get_setting", lambda _k, d=None: d)
+    monkeypatch.setattr("modules.notify.db.get_setting", lambda _k, d=None: d)
 
     pub = RedisPublisher()
     pub._client = redis_sync  # the flushed testcontainers client

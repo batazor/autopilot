@@ -11,8 +11,8 @@ UI — no code edits needed.
 
 ```sh
 # Redis must be running (docker compose up -d redis), a device connected (adb devices)
-uv run python -m games.notify                 # -> http://127.0.0.1:8800
-uv run python -m games.notify --port 8800 --reload   # dev auto-reload
+uv run python -m modules.notify                 # -> http://127.0.0.1:8800
+uv run python -m modules.notify --port 8800 --reload   # dev auto-reload
 ```
 
 The single process runs **both** the web UI and the background poller (started
@@ -64,8 +64,8 @@ ADB dumpsys notification  ─►  parser  ─►  PatternMatcher (hot-reload fro
 | var             | default                          | meaning                       |
 | --------------- | -------------------------------- | ----------------------------- |
 | `NM_REDIS_URL`  | `redis://127.0.0.1:6379/0`       | Redis connection              |
-| `NM_DB_PATH`    | `games/notify/data/notify_monitor.db` | SQLite file            |
-| `NM_LOG_PATH`   | `games/notify/data/notify_monitor.log` | log file (also console) |
+| `NM_DB_PATH`    | `src/modules/notify/data/notify_monitor.db` | SQLite file            |
+| `NM_LOG_PATH`   | `src/modules/notify/data/notify_monitor.log` | log file (also console) |
 | `NM_ADB_PATH`   | `adb`                            | adb binary                    |
 | `NM_HOST`/`NM_PORT` | `127.0.0.1` / `8800`         | web server bind               |
 
@@ -75,5 +75,5 @@ Runtime settings (poll interval, ADB serial, enabled) live in the SQLite
 ## Tests
 
 ```sh
-uv run pytest games/notify/tests/ -q
+uv run pytest src/modules/notify/tests/ -q
 ```
