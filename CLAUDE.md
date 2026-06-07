@@ -58,7 +58,7 @@ docker compose build
 docker compose up -d
 
 # Or use pre-built images (production)
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --pull always
 ```
 
 ## Architecture
