@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
-
 from tools.map_stitch import stitch as stitch_mod
 
 if TYPE_CHECKING:
