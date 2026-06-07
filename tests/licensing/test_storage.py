@@ -7,6 +7,7 @@ from licensing.models import LicenseError
 from licensing.storage import (
     extract_token,
     license_path,
+    load_or_create_host_id,
     load_token_from_file,
     save_token_to_file,
 )
@@ -62,6 +63,23 @@ def test_license_path_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path) ->
     custom = tmp_path / "elsewhere.jwt"
     monkeypatch.setenv("WOS_LICENSE_FILE", str(custom))
     assert license_path() == custom
+
+
+def test_load_or_create_host_id_persists_value(tmp_path) -> None:
+    path = tmp_path / "license-data" / "host-id"
+    first = load_or_create_host_id(path)
+    second = load_or_create_host_id(path)
+
+    assert first
+    assert second == first
+    assert path.read_text(encoding="utf-8").strip() == first
+
+
+def test_load_or_create_host_id_returns_empty_when_unwritable(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    path = tmp_path / "license-data" / "host-id"
+    monkeypatch.setattr("licensing.storage.os.open", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError()))
+
+    assert load_or_create_host_id(path) == ""
 
 
 def test_save_creates_parent_directory(keypair_paths: object, tmp_path) -> None:

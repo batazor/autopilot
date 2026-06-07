@@ -15,6 +15,7 @@ the UI can write to it.
 from __future__ import annotations
 
 import os
+import uuid
 from pathlib import Path
 
 from licensing.models import LicenseError
@@ -23,6 +24,7 @@ LICENSE_FILE_ENV = "WOS_LICENSE_FILE"
 LICENSE_TOKEN_ENV = "WOS_LICENSE"
 DEFAULT_FILENAME = "licence.jwt"
 DEFAULT_DIRNAME = "license-data"
+DEFAULT_HOST_ID_FILENAME = "host-id"
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 
@@ -40,6 +42,44 @@ def license_path() -> Path:
     """Resolved file path, honoring the ``WOS_LICENSE_FILE`` override."""
     override = os.environ.get(LICENSE_FILE_ENV, "").strip()
     return Path(override) if override else default_license_path()
+
+
+def host_id_path() -> Path:
+    """Shared install id path, colocated with the license file volume."""
+    return license_path().parent / DEFAULT_HOST_ID_FILENAME
+
+
+def load_or_create_host_id(path: Path | None = None) -> str:
+    """Best-effort stable id shared by the API and bot containers.
+
+    ``/etc/machine-id`` is not portable across Docker Desktop setups. The
+    license-data volume is already shared by ``api`` and ``bot``, so this file
+    gives both services one stable fallback without asking users to configure
+    environment variables.
+    """
+    path = path or host_id_path()
+    try:
+        existing = path.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+    except OSError:
+        pass
+
+    value = uuid.uuid4().hex
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        try:
+            return path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+    except OSError:
+        return ""
+
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(value + "\n")
+    return value
 
 
 def extract_token(content: str | bytes) -> str:

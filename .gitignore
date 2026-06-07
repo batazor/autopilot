@@ -30,6 +30,7 @@ src/config/_telemetry_secrets.py
 license-data/*.json
 license-data/*.jwt
 license-data/*.bak
+license-data/host-id
 !license-data/.gitkeep
 
 # --- Python -------------------------------------------------------------------

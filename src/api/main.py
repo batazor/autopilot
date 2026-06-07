@@ -5,12 +5,14 @@ import asyncio
 import logging
 import os
 import sys
+import uuid
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -131,6 +133,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="WOS Autopilot API", version="0.1.0", lifespan=_lifespan)
+logger = logging.getLogger(__name__)
 
 _cors_origins = os.environ.get(
     "WOS_API_CORS_ORIGINS",
@@ -173,6 +176,33 @@ app.include_router(license_routes.router)
 app.include_router(config_reload.router)
 app.include_router(onboarding.router)
 app.include_router(version.router)
+
+
+def _exception_message(exc: Exception) -> str:
+    return str(exc).strip() or exc.__class__.__name__
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    request_id = uuid.uuid4().hex[:12]
+    logger.error(
+        "Unhandled API error %s %s request_id=%s",
+        request.method,
+        request.url.path,
+        request_id,
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"Unexpected API error while handling {request.method} {request.url.path}",
+            "error": {
+                "type": exc.__class__.__name__,
+                "message": _exception_message(exc),
+            },
+            "request_id": request_id,
+        },
+    )
 
 
 @app.get("/health")

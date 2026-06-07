@@ -70,21 +70,152 @@ export class ApiError extends Error {
   readonly path: string;
   readonly status: number;
   readonly body: string;
+  readonly detail: string;
+  readonly statusText: string;
 
-  constructor(path: string, status: number, body: string) {
-    super(`${path}: ${status}${body ? ` — ${body}` : ""}`);
+  constructor(path: string, status: number, body: string, statusText = "") {
+    const detail = apiErrorDetail(body, status);
+    const statusLabel = statusText ? `${status} ${statusText}` : String(status);
+    super(`${path}: ${statusLabel}${detail ? ` — ${detail}` : ""}`);
     this.name = "ApiError";
     this.path = path;
     this.status = status;
     this.body = body;
+    this.detail = detail;
+    this.statusText = statusText;
   }
+}
+
+function stringifyDetail(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (value == null) return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function apiErrorDetail(body: string, status: number): string {
+  const text = body.trim();
+  if (text && text !== "Internal Server Error") {
+    try {
+      const parsed = JSON.parse(text) as {
+        detail?: unknown;
+        error?: { type?: unknown; message?: unknown };
+        request_id?: unknown;
+      };
+      const detail = stringifyDetail(parsed.detail);
+      const errorType = stringifyDetail(parsed.error?.type);
+      const errorMessage = stringifyDetail(parsed.error?.message);
+      const requestId = stringifyDetail(parsed.request_id);
+      const cause =
+        errorType || errorMessage
+          ? `Cause: ${[errorType, errorMessage].filter(Boolean).join(": ")}`
+          : "";
+      return [detail, cause, requestId ? `Request id: ${requestId}` : ""]
+        .filter(Boolean)
+        .join(" · ");
+    } catch {
+      return text;
+    }
+  }
+  if (status >= 500) {
+    return "The API failed unexpectedly and returned no diagnostic details. Check the API logs for this endpoint.";
+  }
+  return text;
+}
+
+export function describeApiError(err: unknown): string {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+function parseJsonOrText(text: string): unknown {
+  if (!text.trim()) return "";
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+export function apiErrorReport(
+  err: unknown,
+  context: Record<string, unknown> = {},
+): string {
+  const now = new Date().toISOString();
+  const page =
+    typeof window === "undefined"
+      ? null
+      : {
+          href: window.location.href,
+          path: window.location.pathname,
+        };
+  const browser =
+    typeof navigator === "undefined"
+      ? null
+      : {
+          userAgent: navigator.userAgent,
+          language: navigator.language,
+        };
+  const baseReport = {
+    created_at: now,
+    context,
+    page,
+    browser,
+  };
+  if (err instanceof ApiError) {
+    return JSON.stringify(
+      {
+        ...baseReport,
+        kind: "api_error",
+        message: err.message,
+        api: {
+          path: err.path,
+          status: err.status,
+          status_text: err.statusText,
+          detail: err.detail,
+          response: parseJsonOrText(err.body),
+        },
+      },
+      null,
+      2,
+    );
+  }
+  if (err instanceof Error) {
+    return JSON.stringify(
+      {
+        ...baseReport,
+        kind: "client_error",
+        message: err.message,
+        error: {
+          name: err.name,
+          stack: err.stack ?? null,
+        },
+      },
+      null,
+      2,
+    );
+  }
+  return JSON.stringify(
+    {
+      ...baseReport,
+      kind: "unknown_error",
+      message: String(err),
+      error: err,
+    },
+    null,
+    2,
+  );
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base}${path}`, { cache: "no-store", ...init });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ApiError(path, res.status, text);
+    throw new ApiError(path, res.status, text, res.statusText);
   }
   return res.json() as Promise<T>;
 }

@@ -14,6 +14,12 @@ from api.main import (
 )
 
 
+@app.get("/__test_unhandled_error")
+def _test_unhandled_error() -> None:
+    msg = "diagnostic boom"
+    raise RuntimeError(msg)
+
+
 def test_is_shutdown_exception_cancelled() -> None:
     assert _is_shutdown_exception(asyncio.CancelledError())
 
@@ -69,3 +75,14 @@ def test_lifespan_stops_local_bot_on_shutdown() -> None:
         assert client.get("/health").status_code in {200, 503}
 
     stop.assert_called_once_with(join_timeout_s=2.0)
+
+
+def test_unhandled_api_errors_return_diagnostic_json() -> None:
+    with TestClient(app, raise_server_exceptions=False) as client:
+        res = client.get("/__test_unhandled_error")
+
+    assert res.status_code == 500
+    body = res.json()
+    assert body["detail"] == "Unexpected API error while handling GET /__test_unhandled_error"
+    assert body["error"] == {"type": "RuntimeError", "message": "diagnostic boom"}
+    assert body["request_id"]

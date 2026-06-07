@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { CopyButton } from "@/components/CopyButton";
+import { ErrorBanner } from "@/components/feedback/ErrorBanner";
 import { Icon } from "@/components/ui/Icon";
 import {
+  apiErrorReport,
+  describeApiError,
   fetchLicenseFingerprint,
   fetchLicenseStatus,
   importLicenseFile,
@@ -52,6 +55,7 @@ export default function LicensePage() {
   const [fingerprint, setFingerprint] = useState<LicenseFingerprint | null>(null);
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorReport, setErrorReport] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -59,6 +63,7 @@ export default function LicensePage() {
 
   const load = useCallback(async () => {
     setError(null);
+    setErrorReport(null);
     try {
       const [fp, st] = await Promise.all([
         fetchLicenseFingerprint(),
@@ -67,7 +72,8 @@ export default function LicensePage() {
       setFingerprint(fp);
       setStatus(st);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(describeApiError(e));
+      setErrorReport(apiErrorReport(e, { area: "license.load" }));
     }
   }, []);
 
@@ -77,6 +83,7 @@ export default function LicensePage() {
 
   const handleFile = async (file: File) => {
     setError(null);
+    setErrorReport(null);
     setSuccess(null);
     setImporting(true);
     try {
@@ -85,7 +92,17 @@ export default function LicensePage() {
       setSuccess("License imported. You can start the bot now.");
       window.dispatchEvent(new Event("wos:license:updated"));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(describeApiError(e));
+      setErrorReport(
+        apiErrorReport(e, {
+          area: "license.import",
+          file: {
+            name: file.name,
+            size: file.size,
+            type: file.type || null,
+          },
+        }),
+      );
     } finally {
       setImporting(false);
     }
@@ -118,11 +135,7 @@ export default function LicensePage() {
         </p>
       </PageHeader>
 
-      {error ? (
-        <div className="error-banner" role="alert">
-          {error}
-        </div>
-      ) : null}
+      <ErrorBanner message={error} copyReport={errorReport} />
       {success ? (
         <div className="success-banner" role="status">
           {success}
@@ -222,6 +235,13 @@ export default function LicensePage() {
                   title="Copy fingerprint"
                 />
               </div>
+              {!fingerprint.components.machine_id ? (
+                <p className="muted mt-2 mb-0 text-xs">
+                  Host machine-id is unavailable, so this install uses the
+                  shared <code>license-data/host-id</code> fallback. API and
+                  bot containers read the same value automatically.
+                </p>
+              ) : null}
             </>
           )}
         </li>

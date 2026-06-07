@@ -5,12 +5,18 @@ name: docker
 #   * bot — worker + scheduler + FastAPI entrypoint + local Tesseract OCR (multi-arch)
 #   * web — Next.js operator dashboard (multi-arch)
 #
-# Built on every semver git tag and on demand via the workflow_dispatch button.
-# Published as `:latest` only. Commits to main don't trigger.
+# Built when you publish a GitHub Release, and on demand via the
+# workflow_dispatch button. Published as `:latest` only. Commits to main don't
+# trigger.
+#
+# After both images build and push, the `release` job appends links to the two
+# GHCR packages onto the release you just published — a visible, at-a-glance
+# confirmation that its Docker build went green. Your own release notes are left
+# untouched (links are appended below a marker, nothing is overwritten).
 
 on:
-  push:
-    tags: ["v*.*.*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:
@@ -96,3 +102,58 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service.name }}
           cache-to: type=gha,scope=${{ matrix.service.name }},mode=max,ignore-error=true
           provenance: false
+
+  release:
+    name: link images on release
+    # Only runs once both images built and pushed — the links appearing on the
+    # release are the at-a-glance signal that its Docker build went green.
+    needs: build
+    # workflow_dispatch has no release to edit; only real publishes do.
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Append GHCR package links to the release the user published. We strip any
+      # previously-appended block (idempotent on re-run) and re-add it, so the
+      # user's own notes above the marker are left exactly as authored.
+      - name: Add GHCR package links to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+          PKG_BASE: ${{ github.server_url }}/${{ github.repository }}/pkgs/container/${{ github.event.repository.name }}
+        run: |
+          body=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+          body=$(printf '%s' "$body" | sed '/<!-- docker-images -->/,$d')
+          links=$(cat <<EOF
+          <!-- docker-images -->
+          ### 📦 Docker images
+
+          - **bot** — ${PKG_BASE}%2Fbot
+          - **web** — ${PKG_BASE}%2Fweb
+          EOF
+          )
+          gh release edit "$TAG" --repo "$REPO" --notes "${body}"$'\n\n'"${links}"
+
+      # Final step: ping the Discord webhook with the release title + description
+      # (re-read so it includes the image links appended above). The webhook URL
+      # lives in the DISCORD_WEBHOOK secret — never hardcode it in the workflow.
+      - name: Notify Discord
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ github.event.release.name || github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+        run: |
+          body=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+          # Discord embed descriptions cap at 4096 chars — trim to stay well under.
+          body=${body:0:4000}
+          payload=$(jq -n \
+            --arg title "$TITLE" \
+            --arg desc "$body" \
+            --arg url "$URL" \
+            '{embeds:[{title:$title, description:$desc, url:$url, color:5814783}]}')
+          curl -fsS -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK"

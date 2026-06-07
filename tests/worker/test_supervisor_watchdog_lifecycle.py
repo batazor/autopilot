@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from licensing.models import LicenseError
 from worker import async_supervisor, supervisor
 
 
@@ -78,7 +79,7 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
     monkeypatch.setattr(supervisor, "load_settings", lambda: object())
     monkeypatch.setattr(supervisor, "set_settings", lambda _settings: None)
     monkeypatch.setattr(supervisor, "assert_startup_configs_valid", lambda: None)
-    monkeypatch.setattr(supervisor, "_enforce_license_gate", lambda: None)
+    monkeypatch.setattr(supervisor, "_wait_for_license_gate", lambda: True)
     monkeypatch.setattr(
         supervisor,
         "ensure_health_watchdog_process",
@@ -123,3 +124,40 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
         "stop-watchdog",
         "shutdown",
     ]
+
+
+def test_license_gate_waits_until_license_appears(monkeypatch) -> None:
+    events: list[str] = []
+
+    class Claims:
+        sub = "user@example.com"
+        tier = "pro"
+
+        def days_until_expiry(self) -> float:
+            return 30.0
+
+    attempts = iter(
+        [
+            LicenseError("no license found", code="missing"),
+            Claims(),
+        ]
+    )
+
+    def fake_load_license() -> Claims:
+        result = next(attempts)
+        if isinstance(result, LicenseError):
+            raise result
+        return result
+
+    monkeypatch.setattr(supervisor, "generate_fingerprint", lambda: "ABCD-EFGH-IJKL-MNOP")
+    monkeypatch.setattr(supervisor, "load_license", fake_load_license)
+    monkeypatch.setattr(supervisor.time, "sleep", lambda _seconds: events.append("sleep"))
+    monkeypatch.setattr(supervisor.telemetry, "report_license_gate_failure", lambda code: events.append(f"fail:{code}"))
+    monkeypatch.setattr(
+        supervisor.telemetry,
+        "bind_license_claims",
+        lambda _claims, *, host_fingerprint: events.append(f"bind:{host_fingerprint}"),
+    )
+
+    assert supervisor._wait_for_license_gate() is True
+    assert events == ["fail:missing", "sleep", "bind:ABCD-EFGH-IJKL-MNOP"]

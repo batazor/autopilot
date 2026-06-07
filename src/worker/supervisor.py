@@ -8,6 +8,7 @@ import signal
 import time
 from contextlib import suppress as _suppress
 from dataclasses import dataclass
+from typing import Any
 
 from config import telemetry
 from config.loader import InstanceConfig, get_settings, load_settings, set_settings
@@ -44,6 +45,8 @@ _STABILITY_WINDOW_SECONDS = 300.0
 # supervisor is considered hung and ``/health`` reports 503. Generous vs the
 # 1s cadence so a brief stall (e.g. a slow respawn) doesn't flap the probe.
 _HEALTH_STALE_SECONDS = 30.0
+_LICENSE_WAIT_POLL_SECONDS = 5.0
+_LICENSE_WAIT_LOG_SECONDS = 60.0
 _shutdown = False
 _CHILD_SHUTDOWN_GRACE_S = 0.2
 _CHILD_KILL_JOIN_S = 0.5
@@ -334,35 +337,7 @@ class Supervisor:
                 client.close()
 
 
-def _enforce_license_gate() -> None:
-    """Refuse to start workers without a valid license bound to this host.
-
-    Runs before any subprocess is spawned so a missing license fails fast
-    with a single clear error instead of cascading through child crashes.
-    """
-    fingerprint = generate_fingerprint()
-    try:
-        claims = load_license()
-    except LicenseError as exc:
-        # Not using ``logger.exception`` here — the LicenseError's full
-        # context is captured in ``exc.reason`` and the fingerprint hint
-        # below. A stack trace would just be noise for users on the
-        # config-level refusal path.
-        logger.error(  # noqa: TRY400
-            "license gate: refusing to start (%s). "
-            "Drop a license file via the UI (/license) or set WOS_LICENSE. "
-            "This host's fingerprint is: %s",
-            exc.reason,
-            fingerprint,
-        )
-        # Telemetry still works here — the meter provider is up regardless of
-        # license state, and this counter is the only signal we get for
-        # "user tried to start without a valid license". Stash the fingerprint
-        # so the counter's label has *something* even though no LicenseClaims
-        # exist yet.
-        telemetry._state["host_fingerprint"] = fingerprint
-        telemetry.report_license_gate_failure(exc.code)
-        raise SystemExit(78) from exc  # EX_CONFIG — config-level refusal
+def _bind_license_gate_success(claims: Any, fingerprint: str) -> None:
     days_left = claims.days_until_expiry()
     if days_left is not None and days_left < 7:
         logger.warning(
@@ -379,6 +354,46 @@ def _enforce_license_gate() -> None:
     telemetry.bind_license_claims(claims, host_fingerprint=fingerprint)
 
 
+def _wait_for_license_gate() -> bool:
+    """Wait until a valid license appears, keeping the supervisor container alive.
+
+    Runs before any worker subprocess is spawned. A fresh one-click install has
+    no license yet, so crash-looping the container would make the UI feel broken
+    and require manual restarts. Instead, keep the service healthy, log the
+    current fingerprint, and start workers as soon as the UI writes a valid
+    ``licence.jwt`` into the shared license-data volume.
+    """
+    last_logged_at = 0.0
+    last_reason = ""
+    while not _shutdown:
+        fingerprint = generate_fingerprint()
+        try:
+            claims = load_license()
+        except LicenseError as exc:
+            telemetry._state["host_fingerprint"] = fingerprint
+            now = time.monotonic()
+            if exc.reason != last_reason or now - last_logged_at >= _LICENSE_WAIT_LOG_SECONDS:
+                telemetry.report_license_gate_failure(exc.code)
+                logger.error(  # noqa: TRY400
+                    "license gate: waiting for valid license (%s). "
+                    "Drop a license file via the UI (/license) or set WOS_LICENSE. "
+                    "This host's fingerprint is: %s",
+                    exc.reason,
+                    fingerprint,
+                )
+                last_logged_at = now
+                last_reason = exc.reason
+            try:
+                time.sleep(_LICENSE_WAIT_POLL_SECONDS)
+            except (InterruptedError, KeyboardInterrupt):
+                return False
+            continue
+
+        _bind_license_gate_success(claims, fingerprint)
+        return True
+    return False
+
+
 def main() -> None:
     # Stamp ``service.instance.id`` with the host fingerprint instead of the
     # hostname (Docker container IDs churn on every recreate — each restart
@@ -387,16 +402,24 @@ def main() -> None:
     bootstrap_runtime_observability("supervisor", instance_id=generate_fingerprint())
     set_settings(load_settings())
     assert_startup_configs_valid()
-    _enforce_license_gate()
     ensure_health_watchdog_process()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
     # The ``autopilot.workers.active`` gauge needs to peek at the supervisor's
     # process table — bind it here so the callback finds it.
     telemetry.bind_supervisor(supervisor)
-    health_server = start_health_server(supervisor.is_healthy, port=_health_port())
+    waiting_for_license = {"value": True}
+
+    def _is_healthy() -> bool:
+        return waiting_for_license["value"] or supervisor.is_healthy()
+
+    signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+    signal.signal(signal.SIGINT, _handle_shutdown_signal)
+    health_server = start_health_server(_is_healthy, port=_health_port())
     try:
-        supervisor.run()
+        if _wait_for_license_gate():
+            waiting_for_license["value"] = False
+            supervisor.run()
     finally:
         if health_server is not None:
             health_server.shutdown()

@@ -40,13 +40,13 @@ def test_status_active_via_file(
     keypair_paths: object, monkeypatch: pytest.MonkeyPatch, tmp_path,
 ) -> None:
     monkeypatch.delenv("WOS_LICENSE", raising=False)
+    license_file = tmp_path / "licence.jwt"
+    monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     host_fp = generate_fingerprint()
     token, _ = issue_license(
         sub="bob@example.com", machine_id=host_fp, features=["mail"],
     )
-    license_file = tmp_path / "licence.jwt"
     save_token_to_file(token, license_file)
-    monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     status = license_status()
     assert status.active is True
     assert status.sub == "bob@example.com"
@@ -56,14 +56,14 @@ def test_status_active_via_file(
 def test_env_takes_precedence_over_file(
     keypair_paths: object, monkeypatch: pytest.MonkeyPatch, tmp_path,
 ) -> None:
+    license_file = tmp_path / "licence.jwt"
+    monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     host_fp = generate_fingerprint()
     env_token, _ = issue_license(sub="env-user@example.com", machine_id=host_fp)
     file_token, _ = issue_license(
         sub="file-user@example.com", machine_id=host_fp,
     )
-    license_file = tmp_path / "licence.jwt"
     save_token_to_file(file_token, license_file)
-    monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     monkeypatch.setenv("WOS_LICENSE", env_token)
 
     status = license_status()

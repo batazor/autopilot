@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ApiError,
+  apiErrorReport,
   createQueueTask,
+  describeApiError,
   discardLabelingCapture,
   fetchLabelingScreenIds,
   fetchRegionOcr,
@@ -128,6 +131,70 @@ describe("labeling API game scope", () => {
       replace_existing: true,
       abort_running: true,
     });
+  });
+});
+
+describe("API error formatting", () => {
+  it("extracts FastAPI diagnostic JSON from unexpected 500 responses", () => {
+    const err = new ApiError(
+      "/api/license/fingerprint",
+      500,
+      JSON.stringify({
+        detail: "Unexpected API error while handling GET /api/license/fingerprint",
+        error: { type: "OSError", message: "host component unavailable" },
+        request_id: "abc123",
+      }),
+      "Internal Server Error",
+    );
+
+    expect(describeApiError(err)).toBe(
+      "/api/license/fingerprint: 500 Internal Server Error — Unexpected API error while handling GET /api/license/fingerprint · Cause: OSError: host component unavailable · Request id: abc123",
+    );
+  });
+
+  it("replaces plain Internal Server Error with an actionable hint", () => {
+    const err = new ApiError(
+      "/api/dev/bot",
+      500,
+      "Internal Server Error",
+      "Internal Server Error",
+    );
+
+    expect(describeApiError(err)).toContain(
+      "returned no diagnostic details",
+    );
+    expect(describeApiError(err)).toContain("/api/dev/bot");
+  });
+
+  it("builds a copyable JSON support report", () => {
+    const err = new ApiError(
+      "/api/license/fingerprint",
+      500,
+      JSON.stringify({
+        detail: "Unexpected API error while handling GET /api/license/fingerprint",
+        error: { type: "OSError", message: "host component unavailable" },
+        request_id: "abc123",
+      }),
+      "Internal Server Error",
+    );
+
+    const report = JSON.parse(
+      apiErrorReport(err, { area: "license.load" }),
+    ) as {
+      kind: string;
+      context: { area: string };
+      api: {
+        path: string;
+        status: number;
+        response: { request_id: string };
+      };
+    };
+
+    expect(report.kind).toBe("api_error");
+    expect(report.context.area).toBe("license.load");
+    expect(report.api.path).toBe("/api/license/fingerprint");
+    expect(report.api.status).toBe(500);
+    expect(report.api.response.request_id).toBe("abc123");
   });
 });
 

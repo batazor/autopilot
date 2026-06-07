@@ -2,7 +2,7 @@
 
 Token resolution order:
     1. ``WOS_LICENSE`` env var — explicit override (CI, power users)
-    2. License file on disk (default: ``<repo>/license-data/licence.json``)
+    2. License file on disk (default: ``<repo>/license-data/licence.jwt``)
 
 The file is the primary distribution mechanism for end users; the env var is
 kept as an escape hatch so existing setups don't break.

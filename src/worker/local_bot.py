@@ -6,6 +6,7 @@ Used by ``uv run play`` (optional subprocess supervisor) and the dashboard API
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from config.paths import repo_root
 _SUPERVISOR_MODULE = "worker.supervisor"
 _EMBEDDED_THREAD_NAME = "wos-async-services"
 BotMode = Literal["supervisor", "embedded"] | None
+logger = logging.getLogger(__name__)
 
 # (pid, create_time) -> match verdict. cmdline/cwd are immutable for a live
 # process, so once we've classified a PID we can answer subsequent polls for
@@ -58,17 +60,21 @@ def _is_repo_supervisor_process(proc: psutil.Process, repo: os.PathLike[str]) ->
         while len(_PROCESS_VERDICT_CACHE) > _PROCESS_VERDICT_CACHE_MAX:
             _PROCESS_VERDICT_CACHE.popitem(last=False)
         return verdict
-    except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
+    except (psutil.Error, OSError):
         return False
 
 
 def _supervisor_processes(repo: os.PathLike[str] | None = None) -> list[psutil.Process]:
     root = Path(repo or repo_root())
-    return [
-        proc
-        for proc in psutil.process_iter()
-        if _is_repo_supervisor_process(proc, root)
-    ]
+    try:
+        return [
+            proc
+            for proc in psutil.process_iter()
+            if _is_repo_supervisor_process(proc, root)
+        ]
+    except (psutil.Error, OSError):
+        logger.debug("failed to inspect local supervisor processes", exc_info=True)
+        return []
 
 
 def _embedded_thread_alive() -> bool:
@@ -96,7 +102,11 @@ def bot_status() -> dict[str, Any]:
     dev cycles or accidental double-starts can leave several behind). The
     legacy ``pid`` field stays for back-compat and points at the first one.
     """
-    sup = _supervisor_processes()
+    try:
+        sup = _supervisor_processes()
+    except Exception:
+        logger.debug("bot status process scan failed", exc_info=True)
+        sup = []
     if sup:
         processes = [_supervisor_process_summary(p) for p in sup]
         # Stable order: oldest first. ``started_at == None`` sorts last so a

@@ -43,6 +43,24 @@ def test_bot_status_not_running() -> None:
         }
 
 
+def test_bot_status_process_scan_failure_degrades_to_not_running() -> None:
+    with (
+        patch.object(local_bot, "_supervisor_processes", side_effect=OSError("process table unavailable")),
+        patch.object(local_bot, "_embedded_thread_alive", return_value=False),
+    ):
+        assert local_bot.bot_status() == {
+            "running": False,
+            "mode": None,
+            "pid": None,
+            "processes": [],
+        }
+
+
+def test_supervisor_processes_process_iter_failure_returns_empty() -> None:
+    with patch.object(local_bot.psutil, "process_iter", side_effect=local_bot.psutil.AccessDenied(pid=1)):
+        assert local_bot._supervisor_processes("/repo") == []
+
+
 def test_supervisor_process_detection_accepts_console_script_bot() -> None:
     proc = _Proc(
         cmdline=["/repo/.venv/bin/python3", "/repo/.venv/bin/bot"],
