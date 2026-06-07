@@ -35,18 +35,24 @@ def get_redis() -> redis.Redis:
     global _redis_client
     if _redis_client is None:
         settings = load_settings()
-        pool = redis.BlockingConnectionPool.from_url(
-            settings.redis.url,
-            decode_responses=True,
-            max_connections=_REDIS_MAX_CONNECTIONS,
-            timeout=_REDIS_POOL_WAIT_TIMEOUT_S,
-            socket_connect_timeout=_REDIS_SOCKET_CONNECT_TIMEOUT_S,
-            socket_timeout=_REDIS_SOCKET_TIMEOUT_S,
-            socket_keepalive=True,
-            health_check_interval=_REDIS_HEALTH_CHECK_INTERVAL_S,
-            retry=Retry(ExponentialBackoff(cap=0.5, base=0.05), _REDIS_RETRIES),
-            retry_on_error=[redis.ConnectionError, redis.TimeoutError],
-        )
+        kwargs = {
+            "decode_responses": True,
+            "max_connections": _REDIS_MAX_CONNECTIONS,
+            "timeout": _REDIS_POOL_WAIT_TIMEOUT_S,
+            "socket_connect_timeout": _REDIS_SOCKET_CONNECT_TIMEOUT_S,
+            "socket_timeout": _REDIS_SOCKET_TIMEOUT_S,
+            "health_check_interval": _REDIS_HEALTH_CHECK_INTERVAL_S,
+            "retry": Retry(ExponentialBackoff(cap=0.5, base=0.05), _REDIS_RETRIES),
+            "retry_on_error": [redis.ConnectionError, redis.TimeoutError],
+        }
+        # ``socket_keepalive`` is a TCP-only option. Over a unix socket (the prod
+        # deployment uses ``unix:///var/run/redis/redis.sock``) redis-py forwards
+        # it to ``AbstractConnection.__init__``, which rejects it with TypeError
+        # — the pool builds lazily so it looks fine, but the first command (and
+        # the /health ping) blows up and reports Redis as "unreachable".
+        if not settings.redis.url.startswith("unix://"):
+            kwargs["socket_keepalive"] = True
+        pool = redis.BlockingConnectionPool.from_url(settings.redis.url, **kwargs)
         _redis_client = redis.Redis(connection_pool=pool)
         instrument_redis_client(_redis_client, component="api")
     return _redis_client
