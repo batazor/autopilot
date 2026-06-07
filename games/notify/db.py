@@ -112,6 +112,12 @@ DEFAULT_SETTINGS = {
 def _make_engine(path: str) -> Engine:
     """Create a WAL-mode SQLite engine that is safe to share across threads."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
+    # Defensive: a plaintext DB created out-of-band (external sqlite tool,
+    # hand-made dump) can't be read by the keyed engine — every query fails with
+    # "hmac check failed for pgno=1". Encrypt in place first. Idempotent; keeps
+    # a .plaintext.bak.
+    if sqlcipher.encrypt_file(path):
+        log.warning("encrypted plaintext database in place: %s (.plaintext.bak kept)", path)
     engine = create_engine(
         f"sqlite:///{path}",
         module=sqlcipher.DBAPI_MODULE,

@@ -54,6 +54,20 @@ def get_engine(path: Path) -> Engine:
         engine = _engines.get(key)
         if engine is None:
             path.parent.mkdir(parents=True, exist_ok=True)
+            # Defensive: every DB this app owns must be SQLCipher-encrypted, but
+            # a plaintext file can still appear out-of-band — created by an
+            # external sqlite tool, restored from a hand-made dump, or copied in.
+            # The keyed engine below cannot read plaintext pages: every query
+            # would fail with SQLCipher's "hmac check failed for pgno=1" and the
+            # data would look gone. Encrypt it in place first. Idempotent (no-op
+            # on missing/empty/already-encrypted) and keeps a <path>.plaintext.bak.
+            if sqlcipher.encrypt_file(path):
+                logger.warning(
+                    "encrypted plaintext database in place: %s "
+                    "(plaintext copy kept at %s.plaintext.bak — delete once verified)",
+                    path,
+                    path.name,
+                )
             engine = create_engine(
                 f"sqlite:///{key}",
                 module=sqlcipher.DBAPI_MODULE,
