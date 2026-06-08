@@ -132,6 +132,29 @@ async def test_collect_ranked_due_skips_queue_fetch_while_loading() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_schedule_pop_due_preserves_args(redis_async: object) -> None:
+    r = redis_async
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+    now = time.time()
+
+    await q.schedule(
+        task_id="generic-tabs",
+        player_id="",
+        task_type="who_i_am",
+        priority=_HIGH_PRIORITY,
+        run_at=now - 1,
+        instance_id="bs1",
+        args={"region": "deals.tabs_strip"},
+        skip_if_duplicate=False,
+    )
+
+    popped = await q.pop_due("bs1", current_screen="main_city")
+    assert popped is not None
+    assert popped.args == {"region": "deals.tabs_strip"}
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_pop_due_prefers_high_priority_over_512_earlier_low_run_at(
     redis_async: object,
 ) -> None:

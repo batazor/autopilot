@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +30,14 @@ class _Worker(InstanceWorkerOverlayMixin):
         self._cfg = SimpleNamespace(instance_id="bs1")
         self._redis = None
         self._queue = _FakeQueue()
+
+
+class _FakeCounter:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, dict[str, Any]]] = []
+
+    def add(self, value: int, *, attributes: dict[str, Any]) -> None:
+        self.calls.append((value, attributes))
 
 
 @pytest.mark.asyncio
@@ -77,6 +86,92 @@ async def test_overlay_enqueue_skips_unmatched_payloads() -> None:
 
     assert [c["task_type"] for c in worker._queue.calls] == ["skip_text_button"]
     assert worker._queue.calls[0].get("dedup_ignore_region") is True
+
+
+@pytest.mark.asyncio
+async def test_overlay_enqueue_preserves_push_scenario_args() -> None:
+    worker = _Worker()
+
+    await worker._schedule_overlay_matches(
+        {
+            "deals.tabs.visible_red_dot": {
+                "matched": True,
+                "region": "deals.tabs_strip",
+                "pushScenario": [
+                    {
+                        "type": "tabs.strip.advance",
+                        "priority": 70_000,
+                        "args": {"region": "deals.tabs_strip"},
+                    }
+                ],
+            },
+        },
+        active_player="p1",
+    )
+
+    assert len(worker._queue.calls) == 1
+    assert worker._queue.calls[0]["task_type"] == "tabs.strip.advance"
+    assert worker._queue.calls[0]["args"] == {"region": "deals.tabs_strip"}
+
+
+@pytest.mark.asyncio
+async def test_overlay_logs_idle_tab_red_dot_telemetry(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    worker = _Worker()
+    counter = _FakeCounter()
+    monkeypatch.setattr(
+        "worker.instance_worker_overlay.overlay_tab_red_dot_idle_counter",
+        lambda: counter,
+    )
+    monkeypatch.setattr(
+        "worker.instance_worker_overlay._IDLE_TAB_RED_DOT_LAST_LOG",
+        {},
+    )
+    caplog.set_level(logging.INFO)
+
+    await worker._schedule_overlay_matches(
+        {
+            "deals.tabs.visible_red_dot": {
+                "matched": True,
+                "action": "detectTabs",
+                "current_screen": "deals.hero_rally",
+                "region": "deals.tabs_strip",
+                "red_dot_indices": [0, 2],
+                "active_index": 1,
+                "active_page_id": "deals.hero_rally",
+                "red_dot_pages": ["deals.hall_of_heroes"],
+                "tab_action": "push_red_dot_pages",
+                "pushScenario": [
+                    {"type": "deals.hall_of_heroes", "priority": 80_000}
+                ],
+            },
+        },
+        active_player="p1",
+    )
+
+    assert counter.calls == [
+        (
+            1,
+            {
+                "instance_id": "bs1",
+                "screen": "deals.hero_rally",
+                "rule": "deals.tabs.visible_red_dot",
+                "region": "deals.tabs_strip",
+                "active_index": "1",
+                "red_dot_indices": "0,2",
+                "action": "push_red_dot_pages",
+            },
+        )
+    ]
+    assert any(
+        "overlay detectTabs idle red dots" in rec.message
+        and "screen=deals.hero_rally" in rec.message
+        and "red_dot_indices=0,2" in rec.message
+        and "action=push_red_dot_pages" in rec.message
+        for rec in caplog.records
+    )
 
 
 @pytest.mark.asyncio

@@ -1,13 +1,11 @@
-"""Behavioral tests for the ``shop.tab.advance`` scenario.
+"""Behavioral tests for the shared ``tabs.strip.advance`` scenario in Shop.
 
-The scenario carousel-advances the shop tab strip when nothing on the
-visible page needs attention. Shape:
+Shop analyzer queues the generic tab-strip helper with the shop strip region
+and the ``next_page`` fallback arrow. When no visible inactive red-dot tab is
+available, the helper carousel-advances the shop tab strip. Shape:
 
-    while_match: shop.tab.next_page
-      max: 1
-      steps:
-        - click: shop.tab.next_page
-        - wait: 1s
+    exec: advance_tab_strip
+    wait: 1s
 
 Three risks are tested:
 
@@ -17,9 +15,8 @@ Three risks are tested:
   carousel position (no ``next_page`` arrow rendered). Combined with the
   analyzer rule below this also kills the *cross-tick* loop: with no
   arrow the rule stops matching and stops pushing the scenario.
-* **Wasted clicks per tick** — ``while_match: max: 1`` is the hard cap
-  per scenario run; even a hypothetical never-ending strip can only tap
-  once per invocation.
+* **Wasted clicks per tick** — the helper executes once per scenario run; even
+  a hypothetical never-ending strip can only tap once per invocation.
 * **Scheduling contract** — push TTL on the analyzer rule throttles
   re-pushes (otherwise the 1Hz overlay loop would queue advance every
   tick), and the scenario's priority sits below claim scenarios so they
@@ -37,6 +34,7 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from layout.tabs_strip_navigator import StripAction
 
 if TYPE_CHECKING:
     import numpy as np
@@ -44,10 +42,12 @@ if TYPE_CHECKING:
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[3]
 REFERENCES_DIR = MODULE_DIR / "references"
-SCENARIO_PATH = MODULE_DIR / "scenarios" / "shop.tab.advance.yaml"
+SCENARIO_PATH = REPO_ROOT / "games/wos/core/common/scenarios/tabs.strip.advance.yaml"
 ANALYZE_PATH = MODULE_DIR / "analyze" / "analyze.yaml"
 
 NEXT_PAGE_REGION = "shop.tab.next_page"
+TABS_STRIP_REGION = "shop.tabs_strip"
+SCENARIO_KEY = "tabs.strip.advance"
 
 
 def _load_bgr(name: str) -> np.ndarray:
@@ -64,16 +64,11 @@ def test_scenario_file_exists() -> None:
     assert SCENARIO_PATH.exists()
 
 
-def test_scenario_shape_is_bounded_loop_on_next_page() -> None:
-    """Lock the loop's anchor + per-run cap.
-
-    ``while_match: shop.tab.next_page`` is what gives us the end-of-strip
-    stop (arrow disappears → loop exits). ``max`` keeps the per-run tap
-    count finite even on a hypothetical wrapping carousel."""
+def test_scenario_shape_is_single_exec_step() -> None:
+    """Lock the shared helper shape: one exec call, then a settle wait."""
     doc = yaml.safe_load(SCENARIO_PATH.read_text())
-    outer = doc["steps"][0]
-    assert outer["while_match"] == NEXT_PAGE_REGION
-    assert isinstance(outer.get("max"), int) and outer["max"] >= 1
+    assert doc["steps"][0] == {"exec": "advance_tab_strip"}
+    assert doc["steps"][1] == {"wait": "1s"}
 
 
 def test_scenario_priority_below_claim_scenarios() -> None:
@@ -120,13 +115,17 @@ def test_analyze_rule_pushes_with_throttle() -> None:
     advance_push = None
     for step in steps:
         spec = step.get("push_scenario") if isinstance(step, dict) else None
-        if isinstance(spec, dict) and spec.get("name") == "shop.tab.advance":
+        if isinstance(spec, dict) and spec.get("name") == SCENARIO_KEY:
             advance_push = spec
             break
-        if isinstance(spec, str) and spec == "shop.tab.advance":
+        if isinstance(spec, str) and spec == SCENARIO_KEY:
             advance_push = {"name": spec}
             break
-    assert advance_push is not None, f"shop.tab.advance not pushed: {rule!r}"
+    assert advance_push is not None, f"{SCENARIO_KEY} not pushed: {rule!r}"
+    assert advance_push.get("args") == {
+        "region": TABS_STRIP_REGION,
+        "next_region": NEXT_PAGE_REGION,
+    }
     ttl = str(advance_push.get("ttl", "")).strip()
     assert ttl, "push TTL missing — would hot-loop against 1Hz analyzer"
     # Coarse guard: TTL must be at least one analyzer tick (1s). Catches
@@ -159,11 +158,16 @@ async def test_no_clicks_when_next_page_arrow_absent(
 
     actions = make_actions([frame])
     patch_dsl(mocker, actions, repo_root=REPO_ROOT)
+    mocker.patch(
+        "tasks.dsl_exec.pick_next_strip_action",
+        return_value=StripAction(kind="done"),
+    )
 
     task = dsl.DslScenarioTask(
         task_id="shop-tab-advance-noop",
         player_id="p1",
-        scenario_key="shop.tab.advance",
+        scenario_key=SCENARIO_KEY,
+        args={"region": TABS_STRIP_REGION, "next_region": NEXT_PAGE_REGION},
         redis_client=redis_async,  # type: ignore[arg-type]
     )
     result = await task.execute("bs1")
@@ -191,11 +195,16 @@ async def test_clicks_exactly_once_per_run_when_arrow_visible(
 
     actions = make_actions([frame])
     patch_dsl(mocker, actions, repo_root=REPO_ROOT)
+    mocker.patch(
+        "tasks.dsl_exec.pick_next_strip_action",
+        return_value=StripAction(kind="advance_page"),
+    )
 
     task = dsl.DslScenarioTask(
         task_id="shop-tab-advance-once",
         player_id="p1",
-        scenario_key="shop.tab.advance",
+        scenario_key=SCENARIO_KEY,
+        args={"region": TABS_STRIP_REGION, "next_region": NEXT_PAGE_REGION},
         redis_client=redis_async,  # type: ignore[arg-type]
     )
     result = await task.execute("bs1")

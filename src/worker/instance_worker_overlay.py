@@ -12,7 +12,10 @@ from typing import TYPE_CHECKING, Any
 from analysis.overlay_compile import get_inline_steps
 from analysis.overlay_duration import parse_duration_seconds
 from config.paths import repo_root
-from config.tracing import overlay_push_scenario_counter
+from config.tracing import (
+    overlay_push_scenario_counter,
+    overlay_tab_red_dot_idle_counter,
+)
 from dsl.dsl_schema import (
     DEFAULT_SCENARIO_PRIORITY,
     dsl_scenario_yaml_device_level,
@@ -50,6 +53,8 @@ def _record_push_scenario(
 logger = logging.getLogger(__name__)
 
 _REPO_ROOT = repo_root()
+_IDLE_TAB_RED_DOT_LOG_TTL_SECONDS = 15.0
+_IDLE_TAB_RED_DOT_LAST_LOG: dict[tuple[str, str, str, str, str, str], float] = {}
 
 # ``pushScenario.name`` placeholders. Right now only ``${hero_id}`` is wired
 # up — extracted from a ``page.heroes.<id>`` current_screen. Add new pattern /
@@ -109,6 +114,61 @@ def _overlay_push_priority(payload: dict[str, Any]) -> int | None:
         best = pr if best is None else max(best, pr)
     return best
 
+
+def _decode_redis_raw(raw: Any) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode(errors="replace").strip()
+    return str(raw).strip()
+
+
+def _compact_indices(value: Any) -> str:
+    if isinstance(value, list):
+        out: list[str] = []
+        for item in value:
+            try:
+                out.append(str(int(item)))
+            except (TypeError, ValueError):
+                continue
+        return ",".join(out)
+    return str(value or "").strip()
+
+
+def _tab_action_from_payload(payload: dict[str, Any]) -> str:
+    action = str(payload.get("tab_action") or "").strip()
+    if action:
+        return action
+    pu = payload.get("pushScenario")
+    if isinstance(pu, list) and pu:
+        return "push_scenario"
+    if _compact_indices(payload.get("red_dot_indices")):
+        return "red_dots_no_push"
+    return "none"
+
+
+def _record_idle_tab_red_dot(
+    *,
+    instance_id: str,
+    screen: str,
+    rule: str,
+    region: str,
+    active_index: str,
+    red_dot_indices: str,
+    action: str,
+) -> None:
+    overlay_tab_red_dot_idle_counter().add(
+        1,
+        attributes={
+            "instance_id": instance_id or "unknown",
+            "screen": screen or "unknown",
+            "rule": rule or "unknown",
+            "region": region or "unknown",
+            "active_index": active_index or "unknown",
+            "red_dot_indices": red_dot_indices or "none",
+            "action": action or "unknown",
+        },
+    )
 
 
 if TYPE_CHECKING:
@@ -179,6 +239,7 @@ class InstanceWorkerOverlayMixin(_Base):
             if not payload.get("matched"):
                 continue
             matched_payloads.append((rule_name, payload))
+            await self._emit_idle_tab_red_dot_telemetry(rule_name, payload)
             priority = _overlay_push_priority(payload)
             if priority is not None:
                 push_payloads.append((priority, order, rule_name, payload))
@@ -346,6 +407,96 @@ class InstanceWorkerOverlayMixin(_Base):
                 "overlay inline: unsupported step in rule=%s — keys=%s",
                 rule_name, sorted(k for k in step if k != "cond"),
             )
+
+    async def _has_active_scenario(self) -> bool:
+        handle = getattr(self, "_current_task_handle", None)
+        if handle is not None and not handle.done():
+            return True
+        if self._redis is None:
+            return False
+        iid = str(getattr(self._cfg, "instance_id", "") or "").strip()
+        if not iid:
+            return False
+        try:
+            raw_running = await self._redis.get(f"wos:queue:running:{iid}")
+            if raw_running:
+                return True
+        except Exception:
+            logger.debug("overlay idle telemetry: running key read failed", exc_info=True)
+        try:
+            vals = await self._redis.hmget(
+                f"wos:instance:{iid}:state",
+                ["current_task_id", "current_task_type", "current_scenario"],
+            )
+        except Exception:
+            logger.debug("overlay idle telemetry: current task read failed", exc_info=True)
+            return False
+        return any(_decode_redis_raw(v) for v in vals or [])
+
+    async def _emit_idle_tab_red_dot_telemetry(
+        self,
+        rule_name: str,
+        payload: dict[str, Any],
+    ) -> None:
+        if str(payload.get("action") or "").strip() != "detectTabs":
+            return
+        red_dot_indices = _compact_indices(payload.get("red_dot_indices"))
+        if not red_dot_indices:
+            return
+        if await self._has_active_scenario():
+            return
+
+        iid = str(getattr(self._cfg, "instance_id", "") or "").strip() or "unknown"
+        region = str(payload.get("region") or "").strip() or "unknown"
+        screen = str(payload.get("current_screen") or payload.get("set_node") or "").strip()
+        if not screen and self._redis is not None:
+            with suppress(Exception):
+                raw_screen = await self._redis.hget(
+                    f"wos:instance:{iid}:state",
+                    "current_screen",
+                )
+                screen = _decode_redis_raw(raw_screen)
+        screen = screen or "unknown"
+        active_raw = payload.get("active_index")
+        active_index = "none" if active_raw is None else str(active_raw)
+        action = _tab_action_from_payload(payload)
+        targets = [
+            str(item.get("type") or item.get("name") or "").strip()
+            for item in (payload.get("pushScenario") or [])
+            if isinstance(item, dict)
+        ]
+
+        _record_idle_tab_red_dot(
+            instance_id=iid,
+            screen=screen,
+            rule=rule_name,
+            region=region,
+            active_index=active_index,
+            red_dot_indices=red_dot_indices,
+            action=action,
+        )
+
+        key = (iid, screen, rule_name, region, red_dot_indices, action)
+        now = time.monotonic()
+        last = _IDLE_TAB_RED_DOT_LAST_LOG.get(key, 0.0)
+        if now - last < _IDLE_TAB_RED_DOT_LOG_TTL_SECONDS:
+            return
+        _IDLE_TAB_RED_DOT_LAST_LOG[key] = now
+        logger.info(
+            "overlay detectTabs idle red dots: instance=%s screen=%s rule=%s "
+            "region=%s red_dot_indices=%s active_index=%s action=%s "
+            "targets=%s active_page_id=%s red_dot_pages=%s",
+            iid,
+            screen,
+            rule_name,
+            region,
+            red_dot_indices,
+            active_index,
+            action,
+            targets,
+            payload.get("active_page_id"),
+            payload.get("red_dot_pages"),
+        )
 
     async def _enqueue_push_scenarios_from_overlay(
         self,
@@ -592,7 +743,7 @@ class InstanceWorkerOverlayMixin(_Base):
                         # Throttled debounce — no push happened. Return False so
                         # ``_schedule_overlay_matches`` keeps walking the
                         # priority-sorted candidate list and a lower-priority
-                        # rule (e.g. ``shop.tab.advance.has_next_page``) gets
+                        # rule (e.g. ``tabs.strip.advance.has_next_page``) gets
                         # its tick when the top candidate is on cooldown.
                         return False
 
@@ -616,6 +767,8 @@ class InstanceWorkerOverlayMixin(_Base):
                 reg_nm = reg_snap
                 threshold = threshold_snap
                 score = score_snap
+                args_raw = item.get("args")
+                scenario_args = dict(args_raw) if isinstance(args_raw, dict) else None
 
                 # Pass match box data through the queue for UI/debug (best-effort).
                 mtlx_i = None
@@ -653,6 +806,7 @@ class InstanceWorkerOverlayMixin(_Base):
                     tap_match_y_pct=tap_match_y_pct,
                     threshold=threshold,
                     score=score,
+                    args=scenario_args,
                     skip_if_duplicate=True,
                     dedup_ignore_region=True,
                 )

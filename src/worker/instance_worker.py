@@ -227,6 +227,7 @@ class InstanceWorker(
                 tap_x_pct=item.tap_x_pct,
                 tap_y_pct=item.tap_y_pct,
                 start_step_index=item.start_step_index,
+                args=item.args or {},
                 redis_client=self._redis,
                 effective_priority=item.effective_priority or item.priority,
             )

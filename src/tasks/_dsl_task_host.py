@@ -50,6 +50,7 @@ class _DslTaskHost(Protocol):
     tap_x_pct: float | None
     tap_y_pct: float | None
     start_step_index: int
+    args: dict[str, Any]
 
     _last_match_region: str
     _last_match_row: dict[str, Any] | None

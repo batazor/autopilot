@@ -81,6 +81,7 @@ def test_build_task_threads_region_and_steps_index() -> None:
         task_type="dsl_scenario",
         dsl_scenario="claim_trials",
         region="popup.claim",
+        args={"region": "deals.tabs_strip"},
         start_step_index=3,
         effective_priority=88_000,
     )
@@ -88,5 +89,6 @@ def test_build_task_threads_region_and_steps_index() -> None:
     assert isinstance(task, DslScenarioTask)
     assert task.scenario_key == "claim_trials"
     assert task.tap_region == "popup.claim"
+    assert task.args == {"region": "deals.tabs_strip"}
     assert task.start_step_index == 3
     assert task.effective_priority == 88_000

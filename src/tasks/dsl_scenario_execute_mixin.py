@@ -294,7 +294,7 @@ class DslScenarioExecuteMixin(_Base):
         # If ``current_screen`` is already in the set, navigation is skipped —
         # the scenario runs in place. Otherwise the FSM is driven to the FIRST
         # entry. Use this when the same scenario applies to many sibling
-        # screens (e.g. ``shop.tab.advance`` works from any shop sub-page).
+        # screens (e.g. ``tabs.strip.advance`` works from any tabbed sub-page).
         from dsl.dsl_schema import scenario_allowed_nodes
 
         allowed_nodes = scenario_allowed_nodes(doc)
@@ -396,7 +396,7 @@ class DslScenarioExecuteMixin(_Base):
         if target_node and self.start_step_index <= 0:
             # Multi-node scenarios: if we're already on one of the allowed
             # nodes, skip navigation entirely — the steps below run in place.
-            # ``shop.tab.advance`` (``nodes: [shop, shop.daily_deals, ...]``)
+            # ``tabs.strip.advance`` (``nodes: [shop, shop.daily_deals, ...]``)
             # is the motivating case: from any shop sub-page the next-page
             # arrow is already on screen, so a round-trip to the hub is
             # pure waste.
@@ -1538,7 +1538,11 @@ class DslScenarioExecuteMixin(_Base):
                 await self._write_step_context(instance_id, scenario=key)
                 exec_row: dict[str, Any] = {}
                 if cmd:
-                    args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
+                    base_args = self.args if isinstance(self.args, dict) else {}
+                    args = {
+                        **base_args,
+                        **{k: v for k, v in step.items() if k not in ("exec", "cond")},
+                    }
                     exec_row = await self._run_exec_step(cmd, instance_id, args)
                 await _mark_top_level_step_done()
                 exec_row = _trace_exec_result_kwargs(exec_row)

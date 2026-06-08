@@ -88,6 +88,7 @@ class DslScenarioTask(
     tap_x_pct: float | None = None
     tap_y_pct: float | None = None
     start_step_index: int = 0
+    args: dict[str, Any] = field(default_factory=dict)
     # Rank-time effective_priority from RedisQueue.pop_due. Drives cooperative
     # preemption (ADR 0001 §5): a pending task wins only if it outranks us by
     # PREEMPT_MARGIN. Defaults to ``priority`` when unset (legacy callers).

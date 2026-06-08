@@ -5,4 +5,5 @@ description: >-
   Holds regions + crops for buttons that aren't owned by any one feature module.
 area: area.yaml
 references: references
+scenarios: scenarios
 wiki: false

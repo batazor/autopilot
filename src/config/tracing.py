@@ -635,6 +635,27 @@ def overlay_push_scenario_counter() -> Counter:
     return c
 
 
+def overlay_tab_red_dot_idle_counter() -> Counter:
+    """Counter of tab-strip red dots seen while no scenario is active.
+
+    Partitioned by instance/screen/region/rule plus compact tab-state labels
+    (``active_index``, ``red_dot_indices``, ``action``). This highlights pages
+    where the bot is idle despite visible work and helps decide whether a tab
+    needs an analyzer or a better template.
+    """
+    c = _METRICS_CACHE.get("overlay_tab_red_dot_idle_count")
+    if c is None:
+        c = get_meter().create_counter(
+            name="wos.overlay.tab_red_dot_idle.count",
+            description=(
+                "Tab-strip red dots observed while no scenario is active, "
+                "by instance/screen/region/rule/action."
+            ),
+        )
+        _METRICS_CACHE["overlay_tab_red_dot_idle_count"] = c
+    return c
+
+
 def dismiss_unknown_popup_counter() -> Counter:
     """Counter of ``dismiss_unknown_popup`` fallback events.
 

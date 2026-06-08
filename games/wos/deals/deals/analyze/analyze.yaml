@@ -21,6 +21,8 @@ overlay:
   - name: deals.tabs.visible_red_dot
     region: deals.tabs_strip
     action: detectTabs
+    namespace: deals
+    push_red_dot_pages: true
     screens:
       - deals
       - deals.sign_in
@@ -36,5 +38,7 @@ overlay:
       - deals.tundra_trading_station
     steps:
       - push_scenario:
-          name: deals.tab.advance
+          name: tabs.strip.advance
           ttl: 15s
+          args:
+            region: deals.tabs_strip

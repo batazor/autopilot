@@ -97,6 +97,177 @@ def identify_tabs_by_template(
     return out
 
 
+def _canonical_page_id_from_ocr(
+    *,
+    namespace: str,
+    ocr_rel: str,
+    screen_id: str,
+) -> str | None:
+    """Infer ``<namespace>.<page>`` from merged area metadata.
+
+    Deals has several current refs whose ``screen_id`` is still the generic
+    ``deals`` node, so the module path is the stronger signal there:
+    ``games/wos/deals/hero_rally/references/...`` → ``deals.hero_rally``.
+    """
+    ns = str(namespace or "").strip()
+    if not ns:
+        return None
+    sid = str(screen_id or "").strip()
+    if sid.startswith(f"{ns}."):
+        return sid
+
+    parts = ocr_rel.split("/")
+    try:
+        ns_i = parts.index(ns)
+    except ValueError:
+        return sid if sid == ns else None
+    if ns_i + 1 >= len(parts):
+        return sid if sid == ns else None
+    module = parts[ns_i + 1].strip()
+    if not module:
+        return sid if sid == ns else None
+    if sid == ns and module == ns:
+        return ns
+    return f"{ns}.{module}"
+
+
+def _discover_namespace_active_tab_templates(
+    area_doc: dict,
+    repo_root: Path,
+    strip_bbox: dict,
+    *,
+    namespace: str,
+) -> dict[str, np.ndarray]:
+    """Discover tab templates from each reference frame's active tab.
+
+    This is useful for modules such as Deals where tab icons have not been
+    annotated as explicit ``<namespace>.to.<page>`` regions yet. The active tab
+    is linked to a page via the module path, then its inner icon area becomes a
+    template that can identify the same page on other strip frames.
+    """
+    import cv2  # local import; keeps module import cheap for non-detection paths
+
+    from layout.tabs_strip_segmenter import detect_tabs_in_strip
+
+    templates: dict[str, np.ndarray] = {}
+    if not isinstance(strip_bbox, dict):
+        return templates
+
+    ns = str(namespace or "").strip()
+    if not ns:
+        return templates
+    path_fragment = f"/{ns}/"
+
+    for screen in area_doc.get("screens", []) or []:
+        if not isinstance(screen, dict):
+            continue
+        ocr_rel = str(screen.get("ocr", "")).strip()
+        if path_fragment not in f"/{ocr_rel}":
+            continue
+        page_id = _canonical_page_id_from_ocr(
+            namespace=ns,
+            ocr_rel=ocr_rel,
+            screen_id=str(screen.get("screen_id") or ""),
+        )
+        if not page_id or page_id in templates:
+            continue
+        image = cv2.imread(str(repo_root / ocr_rel))
+        if image is None or image.size <= 0:
+            continue
+        tabs = detect_tabs_in_strip(image, strip_bbox)
+        if not tabs or len(tabs) > 8:
+            continue
+        active = next((t for t in tabs if t.active), None)
+        if active is None:
+            continue
+        b = active.bbox_percent
+        # Crop the top/icon part of the active tab. Keeping the crop away from
+        # most of the capsule background makes it transferable to inactive
+        # blue tabs on other pages.
+        inner_bbox = {
+            "x": float(b["x"]) + float(b["width"]) * 0.10,
+            "y": float(b["y"]),
+            "width": float(b["width"]) * 0.80,
+            "height": float(b["height"]) * 0.65,
+        }
+        patch, _ = patch_bgr_from_bbox_percent(image, inner_bbox)
+        if patch.size > 0:
+            templates[page_id] = patch
+    return templates
+
+
+def discover_tab_templates(
+    area_doc: dict,
+    repo_root: Path,
+    strip_bbox: dict,
+    *,
+    namespace: str,
+) -> dict[str, np.ndarray]:
+    """Auto-discover tab templates for a namespace such as ``shop`` or ``deals``.
+
+    For Shop, this preserves the existing explicit-region conventions. For
+    namespaces without per-tab annotations yet, it also derives templates from
+    active tabs in reference screenshots.
+    """
+    import cv2  # local import; this module is otherwise OpenCV-free above
+
+    ns = str(namespace or "").strip()
+    if not ns or not isinstance(strip_bbox, dict):
+        return {}
+
+    templates: dict[str, np.ndarray] = {}
+    if ns == "shop":
+        strip_y_lo = float(strip_bbox.get("y", 0.0))
+        strip_y_hi = strip_y_lo + float(strip_bbox.get("height", 0.0))
+
+        from config.games import MODULES_DIR_NAME
+
+        shop_path_fragment = f"{MODULES_DIR_NAME}/core/shop"
+        for screen in area_doc.get("screens", []) or []:
+            if not isinstance(screen, dict):
+                continue
+            ocr_rel = str(screen.get("ocr", "")).strip()
+            if shop_path_fragment not in ocr_rel:
+                continue
+            for reg in screen.get("regions", []) or []:
+                if not isinstance(reg, dict):
+                    continue
+                name = str(reg.get("name", "")).strip()
+                bbox = reg.get("bbox") or {}
+                ry = float(bbox.get("y", 0.0))
+                if not (strip_y_lo <= ry < strip_y_hi):
+                    continue
+                if name.startswith("shop.to."):
+                    page_id = "shop." + name[len("shop.to."):]
+                elif name.startswith("page.to."):
+                    page_id = "shop." + name[len("page.to."):]
+                elif name.startswith("page.shop.") and name.endswith(".title"):
+                    suffix = name[len("page.shop."):-len(".title")]
+                    if not suffix:
+                        continue
+                    page_id = "shop." + suffix
+                else:
+                    continue
+                if page_id in templates:
+                    continue
+                crop_path = exported_crop_png(repo_root, ocr_rel, name)
+                if not crop_path.is_file():
+                    continue
+                img = cv2.imread(str(crop_path))
+                if img is not None and img.size > 0:
+                    templates[page_id] = img
+
+    # Generic fallback, and the primary path for Deals.
+    for page_id, img in _discover_namespace_active_tab_templates(
+        area_doc,
+        repo_root,
+        strip_bbox,
+        namespace=ns,
+    ).items():
+        templates.setdefault(page_id, img)
+    return templates
+
+
 def discover_shop_tab_templates(
     area_doc: dict,
     repo_root: Path,
@@ -117,48 +288,9 @@ def discover_shop_tab_templates(
     Returns ``{page_id → BGR template}``. Page IDs are the canonical
     ``shop.<page>`` form ready to pass to :func:`identify_tabs_by_template`.
     """
-    import cv2  # local import; this module is otherwise OpenCV-free above
-
-    if not isinstance(strip_bbox, dict):
-        return {}
-    strip_y_lo = float(strip_bbox.get("y", 0.0))
-    strip_y_hi = strip_y_lo + float(strip_bbox.get("height", 0.0))
-
-    from config.games import MODULES_DIR_NAME
-
-    shop_path_fragment = f"{MODULES_DIR_NAME}/core/shop"
-    templates: dict[str, np.ndarray] = {}
-    for screen in area_doc.get("screens", []) or []:
-        if not isinstance(screen, dict):
-            continue
-        ocr_rel = str(screen.get("ocr", "")).strip()
-        if shop_path_fragment not in ocr_rel:
-            continue
-        for reg in screen.get("regions", []) or []:
-            if not isinstance(reg, dict):
-                continue
-            name = str(reg.get("name", "")).strip()
-            bbox = reg.get("bbox") or {}
-            ry = float(bbox.get("y", 0.0))
-            if not (strip_y_lo <= ry < strip_y_hi):
-                continue
-            if name.startswith("shop.to."):
-                page_id = "shop." + name[len("shop.to."):]
-            elif name.startswith("page.to."):
-                page_id = "shop." + name[len("page.to."):]
-            elif name.startswith("page.shop.") and name.endswith(".title"):
-                suffix = name[len("page.shop."):-len(".title")]
-                if not suffix:
-                    continue
-                page_id = "shop." + suffix
-            else:
-                continue
-            if page_id in templates:
-                continue
-            crop_path = exported_crop_png(repo_root, ocr_rel, name)
-            if not crop_path.is_file():
-                continue
-            img = cv2.imread(str(crop_path))
-            if img is not None and img.size > 0:
-                templates[page_id] = img
-    return templates
+    return discover_tab_templates(
+        area_doc,
+        repo_root,
+        strip_bbox,
+        namespace="shop",
+    )

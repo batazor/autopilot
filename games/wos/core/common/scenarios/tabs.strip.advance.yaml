@@ -1,0 +1,37 @@
+enabled: true
+name: "Tabs: advance tab strip"
+priority: 70_000
+# Generic helper for pages with a horizontal tab strip. Analyzer rules pass
+# runtime args, so each module only owns its regions:
+#
+#   args:
+#     region: deals.tabs_strip
+#     next_region: shop.tab.next_page   # optional carousel arrow
+#
+# Runnable from every current Shop/Deals tab page. Event modules can join by
+# adding their screen IDs here once they define a strip region.
+nodes:
+  - shop
+  - shop.dawn_market
+  - shop.daily_deals
+  - shop.mix_match
+  - shop.dawn_fund
+  - shop.construction_queue
+  - shop.weekly_monthly_cards
+  - shop.get_gems
+  - shop.regular_pack
+  - deals
+  - deals.sign_in
+  - deals.home_and_beyond
+  - deals.hall_of_heroes
+  - deals.vault_of_enigma
+  - deals.hero_rally
+  - deals.first_purchase
+  - deals.bank
+  - deals.dead_shot
+  - deals.endless_wayfarer
+  - deals.journey_treasures
+  - deals.tundra_trading_station
+steps:
+  - exec: advance_tab_strip
+  - wait: 1s

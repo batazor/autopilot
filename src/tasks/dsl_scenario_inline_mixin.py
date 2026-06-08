@@ -1241,7 +1241,11 @@ class DslScenarioInlineMixin(_Base):
             name = str(step.get("exec") or "").strip()
             exec_row: dict[str, Any] = {}
             if name:
-                args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
+                base_args = self.args if isinstance(self.args, dict) else {}
+                args = {
+                    **base_args,
+                    **{k: v for k, v in step.items() if k not in ("exec", "cond")},
+                }
                 exec_row = await self._run_exec_step(name, instance_id, args)
             exec_row = _trace_exec_result_kwargs(exec_row)
             self._append_trace_row(trace_path, step, "ok", **exec_row)

@@ -48,7 +48,11 @@ def _coerce_push_scenario_step(
         pr = None
     ttl = parse_duration_seconds(src.get("ttl"))
     dsl = str(src.get("dsl_scenario") or "").strip() or None
-    return {"type": t, "priority": pr, "ttl": ttl, "dsl_scenario": dsl}
+    out: dict[str, Any] = {"type": t, "priority": pr, "ttl": ttl, "dsl_scenario": dsl}
+    args_raw = src.get("args")
+    if isinstance(args_raw, dict):
+        out["args"] = dict(args_raw)
+    return out
 
 
 def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
@@ -62,6 +66,8 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
           name: claim_mail
           priority: 80000
           ttl: 15m
+          args:
+            region: deals.tabs_strip
 
     Per-item ``priority`` is optional: ``worker.instance_worker_overlay`` resolves
     queue priority as: explicit push entry ``priority`` → scenario YAML top-level

@@ -26,7 +26,7 @@ from layout.tab_active_detector import (
     tab_activity_stats,
     yellow_tab_ratio,
 )
-from layout.tabs_strip_identifier import discover_shop_tab_templates, identify_tabs_by_template
+from layout.tabs_strip_identifier import discover_tab_templates, identify_tabs_by_template
 from layout.tabs_strip_segmenter import detect_tabs_in_strip
 from layout.template_match import (
     TemplateMatchResult,
@@ -842,13 +842,35 @@ async def evaluate_overlay_rules_async(
                 continue
 
             tabs_dt = detect_tabs_in_strip(image_bgr, bbox_dt)
-            # Identify each tab → page_id (which sub-shop does this tab navigate
-            # to?). Templates auto-discovered from the strip's module — the bot
-            # then knows not just "tab N has a red dot" but "page X needs work".
+            # Identify each tab → page_id (which sub-page does this tab navigate
+            # to?). Templates auto-discovered from the strip's namespace — the
+            # bot then knows not just "tab N has a red dot" but "page X needs work".
+            tab_namespace_dt = str(
+                rule.get("namespace") or rule.get("tab_namespace") or ""
+            ).strip()
+            if not tab_namespace_dt and "." in region_name_dt:
+                tab_namespace_dt = region_name_dt.split(".", 1)[0].strip()
+            min_score_raw_dt = rule.get("template_min_score")
+            if min_score_raw_dt is None and tab_namespace_dt == "deals":
+                min_score_raw_dt = 0.45
+            try:
+                min_score_dt = (
+                    float(min_score_raw_dt)
+                    if min_score_raw_dt is not None
+                    else 0.70
+                )
+            except (TypeError, ValueError):
+                min_score_dt = 0.70
             tab_ids_dt = identify_tabs_by_template(
                 image_bgr,
                 tabs_dt,
-                discover_shop_tab_templates(area_doc, repo_root, bbox_dt),
+                discover_tab_templates(
+                    area_doc,
+                    repo_root,
+                    bbox_dt,
+                    namespace=tab_namespace_dt,
+                ),
+                min_score=min_score_dt,
             )
             tabs_payload = [
                 {
@@ -898,16 +920,18 @@ async def evaluate_overlay_rules_async(
             active_page_id_dt = (
                 tab_ids_dt.get(active_index) if active_index is not None else None
             )
+            red_dot_indices_dt = [t.index for t in tabs_dt if t.has_red_dot]
             hit_dt: dict[str, Any] = {
                 "matched": any_red_dot,
                 "action": "detectTabs",
                 "region": region_name_dt,
+                "current_screen": cur_screen_norm,
                 "tabs": tabs_payload,
                 "tab_count": len(tabs_dt),
                 "active_index": active_index,
                 "active_page_id": active_page_id_dt,
                 "any_red_dot": any_red_dot,
-                "red_dot_indices": [t.index for t in tabs_dt if t.has_red_dot],
+                "red_dot_indices": red_dot_indices_dt,
                 "red_dot_pages": red_dot_pages,
                 "tap_x_pct": tap_x_pct_dt,
                 "tap_y_pct": tap_y_pct_dt,
@@ -918,6 +942,32 @@ async def evaluate_overlay_rules_async(
                 hit_dt["template_w"] = tap_template_w
                 hit_dt["template_h"] = tap_template_h
             push_tasks_dt = compiled.push_tasks
+            if bool(rule.get("push_red_dot_pages")) and red_dot_pages:
+                inherited_ttl = None
+                if push_tasks_dt:
+                    inherited_ttl = push_tasks_dt[0].get("ttl")
+                push_tasks_dt = [
+                    {
+                        "type": page_id,
+                        "priority": None,
+                        "ttl": inherited_ttl,
+                        "dsl_scenario": None,
+                    }
+                    for page_id in red_dot_pages
+                ]
+                hit_dt["tab_action"] = "push_red_dot_pages"
+            elif push_tasks_dt:
+                hit_dt["tab_action"] = "push_scenario"
+            elif red_dot_indices_dt:
+                hit_dt["tab_action"] = "red_dots_no_push"
+            else:
+                hit_dt["tab_action"] = "none"
+            if push_tasks_dt:
+                hit_dt["tab_action_targets"] = [
+                    str(item.get("type") or item.get("name") or "").strip()
+                    for item in push_tasks_dt
+                    if isinstance(item, dict)
+                ]
             if push_tasks_dt:
                 hit_dt["pushScenario"] = push_tasks_dt
             if set_node_s:

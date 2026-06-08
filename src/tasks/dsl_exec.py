@@ -617,6 +617,9 @@ async def _exec_click_next_red_dot_tab(ctx: DslExecContext) -> None:
 
     Args:
       region: area region containing the whole tab strip.
+      next_region: optional area region for a strip "next page" control. Used
+        when no visible inactive red-dot tab is available but the strip can be
+        paged forward.
 
     The active tab is intentionally skipped: the active page's own analyzer
     should push its claim scenario, while this handler only moves the bot to
@@ -627,6 +630,31 @@ async def _exec_click_next_red_dot_tab(ctx: DslExecContext) -> None:
         logger.warning("dsl exec click_next_red_dot_tab: missing region arg")
         ctx.result.update({"action": "missing_region"})
         return
+    region_prefix = region_name.split(".", 1)[0].strip()
+    if region_prefix and "." in region_name and ctx.redis_client is not None:
+        try:
+            raw_screen = await ctx.redis_client.hget(
+                f"wos:instance:{ctx.instance_id}:state",
+                "current_screen",
+            )
+        except Exception:
+            raw_screen = None
+        current_screen = _decode_redis_raw(raw_screen)
+        screen_prefix = current_screen.split(".", 1)[0].strip() if current_screen else ""
+        if screen_prefix and screen_prefix != region_prefix:
+            logger.info(
+                "dsl exec click_next_red_dot_tab: skip region=%s on current_screen=%s",
+                region_name,
+                current_screen,
+            )
+            ctx.result.update(
+                {
+                    "action": "screen_mismatch",
+                    "region": region_name,
+                    "current_screen": current_screen,
+                }
+            )
+            return
 
     area_doc = _load_area_doc()
     pair = screen_region_by_name(area_doc, region_name) if area_doc else None
@@ -662,6 +690,80 @@ async def _exec_click_next_red_dot_tab(ctx: DslExecContext) -> None:
         }
     )
     if decision.kind != "click_tab" or decision.tab_index is None:
+        next_region = str((ctx.args or {}).get("next_region") or "").strip()
+        if decision.kind == "advance_page" and next_region:
+            pair_next = screen_region_by_name(area_doc, next_region) if area_doc else None
+            bbox_next = (
+                pair_next[1].get("bbox")
+                if pair_next and isinstance(pair_next[1], dict)
+                else None
+            )
+            if not isinstance(bbox_next, dict):
+                logger.warning(
+                    "dsl exec click_next_red_dot_tab: next_region=%r not found in area.json",
+                    next_region,
+                )
+                ctx.result.update(
+                    {"action": "unknown_next_region", "next_region": next_region}
+                )
+                return
+
+            h, w = image.shape[:2]
+            x = int(
+                round(
+                    (float(bbox_next["x"]) + float(bbox_next["width"]) / 2.0)
+                    / 100.0
+                    * w
+                )
+            )
+            y = int(
+                round(
+                    (float(bbox_next["y"]) + float(bbox_next["height"]) / 2.0)
+                    / 100.0
+                    * h
+                )
+            )
+            tapped = False
+            try:
+                tapped = bool(
+                    await asyncio.to_thread(
+                        actions.tap,
+                        ctx.instance_id,
+                        Point(x, y),
+                        approval_region=next_region,
+                    )
+                )
+            except Exception:
+                logger.exception(
+                    "dsl exec click_next_red_dot_tab: next tap failed at "
+                    "(%d,%d) instance=%s",
+                    x,
+                    y,
+                    ctx.instance_id,
+                )
+                ctx.result.update(
+                    {"action": "next_tap_failed", "next_region": next_region}
+                )
+                return
+            ctx.result.update(
+                {
+                    "action": "advanced_page" if tapped else "next_tap_blocked",
+                    "next_region": next_region,
+                    "tap_x": x,
+                    "tap_y": y,
+                }
+            )
+            logger.info(
+                "dsl exec click_next_red_dot_tab: instance=%s region=%s "
+                "next_region=%s tap=(%d,%d) tapped=%s",
+                ctx.instance_id,
+                region_name,
+                next_region,
+                x,
+                y,
+                tapped,
+            )
+            return
         logger.info(
             "dsl exec click_next_red_dot_tab: instance=%s region=%s action=%s "
             "tabs=%d red_dot_indices=%s",
@@ -1500,6 +1602,7 @@ _CORE_DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "sync_hero_unit": _exec_sync_hero_unit,
     "scan_heroes_grid": _exec_scan_heroes_grid,
     "click_next_red_dot_tab": _exec_click_next_red_dot_tab,
+    "advance_tab_strip": _exec_click_next_red_dot_tab,
     "put_all_red_dots": _exec_put_all_red_dots,
     "dismiss_popup": _exec_dismiss_popup,
 }

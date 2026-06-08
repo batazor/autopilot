@@ -307,6 +307,18 @@ def test_metric_instruments_record_does_not_raise(_initialised_tracing: object) 
     tracing.redis_command_duration_histogram().record(
         0.001, attributes={"command": "GET", "component": "test", "outcome": "ok"}
     )
+    tracing.overlay_tab_red_dot_idle_counter().add(
+        1,
+        attributes={
+            "instance_id": "bs1",
+            "screen": "deals",
+            "rule": "deals.tabs.visible_red_dot",
+            "region": "deals.tabs_strip",
+            "active_index": "0",
+            "red_dot_indices": "1,2",
+            "action": "push_red_dot_pages",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

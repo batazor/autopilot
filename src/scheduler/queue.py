@@ -154,6 +154,8 @@ class QueueItem:
     set_node: str | None = None
     # Optional DSL scenario key (imperative_drafts runner).
     dsl_scenario: str | None = None
+    # Optional runtime parameters for generic DSL scenarios/exec steps.
+    args: dict[str, Any] | None = None
     # Optional template match box for UI/debug (overlay-derived tasks).
     match_top_left_x: int | None = None
     match_top_left_y: int | None = None
@@ -199,6 +201,7 @@ class RedisQueue:
         score: float | None = None,
         set_node: str | None = None,
         dsl_scenario: str | None = None,
+        args: dict[str, Any] | None = None,
         match_top_left_x: int | None = None,
         match_top_left_y: int | None = None,
         template_w: int | None = None,
@@ -250,6 +253,8 @@ class RedisQueue:
             body["set_node"] = str(set_node).strip()
         if dsl_scenario is not None and str(dsl_scenario).strip() != "":
             body["dsl_scenario"] = str(dsl_scenario).strip()
+        if isinstance(args, dict) and args:
+            body["args"] = json.loads(json.dumps(args))
         if match_top_left_x is not None:
             body["match_top_left_x"] = int(match_top_left_x)
         if match_top_left_y is not None:
@@ -876,6 +881,8 @@ class RedisQueue:
         set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
         ds = data.get("dsl_scenario")
         dsl_scenario = str(ds).strip() if ds is not None and str(ds).strip() != "" else None
+        args_raw = data.get("args")
+        args = dict(args_raw) if isinstance(args_raw, dict) else None
         mtlx = data.get("match_top_left_x")
         mtly = data.get("match_top_left_y")
         tw = data.get("template_w")
@@ -906,6 +913,7 @@ class RedisQueue:
             score=score,
             set_node=set_node,
             dsl_scenario=dsl_scenario,
+            args=args,
             match_top_left_x=match_top_left_x,
             match_top_left_y=match_top_left_y,
             template_w=template_w,

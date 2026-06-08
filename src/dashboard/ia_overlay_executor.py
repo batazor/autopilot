@@ -165,7 +165,7 @@ async def _analyze_instance(
     }
     # Keep scanning overlays even while a task is running so a page-specific
     # scenario (e.g. ``shop.dawn_market``) can outrank a lower-priority cycle
-    # scenario (e.g. ``shop.tab.advance``) and cooperatively preempt it via
+    # scenario (e.g. ``tabs.strip.advance``) and cooperatively preempt it via
     # ``_preempted_by_higher_priority`` (ADR 0001 §5). Per-rule ``ttl:`` debounce
     # + queue dedup index keep duplicate pushes off the queue.
 
