@@ -126,6 +126,28 @@
           }
         }
       ]
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/chat.alliance.pouch.png",
+      "regions": [
+        {
+          "name": "button.open",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 73.74187355870647,
+            "y": 19.40125351807645,
+            "width": 16.053370786516783,
+            "height": 4.333409994414721,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
     }
   ]
 }

@@ -13,6 +13,7 @@ Add a module's path to ``PORTED_MODULES`` when porting it.
 
 from __future__ import annotations
 
+import functools
 import json
 import math
 from pathlib import Path
@@ -66,6 +67,21 @@ def _region_names(module: str) -> set[str]:
     return {r["name"] for s in _area(module)["screens"] for r in s["regions"]}
 
 
+@functools.lru_cache(maxsize=1)
+def _all_region_names() -> set[str]:
+    """Every region across all modules' merged area docs.
+
+    Region names are globally unique, and a scenario may legitimately tap a
+    region owned by another module (e.g. the shared ``icon.page.back`` button),
+    so scenarios are validated against the global set — same source of truth as
+    ``config.startup_validation`` — rather than only their own module's regions.
+    """
+    from layout.area_manifest import load_area_doc
+
+    doc = load_area_doc(REPO_ROOT)
+    return {r["name"] for s in doc.get("screens") or [] for r in s.get("regions") or []}
+
+
 @pytest.mark.parametrize("module", PORTED_MODULES)
 def test_module_enabled(module: str) -> None:
     meta = yaml.safe_load((REPO_ROOT / module / "module.yaml").read_text())
@@ -110,7 +126,7 @@ def test_reference_screenshots_are_target_resolution(module: str) -> None:
 
 @pytest.mark.parametrize("module", PORTED_MODULES)
 def test_scenarios_reference_known_regions(module: str) -> None:
-    known = _region_names(module)
+    known = _all_region_names()
     scen_dir = REPO_ROOT / module / "scenarios"
     for yml in scen_dir.glob("*.yaml"):
         doc = yaml.safe_load(yml.read_text())
