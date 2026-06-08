@@ -18,6 +18,18 @@ steps:
       - click: deals.home_and_beyound.claim_all
       - wait: 1.5s
 
+  # Individual reward tiers expose their own claim buttons; the claimable ones
+  # are highlighted with a white border (spent/locked ones are not).
+  # ``button.claim`` carries ``isSearch: true`` so the matcher scans the whole
+  # frame, and ``isWhiteBorder: true`` keeps only the highlighted (still-claimable)
+  # buttons — one tap per iteration walks every lit button until none remain.
+  - while_match: button.claim
+    isWhiteBorder: true
+    max: 5
+    steps:
+      - click: button.claim
+      - wait: 1s
+
   - while_match: heroes.sr.new.close
     max: 5
     steps:

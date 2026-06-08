@@ -76,8 +76,9 @@ async def test_witness_title_landmark_detected(area_doc: dict) -> None:
 async def test_witness_button_free_count_is_two(area_doc: dict) -> None:
     """Whole-frame ``button.free`` search returns exactly two clickable buttons.
 
-    The DSL ``while_match: button.free`` loop in
-    ``games/wos/deals/hall_of_heroes/scenarios/hall_of_heroes.witness.yaml``
+    The DSL ``while_match: button.free`` loop inside the
+    ``deals.hall_of_heroes.add`` block of
+    ``games/wos/deals/hall_of_heroes/scenarios/deals.hall_of_heroes.yaml``
     claims each Free button in turn (one tap → wait → re-detect). On the
     captured reference the witness page exposes two buttons: the top "Event
     ends in" claim and the Use Gems section. Both must be detected at the

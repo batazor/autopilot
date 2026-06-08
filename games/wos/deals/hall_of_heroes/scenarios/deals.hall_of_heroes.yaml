@@ -23,3 +23,23 @@ steps:
     type: integer
     preprocess: fast_digits
     state: events.hall_of_heroes.point
+
+  - while_match: deals.hall_of_heroes.add
+    max: 1
+    steps:
+      - click: deals.hall_of_heroes.add
+      - wait: 1s
+      # ``button.free`` carries ``isSearch: true`` — the matcher scans the full
+      # frame, so this loop walks every visible Free button in turn (one tap per
+      # iteration). Exits once nothing free remains.
+      - while_match: button.free.small
+        max: 4
+        steps:
+          - click: button.free.small
+          - wait: 1.5s
+          - while_match: button.tap_anywhere_to_exit
+            steps:
+              - click: button.tap_anywhere_to_exit
+              - wait: 1s
+      - click: icon.page.back
+      - wait: 1s
