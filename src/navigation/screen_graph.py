@@ -316,7 +316,17 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
             rule["contains"] = [str(x).strip() for x in contains if str(x).strip()]
         elif contains is not None and str(contains).strip():
             rule["contains"] = str(contains).strip()
-    for key in ("threshold", "confidence", "min_match_saturation"):
+    for key in (
+        "threshold",
+        "confidence",
+        "min_match_saturation",
+        # Active-tab (tab_active) calibration overrides — forwarded by the
+        # detector to the overlay engine when a tab strip's contrast differs
+        # from the mail-calibrated TAB_ACTIVE_* defaults (e.g. chat).
+        "max_mean_saturation",
+        "min_mean_value",
+        "min_yellow_ratio",
+    ):
         if key in raw_d:
             rule[key] = raw_d[key]
     return rule

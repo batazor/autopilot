@@ -84,6 +84,48 @@
           }
         }
       ]
+    },
+    {
+      "id": 3,
+      "screen_id": "main_city",
+      "ocr": "references/alliance.furnace_upgrade_pack.png",
+      "regions": [
+        {
+          "name": "alliance.furnace_upgrade_pack",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 75.96729184043944,
+            "y": 83.2522638482407,
+            "width": 6.362359550561717,
+            "height": 3.6237474126885814,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/chat.alliance.png",
+      "regions": [
+        {
+          "name": "chat.alliance.furnace",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.95259064815251,
+            "y": 77.12505264471415,
+            "width": 6.994382022471691,
+            "height": 4.333409994414668,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

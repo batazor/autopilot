@@ -181,6 +181,18 @@ class ScreenDetector:
                     "region": tab_region_name,
                     "isTabActive": True,
                 }
+                # Forward optional active-tab calibration overrides (the overlay
+                # engine falls back to the global TAB_ACTIVE_* defaults otherwise).
+                # Needed when a tab strip's inactive style is lighter than the
+                # mail-calibrated default (e.g. chat: inactive S≈115, active S≈27).
+                for key in (
+                    "max_mean_saturation",
+                    "min_mean_value",
+                    "min_yellow_ratio",
+                ):
+                    val = rule.get(key)
+                    if val is not None:
+                        overlay_rule[key] = val
                 rules.append(overlay_rule)
                 group_names.append(str(overlay_rule["name"]))
             if group_names:

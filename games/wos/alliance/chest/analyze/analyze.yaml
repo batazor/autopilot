@@ -12,3 +12,17 @@ overlay:
     ttl: 20m
     steps:
       - push_scenario: claim_alliance_chests
+
+  # On main_city, the furnace_upgrade_pack help shortcut icon appears (bottom
+  # right) when an alliance member requests a furnace upgrade pack. Seeing it
+  # drives the `furnace_upgrade_pack` scenario, which taps the icon to jump
+  # straight from main_city into the Alliance chat (node: chat.alliance).
+  - name: alliance.furnace_upgrade_pack.visible
+    region: alliance.furnace_upgrade_pack
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - main_city
+    ttl: 10m
+    steps:
+      - push_scenario: furnace_upgrade_pack

@@ -1,24 +1,34 @@
+# Chat navigation edges.
+#
+# Entering chat taps the `main_city.to.chat` button — it sits at the same spot
+# on both main_city and main_world, so both hubs route into chat with it.
+# Switching tabs taps the tab button itself (chat.world / chat.alliance /
+# chat.personal). Every chat screen returns to main_city via the shared
+# `icon.page.back` button.
 edges:
   main_city:
-    chat: [page.chat]
+    chat: [main_city.to.chat]
+
+  main_world:
+    chat: [main_city.to.chat]
 
   chat:
-    chat.world: [chat.tab.world]
-    chat.alliance: [chat.tab.alliance]
-    chat.personal: [chat.tab.personal]
+    chat.world: [chat.world]
+    chat.alliance: [chat.alliance]
+    chat.personal: [chat.personal]
     main_city: [icon.page.back]
 
   chat.world:
-    chat.alliance: [chat.tab.alliance]
-    chat.personal: [chat.tab.personal]
+    chat.alliance: [chat.alliance]
+    chat.personal: [chat.personal]
     main_city: [icon.page.back]
 
   chat.alliance:
-    chat.world: [chat.tab.world]
-    chat.personal: [chat.tab.personal]
+    chat.world: [chat.world]
+    chat.personal: [chat.personal]
     main_city: [icon.page.back]
 
   chat.personal:
-    chat.world: [chat.tab.world]
-    chat.alliance: [chat.tab.alliance]
+    chat.world: [chat.world]
+    chat.alliance: [chat.alliance]
     main_city: [icon.page.back]

@@ -1,0 +1,29 @@
+name: "🔥 Alliance: Furnace Upgrade Pack → Alliance Chat"
+enabled: true
+
+# Overlay-triggered from main_city by the `alliance.furnace_upgrade_pack.visible`
+# rule (analyze/analyze.yaml). The furnace_upgrade_pack help shortcut icon
+# (region `alliance.furnace_upgrade_pack`, bottom-right of main_city) appears when
+# an alliance member requests a furnace upgrade pack; tapping it jumps straight
+# into the Alliance chat tab, where the pack message (`chat.alliance.furnace`)
+# is opened.
+#
+# TODO (follow-up): claim/open the pack inside the popup and back out — pending
+# the "Open"/"Claim" button on that popup being labeled (no `button.open` region
+# exists yet), so for now the scenario only opens the chat pack message.
+device_level: true
+priority: 70_000
+
+steps:
+  # Soft guard: only tap when the icon is actually on screen (it's transient).
+  - while_match: alliance.furnace_upgrade_pack
+    max: 1
+    steps:
+      - click: alliance.furnace_upgrade_pack
+      - wait: 1s
+      # Landed in the Alliance chat — open the furnace upgrade pack message.
+      - while_match: chat.alliance.furnace
+        max: 1
+        steps:
+          - click: chat.alliance.furnace
+          - wait: 1s
