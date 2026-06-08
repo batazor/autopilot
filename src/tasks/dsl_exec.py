@@ -20,6 +20,8 @@ from config.state_store import get_state_store
 from dashboard.notifications import push_ui_notification
 from layout.area_lookup import screen_region_by_name
 from layout.red_dot_detector import find_red_dots
+from layout.tabs_strip_navigator import pick_next_strip_action
+from layout.tabs_strip_segmenter import detect_tabs_in_strip
 from layout.types import Point, Region
 from navigation.hero_grid_search import scan_grid_frame
 from popup.detector import PopupDetector
@@ -608,6 +610,121 @@ _PUT_ALL_RED_DOTS_RESCAN_DELAY_S = 0.6
 # the radius are skipped before tapping.
 _PUT_ALL_RED_DOTS_DUP_RADIUS_PX = 5
 _PUT_ALL_RED_DOTS_DUP_MAX_HITS = 2
+
+
+async def _exec_click_next_red_dot_tab(ctx: DslExecContext) -> None:
+    """Click the first non-active red-dot tab in a dynamic tab strip.
+
+    Args:
+      region: area region containing the whole tab strip.
+
+    The active tab is intentionally skipped: the active page's own analyzer
+    should push its claim scenario, while this handler only moves the bot to
+    another visible tab that advertises pending work.
+    """
+    region_name = str((ctx.args or {}).get("region") or "").strip()
+    if not region_name:
+        logger.warning("dsl exec click_next_red_dot_tab: missing region arg")
+        ctx.result.update({"action": "missing_region"})
+        return
+
+    area_doc = _load_area_doc()
+    pair = screen_region_by_name(area_doc, region_name) if area_doc else None
+    bbox = pair[1].get("bbox") if pair and isinstance(pair[1], dict) else None
+    if not isinstance(bbox, dict):
+        logger.warning(
+            "dsl exec click_next_red_dot_tab: region=%r not found in area.json",
+            region_name,
+        )
+        ctx.result.update({"action": "unknown_region", "region": region_name})
+        return
+
+    actions = dsl_runtime.bot_actions()
+    try:
+        image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+    except Exception:
+        logger.exception(
+            "dsl exec click_next_red_dot_tab: capture_screen_bgr failed instance=%s",
+            ctx.instance_id,
+        )
+        ctx.result.update({"action": "capture_failed", "region": region_name})
+        return
+
+    tabs = detect_tabs_in_strip(image, bbox)
+    decision = pick_next_strip_action(tabs)
+    ctx.result.update(
+        {
+            "action": decision.kind,
+            "region": region_name,
+            "tab_count": len(tabs),
+            "red_dot_indices": [t.index for t in tabs if t.has_red_dot],
+            "active_indices": [t.index for t in tabs if t.active],
+        }
+    )
+    if decision.kind != "click_tab" or decision.tab_index is None:
+        logger.info(
+            "dsl exec click_next_red_dot_tab: instance=%s region=%s action=%s "
+            "tabs=%d red_dot_indices=%s",
+            ctx.instance_id,
+            region_name,
+            decision.kind,
+            len(tabs),
+            ctx.result["red_dot_indices"],
+        )
+        return
+
+    tab = next((t for t in tabs if t.index == decision.tab_index), None)
+    if tab is None:
+        logger.warning(
+            "dsl exec click_next_red_dot_tab: selected tab=%s disappeared",
+            decision.tab_index,
+        )
+        ctx.result.update({"action": "selected_tab_missing"})
+        return
+
+    b = tab.bbox_percent
+    h, w = image.shape[:2]
+    x = int(round((float(b["x"]) + float(b["width"]) / 2.0) / 100.0 * w))
+    y = int(round((float(b["y"]) + float(b["height"]) / 2.0) / 100.0 * h))
+    point = Point(x, y)
+    tapped = False
+    try:
+        tapped = bool(
+            await asyncio.to_thread(
+                actions.tap,
+                ctx.instance_id,
+                point,
+                approval_region=region_name,
+            )
+        )
+    except Exception:
+        logger.exception(
+            "dsl exec click_next_red_dot_tab: tap failed at (%d,%d) instance=%s",
+            point.x,
+            point.y,
+            ctx.instance_id,
+        )
+        ctx.result.update({"action": "tap_failed", "tab_index": tab.index})
+        return
+
+    ctx.result.update(
+        {
+            "action": "clicked_tab" if tapped else "tap_blocked",
+            "tab_index": tab.index,
+            "tap_x": point.x,
+            "tap_y": point.y,
+        }
+    )
+    logger.info(
+        "dsl exec click_next_red_dot_tab: instance=%s region=%s tab=%d "
+        "tap=(%d,%d) tapped=%s",
+        ctx.instance_id,
+        region_name,
+        tab.index,
+        point.x,
+        point.y,
+        tapped,
+    )
 
 
 async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
@@ -1382,6 +1499,7 @@ _CORE_DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "sync_building_name": _exec_sync_building_name,
     "sync_hero_unit": _exec_sync_hero_unit,
     "scan_heroes_grid": _exec_scan_heroes_grid,
+    "click_next_red_dot_tab": _exec_click_next_red_dot_tab,
     "put_all_red_dots": _exec_put_all_red_dots,
     "dismiss_popup": _exec_dismiss_popup,
 }

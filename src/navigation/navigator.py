@@ -12,12 +12,14 @@ from config.paths import repo_root
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
 from layout.bbox_percent import bbox_percent_random_point_to_device_point
+from layout.tabs_strip_segmenter import detect_tabs_in_strip
 from layout.types import Point, Region
 
 # Side-effect imports: register dynamic-edge resolvers with screen_graph
 # so edges in edge_taps.yaml can resolve at runtime.
 from navigation import (
     hero_grid_resolver,  # noqa: F401
+    tab_index_resolver,  # noqa: F401
     template_icon_resolver,  # noqa: F401
 )
 from navigation.detector import ScreenDetector, ScreenName
@@ -379,6 +381,67 @@ class Navigator:
                 path_csv=path_csv,
                 hop_index=hop_index,
             )
+        )
+
+    async def _tap_tab_index_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        region_name = str(spec.get("region") or "").strip()
+        try:
+            target_index = int(spec.get("index"))
+        except (TypeError, ValueError):
+            logger.info("Navigator: tab_index spec missing index: %s", spec)
+            return False
+        area_doc = self._load_area_doc()
+        pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
+        bbox = pair[1].get("bbox") if pair and isinstance(pair[1], dict) else None
+        if not region_name or not isinstance(bbox, dict):
+            logger.info("Navigator: tab_index region unavailable: %s", spec)
+            return False
+
+        image: np.ndarray = await asyncio.to_thread(self._capture, instance_id)  # type: ignore[arg-type]
+        tabs = detect_tabs_in_strip(image, bbox)
+        tab = next((t for t in tabs if t.index == target_index), None)
+        if tab is None:
+            logger.info(
+                "Navigator: tab_index=%d not detected in region=%s tabs=%s",
+                target_index,
+                region_name,
+                [t.index for t in tabs],
+            )
+            return False
+
+        b = tab.bbox_percent
+        h, w = int(image.shape[0]), int(image.shape[1])
+        point = Point(
+            int(round((float(b["x"]) + float(b["width"]) / 2.0) / 100.0 * w)),
+            int(round((float(b["y"]) + float(b["height"]) / 2.0) / 100.0 * h)),
+        )
+        approval_context: dict[str, Any] = {}
+        if from_screen:
+            approval_context["from_screen"] = from_screen
+        if to_screen:
+            approval_context["to_screen"] = to_screen
+        if path_csv:
+            approval_context["path"] = path_csv
+        if hop_index is not None:
+            approval_context["hop_index"] = str(hop_index)
+        approval_context["tab_index"] = str(target_index)
+
+        tap_kwargs: dict[str, Any] = {"approval_region": region_name}
+        if self._tap_supports_approval_source():
+            tap_kwargs["approval_source"] = "navigation"
+            tap_kwargs["approval_context"] = approval_context
+        return bool(
+            await asyncio.to_thread(self._tap, instance_id, point, **tap_kwargs)  # type: ignore[arg-type]
         )
 
     async def _system_back_async(self, instance_id: str) -> bool:
@@ -1039,6 +1102,16 @@ class Navigator:
                     tapped = await self._system_back_async(instance_id)
                 elif isinstance(point, dict) and point.get("type") == "template_icon":
                     tapped = await self._tap_template_icon_async(
+                        instance_id,
+                        point,
+                        from_screen=src_screen,
+                        to_screen=str(dst_screen),
+                        state_flat=state_flat,
+                        path_csv=path_csv,
+                        hop_index=hop_idx,
+                    )
+                elif isinstance(point, dict) and point.get("type") == "tab_index":
+                    tapped = await self._tap_tab_index_async(
                         instance_id,
                         point,
                         from_screen=src_screen,

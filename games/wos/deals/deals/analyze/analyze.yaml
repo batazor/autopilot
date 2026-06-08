@@ -14,3 +14,27 @@ overlay:
       - push_scenario:
           name: deals.deals
           ttl: 1m
+
+  # Deals pages share a horizontal top-tab strip. When any visible inactive
+  # tab carries a red dot, this low-priority helper clicks the first such tab;
+  # the destination page's own analyzer then pushes the concrete claim scenario.
+  - name: deals.tabs.visible_red_dot
+    region: deals.tabs_strip
+    action: detectTabs
+    screens:
+      - deals
+      - deals.sign_in
+      - deals.home_and_beyond
+      - deals.hall_of_heroes
+      - deals.vault_of_enigma
+      - deals.hero_rally
+      - deals.first_purchase
+      - deals.bank
+      - deals.dead_shot
+      - deals.endless_wayfarer
+      - deals.journey_treasures
+      - deals.tundra_trading_station
+    steps:
+      - push_scenario:
+          name: deals.tab.advance
+          ttl: 15s

@@ -17,6 +17,9 @@ overlay:
     threshold: 0.85
     isRedDot: true
     screens:
+      - deals
       - deals.vault_of_enigma
     steps:
-      - click: vault_of_enigma.box
+      - push_scenario:
+          name: deals.vault_of_enigma
+          ttl: 1m

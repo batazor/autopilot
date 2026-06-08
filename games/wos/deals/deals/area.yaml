@@ -28,6 +28,21 @@
       "ocr": "references/deals.png",
       "regions": [
         {
+          "name": "deals.tabs_strip",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 0.0,
+            "y": 6.2,
+            "width": 98.5,
+            "height": 8.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
           "name": "deals.title",
           "action": "exist",
           "threshold": 0.85,

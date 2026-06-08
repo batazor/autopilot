@@ -8,7 +8,7 @@ import pytest
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_manifest import load_area_doc
-from navigation import screen_graph, template_icon_resolver  # noqa: F401
+from navigation import screen_graph, tab_index_resolver, template_icon_resolver  # noqa: F401
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[3]
@@ -88,11 +88,7 @@ async def test_main_city_routes_to_deals_vault_of_enigma() -> None:
 
 @pytest.mark.asyncio
 async def test_deals_hub_routes_to_vault_tab() -> None:
-    """Vault of Enigma is reached via a template-icon resolver from
-    ``main_city``, not via a static ``deals → vault`` tap region. From the
-    deals hub the BFS therefore backs out to ``main_city`` and then forward
-    to the vault — there's no shortcut edge to take.
-    """
+    """From the Deals hub, Vault is a direct top-tab click."""
     screen_graph.load_screen_verify_config.cache_clear()
     try:
         hops = await screen_graph.route_hops_async(
@@ -102,15 +98,13 @@ async def test_deals_hub_routes_to_vault_tab() -> None:
             redis_client=None,
         )
         assert hops == [
-            ("main_city", ["icon.page.back"]),
             (
                 "deals.vault_of_enigma",
                 [
                     {
-                        "region": "main_city.icon_search",
-                        "template": "games/wos/events/vault_of_enigma/references/main_city.event.vault_of_enigma.png",
-                        "threshold": 0.9,
-                        "type": "template_icon",
+                        "type": "tab_index",
+                        "region": "deals.tabs_strip",
+                        "index": 0,
                     },
                 ],
             ),
