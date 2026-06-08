@@ -148,7 +148,12 @@ class MonitorService:
             "unrecognized": unrecognized,
             "skipped": skipped,
         }
-        log.info("Cycle %d: %s", self.cycles, summary)
+        # Only surface cycles that actually did something; otherwise stay quiet
+        # (idle/already-deduped cycles only matter at DEBUG level).
+        if recognized or unrecognized or skipped:
+            log.info("Cycle %d: %s", self.cycles, summary)
+        else:
+            log.debug("Cycle %d: %s", self.cycles, summary)
         return summary
 
     def _handle(
