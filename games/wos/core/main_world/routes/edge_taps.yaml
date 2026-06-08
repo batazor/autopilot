@@ -1,0 +1,6 @@
+edges:
+  main_city:
+    main_world: [icon.world]
+
+  main_world:
+    main_city: [button.to_main_city]

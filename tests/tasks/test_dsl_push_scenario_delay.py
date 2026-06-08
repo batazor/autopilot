@@ -166,3 +166,50 @@ async def test_suffix_literal_delay() -> None:
     assert await _resolve("15m") == 900.0
     assert await _resolve("6h") == 21600.0
     assert await _resolve("1.5h") == 5400.0
+
+
+@pytest.mark.asyncio
+async def test_delay_expression_round_trip_literal() -> None:
+    # Mercenary Prestige idiom: march there and back (×2) + a 3s window.
+    # 45s one-way → 45*2 + 3 = 93s.
+    assert await _resolve("00:45 * 2 + 3s") == 93.0
+    assert await _resolve("00:45*2+3s") == 93.0  # whitespace-insensitive
+
+
+@pytest.mark.asyncio
+async def test_delay_expression_with_state_field() -> None:
+    # mp_ttl read by a prior ``ocr ... store: mp_ttl`` (raw mm:ss) → 60s.
+    # 60*2 + 3 = 123s.
+    store = {
+        "wos:instance:inst-1:state": {"active_player": "p42"},
+        "wos:player:p42:state": {"mp_ttl": "01:00"},
+    }
+    assert await _resolve("mp_ttl * 2 + 3s", store=store) == 123.0
+
+
+@pytest.mark.asyncio
+async def test_delay_expression_operator_precedence() -> None:
+    # ``*`` binds tighter than ``+``: 30 + 10*2 = 50, not 80.
+    assert await _resolve("30s + 10s * 2") == 50.0
+    # Division + subtraction.
+    assert await _resolve("60s / 2 - 5s") == 25.0
+
+
+@pytest.mark.asyncio
+async def test_delay_expression_unresolved_operand_skips() -> None:
+    # A missing field operand collapses the whole expression to None (skip push),
+    # so a missed OCR never re-fires on a degenerate delay.
+    assert await _resolve("missing_field * 2 + 3s") is None
+
+
+@pytest.mark.asyncio
+async def test_delay_expression_malformed_skips() -> None:
+    # Garbage / unbalanced expressions are skipped, not crashed.
+    assert await _resolve("00:45 * * 2") is None
+    assert await _resolve("00:45 2 +") is None
+
+
+@pytest.mark.asyncio
+async def test_delay_expression_clamps_negative_to_zero() -> None:
+    # A negative result clamps to 0.0 (enqueue immediately) rather than going back in time.
+    assert await _resolve("10s - 30s") == 0.0

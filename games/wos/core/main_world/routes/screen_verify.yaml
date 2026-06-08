@@ -1,0 +1,8 @@
+screens:
+  main_world:
+    priority: 10
+    rules:
+      # The "return to city" button is only present on the world map (mutually
+      # exclusive with icon.world, which detects main_city).
+      - match: button.to_main_city
+        threshold: 0.9

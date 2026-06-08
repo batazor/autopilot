@@ -484,14 +484,14 @@ async def _resolve_event_timer_delay_seconds(
     return delay_s
 
 
-async def _resolve_push_delay_seconds(
+async def _resolve_push_delay_base_seconds(
     delay: object,
     *,
     instance_id: str,
     redis_async: Any | None,
     player_id: str | None = None,
 ) -> float | None:
-    """Resolve a ``push_scenario.delay`` spec into seconds.
+    """Resolve a ``push_scenario.delay`` spec into base seconds (no scale/pad).
 
     Returns:
       - ``0.0`` — no delay specified (caller enqueues immediately).
@@ -564,6 +564,156 @@ async def _resolve_push_delay_seconds(
         )
         return None
     return float(parsed)
+
+
+# ── Delay expression support ────────────────────────────────────────────────
+# ``push_scenario.delay`` may be a small arithmetic expression mixing an
+# OCR/state-field reference, duration literals and bare numeric factors — e.g.
+# ``mp_ttl * 2 + 3s`` (march there and back, plus a settle window). Operators
+# ``+ - * /`` with the usual precedence; no parentheses. Any operand that fails
+# to resolve (a missed OCR field, say) collapses the whole expression to None so
+# the caller skips the push instead of re-firing on a degenerate delay.
+_DELAY_TOKEN_RE = re.compile(r"[+\-*/]|[^+\-*/\s]+")
+_DELAY_OP_PRECEDENCE = {"+": 1, "-": 1, "*": 2, "/": 2}
+
+
+async def _resolve_delay_operand(
+    token: str,
+    *,
+    instance_id: str,
+    redis_async: Any | None,
+    player_id: str | None,
+) -> float | None:
+    """Resolve one delay-expression operand to seconds (or a bare factor).
+
+    A pure number is a dimensionless literal (e.g. the ``2`` in ``ttl * 2``);
+    everything else (duration / ``hh:mm:ss`` / event timer / state field) goes
+    through :func:`_resolve_push_delay_base_seconds`.
+    """
+    try:
+        return float(token)
+    except ValueError:
+        pass
+    return await _resolve_push_delay_base_seconds(
+        token,
+        instance_id=instance_id,
+        redis_async=redis_async,
+        player_id=player_id,
+    )
+
+
+def _eval_delay_rpn(items: list[tuple[str, object]]) -> float:
+    """Evaluate tokenized infix (``('val', float)`` / ``('op', str)``) via shunting-yard.
+
+    Tokens must alternate value/operator and start+end on a value (no missing
+    operators, no trailing/leading operator); anything else is ``ValueError``.
+    """
+    malformed = "malformed delay expression"
+    if not items or items[-1][0] != "val":
+        raise ValueError(malformed)
+    for idx, item in enumerate(items):
+        if item[0] != ("val" if idx % 2 == 0 else "op"):
+            raise ValueError(malformed)
+
+    output: list[object] = []
+    ops: list[str] = []
+    for kind, value in items:
+        if kind == "val":
+            output.append(value)
+            continue
+        op = str(value)
+        while ops and _DELAY_OP_PRECEDENCE[ops[-1]] >= _DELAY_OP_PRECEDENCE[op]:
+            output.append(ops.pop())
+        ops.append(op)
+    while ops:
+        output.append(ops.pop())
+
+    stack: list[float] = []
+    for tok in output:
+        if isinstance(tok, str):
+            b = stack.pop()
+            a = stack.pop()
+            if tok == "+":
+                stack.append(a + b)
+            elif tok == "-":
+                stack.append(a - b)
+            elif tok == "*":
+                stack.append(a * b)
+            else:  # "/"
+                stack.append(a / b)
+        else:
+            stack.append(float(tok))
+    if len(stack) != 1:
+        raise ValueError(malformed)
+    return stack[0]
+
+
+async def _eval_delay_expression(
+    expr: str,
+    *,
+    instance_id: str,
+    redis_async: Any | None,
+    player_id: str | None,
+) -> float | None:
+    items: list[tuple[str, object]] = []
+    for token in _DELAY_TOKEN_RE.findall(expr):
+        if token in _DELAY_OP_PRECEDENCE:
+            items.append(("op", token))
+            continue
+        operand = await _resolve_delay_operand(
+            token,
+            instance_id=instance_id,
+            redis_async=redis_async,
+            player_id=player_id,
+        )
+        if operand is None:
+            logger.warning(
+                "push_scenario: delay operand %r unresolved in %r — skipping push",
+                token, expr,
+            )
+            return None
+        items.append(("val", operand))
+    try:
+        result = _eval_delay_rpn(items)
+    except (ValueError, ZeroDivisionError, IndexError, KeyError) as exc:
+        logger.warning(
+            "push_scenario: malformed delay expression %r (%s) — skipping push",
+            expr, exc,
+        )
+        return None
+    return max(0.0, result)
+
+
+async def _resolve_push_delay_seconds(
+    delay: object,
+    *,
+    instance_id: str,
+    redis_async: Any | None,
+    player_id: str | None = None,
+) -> float | None:
+    """Resolve a ``push_scenario.delay`` spec into seconds.
+
+    Single-operand forms (suffix literal / ``hh:mm:ss`` / event timer key /
+    state-field reference) are resolved by
+    :func:`_resolve_push_delay_base_seconds`. When the spec contains an
+    arithmetic operator (``+`` / ``-`` / ``*`` / ``/``) it is evaluated as an
+    expression — e.g. ``mp_ttl * 2 + 3s`` for "march there and back plus a 3s
+    window". (Field/timer-key names never contain these operators.)
+    Returns ``None`` (skip the push) when any operand can't resolve, so a missed
+    OCR never re-fires on a degenerate delay.
+    """
+    if delay is None:
+        return 0.0
+    s = str(delay).strip()
+    if not s:
+        return 0.0
+    if any(op in s for op in ("+", "-", "*", "/")):
+        return await _eval_delay_expression(
+            s, instance_id=instance_id, redis_async=redis_async, player_id=player_id
+        )
+    return await _resolve_push_delay_base_seconds(
+        s, instance_id=instance_id, redis_async=redis_async, player_id=player_id
+    )
 
 
 async def _enqueue_scenario(
