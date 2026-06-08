@@ -28,7 +28,7 @@
 
 ARG PYTHON_VERSION=3.13
 ARG UV_VERSION=0.5.18
-ARG WOS_NUITKA_PACKAGES="adb analysis century config dashboard dsl inference layout licensing navigation ocr optimizer popup scheduler services tasks wiki worker"
+ARG WOS_NUITKA_PACKAGES="adb analysis century config dashboard dsl inference layout licensing navigation ocr optimizer popup scheduler services tasks worker"
 
 
 # --- Stage 1: builder --------------------------------------------------------

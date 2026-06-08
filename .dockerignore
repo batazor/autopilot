@@ -88,6 +88,11 @@ htmlcov/
 **/test_*.py
 **/conftest.py
 !src/config/test_module.py
+# Runtime references stay in the image, but pending Labeling captures and
+# pytest rehearsal frames do not. They are recreated locally as needed and can
+# otherwise add tens of megabytes to every bot build context.
+**/references/temporal/
+**/references/rehearsal/fixtures/
 
 # --- Local-only / unused-at-runtime directories ------------------------------
 # Not COPY'd by Dockerfile.bot / Dockerfile.web — keeping them out of the
