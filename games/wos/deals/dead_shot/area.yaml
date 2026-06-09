@@ -1,2 +1,26 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "deals",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "deals.next.left",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.4235356831141384,
+            "y": 8.916627277349546,
+            "width": 4.506640424164709,
+            "height": 2.5815926068729462,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

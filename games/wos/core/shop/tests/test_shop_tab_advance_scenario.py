@@ -159,7 +159,7 @@ async def test_no_clicks_when_next_page_arrow_absent(
     actions = make_actions([frame])
     patch_dsl(mocker, actions, repo_root=REPO_ROOT)
     mocker.patch(
-        "tasks.dsl_exec.pick_next_strip_action",
+        "tasks.dsl_exec.red_dots.pick_next_strip_action",
         return_value=StripAction(kind="done"),
     )
 
@@ -196,7 +196,7 @@ async def test_clicks_exactly_once_per_run_when_arrow_visible(
     actions = make_actions([frame])
     patch_dsl(mocker, actions, repo_root=REPO_ROOT)
     mocker.patch(
-        "tasks.dsl_exec.pick_next_strip_action",
+        "tasks.dsl_exec.red_dots.pick_next_strip_action",
         return_value=StripAction(kind="advance_page"),
     )
 

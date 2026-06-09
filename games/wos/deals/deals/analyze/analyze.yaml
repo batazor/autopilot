@@ -42,3 +42,37 @@ overlay:
           ttl: 15s
           args:
             region: deals.tabs_strip
+            next_region: deals.next.left
+
+  # ── Cycle: page the deals carousel left ──────────────────────────────────
+  # The ``<`` arrow ``deals.next.left`` pages the tab strip to deals events
+  # that are not visible yet. No red-dot gate on purpose: even when no visible
+  # tab carries a red dot, ``tabs.strip.advance`` decides ``advance_page`` and
+  # taps the arrow, walking the bot to events that haven't been processed.
+  # findIcon stops matching once the arrow is no longer rendered (leftmost
+  # position), which closes the cross-tick loop — same contract as the shop
+  # carousel's ``tabs.strip.advance.has_next_page``.
+  - name: deals.tabs.advance.has_prev_page
+    region: deals.next.left
+    action: findIcon
+    threshold: 0.8
+    screens:
+      - deals
+      - deals.sign_in
+      - deals.home_and_beyond
+      - deals.hall_of_heroes
+      - deals.vault_of_enigma
+      - deals.hero_rally
+      - deals.first_purchase
+      - deals.bank
+      - deals.dead_shot
+      - deals.endless_wayfarer
+      - deals.journey_treasures
+      - deals.tundra_trading_station
+    steps:
+      - push_scenario:
+          name: tabs.strip.advance
+          ttl: 15s
+          args:
+            region: deals.tabs_strip
+            next_region: deals.next.left

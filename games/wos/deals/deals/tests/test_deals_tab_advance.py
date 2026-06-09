@@ -174,7 +174,7 @@ async def test_click_next_red_dot_tab_skips_foreign_screen(
     mocker,
     redis_async: object,
 ) -> None:
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"current_screen": "shop"},
     )
@@ -192,3 +192,123 @@ async def test_click_next_red_dot_tab_skips_foreign_screen(
 
     assert ctx.result["action"] == "screen_mismatch"
     assert actions.tap.call_args_list == []
+
+
+# ── Carousel left-arrow fallback (deals.next.left) ──────────────────────────
+
+ANALYZE_PATH = MODULE_DIR / "analyze" / "analyze.yaml"
+NEXT_LEFT_REGION = "deals.next.left"
+DEALS_SCREENS = {
+    "deals",
+    "deals.sign_in",
+    "deals.home_and_beyond",
+    "deals.hall_of_heroes",
+    "deals.vault_of_enigma",
+    "deals.hero_rally",
+    "deals.first_purchase",
+    "deals.bank",
+    "deals.dead_shot",
+    "deals.endless_wayfarer",
+    "deals.journey_treasures",
+    "deals.tundra_trading_station",
+}
+
+
+def test_analyze_arrow_rule_pushes_with_throttle() -> None:
+    """The ``<`` arrow rule must mirror the shop carousel contract: one rule,
+    every deals screen listed (no wildcard support in the analyzer), push args
+    carrying both the strip region and the arrow as ``next_region``, and a
+    unit-suffixed TTL so the 1 Hz overlay loop can't hot-loop the queue."""
+    from analysis.overlay_manifest import load_analyze_yaml
+
+    doc = load_analyze_yaml(ANALYZE_PATH)
+    rules = [r for r in doc.get("overlay", []) if r.get("region") == NEXT_LEFT_REGION]
+    assert len(rules) == 1, f"expected exactly one arrow rule, got {rules!r}"
+    (rule,) = rules
+    assert set(rule["screens"]) == DEALS_SCREENS, (
+        f"screens drift: {set(rule['screens']) ^ DEALS_SCREENS}"
+    )
+    pushes = [
+        step["push_scenario"]
+        for step in rule.get("steps") or []
+        if isinstance(step, dict) and isinstance(step.get("push_scenario"), dict)
+    ]
+    assert len(pushes) == 1 and pushes[0]["name"] == "tabs.strip.advance"
+    assert pushes[0]["args"] == {
+        "region": "deals.tabs_strip",
+        "next_region": NEXT_LEFT_REGION,
+    }
+    ttl = str(pushes[0].get("ttl", "")).strip()
+    assert ttl.endswith(("s", "m", "h")), f"unexpected TTL form: {ttl!r}"
+
+
+def test_analyze_red_dot_rule_passes_next_region() -> None:
+    """The detectTabs fallback push must also carry the arrow so the helper
+    can page the strip when red dots are visible but tabs are unidentified."""
+    from analysis.overlay_manifest import load_analyze_yaml
+
+    doc = load_analyze_yaml(ANALYZE_PATH)
+    rules = [
+        r for r in doc.get("overlay", []) if r.get("name") == "deals.tabs.visible_red_dot"
+    ]
+    assert len(rules) == 1
+    (push_step,) = rules[0]["steps"]
+    assert push_step["push_scenario"]["args"] == {
+        "region": "deals.tabs_strip",
+        "next_region": NEXT_LEFT_REGION,
+    }
+
+
+@pytest.mark.asyncio
+async def test_arrow_detected_only_when_rendered(area_doc: dict) -> None:
+    """findIcon matches the arrow on the frame it was labeled on and stays
+    silent on frames without it — this is what closes the cross-tick loop:
+    no arrow → no match → no further ``tabs.strip.advance`` pushes."""
+    rule = {
+        "name": "deals.tabs.advance.has_prev_page",
+        "region": NEXT_LEFT_REGION,
+        "action": "findIcon",
+        "threshold": 0.8,
+        "screens": ["deals"],
+    }
+    for rel, expected in [
+        ("games/wos/deals/dead_shot/references/main.png", True),
+        ("games/wos/deals/deals/references/deals.png", False),
+    ]:
+        out = await evaluate_overlay_rules_async(
+            _load_bgr(rel),
+            area_doc,
+            REPO_ROOT,
+            [rule],
+            current_screen="deals",
+        )
+        hit = out["deals.tabs.advance.has_prev_page"]
+        assert hit["matched"] is expected, f"{rel}: {hit}"
+
+
+@pytest.mark.asyncio
+async def test_click_next_red_dot_tab_advances_via_left_arrow(mocker) -> None:
+    """No red-dot tab left → the helper taps ``deals.next.left`` so the bot
+    still reaches deals events that haven't been processed yet."""
+    from layout.tabs_strip_navigator import StripAction
+
+    frame = _load_bgr("games/wos/deals/dead_shot/references/main.png")
+    actions = make_actions([frame])
+    patch_dsl(mocker, actions, repo_root=REPO_ROOT)
+    mocker.patch(
+        "tasks.dsl_exec.red_dots.pick_next_strip_action",
+        return_value=StripAction(kind="advance_page"),
+    )
+
+    ctx = dsl_exec.DslExecContext(
+        redis_client=None,
+        player_id="",
+        instance_id="bs1",
+        args={"region": "deals.tabs_strip", "next_region": NEXT_LEFT_REGION},
+    )
+    await dsl_exec.DSL_EXEC_REGISTRY["click_next_red_dot_tab"](ctx)
+
+    assert ctx.result["action"] == "advanced_page"
+    assert actions.tap.call_args_list == [
+        call("bs1", ANY, approval_region=NEXT_LEFT_REGION)
+    ]
