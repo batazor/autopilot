@@ -8,7 +8,7 @@ import pytest
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_manifest import load_area_doc
-from navigation import screen_graph
+from navigation import screen_graph, template_icon_resolver  # noqa: F401
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[3]
