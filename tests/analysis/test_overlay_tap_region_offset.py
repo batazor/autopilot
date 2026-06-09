@@ -180,7 +180,7 @@ def test_direct_template_findicon_can_require_red_dot(tmp_path: Path, monkeypatc
     template_path.parent.mkdir(parents=True)
 
     monkeypatch.setattr(
-        "analysis.overlay_engine.has_red_dot_in_bbox_percent",
+        "analysis.overlay_red_dot_gate.has_red_dot_in_bbox_percent",
         lambda *_args, **_kwargs: True,
     )
 
