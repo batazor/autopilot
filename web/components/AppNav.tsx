@@ -388,17 +388,61 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
                       <span className="nav-link__label">
                         {highlightMatch(group.label, q)}
                       </span>
-                      {groupActive ? (
-                        <span className="nav-link__desc">
-                          {group.tabs.length} pages · use tabs above
-                        </span>
-                      ) : (
-                        <span className="nav-link__desc truncate">
-                          {group.description}
-                        </span>
-                      )}
+                      <span className="nav-link__desc truncate">
+                        {group.description}
+                      </span>
                     </span>
                   </Link>
+                  {groupActive ? (
+                    <ul className="nav-sublist">
+                      {group.tabs.map((tab) => {
+                        const tabActive = isActivePath(pathname, tab.href);
+                        const lock = getNavLock(tab.href, tier) ?? undefined;
+                        const disabling = isLockDisabling(lock);
+                        return (
+                          <li key={tab.href}>
+                            <Link
+                              href={lock?.kind === "pro" ? "/license" : tab.href}
+                              onClick={(e) => {
+                                if (lock?.kind === "soon") {
+                                  e.preventDefault();
+                                  return;
+                                }
+                                onNavigate?.();
+                              }}
+                              className={[
+                                "nav-link nav-link--compact nav-sublist__link",
+                                tabActive && !disabling
+                                  ? "nav-sublist__link--active"
+                                  : "",
+                                disabling ? "opacity-60" : "",
+                                lock?.kind === "soon" ? "cursor-not-allowed" : "",
+                              ].join(" ")}
+                              aria-current={
+                                tabActive && !disabling ? "page" : undefined
+                              }
+                              aria-disabled={
+                                lock?.kind === "soon" ? true : undefined
+                              }
+                              title={lock ? lock.tooltip : tab.description}
+                            >
+                              <span className="min-w-0 flex-1 truncate">
+                                {tab.label}
+                              </span>
+                              {lock ? (
+                                <span
+                                  className="rounded-full border border-amber-400/40 bg-amber-500/15 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide text-amber-300"
+                                  aria-label={lock.tooltip}
+                                >
+                                  {NAV_LOCK_BADGE[lock.kind]}
+                                </span>
+                              ) : null}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
                 </li>
               );
             })}
