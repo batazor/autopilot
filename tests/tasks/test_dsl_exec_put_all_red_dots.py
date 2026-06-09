@@ -9,6 +9,7 @@ from conftest import make_actions
 
 import tasks.dsl_exec as dsl_exec
 from tasks import dsl_runtime
+from tasks.dsl_exec import red_dots
 
 
 class _FakeImage:
@@ -42,8 +43,8 @@ async def test_put_all_red_dots_cycle_guard_filters_stuck_dot(
 
     actions = _recording_actions()
     mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
-    mocker.patch.object(dsl_exec, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
-    mocker.patch.object(dsl_exec, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
+    mocker.patch.object(red_dots, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
+    mocker.patch.object(red_dots, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
 
     jitter = iter([(400, 600), (402, 601), (399, 603), (401, 598), (400, 600)])
 
@@ -55,7 +56,7 @@ async def test_put_all_red_dots_cycle_guard_filters_stuck_dot(
             return []
         return [SimpleNamespace(cx=float(cx), cy=float(cy), radius=8.0, score=0.9)]
 
-    mocker.patch.object(dsl_exec, "find_red_dots", _fake_find_red_dots)
+    mocker.patch.object(red_dots, "find_red_dots", _fake_find_red_dots)
 
     ctx = dsl_exec.DslExecContext(
         redis_client=redis_async,
@@ -66,13 +67,13 @@ async def test_put_all_red_dots_cycle_guard_filters_stuck_dot(
     await dsl_exec.DSL_EXEC_REGISTRY["put_all_red_dots"](ctx)
 
     taps = actions._test_taps  # type: ignore[attr-defined]
-    assert len(taps) == dsl_exec._PUT_ALL_RED_DOTS_DUP_MAX_HITS, (
-        f"expected exactly {dsl_exec._PUT_ALL_RED_DOTS_DUP_MAX_HITS} taps "
+    assert len(taps) == red_dots._PUT_ALL_RED_DOTS_DUP_MAX_HITS, (
+        f"expected exactly {red_dots._PUT_ALL_RED_DOTS_DUP_MAX_HITS} taps "
         f"before the cycle guard banned the area, got {taps!r}"
     )
     for tx, ty in taps:
-        assert abs(tx - 400) <= dsl_exec._PUT_ALL_RED_DOTS_DUP_RADIUS_PX
-        assert abs(ty - 600) <= dsl_exec._PUT_ALL_RED_DOTS_DUP_RADIUS_PX
+        assert abs(tx - 400) <= red_dots._PUT_ALL_RED_DOTS_DUP_RADIUS_PX
+        assert abs(ty - 600) <= red_dots._PUT_ALL_RED_DOTS_DUP_RADIUS_PX
 
 
 @pytest.mark.asyncio
@@ -86,8 +87,8 @@ async def test_put_all_red_dots_distinct_spots_are_not_filtered(
 
     actions = _recording_actions()
     mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
-    mocker.patch.object(dsl_exec, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
-    mocker.patch.object(dsl_exec, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
+    mocker.patch.object(red_dots, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
+    mocker.patch.object(red_dots, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
 
     frames = iter(
         [
@@ -101,7 +102,7 @@ async def test_put_all_red_dots_distinct_spots_are_not_filtered(
         del image_h_for_norm
         return next(frames, [])
 
-    mocker.patch.object(dsl_exec, "find_red_dots", _fake_find_red_dots)
+    mocker.patch.object(red_dots, "find_red_dots", _fake_find_red_dots)
 
     ctx = dsl_exec.DslExecContext(
         redis_client=redis_async,
@@ -126,11 +127,11 @@ async def test_put_all_red_dots_region_arg_crops_search_and_translates_coords(
     image = np.zeros((1280, 720, 3), dtype=np.uint8)
     actions = _recording_actions(image)
     mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
-    mocker.patch.object(dsl_exec, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
-    mocker.patch.object(dsl_exec, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
-    mocker.patch.object(dsl_exec, "_load_area_doc", return_value={"_fake": True})
+    mocker.patch.object(red_dots, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
+    mocker.patch.object(red_dots, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
+    mocker.patch.object(red_dots, "_load_area_doc", return_value={"_fake": True})
     mocker.patch.object(
-        dsl_exec,
+        red_dots,
         "screen_region_by_name",
         lambda _doc, name: (
             {},
@@ -154,7 +155,7 @@ async def test_put_all_red_dots_region_arg_crops_search_and_translates_coords(
         assert image_h_for_norm == 1280
         return next(frames, [])
 
-    mocker.patch.object(dsl_exec, "find_red_dots", _fake_find_red_dots)
+    mocker.patch.object(red_dots, "find_red_dots", _fake_find_red_dots)
 
     ctx = dsl_exec.DslExecContext(
         redis_client=redis_async,
@@ -178,14 +179,14 @@ async def test_put_all_red_dots_region_arg_missing_region_aborts(
     """Unknown ``region:`` short-circuits: no capture, no detection, no taps."""
     actions = _recording_actions()
     mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
-    mocker.patch.object(dsl_exec, "_load_area_doc", return_value={"_fake": True})
-    mocker.patch.object(dsl_exec, "screen_region_by_name", return_value=None)
+    mocker.patch.object(red_dots, "_load_area_doc", return_value={"_fake": True})
+    mocker.patch.object(red_dots, "screen_region_by_name", return_value=None)
 
     def _fail_find(*_a: Any, **_k: Any) -> list[Any]:
         msg = "find_red_dots must not run when region is unresolved"
         raise AssertionError(msg)
 
-    mocker.patch.object(dsl_exec, "find_red_dots", _fail_find)
+    mocker.patch.object(red_dots, "find_red_dots", _fail_find)
 
     ctx = dsl_exec.DslExecContext(
         redis_client=redis_async,

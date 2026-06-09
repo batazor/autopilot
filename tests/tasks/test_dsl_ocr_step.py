@@ -420,6 +420,7 @@ async def test_exec_sync_building_name_persists_detected_level(
 ) -> None:
     import tasks.dsl_exec as dsl_exec
     from config.buildings import BuildingDef, BuildingRegistry
+    from tasks.dsl_exec import sync_state
 
     captured: dict[str, Any] = {}
 
@@ -433,11 +434,11 @@ async def test_exec_sync_building_name_persists_detected_level(
             captured["flat"] = flat
 
     mocker.patch.object(
-        dsl_exec,
+        sync_state,
         "get_building_registry",
         side_effect=lambda: BuildingRegistry(buildings=(BuildingDef(id="cookhouse", name="Cookhouse"),)),
     )
-    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
+    mocker.patch.object(sync_state, "get_state_store", side_effect=lambda: _FakeStore())
 
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
@@ -478,6 +479,7 @@ async def test_exec_sync_building_name_logs_unchanged_level(
 ) -> None:
     import tasks.dsl_exec as dsl_exec
     from config.buildings import BuildingDef, BuildingRegistry
+    from tasks.dsl_exec import sync_state
 
     class _FakeStore:
         def get_or_create(self, player_id: str, nickname: str = "") -> Any:
@@ -487,11 +489,11 @@ async def test_exec_sync_building_name_logs_unchanged_level(
             pass
 
     mocker.patch.object(
-        dsl_exec,
+        sync_state,
         "get_building_registry",
         side_effect=lambda: BuildingRegistry(buildings=(BuildingDef(id="coal_mine", name="Coal Mine"),)),
     )
-    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
+    mocker.patch.object(sync_state, "get_state_store", side_effect=lambda: _FakeStore())
 
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
@@ -523,6 +525,7 @@ async def test_exec_sync_building_name_uses_active_player_instance_fallback(
 ) -> None:
     import tasks.dsl_exec as dsl_exec
     from config.buildings import BuildingDef, BuildingRegistry
+    from tasks.dsl_exec import sync_state
 
     class _FakeStore:
         def get_or_create(self, player_id: str, nickname: str = "") -> Any:
@@ -532,11 +535,11 @@ async def test_exec_sync_building_name_uses_active_player_instance_fallback(
             pass
 
     mocker.patch.object(
-        dsl_exec,
+        sync_state,
         "get_building_registry",
         side_effect=lambda: BuildingRegistry(buildings=(BuildingDef(id="lancer_camp", name="Lancer Camp"),)),
     )
-    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
+    mocker.patch.object(sync_state, "get_state_store", side_effect=lambda: _FakeStore())
 
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
@@ -570,6 +573,7 @@ async def test_exec_sync_hero_unit_persists_name_and_level(
     """``sync_hero_unit`` reads OCR'd name+level from Redis and writes a
     typed snapshot to ``heroes.entries.<slug>`` in state.yaml."""
     import tasks.dsl_exec as dsl_exec
+    from tasks.dsl_exec import sync_state
 
     captured: dict[str, Any] = {}
 
@@ -581,7 +585,7 @@ async def test_exec_sync_hero_unit_persists_name_and_level(
         def update_from_flat(self, flat: dict[str, Any]) -> None:
             captured["flat"] = flat
 
-    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
+    mocker.patch.object(sync_state, "get_state_store", side_effect=lambda: _FakeStore())
 
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
@@ -618,6 +622,7 @@ async def test_exec_sync_hero_unit_skips_when_name_missing(
 ) -> None:
     """No OCR'd name → no state.yaml write, no crash."""
     import tasks.dsl_exec as dsl_exec
+    from tasks.dsl_exec import sync_state
 
     state_store_called = False
 
@@ -631,7 +636,7 @@ async def test_exec_sync_hero_unit_skips_when_name_missing(
             nonlocal state_store_called
             state_store_called = True
 
-    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
+    mocker.patch.object(sync_state, "get_state_store", side_effect=lambda: _FakeStore())
     # Only level set; name is missing.
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
@@ -655,6 +660,7 @@ async def test_exec_sync_hero_unit_normalises_messy_name_to_slug(
 ) -> None:
     """OCR noise like punctuation / casing collapses to a stable hero ID."""
     import tasks.dsl_exec as dsl_exec
+    from tasks.dsl_exec import sync_state
 
     captured: dict[str, Any] = {}
 
@@ -665,7 +671,7 @@ async def test_exec_sync_hero_unit_normalises_messy_name_to_slug(
         def update_from_flat(self, flat: dict[str, Any]) -> None:
             captured["flat"] = flat
 
-    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
+    mocker.patch.object(sync_state, "get_state_store", side_effect=lambda: _FakeStore())
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
         mapping={

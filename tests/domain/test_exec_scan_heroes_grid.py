@@ -29,6 +29,7 @@ from conftest import make_actions
 import ocr.client as ocr_client_module
 import tasks.dsl_exec as dsl_exec
 from tasks import dsl_runtime
+from tasks.dsl_exec import scan_heroes_grid
 
 if TYPE_CHECKING:
     import numpy as np
@@ -161,7 +162,7 @@ async def test_scan_heroes_grid_persists_full_snapshot_and_positions(
     actions = make_actions(_load_frame(frame_label))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(scan_heroes_grid, "get_state_store", lambda: store)
     monkeypatch.setattr(ocr_client_module, "OcrClient", _make_ocr_stub(level_text="Lv. 7", shard_text="4/10"))
 
     await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
@@ -204,7 +205,7 @@ async def test_scan_heroes_grid_persists_full_snapshot_and_positions(
     for hid, exp in expected.items():
         ri, ci = exp["cell"]
         assert positions[hid] == f"r{ri}c{ci}", (frame_label, hid, positions[hid])
-    assert 0 < await redis_async.ttl(pos_key) <= dsl_exec._HERO_GRID_POSITIONS_TTL_SECONDS
+    assert 0 < await redis_async.ttl(pos_key) <= scan_heroes_grid._HERO_GRID_POSITIONS_TTL_SECONDS
 
 
 @pytest.mark.asyncio
@@ -223,7 +224,7 @@ async def test_scan_heroes_grid_three_unlocked_with_red_dots_persisted(
     actions = make_actions(_load_frame("frame_3_unlocked"))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(scan_heroes_grid, "get_state_store", lambda: store)
     monkeypatch.setattr(ocr_client_module, "OcrClient", _make_ocr_stub(level_text="Lv. 11"))
 
     await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
@@ -279,7 +280,7 @@ async def test_scan_heroes_grid_resort_replaces_position_hash(
     actions = make_actions(_load_frame("frame_3_unlocked"))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(scan_heroes_grid, "get_state_store", lambda: store)
     monkeypatch.setattr(ocr_client_module, "OcrClient", _make_ocr_stub())
 
     await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
@@ -317,7 +318,7 @@ async def test_scan_heroes_grid_preserves_existing_level_on_locked_card(
         "jeronimo": {"name": "Jeronimo", "level": 9, "stars": 6},
     })
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(scan_heroes_grid, "get_state_store", lambda: store)
     monkeypatch.setattr(ocr_client_module, "OcrClient", _make_ocr_stub())
 
     await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
@@ -351,7 +352,7 @@ async def test_scan_heroes_grid_clears_stale_shard_counts_when_unlocked(
         "bahiti": {"shards_current": 9, "shards_required": 10, "stars": 4},
     })
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(scan_heroes_grid, "get_state_store", lambda: store)
     monkeypatch.setattr(ocr_client_module, "OcrClient", _make_ocr_stub(level_text="Lv. 12"))
 
     await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
@@ -421,7 +422,7 @@ async def test_scan_heroes_grid_persists_shards_for_ready_to_recruit(
     actions = make_actions(frame)
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(scan_heroes_grid, "get_state_store", lambda: store)
     monkeypatch.setattr(ocr_client_module, "OcrClient", _RecruitOcrStub)
 
     await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
@@ -483,7 +484,7 @@ async def test_scan_heroes_grid_enqueues_red_dot_hero_scenarios(
     actions = make_actions(_load_frame("frame_3_unlocked"))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(scan_heroes_grid, "get_state_store", lambda: store)
     monkeypatch.setattr(ocr_client_module, "OcrClient", _make_ocr_stub(level_text="Lv. 11"))
 
     await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
@@ -515,7 +516,7 @@ async def test_scan_heroes_grid_skips_red_dot_push_when_already_queued(
     actions = make_actions(_load_frame("frame_3_unlocked"))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(scan_heroes_grid, "get_state_store", lambda: store)
     monkeypatch.setattr(ocr_client_module, "OcrClient", _make_ocr_stub(level_text="Lv. 11"))
 
     ctx = dsl_exec.DslExecContext(

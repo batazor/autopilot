@@ -14,6 +14,7 @@ from layout.types import Point, Region
 from ocr.client import OCRResult
 from popup.models import DetectionSignals, PopupKind, PopupState
 from tasks import dsl_runtime
+from tasks.dsl_exec import dismiss_popup
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ADS_REFERENCES = REPO_ROOT / "games" / "wos" / "ads" / "references"
@@ -100,8 +101,8 @@ def _wire(mocker, actions: Any, detector: _FakeDetector) -> None:
         "settings",
         return_value=SimpleNamespace(worker=SimpleNamespace()),
     )
-    mocker.patch.object(dsl_exec, "PopupDetector", lambda _ocr: detector)
-    mocker.patch.object(dsl_exec, "_DISMISS_POPUP_SETTLE_S", 0)
+    mocker.patch.object(dismiss_popup, "PopupDetector", lambda _ocr: detector)
+    mocker.patch.object(dismiss_popup, "_DISMISS_POPUP_SETTLE_S", 0)
 
 
 def _wire_real_detector(mocker, actions: Any) -> None:
@@ -112,7 +113,7 @@ def _wire_real_detector(mocker, actions: Any) -> None:
         "settings",
         return_value=SimpleNamespace(worker=SimpleNamespace()),
     )
-    mocker.patch.object(dsl_exec, "_DISMISS_POPUP_SETTLE_S", 0)
+    mocker.patch.object(dismiss_popup, "_DISMISS_POPUP_SETTLE_S", 0)
 
 
 def _ctx(

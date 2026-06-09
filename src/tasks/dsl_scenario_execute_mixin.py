@@ -1,36 +1,38 @@
-"""Top-level ``execute`` pipeline for :class:`tasks.dsl_scenario.DslScenarioTask`."""
+"""Top-level ``execute`` pipeline for :class:`tasks.dsl_scenario.DslScenarioTask`.
+
+``execute`` owns the scenario pre-flight (doc load, validation, root ``cond``,
+identity/navigation gates) and the top-level dispatch loop. The per-step-kind
+branch bodies live on the sibling mixins
+:class:`tasks.dsl_scenario_step_loops_mixin.DslScenarioStepLoopsMixin` and
+:class:`tasks.dsl_scenario_step_actions_mixin.DslScenarioStepActionsMixin`;
+context flows to them through one
+:class:`tasks.dsl_scenario_exec_frame.ExecFrame` per invocation.
+"""
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from adb.frame_normalize import GAME_FRAME_SIZE
 from config.log_ansi import scenario_log_label as _scen
 from dashboard.notifications import push_ui_notification
 from dsl import template_resolver as _tmpl
-from layout.area_lookup import screen_region_by_name
 from tasks.base import TaskResult
+from tasks.dsl_scenario_exec_frame import ExecFrame
 from tasks.dsl_scenario_helpers import (
     _DSL_STEP_ACTION_KEYS,
-    _action_pause_seconds,
-    _BreakRepeat,
     _collect_ocr_store_targets,
     _dsl_cond_allows_step,
-    _enqueue_scenario,
-    _jittered_wait_seconds,
     _load_area_json,
     _ocr_store_redis_fields,
-    _parse_wait_seconds,
-    _read_active_player,
     _read_current_screen,
-    _resolve_push_delay_seconds,
-    _trace_exec_result_kwargs,
 )
+from tasks.dsl_scenario_step_actions_mixin import DslScenarioStepActionsMixin
+from tasks.dsl_scenario_step_loops_mixin import DslScenarioStepLoopsMixin
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,9 @@ else:
     _Base = object
 
 
-class DslScenarioExecuteMixin(_Base):
+class DslScenarioExecuteMixin(
+    DslScenarioStepLoopsMixin, DslScenarioStepActionsMixin, _Base
+):
     """Main scenario YAML runner (load doc → navigate → step loop)."""
 
     async def execute(self, instance_id: str) -> TaskResult:
@@ -144,13 +148,6 @@ class DslScenarioExecuteMixin(_Base):
             if self.start_step_index:
                 m["resume_from_step_index"] = int(self.start_step_index)
             return m
-
-        async def _mark_top_level_step_done() -> None:
-            """After a top-level step finishes, point the UI at the next step index."""
-            await self._publish_scenario_step_index(
-                instance_id,
-                min(step_index, max(steps_total_n - 1, 0)),
-            )
 
         # Hydrate ``steps_trace`` from the previous slice when resuming.
         # Without this, the trace in each TaskResult only reflects the current
@@ -544,10 +541,38 @@ class DslScenarioExecuteMixin(_Base):
 
         step_index = self.start_step_index
         require_identity_resolution = key == "who_i_am" and not str(self.player_id or "").strip()
+
+        async def _mark_top_level_step_done() -> None:
+            """After a top-level step finishes, point the UI at the next step index."""
+            await self._publish_scenario_step_index(
+                instance_id,
+                min(fr.step_index, max(steps_total_n - 1, 0)),
+            )
+
+        # Per-invocation frame shared with the ``_exec_*_step`` handlers on
+        # the sibling step mixins. ``fr.step_index`` mirrors the loop cursor
+        # (synced right after each increment); the ``ocr`` handler advances it
+        # when it consumes a sibling chain of consecutive ``ocr:`` steps.
+        fr = ExecFrame(
+            instance_id=instance_id,
+            scenario_key=key,
+            actions=actions,
+            area_doc=area_doc,
+            repo_root=repo_root,
+            dev_w=dev_w,
+            dev_h=dev_h,
+            steps=steps,
+            require_identity_resolution=require_identity_resolution,
+            fin=_fin,
+            mark_step_done=_mark_top_level_step_done,
+            step_index=step_index,
+        )
+
         while step_index < len(steps):
             step = steps[step_index]
             _resumable_step = step_index  # capture before increment for resume tracking
             step_index += 1
+            fr.step_index = step_index
             if await self._preempted_by_new_debug(instance_id):
                 await self._clear_step_context(instance_id)
                 _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
@@ -620,1127 +645,87 @@ class DslScenarioExecuteMixin(_Base):
                 and grouped
                 and not _DSL_STEP_ACTION_KEYS.intersection(step.keys())
             ):
-                await self._write_step_context(instance_id, scenario=key)
-                for inner_idx, raw_inner in enumerate(grouped):
-                    if not isinstance(raw_inner, dict):
-                        continue
-                    inner: dict[str, Any] = cast("dict[str, Any]", raw_inner)
-                    if not await _dsl_cond_allows_step(
-                        inner,
-                        instance_id,
-                        self.redis_client,
-                        state_flat=self._state_flat(),
-                    ):
-                        logger.debug(
-                            "dsl_scenario: grouped step skipped by cond (%s)",
-                            inner.get("cond"),
-                        )
-                        continue
-                    result = await self._run_inline_step(
-                        inner,
-                        actions=actions,
-                        area_doc=area_doc,
-                        repo_root=repo_root,
-                        instance_id=instance_id,
-                        dev_w=dev_w,
-                        dev_h=dev_h,
-                        scenario_key=key,
-                        trace_path=f"{_resumable_step}.{inner_idx}",
-                    )
-                    if result is not None:
-                        md = dict(result.metadata or {})
-                        _trace_row(
-                            _resumable_step,
-                            step,
-                            "stopped",
-                            reason=str(md.get("reason") or ""),
-                        )
-                        return TaskResult(
-                            success=result.success,
-                            next_run_at=result.next_run_at,
-                            metadata=_fin(md, completed=False),
-                        )
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok")
+                result = await self._exec_grouped_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "match" in step:
-                reg = str(step.get("match") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                row = await self._match_region(
-                    actions=actions,
-                    area_doc=area_doc,
-                    repo_root=repo_root,
-                    instance_id=instance_id,
-                    scenario_key=key,
-                    step=step,
-                    region=reg,
-                )
-                # ``match + steps`` = guarded block: matched → run ``steps``,
-                # miss → run ``else`` (if any) and continue. The presence of
-                # ``steps:`` is the explicit opt-in to soft semantics; bare
-                # ``match:`` keeps its historical hard-gate behavior (abort
-                # the scenario on miss) so existing gate-style usages stand.
-                inner_steps = step.get("steps")
-                else_steps = step.get("else")
-                has_guarded_block = (
-                    isinstance(inner_steps, list) and bool(inner_steps)
-                ) or (isinstance(else_steps, list) and bool(else_steps))
-                if has_guarded_block:
-                    matched = bool(row.get("matched")) if row else False
-                    branch_steps = inner_steps if matched else else_steps
-                    branch_label = "steps" if matched else "else"
-                    if isinstance(branch_steps, list) and branch_steps:
-                        for inner_idx, inner in enumerate(branch_steps):
-                            if not isinstance(inner, dict):
-                                continue
-                            result = await self._run_inline_step(
-                                inner,
-                                actions=actions,
-                                area_doc=area_doc,
-                                repo_root=repo_root,
-                                instance_id=instance_id,
-                                dev_w=dev_w,
-                                dev_h=dev_h,
-                                scenario_key=key,
-                                trace_path=(
-                                    f"{_resumable_step}.{branch_label}.{inner_idx}"
-                                ),
-                            )
-                            if result is not None:
-                                md = dict(result.metadata or {})
-                                _trace_row(
-                                    _resumable_step,
-                                    step,
-                                    "stopped",
-                                    reason=str(md.get("reason") or ""),
-                                )
-                                return TaskResult(
-                                    success=result.success,
-                                    next_run_at=result.next_run_at,
-                                    metadata=_fin(md, completed=False),
-                                )
-                    await _mark_top_level_step_done()
-                    _trace_row(
-                        _resumable_step,
-                        step,
-                        "ok",
-                        matched=matched,
-                        branch=branch_label,
-                    )
-                    continue
-                if row is None:
-                    await self._clear_step_context(instance_id)
-                    _trace_row(_resumable_step, step, "early_exit", reason="match_region_not_found")
-                    return TaskResult(
-                        success=True,
-                        next_run_at=None,
-                        metadata=_fin(
-                            {
-                                "scenario": key,
-                                "reason": "match_region_not_found",
-                                "region": reg,
-                            },
-                            completed=False,
-                        ),
-                    )
-                matched = bool(row.get("matched"))
-                if not matched:
-                    logger.info(
-                        "dsl_scenario: match guard failed — skipping scenario %s region=%s row=%s",
-                        _scen(key),
-                        reg,
-                        row,
-                    )
-                    await self._clear_step_context(instance_id)
-                    _trace_row(_resumable_step, step, "early_exit", reason="match_guard_failed")
-                    # ``match_guard_failed`` is a *failure* of intent: the
-                    # scenario declared "I need this region present" and it
-                    # wasn't. Marking the task ``success=True`` lumped these
-                    # rows together with real completions in queue history
-                    # (e.g. ``new_chapter`` shows ``reason=match_guard_failed``
-                    # but reads as success). Report it honestly so the UI
-                    # surfaces it as a failure; ``scenario_completed=False``
-                    # in metadata stays as the structural marker.
-                    return TaskResult(
-                        success=False,
-                        next_run_at=None,
-                        metadata=_fin(
-                            {
-                                "scenario": key,
-                                "reason": "match_guard_failed",
-                                "region": reg,
-                                "match": row if isinstance(row, dict) else None,
-                            },
-                            completed=False,
-                        ),
-                    )
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok")
+                result = await self._exec_match_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "while_match" in step:
-                reg = str(step.get("while_match") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                try:
-                    max_iters = int(step.get("max", 20))
-                except (TypeError, ValueError):
-                    max_iters = 20
-                max_iters = max(0, max_iters)
-                inner_steps = step.get("steps")
-                if not isinstance(inner_steps, list):
-                    inner_steps = []
-
-                # The *initial* probe may retry (default 1 attempt; opt in via
-                # ``retry.attempts``) to absorb screen-settling lag after navigation.
-                # Subsequent probes are single-shot — once we've matched once,
-                # lack of a match means the work is done.
-                #
-                # YAML form:
-                #   retry:
-                #     attempts: 3
-                #     interval: 500ms     # also accepts "0.5s" or raw seconds
-                default_attempts = 1
-                default_interval_s = 0.5
-                # Scenario ``steps:`` are OR-semantics: each step tries; if a
-                # ``while_match`` finds zero iterations, we just move to the
-                # next step instead of failing the whole scenario. The previous
-                # strict-by-default behavior for player-bound scenarios meant a
-                # missing claim button (popup already closed, wrong screen) would
-                # abort the scenario and pop an approval prompt — but the natural
-                # idiom across our scenarios (``claim_trials``, ``mail.claim``,
-                # ``vip_rewards``, etc.) is "try claim X, then claim Y, then …";
-                # failure of one branch should not prevent the rest from running.
-                # YAML can still set ``strict: true`` to opt into the
-                # "must have done work" check for the rare gate-like step.
-                default_strict = False
-                retry_cfg = step.get("retry")
-                if not isinstance(retry_cfg, dict):
-                    retry_cfg = {}
-                try:
-                    initial_attempts = int(retry_cfg.get("attempts", default_attempts))
-                except (TypeError, ValueError):
-                    initial_attempts = default_attempts
-                initial_attempts = max(1, initial_attempts)
-                if "interval" in retry_cfg:
-                    attempt_interval_s = _parse_wait_seconds(retry_cfg.get("interval"))
-                else:
-                    attempt_interval_s = default_interval_s
-                attempt_interval_s = max(0.0, attempt_interval_s)
-                strict = bool(step.get("strict", default_strict))
-
-                iterations = 0
-                inner_result: TaskResult | None = None
-                for _ in range(max_iters):
-                    if await self._preempted_by_new_debug(instance_id):
-                        await self._clear_step_context(instance_id)
-                        _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
-                        return TaskResult(
-                            success=False,
-                            next_run_at=None,
-                            metadata=_fin(
-                                {
-                                    "scenario": key,
-                                    "reason": "dsl_preempted_debug",
-                                    "preempted": True,
-                                },
-                                completed=False,
-                            ),
-                        )
-                    probe_attempts = initial_attempts if iterations == 0 else 1
-                    matched = False
-                    for attempt in range(probe_attempts):
-                        # Force a fresh capture on each retry — _match_region reads
-                        # capture_screen_bgr_cached, so without invalidation every
-                        # attempt probes the same frame and the retry is a no-op.
-                        if attempt > 0 and hasattr(actions, "invalidate_frame_cache"):
-                            with suppress(Exception):
-                                actions.invalidate_frame_cache(instance_id)
-                        row = await self._match_region(
-                            actions=actions,
-                            area_doc=area_doc,
-                            repo_root=repo_root,
-                            instance_id=instance_id,
-                            scenario_key=key,
-                            step=step,
-                            region=reg,
-                        )
-                        if row is not None and bool(row.get("matched")):
-                            matched = True
-                            break
-                        if attempt < probe_attempts - 1:
-                            await asyncio.sleep(attempt_interval_s)
-                    if not matched:
-                        break
-                    iter_path = f"{_resumable_step}.{iterations}"
-                    self._append_trace_row(
-                        iter_path, None, "iter", summary=f"iter {iterations}"
-                    )
-                    for inner_idx, inner in enumerate(inner_steps):
-                        if not isinstance(inner, dict):
-                            continue
-                        result = await self._run_inline_step(
-                            inner,
-                            actions=actions,
-                            area_doc=area_doc,
-                            repo_root=repo_root,
-                            instance_id=instance_id,
-                            dev_w=dev_w,
-                            dev_h=dev_h,
-                            scenario_key=key,
-                            trace_path=f"{iter_path}.{inner_idx}",
-                        )
-                        if result is not None:
-                            inner_result = result
-                            break
-                    if inner_result is not None:
-                        break
-                    iterations += 1
-                    await self._publish_scenario_step_index(
-                        instance_id, _resumable_step, loop_iter=iterations
-                    )
-
-                if inner_result is not None:
-                    md = dict(inner_result.metadata or {})
-                    _trace_row(
-                        _resumable_step,
-                        step,
-                        "stopped",
-                        reason=str(md.get("reason") or ""),
-                    )
-                    return TaskResult(
-                        success=inner_result.success,
-                        next_run_at=inner_result.next_run_at,
-                        metadata=_fin(md, completed=False),
-                    )
-
-                # ``else:`` — explicit fallback for the no-iterations case.
-                # When provided, it bypasses the strict-reschedule path: the
-                # scenario has declared how it wants to handle "icon never
-                # appeared" itself (e.g. set a TTL, push another scenario).
-                else_steps = step.get("else")
-                if (
-                    iterations == 0
-                    and isinstance(else_steps, list)
-                    and else_steps
-                ):
-                    else_result: TaskResult | None = None
-                    for else_idx, else_step in enumerate(else_steps):
-                        if not isinstance(else_step, dict):
-                            continue
-                        else_result = await self._run_inline_step(
-                            else_step,
-                            actions=actions,
-                            area_doc=area_doc,
-                            repo_root=repo_root,
-                            instance_id=instance_id,
-                            dev_w=dev_w,
-                            dev_h=dev_h,
-                            scenario_key=key,
-                            trace_path=f"{_resumable_step}.else.{else_idx}",
-                        )
-                        if else_result is not None:
-                            break
-                    if else_result is not None:
-                        md = dict(else_result.metadata or {})
-                        _trace_row(
-                            _resumable_step,
-                            step,
-                            "stopped",
-                            reason=str(md.get("reason") or "else_stop"),
-                        )
-                        return TaskResult(
-                            success=else_result.success,
-                            next_run_at=else_result.next_run_at,
-                            metadata=_fin(md, completed=False),
-                        )
-                    logger.info(
-                        "dsl_scenario: while_match else-branch ran scenario=%s region=%s",
-                        _scen(key),
-                        reg,
-                    )
-                    await _mark_top_level_step_done()
-                    _trace_row(_resumable_step, step, "ok", iterations=0, branch="else")
-                    continue
-
-                if iterations == 0 and strict:
-                    # Strict mode: zero iterations after initial-probe retries
-                    # means the work didn't happen.  Reschedule so the next
-                    # `pop_due` cycle gets another shot instead of yielding to
-                    # whatever lower-priority task is in the queue.
-                    approved = await self._pause_for_while_match_no_iterations_approval(
-                        actions=actions,
-                        instance_id=instance_id,
-                        scenario_key=key,
-                        region=reg,
-                        attempts=initial_attempts,
-                        interval_s=attempt_interval_s,
-                    )
-                    if not approved:
-                        await self._clear_step_context(instance_id)
-                        _trace_row(
-                            _resumable_step,
-                            step,
-                            "stopped",
-                            reason="while_match_no_iterations_not_approved",
-                        )
-                        return TaskResult(
-                            success=False,
-                            next_run_at=None,
-                            metadata=_fin(
-                                {
-                                    "scenario": key,
-                                    "reason": "while_match_no_iterations_not_approved",
-                                    "region": reg,
-                                },
-                                completed=False,
-                            ),
-                        )
-                    logger.info(
-                        "dsl_scenario: while_match no_iterations scenario=%s region=%s "
-                        "attempts=%d → soft-fail with retry",
-                        _scen(key),
-                        reg,
-                        initial_attempts,
-                    )
-                    await self._clear_step_context(instance_id)
-                    _trace_row(
-                        _resumable_step,
-                        step,
-                        "early_exit",
-                        reason="while_match_no_iterations",
-                    )
-                    return TaskResult(
-                        success=False,
-                        next_run_at=datetime.now(tz=UTC) + timedelta(seconds=30),
-                        metadata=_fin(
-                            {
-                                "scenario": key,
-                                "reason": "while_match_no_iterations",
-                                "region": reg,
-                                "attempts": initial_attempts,
-                                "interval": attempt_interval_s,
-                            },
-                            completed=False,
-                        ),
-                    )
-
-                logger.info(
-                    "dsl_scenario: while_match done scenario=%s region=%s iterations=%d",
-                    _scen(key),
-                    reg,
-                    iterations,
-                )
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok", iterations=iterations)
+                result = await self._exec_while_match_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "while_scroll" in step:
-                reg = str(step.get("while_scroll") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                direction = str(step.get("direction") or "up").strip().lower()
-                try:
-                    delta = int(step.get("delta") or 350)
-                except (TypeError, ValueError):
-                    delta = 350
-                try:
-                    duration_ms = int(step.get("duration_ms") or 300)
-                except (TypeError, ValueError):
-                    duration_ms = 300
-                try:
-                    max_iters = int(step.get("max") or 30)
-                except (TypeError, ValueError):
-                    max_iters = 30
-                max_iters = max(0, max_iters)
-                try:
-                    repeats_to_end = int(step.get("repeats_to_end") or 3)
-                except (TypeError, ValueError):
-                    repeats_to_end = 3
-                pause_s = _parse_wait_seconds(step.get("pause_ms") or step.get("pause") or "600ms")
-
-                inner_steps = step.get("steps")
-                if not isinstance(inner_steps, list):
-                    inner_steps = []
-
-                pair = screen_region_by_name(
-                    area_doc,
-                    reg,
-                    state_flat=self._state_flat(),
-                    screen_id=(await _read_current_screen(instance_id, self.redis_client)) or None,
-                )
-                bbox = pair[1].get("bbox") if pair is not None else None
-                if not isinstance(bbox, dict):
-                    logger.warning(
-                        "dsl_scenario: while_scroll region not found in area.json: %s (scenario=%s)",
-                        reg,
-                        _scen(key),
-                    )
-                    _trace_row(_resumable_step, step, "stopped", reason="region_not_found")
-                    continue
-
-                try:
-                    px = int(round(float(bbox["x"]) / 100.0 * dev_w))
-                    py = int(round(float(bbox["y"]) / 100.0 * dev_h))
-                    pw = int(round(float(bbox["width"]) / 100.0 * dev_w))
-                    ph = int(round(float(bbox["height"]) / 100.0 * dev_h))
-                except (KeyError, TypeError, ValueError):
-                    _trace_row(_resumable_step, step, "stopped", reason="invalid_bbox")
-                    continue
-                if pw <= 0 or ph <= 0:
-                    _trace_row(_resumable_step, step, "stopped", reason="invalid_bbox")
-                    continue
-
-                from analysis.scroll import ScrollEndDetector, fingerprint_region_bgr
-
-                detector = ScrollEndDetector(repeats_to_end=repeats_to_end)
-                _capture = getattr(actions, "capture_screen_bgr_cached", actions.capture_screen_bgr)
-                _invalidate = getattr(actions, "invalidate_frame_cache", None)
-
-                iterations = 0
-                inner_result: TaskResult | None = None
-                for i in range(max_iters):
-                    if await self._preempted_by_new_debug(instance_id):
-                        await self._clear_step_context(instance_id)
-                        _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
-                        return TaskResult(
-                            success=False,
-                            next_run_at=None,
-                            metadata=_fin(
-                                {
-                                    "scenario": key,
-                                    "reason": "dsl_preempted_debug",
-                                    "preempted": True,
-                                },
-                                completed=False,
-                            ),
-                        )
-                    # First iter: process the currently-visible page before any swipe.
-                    if i > 0 and direction and delta > 0:
-                        ok = await asyncio.to_thread(
-                            actions.swipe_direction,
-                            instance_id,
-                            direction=direction,
-                            delta=delta,
-                            duration_ms=duration_ms,
-                        )
-                        if not ok:
-                            _trace_row(_resumable_step, step, "stopped", reason="swipe_not_approved")
-                            return TaskResult(
-                                success=False,
-                                next_run_at=None,
-                                metadata=_fin(
-                                    {"scenario": key, "reason": "swipe_not_approved"},
-                                    completed=False,
-                                ),
-                            )
-                        if pause_s > 0:
-                            await asyncio.sleep(_action_pause_seconds(pause_s))
-
-                    iter_path = f"{_resumable_step}.{i}"
-                    for inner_idx, inner in enumerate(inner_steps):
-                        if not isinstance(inner, dict):
-                            continue
-                        result = await self._run_inline_step(
-                            inner,
-                            actions=actions,
-                            area_doc=area_doc,
-                            repo_root=repo_root,
-                            instance_id=instance_id,
-                            dev_w=dev_w,
-                            dev_h=dev_h,
-                            scenario_key=key,
-                            trace_path=f"{iter_path}.{inner_idx}",
-                        )
-                        if result is not None:
-                            inner_result = result
-                            break
-                    if inner_result is not None:
-                        break
-
-                    # Fingerprint AFTER inner steps so post-claim state is what we compare.
-                    if _invalidate is not None:
-                        with suppress(Exception):
-                            _invalidate(instance_id)
-                    image_bgr = await asyncio.to_thread(_capture, instance_id)
-                    patch = image_bgr[py:py + ph, px:px + pw]
-                    fp = fingerprint_region_bgr(patch)
-                    detector.push(fp)
-                    iterations += 1
-                    if detector.is_the_end():
-                        break
-
-                if inner_result is not None:
-                    md = dict(inner_result.metadata or {})
-                    _trace_row(
-                        _resumable_step,
-                        step,
-                        "stopped",
-                        reason=str(md.get("reason") or ""),
-                    )
-                    return TaskResult(
-                        success=inner_result.success,
-                        next_run_at=inner_result.next_run_at,
-                        metadata=_fin(md, completed=False),
-                    )
-                logger.info(
-                    "dsl_scenario: while_scroll done scenario=%s region=%s iterations=%d",
-                    _scen(key),
-                    reg,
-                    iterations,
-                )
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok", iterations=iterations)
+                result = await self._exec_while_scroll_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "repeat" in step:
-                await self._write_step_context(instance_id, scenario=key)
-                spec = step.get("repeat")
-                if isinstance(spec, dict):
-                    try:
-                        max_iters = int(spec.get("max", 1))
-                    except (TypeError, ValueError):
-                        max_iters = 1
-                    inner_steps = spec.get("steps")
-                    until_match = str(spec.get("until_match") or "").strip()
-                    until_any = spec.get("until_any_match")
-                else:
-                    try:
-                        max_iters = int(spec or 1)
-                    except (TypeError, ValueError):
-                        max_iters = 1
-                    inner_steps = step.get("steps")
-                    until_match = ""
-                    until_any = None
-
-                max_iters = max(0, max_iters)
-                if not isinstance(inner_steps, list) or not inner_steps:
-                    _trace_row(_resumable_step, step, "skipped_empty")
-                    continue
-
-                until_any_list: list[str] = []
-                if isinstance(until_any, list):
-                    until_any_list = [
-                        str(x or "").strip()
-                        for x in until_any
-                        if str(x or "").strip()
-                    ]
-
-                iter_idx_total = 0
-                for iter_idx in range(max_iters):
-                    if await self._preempted_by_new_debug(instance_id):
-                        await self._clear_step_context(instance_id)
-                        _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
-                        return TaskResult(
-                            success=False,
-                            next_run_at=None,
-                            metadata=_fin(
-                                {
-                                    "scenario": key,
-                                    "reason": "dsl_preempted_debug",
-                                    "preempted": True,
-                                },
-                                completed=False,
-                            ),
-                        )
-                    if until_match:
-                        row = await self._match_region(
-                            actions=actions,
-                            area_doc=area_doc,
-                            repo_root=repo_root,
-                            instance_id=instance_id,
-                            scenario_key=key,
-                            step=step,
-                            region=until_match,
-                        )
-                        if row is not None and bool(row.get("matched")):
-                            break
-                    if until_any_list:
-                        any_hit = False
-                        for reg in until_any_list:
-                            row2 = await self._match_region(
-                                actions=actions,
-                                area_doc=area_doc,
-                                repo_root=repo_root,
-                                instance_id=instance_id,
-                                scenario_key=key,
-                                step=step,
-                                region=reg,
-                            )
-                            if row2 is not None and bool(row2.get("matched")):
-                                any_hit = True
-                                break
-                        if any_hit:
-                            break
-                    iter_path = f"{_resumable_step}.{iter_idx}"
-                    self._append_trace_row(
-                        iter_path, None, "iter", summary=f"iter {iter_idx}"
-                    )
-                    iter_idx_total = iter_idx + 1
-                    try:
-                        for inner_idx, inner in enumerate(inner_steps):
-                            if not isinstance(inner, dict):
-                                continue
-                            result = await self._run_inline_step(
-                                inner,
-                                actions=actions,
-                                area_doc=area_doc,
-                                repo_root=repo_root,
-                                instance_id=instance_id,
-                                dev_w=dev_w,
-                                dev_h=dev_h,
-                                scenario_key=key,
-                                trace_path=f"{iter_path}.{inner_idx}",
-                            )
-                            if result is not None:
-                                md = dict(result.metadata or {})
-                                _trace_row(
-                                    _resumable_step,
-                                    step,
-                                    "stopped",
-                                    reason=str(md.get("reason") or ""),
-                                )
-                                return TaskResult(
-                                    success=result.success,
-                                    next_run_at=result.next_run_at,
-                                    metadata=_fin(md, completed=False),
-                                )
-                    except _BreakRepeat:
-                        # Stop the nearest loop-like block and continue with the next outer step.
-                        break
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok", iterations=iter_idx_total)
+                result = await self._exec_repeat_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "loop" in step:
-                # Delegate to the inline implementation: loop guards (`cond` /
-                # `ttl`) are re-evaluated each iteration there and inner steps
-                # go through the same `_run_inline_step` path that the rest of
-                # the DSL uses.
-                await self._write_step_context(instance_id, scenario=key)
-                result = await self._run_inline_step(
-                    step,
-                    actions=actions,
-                    area_doc=area_doc,
-                    repo_root=repo_root,
-                    instance_id=instance_id,
-                    dev_w=dev_w,
-                    dev_h=dev_h,
-                    scenario_key=key,
-                    trace_path=str(_resumable_step),
-                )
+                result = await self._exec_loop_step(fr, step, _resumable_step)
                 if result is not None:
-                    md = dict(result.metadata or {})
-                    _trace_row(
-                        _resumable_step,
-                        step,
-                        "stopped",
-                        reason=str(md.get("reason") or ""),
-                    )
-                    return TaskResult(
-                        success=result.success,
-                        next_run_at=result.next_run_at,
-                        metadata=_fin(md, completed=False),
-                    )
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok")
+                    return result
                 continue
             if "push_scenario" in step:
-                await self._write_step_context(instance_id, scenario=key)
-                spec = step.get("push_scenario")
-                if isinstance(spec, dict):
-                    name = str(spec.get("name") or "").strip()
-                    try:
-                        pr = int(spec.get("priority") or self.priority)
-                    except (TypeError, ValueError):
-                        pr = self.priority
-                    delay_s = await _resolve_push_delay_seconds(
-                        spec.get("delay"),
-                        instance_id=instance_id,
-                        redis_async=self.redis_client,
-                        player_id=self.player_id,
-                    )
-                    skip_dup = bool(spec.get("skip_if_duplicate", True))
-                else:
-                    name = str(spec or "").strip()
-                    pr = self.priority
-                    delay_s = 0.0
-                    skip_dup = True
-                if delay_s is None:
-                    await _mark_top_level_step_done()
-                    _trace_row(
-                        _resumable_step, step, "skipped", reason="delay_unresolved"
-                    )
-                    continue
-                if name:
-                    await _enqueue_scenario(
-                        redis_async=self.redis_client,
-                        instance_id=instance_id,
-                        player_id=self.player_id,
-                        scenario=name,
-                        priority=pr,
-                        run_at=time.time() + max(0.0, delay_s),
-                        skip_if_duplicate=skip_dup,
-                    )
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok")
+                result = await self._exec_push_scenario_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "system_back" in step:
-                await self._write_step_context(instance_id, scenario=key)
-                result = await self._run_system_back_step(
-                    actions=actions,
-                    instance_id=instance_id,
-                    scenario_key=key,
-                    step=step,
-                    trace_path=str(_resumable_step),
-                )
+                result = await self._exec_system_back_step(fr, step, _resumable_step)
                 if result is not None:
-                    md = dict(result.metadata or {})
-                    return TaskResult(
-                        success=result.success,
-                        next_run_at=result.next_run_at,
-                        metadata=_fin(md, completed=False),
-                    )
+                    return result
                 continue
             if "swipe_direction" in step:
-                await self._write_step_context(instance_id, scenario=key)
-                spec = step.get("swipe_direction")
-                if isinstance(spec, dict):
-                    direction = str(spec.get("direction") or "").strip().lower()
-                    try:
-                        delta = int(spec.get("delta") or 0)
-                    except (TypeError, ValueError):
-                        delta = 0
-                    try:
-                        duration_ms = int(spec.get("duration_ms") or 300)
-                    except (TypeError, ValueError):
-                        duration_ms = 300
-                else:
-                    direction = str(spec or "").strip().lower()
-                    delta = 350
-                    duration_ms = 300
-                if direction and delta > 0:
-                    ok = await asyncio.to_thread(
-                        actions.swipe_direction,
-                        instance_id,
-                        direction=direction,
-                        delta=delta,
-                        duration_ms=duration_ms,
-                    )
-                    if not ok:
-                        logger.info(
-                            "dsl_scenario: swipe blocked — aborting scenario %s", _scen(key)
-                        )
-                        await self._clear_step_context(instance_id)
-                        _trace_row(_resumable_step, step, "stopped", reason="swipe_not_approved")
-                        return TaskResult(
-                            success=False,
-                            next_run_at=None,
-                            metadata=_fin(
-                                {"scenario": key, "reason": "swipe_not_approved"},
-                                completed=False,
-                            ),
-                        )
-                    await asyncio.sleep(_action_pause_seconds(0.4))
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok")
+                result = await self._exec_swipe_direction_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "ocr" in step:
-                reg = str(step.get("ocr") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                if reg:
-                    ocr_steps = [step]
-                    while step_index < len(steps):
-                        next_step = steps[step_index]
-                        if not isinstance(next_step, dict) or "ocr" not in next_step:
-                            break
-                        step_index += 1
-                        if not await _dsl_cond_allows_step(
-                            next_step,
-                            instance_id,
-                            self.redis_client,
-                            state_flat=self._state_flat(),
-                        ):
-                            logger.debug(
-                                "dsl_scenario: step skipped by cond (%s)",
-                                next_step.get("cond"),
-                            )
-                            continue
-                        if str(next_step.get("ocr") or "").strip():
-                            ocr_steps.append(next_step)
-                    if len(ocr_steps) > 1:
-                        await self._ocr_region_bulk(
-                            actions=actions,
-                            area_doc=area_doc,
-                            instance_id=instance_id,
-                            dev_w=dev_w,
-                            dev_h=dev_h,
-                            scenario_key=key,
-                            steps=ocr_steps,
-                        )
-                    else:
-                        await self._ocr_region(
-                            actions=actions,
-                            area_doc=area_doc,
-                            instance_id=instance_id,
-                            dev_w=dev_w,
-                            dev_h=dev_h,
-                            scenario_key=key,
-                            step=step,
-                            region=reg,
-                        )
-                    active_player = await _read_active_player(instance_id, self.redis_client)
-                    # Check every region in the bulk batch — not just the first.
-                    # ``reg`` here is the OUTER step's region; a bulk batch like
-                    # ``[{ocr: a}, {ocr: player.id}, ...]`` would otherwise skip
-                    # the identity gate because ``reg == "a"``, even though OCR
-                    # *did* try to resolve identity. Region names follow the
-                    # ``games/<game>/<id>/area.yaml`` convention (``player.id``
-                    # with a dot — see ``games/wos/core/who_i_am/area.yaml``).
-                    identity_regions = {
-                        str(s.get("ocr") or "").strip() for s in ocr_steps
-                    }
-                    if (
-                        require_identity_resolution
-                        and "player.id" in identity_regions
-                        and not active_player
-                    ):
-                        logger.info(
-                            "dsl_scenario: identity OCR did not set active_player "
-                            "scenario=%s regions=%s — retry",
-                            _scen(key),
-                            sorted(identity_regions),
-                        )
-                        await self._clear_step_context(instance_id)
-                        _trace_row(
-                            _resumable_step,
-                            step,
-                            "early_exit",
-                            reason="identity_not_resolved",
-                        )
-                        return TaskResult(
-                            success=False,
-                            next_run_at=datetime.now(tz=UTC) + timedelta(seconds=30),
-                            metadata=_fin(
-                                {
-                                    "scenario": key,
-                                    "reason": "identity_not_resolved",
-                                    "region": reg,
-                                },
-                                completed=False,
-                            ),
-                        )
-                # ``_ocr_audit_step`` set ``self._last_ocr_row`` on the way out
-                # — pass it through so the trace shows confidence/value/text.
-                # On bulk OCR this reflects the last region; that's acceptable
-                # for a single trace row covering a sibling chain.
-                await _mark_top_level_step_done()
-                _trace_row(
-                    _resumable_step, step, "ok", ocr_row=self._last_ocr_row
-                )
+                result = await self._exec_ocr_step(fr, step, _resumable_step)
+                # The handler may have consumed a sibling chain of ``ocr:``
+                # steps — resync the loop cursor with the frame.
+                step_index = fr.step_index
+                if result is not None:
+                    return result
                 continue
             if "exec" in step:
-                cmd = str(step.get("exec") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                exec_row: dict[str, Any] = {}
-                if cmd:
-                    base_args = self.args if isinstance(self.args, dict) else {}
-                    args = {
-                        **base_args,
-                        **{k: v for k, v in step.items() if k not in ("exec", "cond")},
-                    }
-                    exec_row = await self._run_exec_step(cmd, instance_id, args)
-                await _mark_top_level_step_done()
-                exec_row = _trace_exec_result_kwargs(exec_row)
-                _trace_row(_resumable_step, step, "ok", **exec_row)
+                result = await self._exec_exec_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "click" in step:
-                reg = str(step.get("click") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                _sf = self._state_flat()
-                pair = (
-                    screen_region_by_name(area_doc, reg, state_flat=_sf) if reg else None
-                )
-                # For click approvals: expose region + optional threshold (overlay queue may
-                # already set ``current_task_threshold``; do not overwrite).
-                if reg and self.redis_client is not None:
-                    with suppress(Exception):
-                        st_key = f"wos:instance:{instance_id}:state"
-                        mapping: dict[str, str] = {"current_task_region": reg}
-                        if pair is not None:
-                            raw_thr = pair[1].get("threshold")
-                            thr_txt = ""
-                            if isinstance(raw_thr, (int, float)):
-                                thr_txt = f"{float(raw_thr):.6g}"
-                            elif isinstance(raw_thr, str) and str(raw_thr).strip():
-                                thr_txt = str(raw_thr).strip()
-                            if thr_txt:
-                                prev = await self.redis_client.hget(
-                                    st_key, "current_task_threshold"
-                                )
-                                prev_s = (
-                                    prev.decode()
-                                    if isinstance(prev, bytes)
-                                    else str(prev or "")
-                                ).strip()
-                                if not prev_s:
-                                    mapping["current_task_threshold"] = thr_txt
-                        await self.redis_client.hset(st_key, mapping=mapping)
-                if reg:
-                    result = await self._tap_region(
-                        actions=actions,
-                        area_doc=area_doc,
-                        repo_root=repo_root,
-                        instance_id=instance_id,
-                        dev_w=dev_w,
-                        dev_h=dev_h,
-                        scenario_key=key,
-                        region=reg,
-                        step=step,
-                    )
-                    if result is not None:
-                        md = dict(result.metadata or {})
-                        _trace_row(
-                            _resumable_step,
-                            step,
-                            "stopped",
-                            reason=str(md.get("reason") or ""),
-                            match_row=self._last_match_row,
-                        )
-                        return TaskResult(
-                            success=result.success,
-                            next_run_at=result.next_run_at,
-                            metadata=_fin(md, completed=False),
-                        )
-                    await asyncio.sleep(_action_pause_seconds(0.4))
-                await _mark_top_level_step_done()
-                _trace_row(
-                    _resumable_step, step, "ok", match_row=self._last_match_row
-                )
+                result = await self._exec_click_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "long_click" in step:
-                reg = str(step.get("long_click") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                if not reg:
-                    await _mark_top_level_step_done()
-                    _trace_row(_resumable_step, step, "ok")
-                    continue
-                pair = screen_region_by_name(area_doc, reg, state_flat=self._state_flat())
-                if pair is None:
-                    _trace_row(_resumable_step, step, "stopped", reason="unknown_region")
-                    return TaskResult(
-                        success=False,
-                        next_run_at=None,
-                        metadata=_fin(
-                            {"scenario": key, "reason": "unknown_region"},
-                            completed=False,
-                        ),
-                    )
-                _entry, reg_doc = pair
-                bbox = reg_doc.get("bbox")
-                if not isinstance(bbox, dict):
-                    _trace_row(_resumable_step, step, "stopped", reason="missing_bbox")
-                    return TaskResult(
-                        success=False,
-                        next_run_at=None,
-                        metadata=_fin({"scenario": key, "reason": "missing_bbox"}, completed=False),
-                    )
-                raw_dur = step.get("duration")
-                if raw_dur is None:
-                    raw_dur = step.get("wait")
-                duration_ms = 800
-                with suppress(Exception):
-                    dur_s = _parse_wait_seconds(raw_dur)
-                    if dur_s > 0:
-                        duration_ms = int(round(dur_s * 1000.0))
-                pt = self._point_for_region_action(reg, bbox, dev_w, dev_h)
-                ok = False
-                with suppress(Exception):
-                    ok = bool(
-                        await asyncio.to_thread(
-                            actions.long_tap,
-                            instance_id,
-                            pt,
-                            duration_ms=duration_ms,
-                        )
-                    )
-                if not ok:
-                    _trace_row(_resumable_step, step, "stopped", reason="long_click_not_approved")
-                    return TaskResult(
-                        success=False,
-                        next_run_at=None,
-                        metadata=_fin(
-                            {"scenario": key, "reason": "long_click_not_approved"},
-                            completed=False,
-                        ),
-                    )
-                await asyncio.sleep(_action_pause_seconds(0.4))
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok")
+                result = await self._exec_long_click_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "ttl" in step:
-                # Exit early, reschedule self for ``now + ttl``. Same semantic
-                # as the inline handler — mostly used inside ``while_match.else``,
-                # but accepted at top level too for the "skip this tick" idiom.
-                ttl_s = max(0.0, _parse_wait_seconds(step.get("ttl")))
-                await self._clear_step_context(instance_id)
-                _trace_row(
-                    _resumable_step, step, "early_exit", reason="ttl", ttl_s=ttl_s
-                )
-                return TaskResult(
-                    success=True,
-                    next_run_at=datetime.now(tz=UTC) + timedelta(seconds=ttl_s),
-                    metadata=_fin(
-                        {
-                            "scenario": key,
-                            "reason": "ttl_exit",
-                            "ttl_s": ttl_s,
-                        },
-                        completed=False,
-                    ),
-                )
+                result = await self._exec_ttl_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
+                continue
             if "wait_screen" in step:
-                await self._write_step_context(instance_id, scenario=key)
-                matched = await self._run_wait_screen_step(
-                    actions=actions,
-                    instance_id=instance_id,
-                    scenario_key=key,
-                    step=step,
-                )
-                if not matched:
-                    await self._clear_step_context(instance_id)
-                    _trace_row(
-                        _resumable_step,
-                        step,
-                        "stopped",
-                        reason="wait_screen_timeout",
-                    )
-                    return TaskResult(
-                        success=False,
-                        next_run_at=None,
-                        metadata=_fin(
-                            {"scenario": key, "reason": "wait_screen_timeout"},
-                            completed=False,
-                        ),
-                    )
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok", matched=matched)
+                result = await self._exec_wait_screen_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
             if "wait" in step:
-                # Supports "1200ms" (string) or seconds (number).
-                w = step.get("wait")
-                await self._write_step_context(instance_id, scenario=key)
-                from config.loader import get_settings as _get_settings
-
-                _jitter_pct = float(
-                    getattr(_get_settings().worker, "wait_jitter_pct", 0.0) or 0.0
-                )
-                seconds = _jittered_wait_seconds(_parse_wait_seconds(w), _jitter_pct)
-                if seconds > 0:
-                    await asyncio.sleep(seconds)
-                    # Explicit pause ⇒ assume the screen changed during it
-                    # (timer ticks, popups animating in). Drop the framebuffer
-                    # cache so the next ``match`` / ``ocr`` doesn't reuse the
-                    # pre-wait frame.
-                    _invalidate = getattr(actions, "invalidate_frame_cache", None)
-                    if _invalidate is not None:
-                        _invalidate(instance_id)
-                await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok")
+                result = await self._exec_wait_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
                 continue
         logger.info("dsl_scenario done: %s (%s)", _scen(key), instance_id)
         await self._clear_step_context(instance_id)

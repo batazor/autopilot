@@ -8,7 +8,12 @@ from opentelemetry import trace
 
 from config.log_ansi import scenario_log_label
 from config.log_context import set_log_context
-from config.tracing import set_span_attributes, trace_id_hex_for_history, traced_root
+from config.tracing import (
+    set_span_attributes,
+    task_duration_histogram,
+    trace_id_hex_for_history,
+    traced_root,
+)
 from dashboard.dashboard_events import publish_dashboard_event_async
 from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from navigation.lifecycle_states import InstanceState
@@ -302,6 +307,29 @@ class InstanceWorkerTasksMixin(_Base):
                     _task_span.set_status(
                         trace.Status(trace.StatusCode.ERROR, _reason or "task failed")
                     )
+                # One histogram point per task: duration + outcome. The
+                # ``_count`` series doubles as the scenario attempt counter,
+                # so Grafana can rank failing scenarios without a second
+                # instrument. ``error`` = unhandled exception, ``failed`` =
+                # scenario reported failure, matching the span fields above.
+                if _terminal_event == "task.preempted":
+                    _outcome = "preempted"
+                elif _task_error:
+                    _outcome = "error"
+                else:
+                    _outcome = "success" if _success else "failed"
+                try:
+                    task_duration_histogram().record(
+                        max(0.0, _finished_at - started_at),
+                        attributes={
+                            "instance_id": self._cfg.instance_id,
+                            "task_type": item.task_type,
+                            "scenario": scenario_for_job or item.task_type,
+                            "outcome": _outcome,
+                        },
+                    )
+                except Exception:
+                    logger.debug("task duration metric failed", exc_info=True)
                 try:
                     await wake_scheduler_async(
                         self._redis,

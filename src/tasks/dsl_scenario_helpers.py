@@ -14,7 +14,7 @@ import random
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, SupportsFloat, cast
 
 import yaml
 from rapidfuzz import fuzz
@@ -450,8 +450,9 @@ def _event_timer_name_from_spec(spec: object) -> str:
     if isinstance(spec, str):
         return spec.strip()
     if isinstance(spec, dict):
+        spec_map = cast("dict[str, Any]", spec)
         for key in ("name", "event", "key"):
-            raw = spec.get(key)
+            raw = spec_map.get(key)
             if raw is not None:
                 value = str(raw).strip()
                 if value:
@@ -642,7 +643,8 @@ def _eval_delay_rpn(items: list[tuple[str, object]]) -> float:
             else:  # "/"
                 stack.append(a / b)
         else:
-            stack.append(float(tok))
+            # Non-op tokens are the ('val', float) payloads by construction.
+            stack.append(float(cast("SupportsFloat", tok)))
     if len(stack) != 1:
         raise ValueError(malformed)
     return stack[0]
