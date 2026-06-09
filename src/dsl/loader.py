@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -13,6 +14,15 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
+
+# Cap stored error text so a pathological ValidationError can't bloat Redis
+# once the failure list is published for the dashboard banner.
+_MAX_ERROR_CHARS = 500
+
+
+def _one_line_error(exc: BaseException) -> str:
+    text = " ".join(f"{type(exc).__name__}: {exc}".split())
+    return text[:_MAX_ERROR_CHARS]
 
 
 def _is_declarative_scenario_doc(raw: object) -> bool:
@@ -44,6 +54,7 @@ class ScenarioLoader:
         else:
             self._paths = list(path)
         self._scenarios: list[Scenario] = []
+        self._load_failures: list[dict[str, Any]] = []
         self._lock = threading.RLock()
         self._on_reload: Callable[[], None] | None = None
         self.reload(fire_callback=False)
@@ -59,6 +70,7 @@ class ScenarioLoader:
 
     def reload(self, *, fire_callback: bool = True) -> None:
         loaded: list[Scenario] = []
+        failures: list[dict[str, Any]] = []
         seen_stems: set[tuple[str, str]] = set()
         for root in self._paths:
             if not root.is_dir():
@@ -78,16 +90,27 @@ class ScenarioLoader:
                                 "(each step must define `task` and `cooldown`)",
                                 yaml_file,
                             )
+                            failures.append({
+                                "file": str(yaml_file),
+                                "error": "invalid declarative schema: each step must define `task` and `cooldown`",
+                                "ts": time.time(),
+                            })
                         continue
                     if isinstance(raw, dict) and "name" not in raw:
                         raw["name"] = yaml_file.stem
                     scenario = Scenario.model_validate(raw)
                     seen_stems.add(dedup_key)
                     loaded.append(scenario)
-                except Exception:
+                except Exception as exc:
                     logger.exception("Failed to load scenario %s", yaml_file)
+                    failures.append({
+                        "file": str(yaml_file),
+                        "error": _one_line_error(exc),
+                        "ts": time.time(),
+                    })
         with self._lock:
             self._scenarios = loaded
+            self._load_failures = failures
             cb = self._on_reload
         n_on = sum(1 for s in loaded if s.enabled)
         roots_label = ", ".join(str(p) for p in self._paths)
@@ -103,11 +126,27 @@ class ScenarioLoader:
             len(self._paths),
         )
         logger.debug("Scenario roots: %s", roots_label)
+        if failures:
+            logger.error(
+                "%d scenario file(s) failed to load — they are NOT scheduled: %s",
+                len(failures),
+                ", ".join(str(f["file"]) for f in failures),
+            )
         if fire_callback and cb is not None:
             try:
                 cb()
             except Exception:
-                logger.debug("ScenarioLoader on_reload callback failed", exc_info=True)
+                logger.warning("ScenarioLoader on_reload callback failed", exc_info=True)
+
+    def load_failures(self) -> list[dict[str, Any]]:
+        """Per-file failures from the most recent :meth:`reload`.
+
+        Each entry: ``{"file": str, "error": str, "ts": float}``. Consumers
+        (the scheduler) publish these to Redis so the dashboard can surface a
+        red banner instead of the file silently vanishing from the schedule.
+        """
+        with self._lock:
+            return list(self._load_failures)
 
     def load_all(self, path: Path | list[Path] | None = None) -> list[Scenario]:
         if path is not None:

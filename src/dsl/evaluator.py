@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -29,6 +30,29 @@ def _coerce_int(value: object, default: int = 0) -> int:
 
 
 class ScenarioEvaluator:
+    def __init__(self) -> None:
+        # Accumulated expand failures (unknown task type, factory raise),
+        # deduped by (scenario, task, error). The scheduler drains this once
+        # per tick and publishes to Redis so a misconfigured scenario shows a
+        # red banner instead of silently never firing.
+        self._expand_failures: dict[tuple[str, str, str], dict[str, object]] = {}
+
+    def _record_expand_failure(self, scenario_name: str, task: str, error: str) -> None:
+        key = (scenario_name, task, error)
+        if key not in self._expand_failures:
+            self._expand_failures[key] = {
+                "scenario": scenario_name,
+                "task": task,
+                "error": error,
+                "ts": time.time(),
+            }
+
+    def drain_expand_failures(self) -> list[dict[str, object]]:
+        """Return failures accumulated since the last drain, then clear them."""
+        out = list(self._expand_failures.values())
+        self._expand_failures = {}
+        return out
+
     def evaluate_conditions(
         self,
         conditions: list[StepCondition],
@@ -89,6 +113,9 @@ class ScenarioEvaluator:
             factory = _TASK_FACTORIES.get(step.task)
             if factory is None:
                 logger.warning("Unknown task type: %s", step.task)
+                self._record_expand_failure(
+                    scenario.name, step.task, "unknown task type (no registered factory)"
+                )
                 continue
 
             cooldown = int(step.cooldown.total_seconds())
@@ -112,7 +139,12 @@ class ScenarioEvaluator:
             try:
                 task = factory(**task_kwargs)
                 tasks.append(task)  # type: ignore[arg-type]
-            except Exception:
+            except Exception as exc:
                 logger.exception("Failed to create task %s for player %s", step.task, player_id)
+                self._record_expand_failure(
+                    scenario.name,
+                    step.task,
+                    " ".join(f"{type(exc).__name__}: {exc}".split())[:500],
+                )
 
         return tasks

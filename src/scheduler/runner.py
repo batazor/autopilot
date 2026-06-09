@@ -14,6 +14,7 @@ import redis.asyncio as aioredis
 from config.devices import player_ids_for_device_candidates
 from config.paths import repo_root
 from config.redis_health import ping_async_redis_or_exit
+from dashboard.load_failures import record_load_failures, record_load_failures_async
 from dsl.cron_specs import (
     iter_cron_yaml_files_for_repo,
     resolve_cron_priority,
@@ -93,6 +94,12 @@ class SchedulerRunner:
             self._wake_sync = _redis_sync.Redis.from_url(url, socket_connect_timeout=5.0)
             instrument_redis_client(self._wake_sync, component="scheduler")
         self._scenario_loader.set_on_reload(self._on_scenarios_reloaded)
+        # The initial load ran in ScenarioLoader.__init__, before Redis was
+        # up — publish its failures now so boot-time YAML errors hit the
+        # dashboard banner too, not just the log.
+        record_load_failures(
+            self._wake_sync, "scenario_loader", self._scenario_loader.load_failures()
+        )
 
     def _on_scenarios_reloaded(self) -> None:
         """Fired after an explicit ``ScenarioLoader.reload()`` (UI button).
@@ -103,6 +110,9 @@ class SchedulerRunner:
         client = self._wake_sync
         if client is None:
             return
+        record_load_failures(
+            client, "scenario_loader", self._scenario_loader.load_failures()
+        )
         try:
             wake_scheduler(client, {"cmd": "wake", "reason": "scenarios_reloaded"})
         except Exception:
@@ -666,6 +676,13 @@ class SchedulerRunner:
                 tasks = self._evaluator.expand_to_tasks(scenario, state)
                 all_tasks.extend(tasks)
             player_tasks[player_id] = all_tasks
+
+        # Publish (or clear) expand failures every tick: an unknown task type
+        # re-registers on the next tick while it persists, and the banner
+        # disappears one tick after the scenario is fixed.
+        await record_load_failures_async(
+            self._redis, "evaluator", self._evaluator.drain_expand_failures()
+        )
 
         inp = OptimizationInput(
             player_tasks=player_tasks,
