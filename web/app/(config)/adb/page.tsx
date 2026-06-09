@@ -1,8 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { AppMenu, AppRadioGroup, type AppMenuItem } from "@/components/headless";
+import {
+  AppMenu,
+  AppPopover,
+  AppRadioGroup,
+  type AppMenuItem,
+} from "@/components/headless";
+import { Icon } from "@/components/ui";
 import {
   fetchAdbStatus,
   fetchScrcpyStatus,
@@ -32,6 +45,29 @@ const INPUT_BACKEND_OPTIONS = [
 
 const PORT_INPUT_CLASS =
   "rounded-md border border-wos-border-subtle bg-wos-input px-2 py-1 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25";
+
+const REGISTRATION_FILTER_OPTIONS = [
+  { value: "", label: "All", title: "Show every device" },
+  {
+    value: "registered",
+    label: "Registered",
+    title: "Devices present in the fleet registry",
+  },
+  {
+    value: "unregistered",
+    label: "Unregistered",
+    title: "Live devices missing from the fleet registry",
+  },
+];
+
+type RegistrationFilter = "" | "registered" | "unregistered";
+
+function matchesQuery(
+  query: string,
+  fields: Array<string | null | undefined>,
+): boolean {
+  return fields.some((f) => f?.toLowerCase().includes(query));
+}
 
 type CellEntry<T> = T | { error: string } | undefined;
 
@@ -103,6 +139,10 @@ export default function AdbPage() {
   const [installingScrcpy, setInstallingScrcpy] = useState<string | null>(null);
   const [registeringSerial, setRegisteringSerial] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [registrationFilter, setRegistrationFilter] =
+    useState<RegistrationFilter>("");
+  const deferredFilter = useDeferredValue(filter);
   // Start from the default so the server and first client render agree (no
   // hydration mismatch); the persisted value is loaded in an effect below.
   const [portRange, setPortRange] = useState(DEFAULT_PORT_RANGE);
@@ -316,6 +356,64 @@ export default function AdbPage() {
 
   const unregistered = status ? missingLiveDevices(status) : [];
 
+  const query = deferredFilter.trim().toLowerCase();
+  const filtersActive = query !== "" || registrationFilter !== "";
+
+  const configuredFiltered = useMemo(() => {
+    if (!status) return [];
+    // Configured rows are registered by definition, so the "unregistered"
+    // facet empties this table rather than silently ignoring the filter.
+    if (registrationFilter === "unregistered") return [];
+    if (!query) return status.configured;
+    return status.configured.filter((d) =>
+      matchesQuery(query, [
+        d.name,
+        d.adb_serial,
+        d.instance_id,
+        d.bluestacks_window_title,
+      ]),
+    );
+  }, [status, query, registrationFilter]);
+
+  const liveFiltered = useMemo(() => {
+    if (!status) return [];
+    return status.live_devices.filter((d) => {
+      const registered = status.configured.some((c) =>
+        adbSerialMatches(c.adb_serial, d.serial, d.canonical_serial),
+      );
+      if (registrationFilter === "registered" && !registered) return false;
+      if (registrationFilter === "unregistered" && registered) return false;
+      if (!query) return true;
+      const games = (d.detected_games ?? []).flatMap((g) => [g.id, g.label]);
+      return matchesQuery(query, [d.serial, d.canonical_serial, d.line, ...games]);
+    });
+  }, [status, query, registrationFilter]);
+
+  const clearFilters = () => {
+    setFilter("");
+    setRegistrationFilter("");
+  };
+
+  const renderNoMatchesRow = (colSpan: number) => (
+    <tr>
+      <td colSpan={colSpan}>
+        <span className="muted">
+          No devices match the current filters.{" "}
+          <button
+            type="button"
+            className="cursor-pointer border-0 bg-transparent p-0 text-sky-400 underline-offset-2 hover:underline"
+            onClick={clearFilters}
+          >
+            Clear filters
+          </button>
+        </span>
+      </td>
+    </tr>
+  );
+
+  const sectionCount = (shown: number, total: number) =>
+    filtersActive ? `${shown}/${total}` : `${total}`;
+
   return (
     <>
       <PageHeader title="ADB">
@@ -328,7 +426,7 @@ export default function AdbPage() {
           Select the backend in the dropdowns below to opt in per device.
         </p>
       </PageHeader>
-      <div className="toolbar mb-4 flex flex-wrap items-end gap-3">
+      <div className="toolbar mb-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
           className="btn-secondary"
@@ -337,70 +435,124 @@ export default function AdbPage() {
         >
           {scanning ? "Scanning…" : "Refresh scan"}
         </button>
-        <div className="flex flex-wrap items-end gap-2 text-xs text-wos-text-muted">
-          <span className="self-center font-semibold uppercase tracking-wide">
-            TCP port range
-          </span>
-          <label className="flex flex-col gap-1">
-            <span>From</span>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              className={`${PORT_INPUT_CLASS} w-24`}
-              value={portRange.start}
-              onChange={(e) =>
-                updatePortRange({ ...portRangeRef.current, start: e.target.value })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span>To</span>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              className={`${PORT_INPUT_CLASS} w-24`}
-              value={portRange.end}
-              onChange={(e) =>
-                updatePortRange({ ...portRangeRef.current, end: e.target.value })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span>Step</span>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              className={`${PORT_INPUT_CLASS} w-20`}
-              value={portRange.step}
-              onChange={(e) =>
-                updatePortRange({ ...portRangeRef.current, step: e.target.value })
-              }
-            />
-          </label>
-          <button
-            type="button"
-            className="btn-secondary self-end"
-            onClick={() => updatePortRange(DEFAULT_PORT_RANGE)}
-            disabled={
-              portRange.start === DEFAULT_PORT_RANGE.start &&
-              portRange.end === DEFAULT_PORT_RANGE.end &&
-              portRange.step === DEFAULT_PORT_RANGE.step
-            }
-          >
-            Reset
-          </button>
-          {status?.scan_port_range && (
-            <span className="self-center">
-              scanned {status.scan_port_range.count} port
-              {status.scan_port_range.count === 1 ? "" : "s"}
-              {status.scan_port_range.start != null &&
-                ` (${status.scan_port_range.start}–${status.scan_port_range.end})`}
-            </span>
+        <label className="module-search max-w-md">
+          <Icon name="search" size="sm" />
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter serial, name, game…"
+            type="search"
+            aria-label="Filter devices"
+          />
+          {filter ? (
+            <button
+              type="button"
+              className="btn-icon module-search__clear"
+              aria-label="Clear device filter"
+              onClick={() => setFilter("")}
+            >
+              <Icon name="clear" size="sm" />
+            </button>
+          ) : null}
+        </label>
+        <AppRadioGroup
+          aria-label="Registration filter"
+          value={registrationFilter}
+          onChange={(v) => setRegistrationFilter(v as RegistrationFilter)}
+          options={REGISTRATION_FILTER_OPTIONS}
+        />
+        <AppPopover
+          ariaLabel="Configure TCP scan port range"
+          buttonTitle="TCP scan port range — applied on the next scan"
+          panelClassName="headless-popover__panel w-72 p-3"
+          trigger={
+            <>
+              Ports {portRange.start}–{portRange.end} · step {portRange.step}
+            </>
+          }
+        >
+          {({ close }) => (
+            <div className="flex flex-col gap-3 text-xs text-wos-text-muted">
+              <span className="font-semibold uppercase tracking-wide">
+                TCP scan port range
+              </span>
+              <div className="flex items-end gap-2">
+                <label className="flex flex-col gap-1">
+                  <span>From</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    className={`${PORT_INPUT_CLASS} w-20`}
+                    value={portRange.start}
+                    onChange={(e) =>
+                      updatePortRange({ ...portRangeRef.current, start: e.target.value })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span>To</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    className={`${PORT_INPUT_CLASS} w-20`}
+                    value={portRange.end}
+                    onChange={(e) =>
+                      updatePortRange({ ...portRangeRef.current, end: e.target.value })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span>Step</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    className={`${PORT_INPUT_CLASS} w-16`}
+                    value={portRange.step}
+                    onChange={(e) =>
+                      updatePortRange({ ...portRangeRef.current, step: e.target.value })
+                    }
+                  />
+                </label>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => updatePortRange(DEFAULT_PORT_RANGE)}
+                  disabled={
+                    portRange.start === DEFAULT_PORT_RANGE.start &&
+                    portRange.end === DEFAULT_PORT_RANGE.end &&
+                    portRange.step === DEFAULT_PORT_RANGE.step
+                  }
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={scanning}
+                  onClick={() => {
+                    close();
+                    void refreshScanAndRegister();
+                  }}
+                >
+                  Rescan now
+                </button>
+              </div>
+            </div>
           )}
-        </div>
+        </AppPopover>
+        {status?.scan_port_range && (
+          <span className="text-xs text-wos-text-muted">
+            scanned {status.scan_port_range.count} port
+            {status.scan_port_range.count === 1 ? "" : "s"}
+            {status.scan_port_range.start != null &&
+              ` (${status.scan_port_range.start}–${status.scan_port_range.end})`}
+          </span>
+        )}
       </div>
       {error && <p className="error-banner mb-4">{error}</p>}
       {success && <p className="success-banner mb-4">{success}</p>}
@@ -454,7 +606,9 @@ export default function AdbPage() {
             <p className="error-banner mb-4">Scan: {status.scan_error}</p>
           )}
           <section className="panel panel--spaced">
-            <h2>Configured ({status.configured.length})</h2>
+            <h2>
+              Configured ({sectionCount(configuredFiltered.length, status.configured.length)})
+            </h2>
             <div className="data-table-wrap">
               <table className="data-table">
                 <thead>
@@ -468,7 +622,10 @@ export default function AdbPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {status.configured.map((d) => (
+                  {configuredFiltered.length === 0 &&
+                    status.configured.length > 0 &&
+                    renderNoMatchesRow(6)}
+                  {configuredFiltered.map((d) => (
                     <tr key={`${d.name}-${d.adb_serial}`}>
                       <td>{d.name || "—"}</td>
                       <td>
@@ -512,7 +669,9 @@ export default function AdbPage() {
             </div>
           </section>
           <section className="panel panel--spaced">
-            <h2>Live devices ({status.live_devices.length})</h2>
+            <h2>
+              Live devices ({sectionCount(liveFiltered.length, status.live_devices.length)})
+            </h2>
             <div className="data-table-wrap">
               <table className="data-table">
                 <thead>
@@ -525,7 +684,10 @@ export default function AdbPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {status.live_devices.map((d) => {
+                  {liveFiltered.length === 0 &&
+                    status.live_devices.length > 0 &&
+                    renderNoMatchesRow(5)}
+                  {liveFiltered.map((d) => {
                     const sc = scrcpy[d.serial];
                     const scInstalled = sc && !("error" in sc) && sc.installed;
                     const isConfigured = status.configured.some((c) =>

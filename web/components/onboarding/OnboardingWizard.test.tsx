@@ -92,6 +92,7 @@ function arrange({
 
 beforeEach(() => {
   vi.useRealTimers();
+  window.localStorage.clear();
 });
 
 afterEach(() => {
@@ -303,16 +304,14 @@ describe("OnboardingWizard", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows running state on Step 3 when the bot is already up", async () => {
+  it("stays closed and marks the wizard seen when setup is already complete", async () => {
     arrange({ state: deviceState, bot: { running: true, pid: 1 } });
     render(<OnboardingWizard />);
-    expect(
-      await screen.findByText("✓ The bot is running."),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("onboarding-confetti")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Finish" }),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.localStorage.getItem("wos:onboarding:wizardSeen")).toBe("1");
+    });
+    expect(screen.queryByText("Welcome to Autopilot")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-confetti")).not.toBeInTheDocument();
   });
 
   it("calls startLocalBot when the Start-bot button is clicked", async () => {
@@ -321,6 +320,42 @@ describe("OnboardingWizard", () => {
     const startBtn = await screen.findByRole("button", { name: "Start bot" });
     await userEvent.click(startBtn);
     expect(api.startLocalBot).toHaveBeenCalledOnce();
+  });
+
+  it("fires confetti once when the bot transitions to running, with a persistent flag", async () => {
+    arrange({ state: deviceState, bot: { running: false } });
+    render(<OnboardingWizard />);
+    const startBtn = await screen.findByRole("button", { name: "Start bot" });
+    vi.spyOn(api, "fetchBotStatus").mockResolvedValue(
+      { running: true, pid: 1234 } as Awaited<
+        ReturnType<typeof api.fetchBotStatus>
+      >,
+    );
+    await userEvent.click(startBtn);
+    expect(
+      await screen.findByText("✓ The bot is running."),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-confetti")).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem("wos:onboarding:wizardCelebrated"),
+    ).toBe("1");
+  });
+
+  it("does not re-fire confetti when it has already been celebrated", async () => {
+    window.localStorage.setItem("wos:onboarding:wizardCelebrated", "1");
+    arrange({ state: deviceState, bot: { running: false } });
+    render(<OnboardingWizard />);
+    const startBtn = await screen.findByRole("button", { name: "Start bot" });
+    vi.spyOn(api, "fetchBotStatus").mockResolvedValue(
+      { running: true, pid: 1234 } as Awaited<
+        ReturnType<typeof api.fetchBotStatus>
+      >,
+    );
+    await userEvent.click(startBtn);
+    expect(
+      await screen.findByText("✓ The bot is running."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-confetti")).not.toBeInTheDocument();
   });
 
   it("marks the wizard as seen and closes when Skip is clicked", async () => {
@@ -337,7 +372,7 @@ describe("OnboardingWizard", () => {
   });
 
   it("marks the wizard as seen and closes when Finish is clicked", async () => {
-    arrange({ state: deviceState, bot: { running: true, pid: 1 } });
+    arrange({ state: deviceState, bot: { running: false } });
     render(<OnboardingWizard />);
     const finish = await screen.findByRole("button", { name: "Finish" });
     await userEvent.click(finish);

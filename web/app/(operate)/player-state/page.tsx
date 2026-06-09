@@ -6,7 +6,7 @@ import { BuildingLevelsTable } from "@/components/player-state/BuildingLevelsTab
 import { CollapsiblePanel } from "@/components/player-state/CollapsiblePanel";
 import { HeroTileGrid } from "@/components/player-state/HeroTileGrid";
 import { SearchField } from "@/components/player-state/SearchField";
-import { AppConfirmDialog } from "@/components/headless";
+import { AppConfirmDialog, AppMenu } from "@/components/headless";
 import { useFleet } from "@/components/FleetContextProvider";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
@@ -112,15 +112,23 @@ function HeroTable({ rows, locked }: { rows: HeroStateRow[]; locked: boolean }) 
   return <DataTable columns={cols} rows={rows} />;
 }
 
-function MetricsRow({ items }: { items: { label: string; value: string | number }[] }) {
+function MetricsRow({
+  items,
+}: {
+  items: { label: string; value: string | number; title?: string }[];
+}) {
   return (
     <div className="mb-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(8rem,1fr))]">
       {items.map((m) => (
-        <div key={m.label} className="panel !p-3">
+        <div key={m.label} className="panel !p-3" title={m.title}>
           <div className="text-xs uppercase tracking-wide text-wos-text-muted">
             {m.label}
           </div>
-          <div className="mt-1 text-xl font-semibold text-wos-text">
+          <div
+            className={`mt-1 text-xl font-semibold ${
+              m.title ? "text-wos-text-muted" : "text-wos-text"
+            }`}
+          >
             {m.value}
           </div>
         </div>
@@ -395,6 +403,18 @@ function PlayerStatePageInner() {
   const summary = p?.summary ?? {};
   const liveActive = Boolean(live && live.field_count > 0);
 
+  // power/gems/furnace default to 0 in the state schema, so a zero on a
+  // never-synced player is "no data", not a measurement. After a Century
+  // sync, zeros are real values and shown as-is.
+  const centurySynced = Number(summary.century_player_sync_at ?? 0) > 0;
+  const summaryMetric = (v: unknown): { value: string; title?: string } => {
+    const noData = v == null || v === "" || Number(v) === 0;
+    if (noData && !centurySynced) {
+      return { value: "—", title: "Not synced — use “Sync from Century API”" };
+    }
+    return { value: String(v ?? "—") };
+  };
+
   // Prefer the freshest source for overlapping fields: live (worker) where
   // present, otherwise the last saved snapshot.
   const nickname = live?.nickname || String(summary.nickname ?? "") || "";
@@ -473,15 +493,20 @@ function PlayerStatePageInner() {
           </Link>
         ) : null}
         {playerId ? (
-          <button
-            type="button"
-            className="btn-danger"
-            disabled={deleting}
-            onClick={onDelete}
-            title="Wipe all data for this player"
-          >
-            {deleting ? "Deleting…" : "Delete player"}
-          </button>
+          <AppMenu
+            items={[
+              {
+                label: deleting ? "Deleting…" : "Delete player…",
+                onClick: onDelete,
+                danger: true,
+                disabled: deleting,
+                title: "Wipe all data for this player",
+              },
+            ]}
+            anchor="bottom end"
+            buttonTitle="More actions"
+            ariaLabel="Player actions"
+          />
         ) : null}
       </div>
 
@@ -530,10 +555,10 @@ function PlayerStatePageInner() {
 
           <MetricsRow
             items={[
-              { label: "Power", value: String(summary.power ?? "—") },
-              { label: "Gems", value: String(summary.gems ?? "—") },
-              { label: "Furnace Lv", value: String(summary.furnace_level ?? "—") },
-              { label: "Furnace pwr", value: String(summary.furnace_power ?? "—") },
+              { label: "Power", ...summaryMetric(summary.power) },
+              { label: "Gems", ...summaryMetric(summary.gems) },
+              { label: "Furnace Lv", ...summaryMetric(summary.furnace_level) },
+              { label: "Furnace pwr", ...summaryMetric(summary.furnace_power) },
             ]}
           />
 

@@ -84,8 +84,20 @@
     color: var(--wos-link-hover);
   }
 
-  html[data-theme="light"] .queue-priority-hot {
+  html[data-theme="light"] .queue-priority--normal {
+    @apply text-sky-800;
+  }
+
+  html[data-theme="light"] .queue-priority--high {
     @apply text-amber-800;
+  }
+
+  html[data-theme="light"] .queue-group-row td {
+    @apply bg-black/[0.03];
+  }
+
+  html[data-theme="light"] .queue-row-blocked td {
+    @apply bg-red-100/40;
   }
 
   html[data-theme="light"] .labeling-ref-tree__leaf--active {

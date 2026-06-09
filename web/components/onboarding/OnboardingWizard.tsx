@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@headlessui/react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchAdbStatus,
   fetchBotStatus,
@@ -23,8 +23,10 @@ import {
   type EnvHealthEntry,
   fetchEnvHealth,
   fetchOnboardingState,
+  markWizardCelebrated,
   markWizardSeen,
   type OnboardingState,
+  wizardCelebrated,
   wizardSeen,
 } from "@/lib/onboarding";
 
@@ -87,6 +89,14 @@ export function OnboardingWizard() {
   const [botRunning, setBotRunning] = useState(false);
   const [startBusy, setStartBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [celebrate, setCelebrate] = useState(false);
+  const initialBotRunning = useRef<boolean | null>(null);
+
+  const celebrateOnce = useCallback(() => {
+    if (wizardCelebrated()) return;
+    markWizardCelebrated();
+    setCelebrate(true);
+  }, []);
 
   const refreshDeviceStep = useCallback(
     async ({
@@ -114,11 +124,7 @@ export function OnboardingWizard() {
   );
 
   useEffect(() => {
-    if (!wizardSeen()) setOpen(true);
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
+    if (wizardSeen()) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -130,28 +136,45 @@ export function OnboardingWizard() {
           readAdbStatus(),
         ]);
         if (cancelled) return;
+        const running = Boolean(bot.running);
+        const deviceReady =
+          Boolean(st.device_added_at) || hasCurrentDevice(adb.status);
+        if (license.status?.active && envHealth.redis.ok && deviceReady && running) {
+          // Setup already finished — nothing left to walk through.
+          markWizardSeen();
+          return;
+        }
         setLicenseStatus(license.status);
         setLicenseError(license.error);
         setEnv(envHealth);
         setState(st);
         setAdbStatus(adb.status);
         setAdbError(adb.error);
-        const running = Boolean(bot.running);
         setBotRunning(running);
+        initialBotRunning.current = running;
         if (!license.status?.active) setStep(STEP_LICENSE);
         else if (!envHealth.redis.ok) setStep(STEP_ENVIRONMENT);
         else if (!st.device_added_at) setStep(STEP_DEVICE);
         else setStep(STEP_BOT);
+        setOpen(true);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
+          setOpen(true);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, []);
+
+  // Backup trigger for bots started outside the wizard (e.g. sidebar button)
+  // while the wizard is open; celebrateOnce is idempotent via the flag.
+  useEffect(() => {
+    if (!botRunning || initialBotRunning.current !== false) return;
+    celebrateOnce();
+  }, [botRunning, celebrateOnce]);
 
   useEffect(() => {
     if (!open || step !== STEP_DEVICE) return;
@@ -226,7 +249,9 @@ export function OnboardingWizard() {
     try {
       await startLocalBot();
       const s = await fetchBotStatus();
-      setBotRunning(Boolean(s.running));
+      const running = Boolean(s.running);
+      setBotRunning(running);
+      if (running) celebrateOnce();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -242,7 +267,6 @@ export function OnboardingWizard() {
   const licenseOk = Boolean(licenseStatus?.active);
   const envOk = Boolean(env?.redis.ok);
   const deviceOk = Boolean(state?.device_added_at) || hasCurrentDevice(adbStatus);
-  const wizardComplete = step === STEP_BOT && botRunning;
   const canContinue =
     step === STEP_LICENSE
       ? licenseOk
@@ -257,7 +281,7 @@ export function OnboardingWizard() {
       <DialogBackdrop transition className="headless-dialog__backdrop" />
       <div className="headless-dialog__container">
         <DialogPanel transition className="headless-dialog__panel onboarding-wizard">
-          <OnboardingConfetti active={wizardComplete} />
+          <OnboardingConfetti active={celebrate} />
           <div className="onboarding-wizard__header">
             <DialogTitle className="headless-dialog__title">
               Welcome to Autopilot
