@@ -47,6 +47,7 @@ import type {
   RoutesGraphResponse,
   RoutesNodeDetails,
   ScreenDetectResult,
+  AttentionView,
   BotStatusView,
   HealthView,
   OverviewView,
@@ -293,6 +294,10 @@ export async function fetchOverview(): Promise<OverviewView> {
   return apiFetch<OverviewView>("/api/overview");
 }
 
+export async function fetchAttention(): Promise<AttentionView> {
+  return apiFetch<AttentionView>("/api/attention");
+}
+
 export async function toggleInstancePause(instanceId: string): Promise<{ cmd: string }> {
   return apiFetch<{ instance_id: string; cmd: string }>(
     `/api/instances/${encodeURIComponent(instanceId)}/pause-toggle`,
@@ -342,6 +347,20 @@ export async function postInstanceCommand(
   );
 }
 
+export async function postAbortTask(
+  instanceId: string,
+  opts?: { restart?: boolean },
+): Promise<void> {
+  await apiFetch<{ ok: boolean }>(
+    `/api/instances/${encodeURIComponent(instanceId)}/abort-task`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restart: Boolean(opts?.restart) }),
+    },
+  );
+}
+
 export async function fetchQueue(options?: {
   ifRevision?: string;
   pendingPage?: number;
@@ -377,6 +396,13 @@ export async function removeQueueTasks(taskIds: string[]): Promise<number> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ task_ids: taskIds }),
+  });
+  return data.removed;
+}
+
+export async function purgeBlockedQueueTasks(): Promise<number> {
+  const data = await apiFetch<{ removed: number }>("/api/queue/purge-blocked", {
+    method: "POST",
   });
   return data.removed;
 }

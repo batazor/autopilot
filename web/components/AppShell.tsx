@@ -9,6 +9,7 @@ import { AppTooltipHost } from "@/components/AppTooltip";
 import { EarlyDevBanner } from "@/components/EarlyDevBanner";
 import { FeedbackProvider } from "@/components/feedback";
 import { useFleetOptional } from "@/components/FleetContextProvider";
+import { AttentionBanner } from "@/components/attention/AttentionBanner";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Icon } from "@/components/ui";
@@ -87,6 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <EarlyDevBanner />
+        <AttentionBanner />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
       </div>
       <OnboardingWizard />

@@ -13,6 +13,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { AttentionPanel } from "@/components/attention/AttentionPanel";
+import { ATTENTION_KEY } from "@/components/attention/useAttention";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { FleetStatusGrid } from "@/components/FleetStatusGrid";
@@ -49,6 +51,7 @@ export default function OverviewPage() {
 
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: OVERVIEW_KEY });
+    void queryClient.invalidateQueries({ queryKey: ATTENTION_KEY });
   }, [queryClient]);
 
   const streamStatus = useDashboardEventStream({
@@ -122,6 +125,8 @@ export default function OverviewPage() {
         onRetry={() => void overview.refetch()}
         retrying={overview.isFetching}
       />
+
+      <AttentionPanel />
 
       {loading && !m ? <MetricsRowSkeleton count={5} /> : null}
       {m ? (

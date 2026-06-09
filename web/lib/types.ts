@@ -192,11 +192,42 @@ export type OverviewView = {
   has_devices: boolean;
 };
 
+export type AttentionSeverity = "critical" | "warning";
+
+export type AttentionKind =
+  | "load_failure"
+  | "worker_down"
+  | "device_offline"
+  | "instance_error"
+  | "approval_pending"
+  | "nav_error"
+  | "queue_stuck"
+  | "task_stuck";
+
+export type AttentionItem = {
+  id: string;
+  kind: AttentionKind;
+  severity: AttentionSeverity;
+  /** Empty for fleet-wide items (e.g. scenario load failures). */
+  instance_id: string;
+  title: string;
+  detail: string;
+  ts: number | null;
+};
+
+export type AttentionView = {
+  items: AttentionItem[];
+  counts: { critical: number; warning: number; total: number };
+};
+
 export type QueuePendingRow = {
   task_id: string;
   scheduled: string;
   scheduled_at: number;
   overdue: boolean;
+  /** Task cannot run: its instance's device is offline (worker auto-paused). */
+  blocked?: boolean;
+  blocked_reason?: string;
   player_id: string;
   instance_id: string;
   scenario: string;
@@ -246,6 +277,7 @@ export type QueueView = {
   history: QueueHistoryRow[];
   pending_count: number;
   pending_overdue_count?: number;
+  pending_blocked_count?: number;
   pending_page?: number;
   pending_page_size?: number;
   history_count?: number;
@@ -281,6 +313,12 @@ export type InstanceDetail = {
   active_player: string;
   node: string;
   task: string;
+  /** Scenario/task name when one is in flight, "" otherwise. */
+  task_scenario: string;
+  /** UNIX start of the in-flight task; null when idle. */
+  task_started_at: number | null;
+  /** Worker task timeout (s); past this the task is considered stuck. */
+  task_stuck_after_s: number;
   alert: string;
   nav_error: string;
   queue_size: number;

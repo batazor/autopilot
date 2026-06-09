@@ -7,6 +7,7 @@ import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { PageLoading } from "@/components/ui/Spinner";
 import { instanceCommandSuccessMessage } from "@/lib/instance-command-feedback";
+import { CurrentTaskMeta } from "@/components/instance/CurrentTaskMeta";
 import { InstanceScenarioHistory } from "@/components/instance/InstanceScenarioHistory";
 import { ApprovalCanvas } from "@/components/ApprovalCanvas";
 import { StatusPill } from "@/components/StatusPill";
@@ -14,6 +15,7 @@ import { playerStateHref } from "@/lib/fleet-links";
 import {
   fetchInstanceDetail,
   instancePreviewUrl,
+  postAbortTask,
   postInstanceCommand,
 } from "@/lib/api";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
@@ -28,6 +30,9 @@ function InstancePageInner() {
   const [taskType, setTaskType] = useState("");
   const [taskPlayer, setTaskPlayer] = useState("");
   const [switchPlayer, setSwitchPlayer] = useState("");
+  // The task target is almost always the account selected above — only show
+  // the separate Player selector when the operator explicitly wants to differ.
+  const [taskPlayerOverride, setTaskPlayerOverride] = useState(false);
   const [busy, setBusy] = useState(false);
   const [previewKey, setPreviewKey] = useState(() => Date.now());
   const taskTypeRef = useRef(taskType);
@@ -98,6 +103,24 @@ function InstancePageInner() {
     }
   };
 
+  const skipTask = async (restart: boolean) => {
+    if (!instanceId || busy) return;
+    setBusy(true);
+    try {
+      await postAbortTask(instanceId, { restart });
+      showSuccess(
+        restart ? "Task skipped, game restart queued" : "Task skipped",
+      );
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const effectiveTaskPlayer = taskPlayerOverride ? taskPlayer : switchPlayer;
+
   const previewUrl =
     detail?.preview_available && instanceId
       ? instancePreviewUrl(instanceId, previewKey)
@@ -120,7 +143,12 @@ function InstancePageInner() {
           <>
             <span className="meta">Queue: {detail.queue_size}</span>
             <span className="meta">Node: {detail.node}</span>
-            <span className="meta">Task: {detail.task}</span>
+            <CurrentTaskMeta
+              detail={detail}
+              busy={busy}
+              onSkip={() => void skipTask(false)}
+              onSkipAndRestart={() => void skipTask(true)}
+            />
             {detail.active_player ? (
               <Link
                 className="btn-secondary"
@@ -175,32 +203,58 @@ function InstancePageInner() {
               }))}
               minWidth={220}
             />
-            <AppListbox
-              inline
-              label="Player"
-              value={taskPlayer}
-              onChange={setTaskPlayer}
-              options={(detail?.player_ids ?? []).map((p) => ({
-                value: p,
-                label: p,
-              }))}
-              minWidth={200}
-            />
+            {taskPlayerOverride ? (
+              <AppListbox
+                inline
+                label="Player"
+                value={taskPlayer}
+                onChange={setTaskPlayer}
+                options={(detail?.player_ids ?? []).map((p) => ({
+                  value: p,
+                  label: p,
+                }))}
+                minWidth={200}
+              />
+            ) : null}
             <button
               type="button"
               className="btn-secondary"
-              disabled={busy || !taskType || !taskPlayer}
+              disabled={busy || !taskType || !effectiveTaskPlayer}
+              title={
+                effectiveTaskPlayer ? `Runs for ${effectiveTaskPlayer}` : undefined
+              }
               onClick={() =>
                 runCmd({
                   cmd: "run_task",
                   task_type: taskType,
-                  player_id: taskPlayer,
+                  player_id: effectiveTaskPlayer,
                 })
               }
             >
               Queue task
             </button>
+            <button
+              type="button"
+              className="meta cursor-pointer bg-transparent p-0 underline decoration-dotted underline-offset-2 hover:text-wos-text"
+              onClick={() => {
+                // Seed the override selector with the player the task would
+                // have targeted, so opening Advanced changes nothing by itself.
+                if (!taskPlayerOverride && switchPlayer) {
+                  setTaskPlayer(switchPlayer);
+                }
+                setTaskPlayerOverride(!taskPlayerOverride);
+              }}
+            >
+              {taskPlayerOverride
+                ? "Use selected account"
+                : "Advanced: run for another player…"}
+            </button>
           </div>
+          {!taskPlayerOverride && effectiveTaskPlayer ? (
+            <p className="meta">
+              Runs for the selected account: <code>{effectiveTaskPlayer}</code>
+            </p>
+          ) : null}
 
           <h3 className="meta">Restart game</h3>
           <button

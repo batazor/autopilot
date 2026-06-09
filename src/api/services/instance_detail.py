@@ -29,6 +29,56 @@ def _find_instance_config(instance_id: str) -> InstanceConfig | None:
     return None
 
 
+def _current_task_fields(row: dict[str, str]) -> dict[str, Any]:
+    """Structured view of the in-flight task (``fleet_task_label`` renders the
+    same data as one string with a fetch-time elapsed; the instance page needs
+    the raw start timestamp to run a live timer and a stuck check)."""
+    st_val = (row.get("state") or "").strip().lower()
+    started_s = (row.get("current_task_started_at") or "").strip()
+    started: float | None = None
+    if st_val == "busy" or started_s:
+        try:
+            started = float(started_s)
+        except ValueError:
+            started = None
+    name = (
+        (row.get("current_scenario") or "").strip()
+        or (row.get("current_task_type") or "").strip()
+    )
+    return {
+        "task_scenario": name if started is not None else "",
+        "task_started_at": started,
+    }
+
+
+def abort_current_task(
+    client: redis.Redis,
+    instance_id: str,
+    *,
+    reason: str,
+    restart: bool = False,
+) -> None:
+    """Operator "skip task": kill the in-flight task, optionally restart the game.
+
+    The abort goes over pubsub (``wos:events:abort_task:<iid>``) because the
+    command list only drains between tasks — too late for a task that is the
+    problem. With ``restart`` a ``restart`` command is queued as well; it is
+    picked up right after the abort frees the worker loop (same ordering the
+    game-health watchdog uses).
+    """
+    if instance_id not in list_instance_ids():
+        msg = f"unknown instance: {instance_id}"
+        raise ValueError(msg)
+    import json
+
+    client.publish(
+        f"wos:events:abort_task:{instance_id}",
+        json.dumps({"reason": reason}),
+    )
+    if restart:
+        push_instance_command(client, instance_id, {"cmd": "restart"})
+
+
 def build_instance_detail(client: redis.Redis, instance_id: str) -> dict[str, Any]:
     inst_cfg = _find_instance_config(instance_id)
     if inst_cfg is None:
@@ -75,6 +125,11 @@ def build_instance_detail(client: redis.Redis, instance_id: str) -> dict[str, An
         "active_player": (row.get("active_player") or "").strip() or "—",
         "node": (row.get("current_screen") or "").strip() or "—",
         "task": fleet_task_label(row),
+        **_current_task_fields(row),
+        # Stuck threshold: the worker's own task timeout. In approval mode the
+        # timeout is disabled (the task may legitimately wait on an operator),
+        # which is exactly when a task can run for hours unnoticed.
+        "task_stuck_after_s": int(load_settings().worker.task_timeout_seconds),
         "alert": fleet_alert(row),
         "nav_error": nav_error,
         "queue_size": queue_n,

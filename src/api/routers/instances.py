@@ -31,6 +31,10 @@ class InstanceCommandBody(BaseModel):
     task_type: str | None = None
 
 
+class AbortTaskBody(BaseModel):
+    restart: bool = False
+
+
 class TestModuleBody(BaseModel):
     module: str | None = None
 
@@ -227,6 +231,29 @@ def post_instance_command(
     if body.cmd in ("run_task", "switch_player"):
         publish_dashboard_event(
             client, topic="queue", instance_id=instance_id, reason=body.cmd
+        )
+    return {"ok": True}
+
+
+@router.post("/{instance_id}/abort-task")
+def post_abort_task(
+    instance_id: str,
+    body: AbortTaskBody,
+    client: RedisDep,
+) -> dict[str, bool]:
+    """Skip the in-flight task (operator "Stuck?" action on the instance page)."""
+    try:
+        detail.abort_current_task(
+            client,
+            instance_id,
+            reason="operator skipped stuck task from dashboard",
+            restart=body.restart,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    for topic in ("instance", "fleet", "queue"):
+        publish_dashboard_event(
+            client, topic=topic, instance_id=instance_id, reason="abort_task"
         )
     return {"ok": True}
 
