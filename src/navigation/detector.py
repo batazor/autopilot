@@ -98,6 +98,7 @@ if TYPE_CHECKING:
         # runtime factory composes the same member from the YAML.
         ARENA = "arena"
         BUILDING = "building"
+        CHAT_ALLIANCE = "chat.alliance"
         CHIEF_PROFILE = "chief_profile"
         LOADING = "loading"
         MAIL = "mail"

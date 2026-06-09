@@ -15,8 +15,8 @@ async def resolve_tab_index(
     if not region:
         return None
     try:
-        index = int(spec.get("index"))
-    except (TypeError, ValueError):
+        index = int(spec["index"])
+    except (KeyError, TypeError, ValueError):
         return None
     tap_spec: dict[str, Any] = {
         "type": "tab_index",

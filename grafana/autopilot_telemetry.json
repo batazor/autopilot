@@ -12,10 +12,10 @@
       }
     ]
   },
-  "description": "Active users + uptime + workers per WOS Autopilot user. Powered by OTLP metrics from the bot — counts distinct `sub` over a recent window for the headline 'how many are online' figure.",
+  "description": "WOS Autopilot telemetry: active users / uptime / workers (per-user gauges) plus scenario health — runs, failures, durations, overlay pushes, popup interventions. Powered by OTLP metrics from the bot.",
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
   "panels": [
     {
@@ -56,7 +56,7 @@
     {
       "id": 2,
       "title": "Active workers (total)",
-      "description": "Sum of running worker subprocesses across all users. Scheduler excluded — this is 'how many emulators are being driven'.",
+      "description": "Sum of running worker subprocesses across all users. Scheduler excluded — this is 'how many emulators are being driven'. Only reported when the bot runs under the supervisor (uv run bot).",
       "type": "stat",
       "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
       "fieldConfig": {
@@ -108,12 +108,13 @@
     {
       "id": 4,
       "title": "Restart rate (5m)",
-      "description": "Worker / scheduler restarts per second over the last 5 minutes — high values mean a user's bot is crash-looping.",
+      "description": "Worker / scheduler restarts per second over the last 5 minutes — high values mean a user's bot is crash-looping. Counter only appears after the first restart event.",
       "type": "stat",
       "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -242,6 +243,201 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 20,
+      "title": "Scenario health",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "panels": []
+    },
+    {
+      "id": 10,
+      "title": "Scenario runs by outcome",
+      "description": "Every task terminal event, from ``wos_task_duration_seconds_count`` (one histogram point per run). ``failed`` = scenario reported failure, ``error`` = unhandled exception, ``preempted`` = displaced by a higher-priority task.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": { "mode": "normal", "group": "A" },
+            "fillOpacity": 60
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "success" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "failed" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "error" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "preempted" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by(outcome) (increase(wos_task_duration_seconds_count[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Top failing scenarios",
+      "description": "Scenarios ranked by failed + errored runs over the dashboard range — the 'what should I debug first' list. Pairs with the per-scenario duration panel below.",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "fieldConfig": {
+        "defaults": { "noValue": "no failures in range" }
+      },
+      "options": {
+        "sortBy": [{ "displayName": "Value", "desc": true }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "topk(15, sum by(scenario, outcome) (increase(wos_task_duration_seconds_count{outcome=~\"failed|error\"}[$__range])))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Scenario duration p95",
+      "description": "95th percentile wall-clock per scenario (task pop → terminal event). A scenario drifting up here is usually stuck retrying a match before it starts failing outright.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "spanNulls": true },
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.95, sum by(scenario, le) (rate(wos_task_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{scenario}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Overlay pushes by outcome",
+      "description": "Overlay-driven ``pushScenario`` attempts (``wos_overlay_push_scenario_count_total``). A high ``throttled_push_ttl`` share is normal; rising ``no_active_player`` / ``disabled`` means rules fire where they can't act.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": { "mode": "normal", "group": "A" },
+            "fillOpacity": 60
+          },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by(outcome) (increase(wos_overlay_push_scenario_count_total[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Most-enqueued scenarios",
+      "description": "Which scenarios the overlay engine actually queues (``outcome=enqueued``). Cross-check against 'Top failing scenarios': high enqueue + high failure = a hot, broken path.",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 47 },
+      "options": {
+        "sortBy": [{ "displayName": "Value", "desc": true }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "topk(15, sum by(scenario) (increase(wos_overlay_push_scenario_count_total{outcome=\"enqueued\"}[$__range])))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Popup interventions",
+      "description": "``wos_dismiss_unknown_popup_count_total`` (shotgun fallback, by outcome) and ``wos_popup_detected_count_total`` (detector, by kind/outcome). Detector ``tapped`` rising while shotgun ``enqueued`` falls = the detector is absorbing popups, as designed.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 47 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60 },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by(outcome) (increase(wos_dismiss_unknown_popup_count_total[$__rate_interval]))",
+          "legendFormat": "shotgun {{outcome}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by(kind, outcome) (increase(wos_popup_detected_count_total[$__rate_interval]))",
+          "legendFormat": "detector {{kind}}/{{outcome}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Screenshot analysis p95 by screen",
+      "description": "Per-frame overlay analysis time, split by detected screen (``node``). Screens consistently above ~1s drag the whole tick loop; usually a template that needs a tighter search region.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 55 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "spanNulls": true },
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.95, sum by(node, le) (rate(wos_screenshot_analysis_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Redis command latency p95",
+      "description": "Wall-clock Redis round-trip p95 by producer role. The bot polls Redis on every tick — sustained spikes here show up as sluggish scenario starts before anything else.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 55 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "spanNulls": true },
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.95, sum by(component, le) (rate(wos_redis_command_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{component}}",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "30s",
@@ -266,6 +462,6 @@
   "timezone": "",
   "title": "WOS Autopilot — users & telemetry",
   "uid": "wos-autopilot-telemetry",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

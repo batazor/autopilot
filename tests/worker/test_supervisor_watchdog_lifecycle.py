@@ -229,7 +229,7 @@ def test_multiprocess_supervisor_hot_adds_registered_device(monkeypatch) -> None
 
     monkeypatch.setattr(supervisor, "get_settings", lambda: initial)
     sup = supervisor.Supervisor()
-    sup._processes["bs1"] = _FakeWorkerProcess("bs1")  # type: ignore[assignment]
+    sup._processes["bs1"] = _FakeWorkerProcess("bs1")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
     monkeypatch.setattr(supervisor, "set_settings", lambda _settings: None)
     monkeypatch.setattr(sup, "_read_fresh_settings", lambda: fresh)
     monkeypatch.setattr(
@@ -263,7 +263,7 @@ def test_multiprocess_supervisor_restarts_worker_when_device_config_changes(
 
     monkeypatch.setattr(supervisor, "get_settings", lambda: initial)
     sup = supervisor.Supervisor()
-    sup._processes["bs1"] = initial_worker  # type: ignore[assignment]
+    sup._processes["bs1"] = initial_worker  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
     monkeypatch.setattr(supervisor, "set_settings", lambda _settings: None)
     monkeypatch.setattr(sup, "_read_fresh_settings", lambda: fresh)
     monkeypatch.setattr(sup, "_stamp_worker_started_at", lambda _instances: None)

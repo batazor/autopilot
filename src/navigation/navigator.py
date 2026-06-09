@@ -396,8 +396,8 @@ class Navigator:
     ) -> bool:
         region_name = str(spec.get("region") or "").strip()
         try:
-            target_index = int(spec.get("index"))
-        except (TypeError, ValueError):
+            target_index = int(spec["index"])
+        except (KeyError, TypeError, ValueError):
             logger.info("Navigator: tab_index spec missing index: %s", spec)
             return False
         area_doc = self._load_area_doc()

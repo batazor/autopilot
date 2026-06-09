@@ -28,6 +28,7 @@ def queue_pending_fingerprint(pending: list[dict[str, Any]]) -> list[dict[str, A
             "priority": p.get("priority"),
             "scenario_key": p.get("scenario_key"),
             "instance_id": p.get("instance_id"),
+            "blocked": p.get("blocked"),
         }
         for p in pending
     ]
