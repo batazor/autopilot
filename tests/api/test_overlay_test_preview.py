@@ -25,7 +25,7 @@ def test_load_overlay_test_preview_reference_png(
         "api.services.gallery_api.read_gallery_image",
         lambda _rel: ref.read_bytes(),
     )
-    monkeypatch.setattr("api.services.overlay_test.repo_root", lambda: tmp_path)
+    monkeypatch.setattr("api.services.overlay_test.cache.repo_root", lambda: tmp_path)
 
     png, out_rel, mtime, src = _load_overlay_test_preview(
         instance_id="bs1",

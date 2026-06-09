@@ -6,7 +6,8 @@ import cv2
 import numpy as np
 
 from api.services import overlay_test
-from api.services.overlay_test import _detect_screen_on_frame
+from api.services.overlay_test import _detect_screen_on_frame, cache
+from api.services.overlay_test import run as overlay_test_run
 
 
 def test_detect_screen_on_frame_empty_image() -> None:
@@ -22,21 +23,21 @@ def test_run_screen_detect_skips_overlay_analysis(tmp_path, monkeypatch) -> None
     with overlay_test._overlay_test_result_cache_lock:
         overlay_test._overlay_test_result_cache.clear()
 
-    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(cache, "repo_root", lambda: tmp_path)
     monkeypatch.setattr(
-        overlay_test,
+        cache,
         "load_preview_bytes",
         lambda **_k: (encoded.tobytes(), "temporal/bs1.png", 1.0),
     )
     monkeypatch.setattr(
-        overlay_test, "load_rolling_instance_preview", lambda _i: (None, "", None)
+        cache, "load_rolling_instance_preview", lambda _i: (None, "", None)
     )
     monkeypatch.setattr(
         "dashboard.redis_client.get_instance_state",
         lambda *_a, **_k: {"current_screen": "main_city"},
     )
     monkeypatch.setattr(
-        overlay_test,
+        cache,
         "_detect_screen_on_frame",
         lambda _img, **_k: ("dreamscape_memory", 7),
     )
@@ -45,7 +46,7 @@ def test_run_screen_detect_skips_overlay_analysis(tmp_path, monkeypatch) -> None
         msg = "screen-detect must not run overlay analysis"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(overlay_test, "run_overlay_analysis_sync", _no_overlay)
+    monkeypatch.setattr(overlay_test_run, "run_overlay_analysis_sync", _no_overlay)
 
     result = overlay_test.run_screen_detect(client=object(), instance_id="bs1")
 

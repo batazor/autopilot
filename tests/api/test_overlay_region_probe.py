@@ -7,7 +7,7 @@ import numpy as np
 import yaml
 
 from api.services import overlay_test
-from api.services.overlay_test import _area_region_names
+from api.services.overlay_test import _area_region_names, probe
 from config.games import default_game as _default_game
 from config.games import modules_root_for as _modules_root_for
 from layout.area_manifest import load_area_doc
@@ -104,19 +104,19 @@ def test_area_region_probe_uses_red_dot_detector_for_red_dot_region(
         ],
     }
 
-    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
-    monkeypatch.setattr(overlay_test, "load_area_doc", lambda _repo: area_doc)
+    monkeypatch.setattr(probe,"repo_root", lambda: tmp_path)
+    monkeypatch.setattr(probe,"load_area_doc", lambda _repo: area_doc)
     monkeypatch.setattr(
-        overlay_test,
+        probe,
         "load_preview_bytes",
         lambda **_kwargs: (encoded.tobytes(), "temporal/bs1.png", 1.0),
     )
     monkeypatch.setattr(
-        overlay_test,
+        probe,
         "load_rolling_instance_preview",
         lambda _instance_id: (None, "", None),
     )
-    monkeypatch.setattr(overlay_test, "active_player_state_flat", lambda **_kwargs: {})
+    monkeypatch.setattr(probe,"active_player_state_flat", lambda **_kwargs: {})
     monkeypatch.setattr(
         "dashboard.redis_client.get_instance_state",
         lambda *_args, **_kwargs: {
@@ -182,20 +182,20 @@ def test_area_region_probe_defaults_to_area_threshold(
             }
         }
 
-    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
-    monkeypatch.setattr(overlay_test, "load_area_doc", lambda _repo: area_doc)
+    monkeypatch.setattr(probe,"repo_root", lambda: tmp_path)
+    monkeypatch.setattr(probe,"load_area_doc", lambda _repo: area_doc)
     monkeypatch.setattr(
-        overlay_test,
+        probe,
         "load_preview_bytes",
         lambda **_kwargs: (encoded.tobytes(), "temporal/bs1.png", 1.0),
     )
     monkeypatch.setattr(
-        overlay_test,
+        probe,
         "load_rolling_instance_preview",
         lambda _instance_id: (None, "", None),
     )
-    monkeypatch.setattr(overlay_test, "active_player_state_flat", lambda **_kwargs: {})
-    monkeypatch.setattr(overlay_test, "evaluate_overlay_rules_async", fake_evaluate)
+    monkeypatch.setattr(probe,"active_player_state_flat", lambda **_kwargs: {})
+    monkeypatch.setattr(probe,"evaluate_overlay_rules_async", fake_evaluate)
     monkeypatch.setattr(
         "dashboard.redis_client.get_instance_state",
         lambda *_args, **_kwargs: {

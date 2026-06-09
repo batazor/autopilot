@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from api.services import overlay_test
+from api.services.overlay_test import ocr as overlay_test_ocr
 from ocr.client import OCRResult
 
 if TYPE_CHECKING:
@@ -51,24 +52,24 @@ class _FakeOcr:
 
 
 def _patch_common(monkeypatch, tmp_path: Path, *, frame: np.ndarray | None) -> None:
-    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
-    monkeypatch.setattr(overlay_test, "load_area_doc", lambda _repo: _AREA_DOC)
+    monkeypatch.setattr(overlay_test_ocr,"repo_root", lambda: tmp_path)
+    monkeypatch.setattr(overlay_test_ocr,"load_area_doc", lambda _repo: _AREA_DOC)
     if frame is None:
         monkeypatch.setattr(
-            overlay_test, "load_preview_bytes", lambda **_k: (None, "", None)
+            overlay_test_ocr, "load_preview_bytes", lambda **_k: (None, "", None)
         )
     else:
         ok, encoded = cv2.imencode(".png", frame)
         assert ok
         monkeypatch.setattr(
-            overlay_test,
+            overlay_test_ocr,
             "load_preview_bytes",
             lambda **_k: (encoded.tobytes(), "temporal/bs1.png", 1.0),
         )
     monkeypatch.setattr(
-        overlay_test, "load_rolling_instance_preview", lambda _i: (None, "", None)
+        overlay_test_ocr, "load_rolling_instance_preview", lambda _i: (None, "", None)
     )
-    monkeypatch.setattr(overlay_test, "active_player_state_flat", lambda **_k: {})
+    monkeypatch.setattr(overlay_test_ocr,"active_player_state_flat", lambda **_k: {})
     monkeypatch.setattr(
         "dashboard.redis_client.get_instance_state",
         lambda *_a, **_k: {"current_screen": "dreamscape_memory", "active_player": "p1"},
@@ -79,7 +80,7 @@ def test_region_ocr_returns_text_per_region(tmp_path: Path, monkeypatch) -> None
     frame = np.zeros((1280, 720, 3), dtype=np.uint8)
     _patch_common(monkeypatch, tmp_path, frame=frame)
     monkeypatch.setattr(
-        overlay_test,
+        overlay_test_ocr,
         "get_ocr_client",
         lambda: _FakeOcr(
             {
@@ -113,7 +114,7 @@ def test_region_ocr_returns_text_per_region(tmp_path: Path, monkeypatch) -> None
 def test_region_ocr_unknown_region_is_no_region(tmp_path: Path, monkeypatch) -> None:
     frame = np.zeros((1280, 720, 3), dtype=np.uint8)
     _patch_common(monkeypatch, tmp_path, frame=frame)
-    monkeypatch.setattr(overlay_test, "get_ocr_client", lambda: _FakeOcr({}))
+    monkeypatch.setattr(overlay_test_ocr,"get_ocr_client", lambda: _FakeOcr({}))
 
     result = overlay_test.run_region_ocr(
         client=object(), instance_id="bs1", regions=["does.not.exist"]
@@ -124,7 +125,7 @@ def test_region_ocr_unknown_region_is_no_region(tmp_path: Path, monkeypatch) -> 
 
 def test_region_ocr_no_frame(tmp_path: Path, monkeypatch) -> None:
     _patch_common(monkeypatch, tmp_path, frame=None)
-    monkeypatch.setattr(overlay_test, "get_ocr_client", lambda: _FakeOcr({}))
+    monkeypatch.setattr(overlay_test_ocr,"get_ocr_client", lambda: _FakeOcr({}))
 
     result = overlay_test.run_region_ocr(
         client=object(), instance_id="bs1", regions=["dreamscape_memory.1"]
@@ -140,14 +141,14 @@ def test_region_ocr_test_runs_detection_and_ocr_on_upload(
     ok, encoded = cv2.imencode(".png", frame)
     assert ok
 
-    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
-    monkeypatch.setattr(overlay_test, "load_area_doc", lambda _repo: _AREA_DOC)
-    monkeypatch.setattr(overlay_test, "active_player_state_flat", lambda **_k: {})
+    monkeypatch.setattr(overlay_test_ocr,"repo_root", lambda: tmp_path)
+    monkeypatch.setattr(overlay_test_ocr,"load_area_doc", lambda _repo: _AREA_DOC)
+    monkeypatch.setattr(overlay_test_ocr,"active_player_state_flat", lambda **_k: {})
     monkeypatch.setattr(
-        overlay_test, "_detect_screen_on_frame", lambda _img, **_k: ("dreamscape_memory", 3)
+        overlay_test_ocr, "_detect_screen_on_frame", lambda _img, **_k: ("dreamscape_memory", 3)
     )
     monkeypatch.setattr(
-        overlay_test,
+        overlay_test_ocr,
         "get_ocr_client",
         lambda: _FakeOcr(
             {
@@ -173,10 +174,10 @@ def test_region_ocr_test_runs_detection_and_ocr_on_upload(
 
 
 def test_region_ocr_test_handles_undecodable_bytes(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
-    monkeypatch.setattr(overlay_test, "load_area_doc", lambda _repo: _AREA_DOC)
-    monkeypatch.setattr(overlay_test, "active_player_state_flat", lambda **_k: {})
-    monkeypatch.setattr(overlay_test, "get_ocr_client", lambda: _FakeOcr({}))
+    monkeypatch.setattr(overlay_test_ocr,"repo_root", lambda: tmp_path)
+    monkeypatch.setattr(overlay_test_ocr,"load_area_doc", lambda _repo: _AREA_DOC)
+    monkeypatch.setattr(overlay_test_ocr,"active_player_state_flat", lambda **_k: {})
+    monkeypatch.setattr(overlay_test_ocr,"get_ocr_client", lambda: _FakeOcr({}))
 
     result = overlay_test.run_region_ocr_test(
         client=object(),
@@ -193,7 +194,7 @@ def test_region_ocr_empty_text(tmp_path: Path, monkeypatch) -> None:
     frame = np.zeros((1280, 720, 3), dtype=np.uint8)
     _patch_common(monkeypatch, tmp_path, frame=frame)
     monkeypatch.setattr(
-        overlay_test,
+        overlay_test_ocr,
         "get_ocr_client",
         lambda: _FakeOcr(
             {

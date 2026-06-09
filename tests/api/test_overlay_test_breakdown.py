@@ -55,7 +55,7 @@ async def test_breakdown_skips_empty_overlay_without_calling_analysis(
     )
 
     analyze = AsyncMock(side_effect=AssertionError("run_overlay_analysis should not run"))
-    monkeypatch.setattr("api.services.overlay_test.run_overlay_analysis", analyze)
+    monkeypatch.setattr("api.services.overlay_test.breakdown.run_overlay_analysis", analyze)
 
     def _one_manifest(_repo: object, _scope: str | None = None) -> list[object]:
         return [mod / "analyze" / "analyze.yaml"]
