@@ -265,24 +265,23 @@ const ModuleTableRow = memo(function ModuleTableRow({
         </td>
         <td>
           <div className="module-docs-stack">
-            <span
-              className={`status-pill ${
-                module.wiki ? "module-status-wiki" : "module-status-muted"
-              }`}
-            >
-              <Icon name="wiki" size="sm" />
-              {module.wiki ? "Wiki" : "No wiki"}
-            </span>
-            <span
-              className={`status-pill ${
-                module.has_analyze
-                  ? "module-status-analyze"
-                  : "module-status-muted"
-              }`}
-            >
-              <Icon name="optimizer" size="sm" />
-              {module.has_analyze ? "Analyzer" : "No analyzer"}
-            </span>
+            {module.wiki ? (
+              <span className="status-pill module-status-wiki">
+                <Icon name="wiki" size="sm" />
+                Wiki
+              </span>
+            ) : null}
+            {module.has_analyze ? (
+              <span className="status-pill module-status-analyze">
+                <Icon name="optimizer" size="sm" />
+                Analyzer
+              </span>
+            ) : null}
+            {!module.wiki && !module.has_analyze ? (
+              <span className="text-wos-text-muted" aria-label="No docs">
+                —
+              </span>
+            ) : null}
           </div>
         </td>
         <td>
@@ -303,13 +302,6 @@ const ModuleTableRow = memo(function ModuleTableRow({
             >
               <Icon name="plus" size="sm" />
               Scenario
-            </Link>
-            <Link
-              href={`/analyze?scope=${encodeURIComponent(module.storage_key)}`}
-              className="module-action-link"
-            >
-              <Icon name="optimizer" size="sm" />
-              Analyze
             </Link>
           </div>
         </td>
