@@ -27,6 +27,8 @@ export function pendingDebugPayload(row: QueuePendingRow) {
     priority: row.priority,
     scheduled_at: row.scheduled_at,
     overdue: row.overdue,
+    blocked: row.blocked ?? false,
+    blocked_reason: row.blocked_reason || null,
     cooperative: row.cooperative,
   });
 }
@@ -117,6 +119,15 @@ export function QueueMetrics({ data }: { data: QueueView | null }) {
 }
 
 export function PendingSchedulePill({ row }: { row: QueuePendingRow }) {
+  if (row.blocked) {
+    const reason = row.blocked_reason || "device offline";
+    return (
+      <span className="status-pill pill-danger" title={`${reason} · ${row.scheduled}`}>
+        <span className="status-pill__dot" aria-hidden />
+        Blocked
+      </span>
+    );
+  }
   const cls = row.overdue ? "status-pending pulse" : "pill-stale";
   const label = row.overdue ? "Overdue" : "Scheduled";
   return (
@@ -136,12 +147,26 @@ function queuePriorityValue(priority: number | undefined): number {
   return typeof priority === "number" && Number.isFinite(priority) ? priority : 0;
 }
 
+// Priority bands (higher runs sooner). DEFAULT_SCENARIO_PRIORITY is 80_000;
+// scenarios that intentionally defer use small values (5–55), urgent ones
+// 90k–120k. The raw number only matters when debugging — keep it in the
+// tooltip and show the band to the operator.
+export function queuePriorityBand(priority?: number): "low" | "normal" | "high" {
+  const p = queuePriorityValue(priority);
+  if (p < 50_000) return "low";
+  if (p > 80_000) return "high";
+  return "normal";
+}
+
 export function PriorityBadge({ priority }: { priority?: number }) {
   const p = queuePriorityValue(priority);
-  const hot = p >= 50_000;
+  const band = queuePriorityBand(priority);
   return (
-    <span className={`queue-priority ${hot ? "queue-priority-hot" : ""}`} title={`Priority ${p}`}>
-      {p.toLocaleString()}
+    <span
+      className={`queue-priority queue-priority--${band}`}
+      title={`Priority ${p.toLocaleString()}`}
+    >
+      {band}
     </span>
   );
 }

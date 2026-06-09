@@ -96,11 +96,35 @@
   }
 
   .queue-priority {
-    @apply font-mono text-xs text-wos-text-muted;
+    @apply inline-block rounded px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide;
   }
 
-  .queue-priority-hot {
-    @apply font-semibold text-amber-200;
+  .queue-priority--low {
+    @apply bg-slate-500/15 text-wos-text-muted;
+  }
+
+  .queue-priority--normal {
+    @apply bg-sky-500/15 text-sky-300;
+  }
+
+  .queue-priority--high {
+    @apply bg-amber-500/20 text-amber-300;
+  }
+
+  .queue-group-row td {
+    @apply border-t border-wos-border bg-white/[0.03] py-1.5 text-xs;
+  }
+
+  .queue-group-row__inner {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .queue-group-row a {
+    @apply font-semibold;
+  }
+
+  .queue-row-blocked td {
+    @apply bg-red-950/10;
   }
 
   .queue-scenario {

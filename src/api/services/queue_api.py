@@ -140,6 +140,7 @@ def _scenario_label_cached(
 def _serialize_pending(
     row: QueueRow,
     now: float,
+    blocked_reason: str = "",
 ) -> dict[str, Any]:
     overdue = row.scheduled_at < now
     rel = _rel_time(row.scheduled_at, now)
@@ -149,6 +150,8 @@ def _serialize_pending(
         "scheduled": scheduled,
         "scheduled_at": row.scheduled_at,
         "overdue": overdue,
+        "blocked": bool(blocked_reason),
+        "blocked_reason": blocked_reason,
         "player_id": row.player_id or "(device)",
         "instance_id": row.instance_id,
         "scenario": _fast_scenario_label(row.task_type),
@@ -234,6 +237,25 @@ def _serialize_history(row: QueueHistoryRow) -> dict[str, Any]:
     }
 
 
+def instance_blocked_reason(client: redis.Redis, instance_id: str) -> str:
+    """Why this instance cannot drain its queue right now ('' when it can).
+
+    Currently the only reason is an offline ADB device — the worker is
+    auto-paused, so pending tasks sit overdue forever until the device
+    reconnects or the operator purges them.
+    """
+    from api.services.attention import is_device_offline
+
+    iid = str(instance_id or "").strip()
+    if not iid:
+        return ""
+    try:
+        state = get_instance_state(client, iid)
+    except Exception:
+        return ""
+    return "device offline (ADB)" if is_device_offline(state) else ""
+
+
 def build_queue_view(client: redis.Redis) -> dict[str, Any]:
     now = time.time()
     instance_ids = list_instance_ids()
@@ -243,8 +265,12 @@ def build_queue_view(client: redis.Redis) -> dict[str, Any]:
         client,
         fetch_queue_rows_for_instances(client, instance_ids),
     )
+    blocked_reasons = {
+        iid: instance_blocked_reason(client, iid)
+        for iid in {r.instance_id for r in pending_rows}
+    }
     pending = [
-        _serialize_pending(r, now)
+        _serialize_pending(r, now, blocked_reasons.get(r.instance_id, ""))
         for r in pending_rows
     ]
 
@@ -279,6 +305,7 @@ def build_queue_view(client: redis.Redis) -> dict[str, Any]:
         "history": history,
         "pending_count": len(pending),
         "pending_overdue_count": sum(1 for row in pending if row.get("overdue")),
+        "pending_blocked_count": sum(1 for row in pending if row.get("blocked")),
         "history_count": len(history),
     }
 
@@ -324,6 +351,32 @@ def remove_tasks(client: redis.Redis, task_ids: list[str]) -> int:
         from dashboard.dashboard_events import publish_dashboard_event
 
         publish_dashboard_event(client, topic="queue", reason="remove")
+    return removed
+
+
+def purge_blocked_tasks(client: redis.Redis) -> int:
+    """Drop all pending tasks of instances whose device is offline.
+
+    Operator affordance for the "Overdue · 200h ago" pile-up: those tasks can
+    never run (the worker is auto-paused), so deleting the whole per-instance
+    queue is safe. The scheduler re-enqueues cron work when the device returns.
+    """
+    removed = 0
+    for iid in list_instance_ids():
+        if not instance_blocked_reason(client, iid):
+            continue
+        key = _queue_key(iid)
+        try:
+            count = int(client.zcard(key) or 0)
+            if count:
+                client.delete(key)
+                removed += count
+        except Exception:
+            continue
+    if removed:
+        from dashboard.dashboard_events import publish_dashboard_event
+
+        publish_dashboard_event(client, topic="queue", reason="purge_blocked")
     return removed
 
 

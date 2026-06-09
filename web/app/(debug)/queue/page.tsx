@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -77,7 +78,12 @@ import {
 import { QueuePendingCalendar } from "@/components/queue/QueuePendingCalendar";
 import { overlayTestHref, regionFromQueueHistory } from "@/lib/debug-links";
 import { PendingButton } from "@/components/ui/PendingButton";
-import { fetchQueue, removeQueueTasks, runQueueTaskNow } from "@/lib/api";
+import {
+  fetchQueue,
+  purgeBlockedQueueTasks,
+  removeQueueTasks,
+  runQueueTaskNow,
+} from "@/lib/api";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import type { QueueView } from "@/lib/types";
 
@@ -91,7 +97,7 @@ export default function QueuePage() {
   const [busy, setBusy] = useState(false);
   const [pendingView, setPendingView] = useState<"table" | "timeline">("table");
   const [pendingSort, setPendingSort] = useState<{
-    col: "schedule" | "instance" | "player";
+    col: "schedule" | "player";
     dir: "asc" | "desc";
   }>({ col: "schedule", dir: "asc" });
   const [pendingPage, setPendingPage] = useState(1);
@@ -107,7 +113,7 @@ export default function QueuePage() {
       rows.filter((r) => !removedIds.includes(r.task_id)),
   );
 
-  const cycleSort = (col: "instance" | "player") => {
+  const cycleSort = (col: "player") => {
     startTransition(() => {
       setPendingSort((prev) => {
         if (prev.col !== col) return { col, dir: "asc" };
@@ -117,13 +123,20 @@ export default function QueuePage() {
     });
   };
 
+  // Rows arrive grouped per instance (the pop_due execution order). Player
+  // sort reorders rows *within* each instance group so the grouping headers
+  // in the table stay contiguous.
   const sortedPending = useMemo(() => {
     const rows = optimisticPending;
     if (pendingSort.col === "schedule") return rows;
     const sign = pendingSort.dir === "asc" ? 1 : -1;
-    const key = pendingSort.col === "instance" ? "instance_id" : "player_id";
     return [...rows].sort((a, b) => {
-      const cmp = a[key].localeCompare(b[key], undefined, {
+      const grp = a.instance_id.localeCompare(b.instance_id, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      if (grp !== 0) return grp;
+      const cmp = a.player_id.localeCompare(b.player_id, undefined, {
         numeric: true,
         sensitivity: "base",
       });
@@ -132,7 +145,7 @@ export default function QueuePage() {
     });
   }, [optimisticPending, pendingSort]);
 
-  const sortArrow = (col: "instance" | "player") => {
+  const sortArrow = (col: "player") => {
     if (pendingSort.col !== col) return "";
     return pendingSort.dir === "asc" ? " ↑" : " ↓";
   };
@@ -243,6 +256,22 @@ export default function QueuePage() {
       await runQueueTaskNow(pick);
       await refresh();
       showSuccess("Task moved to front of queue");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPurgeBlocked = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const removed = await purgeBlockedQueueTasks();
+      await refresh();
+      showSuccess(
+        removed === 1 ? "Purged 1 blocked task" : `Purged ${removed} blocked tasks`,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -377,27 +406,9 @@ export default function QueuePage() {
                           type="button"
                           className="queue-sort-btn"
                           onClick={() => cycleSort("player")}
-                          title="Sort by player"
+                          title="Sort by player (within each instance)"
                         >
                           Player{sortArrow("player")}
-                        </button>
-                      </th>
-                      <th
-                        aria-sort={
-                          pendingSort.col === "instance"
-                            ? pendingSort.dir === "asc"
-                              ? "ascending"
-                              : "descending"
-                            : "none"
-                        }
-                      >
-                        <button
-                          type="button"
-                          className="queue-sort-btn"
-                          onClick={() => cycleSort("instance")}
-                          title="Sort by instance"
-                        >
-                          Instance{sortArrow("instance")}
                         </button>
                       </th>
                       <th>Scenario</th>
@@ -408,52 +419,83 @@ export default function QueuePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pagedPending.map((r) => (
-                      <tr key={r.task_id} className={r.overdue ? "queue-row-overdue" : undefined}>
-                        <td>
-                          <AppCheckbox
-                            checked={selected.has(r.task_id)}
-                            onChange={() => toggleSelect(r.task_id)}
-                            aria-label={`Select ${r.scenario}`}
-                          />
-                        </td>
-                        <td>
-                          <PendingSchedulePill row={r} />
-                        </td>
-                        <td className="queue-when">{r.scheduled}</td>
-                        <td>
-                          <Link href={playerStateHref(r.player_id, { instanceId: r.instance_id })}>
-                            {r.player_id}
-                          </Link>
-                        </td>
-                        <td>
-                          <Link href={instanceHref(r.instance_id)}>{r.instance_id}</Link>
-                        </td>
-                        <td>
-                          <ScenarioCell
-                            label={r.scenario}
-                            scenarioKey={r.scenario_key}
-                            instanceId={r.instance_id}
-                            playerId={r.player_id}
-                          />
-                        </td>
-                        <td className="muted">{r.region}</td>
-                        <td>
-                          <CooperativePill cooperative={r.cooperative} />
-                        </td>
-                        <td>
-                          <PriorityBadge priority={r.priority} />
-                        </td>
-                        <td>
-                          <QueuePendingActions
-                            row={r}
-                            onRunNow={onRunRow}
-                            onDelete={onDeleteRow}
-                            disabled={busy}
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                    {pagedPending.map((r, i) => {
+                      const prev = i > 0 ? pagedPending[i - 1] : null;
+                      const newGroup = !prev || prev.instance_id !== r.instance_id;
+                      return (
+                        <Fragment key={r.task_id}>
+                          {newGroup ? (
+                            <tr className="queue-group-row">
+                              <td colSpan={9}>
+                                <span className="queue-group-row__inner">
+                                  <Link href={instanceHref(r.instance_id)}>
+                                    {r.instance_id}
+                                  </Link>
+                                  {r.blocked ? (
+                                    <span className="status-pill pill-danger">
+                                      Blocked · {r.blocked_reason || "device offline"}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </td>
+                            </tr>
+                          ) : null}
+                          <tr
+                            className={
+                              r.blocked
+                                ? "queue-row-blocked"
+                                : r.overdue
+                                  ? "queue-row-overdue"
+                                  : undefined
+                            }
+                          >
+                            <td>
+                              <AppCheckbox
+                                checked={selected.has(r.task_id)}
+                                onChange={() => toggleSelect(r.task_id)}
+                                aria-label={`Select ${r.scenario}`}
+                              />
+                            </td>
+                            <td>
+                              <PendingSchedulePill row={r} />
+                            </td>
+                            <td className="queue-when">{r.scheduled}</td>
+                            <td>
+                              <Link
+                                href={playerStateHref(r.player_id, {
+                                  instanceId: r.instance_id,
+                                })}
+                              >
+                                {r.player_id}
+                              </Link>
+                            </td>
+                            <td>
+                              <ScenarioCell
+                                label={r.scenario}
+                                scenarioKey={r.scenario_key}
+                                instanceId={r.instance_id}
+                                playerId={r.player_id}
+                              />
+                            </td>
+                            <td className="muted">{r.region}</td>
+                            <td>
+                              <CooperativePill cooperative={r.cooperative} />
+                            </td>
+                            <td>
+                              <PriorityBadge priority={r.priority} />
+                            </td>
+                            <td>
+                              <QueuePendingActions
+                                row={r}
+                                onRunNow={onRunRow}
+                                onDelete={onDeleteRow}
+                                disabled={busy}
+                              />
+                            </td>
+                          </tr>
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
                 {(pendingNeedsFullRows ? pendingPageCount : pendingServerPageCount) > 1 ? (
@@ -527,6 +569,16 @@ export default function QueuePage() {
             >
               Delete selected ({selected.size})
             </PendingButton>
+            {(data?.pending_blocked_count ?? 0) > 0 ? (
+              <PendingButton
+                variant="danger"
+                pending={busy}
+                onClick={onPurgeBlocked}
+                title="Remove all pending tasks of instances whose device is offline"
+              >
+                Purge blocked ({data?.pending_blocked_count})
+              </PendingButton>
+            ) : null}
           </div>
         ) : null}
       </section>

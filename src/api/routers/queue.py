@@ -73,6 +73,10 @@ def _paginate_queue_view(
         view.get("pending_overdue_count")
         or sum(1 for row in pending if row.get("overdue"))
     )
+    out["pending_blocked_count"] = int(
+        view.get("pending_blocked_count")
+        or sum(1 for row in pending if row.get("blocked"))
+    )
     out["history_count"] = int(view.get("history_count") or len(history))
     if full:
         out["pending"] = pending
@@ -213,6 +217,17 @@ def post_queue_enqueue(body: QueueEnqueueBody, client: RedisDep) -> dict[str, An
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, **result}
+
+
+@router.post("/queue/purge-blocked")
+def post_queue_purge_blocked(client: RedisDep) -> dict[str, int]:
+    """Remove pending tasks of instances whose device is offline (ADB).
+
+    Those tasks sit overdue forever — the auto-paused worker never pops them.
+    The scheduler re-enqueues cron work once the device reconnects.
+    """
+    removed = queue_api.purge_blocked_tasks(client)
+    return {"removed": removed}
 
 
 @router.post("/queue/clear-all")
