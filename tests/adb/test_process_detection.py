@@ -266,13 +266,13 @@ def test_ensure_game_foreground_launches_running_wos_beta_package(
             return f"{BETA_PKG}/com.unity3d.player.MyMainPlayerActivity"
         return ""
 
-    monkeypatch.setattr("adb.controller.time.sleep", lambda _seconds: None)
-    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+    monkeypatch.setattr("adb.controller_process.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("adb.controller_process._redis", lambda: redis)
     monkeypatch.setattr(
-        "adb.controller._require_approval",
+        "adb.controller_process._require_approval",
         lambda _iid, _p: (True, "req"),
     )
-    monkeypatch.setattr("adb.controller._consume_skip", lambda _req_id: False)
+    monkeypatch.setattr("adb.controller_process._consume_skip", lambda _req_id: False)
 
     _controller(
         "127.0.0.1:5625",
@@ -314,7 +314,7 @@ def test_launch_package_uses_running_original_over_remembered_beta(
         msg = f"unexpected call {args}"
         raise AssertionError(msg)
 
-    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+    monkeypatch.setattr("adb.controller_process._redis", lambda: redis)
 
     assert (
         _controller("127.0.0.1:5555", shell_full, shell_text)
@@ -347,7 +347,7 @@ def test_launch_package_uses_remembered_beta_when_nothing_is_running(
         msg = f"unexpected call {args}"
         raise AssertionError(msg)
 
-    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+    monkeypatch.setattr("adb.controller_process._redis", lambda: redis)
 
     assert (
         _controller("127.0.0.1:5555", shell_full, shell_text)
@@ -377,7 +377,7 @@ def test_launch_package_uses_remembered_beta_when_original_absent(
         msg = f"unexpected call {args}"
         raise AssertionError(msg)
 
-    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+    monkeypatch.setattr("adb.controller_process._redis", lambda: redis)
 
     assert (
         _controller("127.0.0.1:5555", shell_full, shell_text)
@@ -417,7 +417,7 @@ def test_launch_package_uses_most_recent_wos_beta_package(
         msg = f"unexpected call {args}"
         raise AssertionError(msg)
 
-    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+    monkeypatch.setattr("adb.controller_process._redis", lambda: redis)
 
     assert (
         _controller("127.0.0.1:5555", shell_full, shell_text)
@@ -453,7 +453,7 @@ def test_launch_package_uses_recent_beta_when_original_absent(
         msg = f"unexpected call {args}"
         raise AssertionError(msg)
 
-    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+    monkeypatch.setattr("adb.controller_process._redis", lambda: redis)
 
     assert (
         _controller("127.0.0.1:5555", shell_full, shell_text)
@@ -486,7 +486,7 @@ def test_launch_package_uses_running_kingshot_package(
         msg = f"unexpected call {args}"
         raise AssertionError(msg)
 
-    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+    monkeypatch.setattr("adb.controller_process._redis", lambda: redis)
 
     assert (
         _controller("127.0.0.1:5555", shell_full, shell_text)

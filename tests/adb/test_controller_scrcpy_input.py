@@ -21,10 +21,10 @@ def test_swipe_uses_scrcpy_backend_instead_of_adb_motionevent() -> None:
     ctrl._dispatch_curved_swipe = MagicMock(return_value=True)
 
     with (
-        patch("adb.controller._require_approval", return_value=(True, "req")),
-        patch("adb.controller._consume_skip", return_value=False),
-        patch("adb.controller.random.randint", side_effect=lambda _a, _b: 0),
-        patch("adb.controller.random.uniform", return_value=1.0),
+        patch("adb.controller_input._require_approval", return_value=(True, "req")),
+        patch("adb.controller_input._consume_skip", return_value=False),
+        patch("adb.controller_input.random.randint", side_effect=lambda _a, _b: 0),
+        patch("adb.controller_input.random.uniform", return_value=1.0),
     ):
         ok = ctrl.swipe(
             Point(10, 20),
@@ -53,7 +53,7 @@ def _restart_controller() -> AdbController:
 def test_restart_application_requires_approval_before_force_stop() -> None:
     ctrl = _restart_controller()
 
-    with patch("adb.controller._require_approval", return_value=(False, None)) as approval:
+    with patch("adb.controller_process._require_approval", return_value=(False, None)) as approval:
         ok = ctrl.restart_application("wos")
 
     assert ok is False
@@ -73,9 +73,9 @@ def test_restart_application_force_stops_only_after_approval() -> None:
     ]
 
     with (
-        patch("adb.controller._require_approval", return_value=(True, "req")),
-        patch("adb.controller._consume_skip", return_value=False),
-        patch("adb.controller.time.sleep"),
+        patch("adb.controller_process._require_approval", return_value=(True, "req")),
+        patch("adb.controller_process._consume_skip", return_value=False),
+        patch("adb.controller_process.time.sleep"),
     ):
         ok = ctrl.restart_application("wos")
 
@@ -109,7 +109,7 @@ def test_ensure_game_foreground_requires_approval_before_launch() -> None:
     ctrl = _restart_controller()
     ctrl.is_game_foreground = MagicMock(return_value=False)
 
-    with patch("adb.controller._require_approval", return_value=(False, None)) as approval:
+    with patch("adb.controller_process._require_approval", return_value=(False, None)) as approval:
         ok = ctrl.ensure_game_foreground("wos")
 
     assert ok is False
@@ -123,7 +123,7 @@ def test_ensure_game_foreground_requires_approval_before_launch() -> None:
 def test_system_back_requires_approval_before_keyevent() -> None:
     ctrl = _restart_controller()
 
-    with patch("adb.controller._require_approval", return_value=(False, None)) as approval:
+    with patch("adb.controller_input._require_approval", return_value=(False, None)) as approval:
         ok = ctrl.system_back()
 
     assert ok is False
@@ -138,8 +138,8 @@ def test_system_back_keyevent_runs_only_after_approval() -> None:
     ctrl = _restart_controller()
 
     with (
-        patch("adb.controller._require_approval", return_value=(True, "req")),
-        patch("adb.controller._consume_skip", return_value=False),
+        patch("adb.controller_input._require_approval", return_value=(True, "req")),
+        patch("adb.controller_input._consume_skip", return_value=False),
     ):
         ok = ctrl.system_back()
 
