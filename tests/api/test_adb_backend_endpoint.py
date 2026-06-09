@@ -147,14 +147,22 @@ def test_register_device_creates_fleet_device_from_emulator_serial(
 
 def test_register_device_reuses_existing_canonical_emulator_serial(
     devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    reconcile: list[str] = []
     upsert_device("bs3", adb_serial="127.0.0.1:5555")
+    monkeypatch.setattr(
+        adb_api,
+        "_notify_supervisor_reconcile",
+        lambda reason: reconcile.append(reason),
+    )
 
     result = adb_api.register_device("emulator-5554")
 
     assert result["created"] is False
     assert result["name"] == "bs3"
     assert result["adb_serial"] == "127.0.0.1:5555"
+    assert reconcile == ["register:bs3"]
     rows = [
         d
         for d in load_registry().devices
@@ -168,6 +176,20 @@ def test_register_device_rejects_empty_serial(devices_db: Path) -> None:
         adb_api.register_device("  ")
 
     assert exc.value.status_code == 400
+
+
+def test_request_device_reconcile_publishes(monkeypatch: pytest.MonkeyPatch) -> None:
+    reconcile: list[str] = []
+    monkeypatch.setattr(
+        adb_api,
+        "_notify_supervisor_reconcile",
+        lambda reason: reconcile.append(reason),
+    )
+
+    result = adb_api.request_device_reconcile("refresh-scan")
+
+    assert result == {"ok": True, "reason": "refresh-scan"}
+    assert reconcile == ["refresh-scan"]
 
 
 def test_set_device_backend_auto_installs_when_scrcpy_is_effective(
@@ -249,6 +271,11 @@ def test_get_adb_status_probes_default_emulator_tcp_port(
         return Completed()
 
     monkeypatch.setattr(adb_api.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        adb_api,
+        "_port_open",
+        lambda port, _timeout=0.3: port == 5555,
+    )
 
     status = adb_api.get_adb_status()
 
@@ -325,3 +352,52 @@ def test_get_adb_status_marks_wos_beta_package(
             "running": True,
         }
     ]
+
+
+def test_build_tcp_port_range_defaults() -> None:
+    assert adb_api.build_tcp_port_range() == list(range(5555, 5626, 10))
+
+
+def test_build_tcp_port_range_custom_bounds() -> None:
+    assert adb_api.build_tcp_port_range(5550, 5560, 5) == [5550, 5555, 5560]
+
+
+def test_build_tcp_port_range_reorders_and_clamps() -> None:
+    # Inverted bounds are swapped; out-of-range values are clamped to valid ports.
+    assert adb_api.build_tcp_port_range(5560, 5550, 5) == [5550, 5555, 5560]
+    assert adb_api.build_tcp_port_range(0, 99999, 1)[0] == 1
+    assert adb_api.build_tcp_port_range(0, 99999, 1)[-1] <= 65535
+
+
+def test_build_tcp_port_range_caps_size() -> None:
+    ports = adb_api.build_tcp_port_range(1, 65535, 1)
+    assert len(ports) == adb_api._ADB_TCP_PORT_SCAN_CAP
+
+
+def test_get_adb_status_uses_custom_port_range(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probed: list[list[int]] = []
+
+    def fake_probe(adb_exe, live, ports=None):
+        probed.append(list(ports or []))
+        return False
+
+    class Completed:
+        returncode = 0
+        stdout = "List of devices attached\n"
+        stderr = ""
+
+    monkeypatch.setattr(adb_api.subprocess, "run", lambda *_a, **_k: Completed())
+    monkeypatch.setattr(adb_api, "_probe_default_tcp_adb_targets", fake_probe)
+
+    status = adb_api.get_adb_status(port_start=5550, port_end=5560, port_step=5)
+
+    assert probed == [[5550, 5555, 5560]]
+    assert status["scan_port_range"] == {
+        "start": 5550,
+        "end": 5560,
+        "step": 5,
+        "count": 3,
+    }

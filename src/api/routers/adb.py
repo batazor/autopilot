@@ -1,7 +1,7 @@
 """ADB / devices routes."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from api.services import adb_api as svc
@@ -17,14 +17,30 @@ class BackendUpdateBody(BaseModel):
 
 
 @router.get("")
-def get_status() -> dict[str, object]:
-    return svc.get_adb_status()
+def get_status(
+    port_start: int | None = Query(default=None, ge=1, le=65535),
+    port_end: int | None = Query(default=None, ge=1, le=65535),
+    port_step: int | None = Query(default=None, ge=1, le=65535),
+) -> dict[str, object]:
+    """Live ADB scan. Optional ``port_start``/``port_end``/``port_step`` override
+    the localhost TCP range probed for emulator instances (default 5555-5625/10)."""
+    return svc.get_adb_status(
+        port_start=port_start,
+        port_end=port_end,
+        port_step=port_step,
+    )
 
 
 @router.post("/devices/{serial}/register")
 def post_register_device(serial: str) -> dict[str, object]:
     """Persist a live ADB serial into the device registry."""
     return svc.register_device(serial)
+
+
+@router.post("/reconcile")
+def post_reconcile_devices() -> dict[str, object]:
+    """Ask the running bot supervisor to reconcile workers with the registry."""
+    return svc.request_device_reconcile("refresh-scan")
 
 
 @router.post("/devices/{serial}/reset-display")

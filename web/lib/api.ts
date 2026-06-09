@@ -1641,8 +1641,19 @@ export function galleryImageUrl(
   return `${base}/api/gallery/image?${q}`;
 }
 
-export async function fetchAdbStatus(): Promise<AdbStatus> {
-  return apiFetch<AdbStatus>("/api/adb");
+export type AdbScanRange = {
+  portStart?: number | null;
+  portEnd?: number | null;
+  portStep?: number | null;
+};
+
+export async function fetchAdbStatus(range?: AdbScanRange): Promise<AdbStatus> {
+  const params = new URLSearchParams();
+  if (range?.portStart != null) params.set("port_start", String(range.portStart));
+  if (range?.portEnd != null) params.set("port_end", String(range.portEnd));
+  if (range?.portStep != null) params.set("port_step", String(range.portStep));
+  const qs = params.toString();
+  return apiFetch<AdbStatus>(qs ? `/api/adb?${qs}` : "/api/adb");
 }
 
 export async function registerAdbDevice(serial: string): Promise<DeviceRegisterResult> {
@@ -1650,6 +1661,12 @@ export async function registerAdbDevice(serial: string): Promise<DeviceRegisterR
     `/api/adb/devices/${encodeURIComponent(serial)}/register`,
     { method: "POST" },
   );
+}
+
+export async function reconcileAdbDevices(): Promise<{ ok: boolean; reason: string }> {
+  return apiFetch<{ ok: boolean; reason: string }>("/api/adb/reconcile", {
+    method: "POST",
+  });
 }
 
 export async function resetAdbDeviceDisplay(serial: string): Promise<AdbResetDisplayResult> {

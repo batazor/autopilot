@@ -62,6 +62,13 @@ export type AdbLiveDevice = {
   detected_games?: AdbDetectedGame[];
 };
 
+export type AdbScanPortRange = {
+  start: number | null;
+  end: number | null;
+  step: number;
+  count: number;
+};
+
 export type AdbStatus = {
   adb_executable: string;
   devices_yaml: string;
@@ -69,6 +76,7 @@ export type AdbStatus = {
   configured: AdbDeviceRow[];
   live_devices: AdbLiveDevice[];
   scan_error: string | null;
+  scan_port_range?: AdbScanPortRange;
 };
 
 export type AdbResetDisplayResult = {

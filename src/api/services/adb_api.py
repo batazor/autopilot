@@ -32,8 +32,40 @@ _SETTINGS_DISPLAY = "src/config/_settings_data.py"
 _DEVICES_DB_REL = "db/state/state.db"
 # Emulator ADB ports are allocated in steps of 10 starting at 5555
 # (5555, 5565, ... 5625). Probe the whole range so newly-added instances are
-# auto-discovered without hardcoding each port.
+# auto-discovered without hardcoding each port. The /adb page can override the
+# bounds per scan; these stay the default when it doesn't.
 _ADB_TCP_PORT_RANGE = range(5555, 5626, 10)
+_ADB_TCP_PORT_DEFAULT_START = 5555
+_ADB_TCP_PORT_DEFAULT_END = 5625
+_ADB_TCP_PORT_DEFAULT_STEP = 10
+# Guard rails so a user-supplied range can't spawn thousands of sockets/threads.
+_ADB_TCP_PORT_SCAN_CAP = 256
+_ADB_TCP_PROBE_MAX_WORKERS = 64
+
+
+def build_tcp_port_range(
+    start: int | None = None,
+    end: int | None = None,
+    step: int | None = None,
+) -> list[int]:
+    """Resolve the list of TCP ports to probe for emulator ADB endpoints.
+
+    Unset bounds fall back to the default emulator allocation
+    (``5555..5625`` step ``10``). Values are clamped to valid TCP ports, the
+    bounds are reordered if inverted, and the result is capped at
+    ``_ADB_TCP_PORT_SCAN_CAP`` so a pathological range can't tie up the scan.
+    """
+    lo = _ADB_TCP_PORT_DEFAULT_START if start is None else int(start)
+    hi = _ADB_TCP_PORT_DEFAULT_END if end is None else int(end)
+    stride = _ADB_TCP_PORT_DEFAULT_STEP if step is None else int(step)
+
+    lo = max(1, min(lo, 65535))
+    hi = max(1, min(hi, 65535))
+    if hi < lo:
+        lo, hi = hi, lo
+    stride = max(1, stride)
+
+    return list(range(lo, hi + 1, stride))[:_ADB_TCP_PORT_SCAN_CAP]
 
 
 def _parse_adb_devices(stdout: str) -> list[dict[str, Any]]:
@@ -84,10 +116,16 @@ def _port_open(port: int, timeout: float = 0.3) -> bool:
         return sock.connect_ex(("127.0.0.1", port)) == 0
 
 
-def _probe_default_tcp_adb_targets(adb_exe: str, live: list[dict[str, Any]]) -> bool:
+def _probe_default_tcp_adb_targets(
+    adb_exe: str,
+    live: list[dict[str, Any]],
+    ports: list[int] | None = None,
+) -> bool:
+    if ports is None:
+        ports = list(_ADB_TCP_PORT_RANGE)
     candidates = [
         port
-        for port in _ADB_TCP_PORT_RANGE
+        for port in ports
         if not _has_live_adb_serial(live, f"127.0.0.1:{port}")
     ]
     if not candidates:
@@ -96,7 +134,9 @@ def _probe_default_tcp_adb_targets(adb_exe: str, live: list[dict[str, Any]]) -> 
     # Probe liveness in parallel (sub-second) instead of letting ``adb connect``
     # block ~5s per dead port. This keeps the /adb status endpoint snappy no
     # matter how wide the port range grows.
-    with ThreadPoolExecutor(max_workers=len(candidates)) as pool:
+    with ThreadPoolExecutor(
+        max_workers=min(len(candidates), _ADB_TCP_PROBE_MAX_WORKERS)
+    ) as pool:
         open_ports = [
             port
             for port, is_open in zip(
@@ -191,14 +231,19 @@ def _detect_known_games(adb_exe: str, serial: str) -> list[dict[str, Any]]:
     return detected
 
 
-def get_adb_status() -> dict[str, Any]:
+def get_adb_status(
+    port_start: int | None = None,
+    port_end: int | None = None,
+    port_step: int | None = None,
+) -> dict[str, Any]:
     settings = load_settings()
     adb_exe = str(settings.worker.adb_executable or "adb")
+    ports = build_tcp_port_range(port_start, port_end, port_step)
     live: list[dict[str, Any]]
     scan_error: str | None = None
     try:
         live, scan_error = _scan_adb_devices(adb_exe)
-        if scan_error is None and _probe_default_tcp_adb_targets(adb_exe, live):
+        if scan_error is None and _probe_default_tcp_adb_targets(adb_exe, live, ports):
             refreshed_live, refreshed_error = _scan_adb_devices(adb_exe)
             if refreshed_error is None:
                 live = refreshed_live
@@ -239,13 +284,19 @@ def get_adb_status() -> dict[str, Any]:
         "configured": configured,
         "live_devices": live,
         "scan_error": scan_error,
+        "scan_port_range": {
+            "start": ports[0] if ports else None,
+            "end": ports[-1] if ports else None,
+            "step": port_step if port_step is not None else _ADB_TCP_PORT_DEFAULT_STEP,
+            "count": len(ports),
+        },
     }
 
 
 def _notify_supervisor_reconcile(reason: str) -> None:
     """Wake a running worker supervisor so it picks up the registry change without
-    a restart. Best-effort: if Redis is down or no bot is running, the periodic
-    reconcile poll (and the next Start) still converges."""
+    a restart. Best-effort: if Redis is down or no bot is running, the next
+    Start still converges from the persisted registry."""
     try:
         from dashboard.dashboard_events import publish_device_reconcile
         from dashboard.redis_client import get_redis
@@ -253,6 +304,13 @@ def _notify_supervisor_reconcile(reason: str) -> None:
         publish_device_reconcile(get_redis(), reason=reason)
     except Exception:  # pragma: no cover - notification is best-effort
         pass
+
+
+def request_device_reconcile(reason: str = "manual") -> dict[str, Any]:
+    """Explicit UI/API command: ask the running supervisor to reconcile devices."""
+    clean = (reason or "manual").strip() or "manual"
+    _notify_supervisor_reconcile(clean)
+    return {"ok": True, "reason": clean}
 
 
 def _serial_matches(a: str, b: str) -> bool:
@@ -318,6 +376,7 @@ def register_device(serial: str) -> dict[str, Any]:
                 screenshot_backend=device.screenshot_backend,
                 input_backend=device.input_backend,
             )
+            _notify_supervisor_reconcile(f"register:{device.name}")
             return {
                 "ok": True,
                 "created": False,
@@ -501,6 +560,7 @@ __all__ = [
     "VALID_SCREENSHOT_BACKENDS",
     "get_adb_status",
     "register_device",
+    "request_device_reconcile",
     "reset_device_display",
     "set_device_backend",
 ]

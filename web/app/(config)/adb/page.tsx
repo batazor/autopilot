@@ -1,17 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { AppMenu, AppRadioGroup, type AppMenuItem } from "@/components/headless";
 import {
   fetchAdbStatus,
   fetchScrcpyStatus,
   installScrcpy,
+  reconcileAdbDevices,
   registerAdbDevice,
   resetAdbDeviceDisplay,
   updateDeviceBackend,
 } from "@/lib/api";
 import { adbSerialMatches } from "@/lib/adb-serial";
+import {
+  DEFAULT_PORT_RANGE,
+  loadScanPortRange,
+  saveScanPortRange,
+} from "@/lib/adb-scan-prefs";
 import type {
   AdbDetectedGame,
   ScrcpyInstallResult,
@@ -23,6 +29,9 @@ const INPUT_BACKEND_OPTIONS = [
   { value: "adb", label: "adb" },
   { value: "scrcpy", label: "scrcpy" },
 ];
+
+const PORT_INPUT_CLASS =
+  "rounded-md border border-wos-border-subtle bg-wos-input px-2 py-1 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25";
 
 type CellEntry<T> = T | { error: string } | undefined;
 
@@ -93,6 +102,25 @@ export default function AdbPage() {
   const [scrcpy, setScrcpy] = useState<Record<string, CellEntry<ScrcpyStatus>>>({});
   const [installingScrcpy, setInstallingScrcpy] = useState<string | null>(null);
   const [registeringSerial, setRegisteringSerial] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  // Start from the default so the server and first client render agree (no
+  // hydration mismatch); the persisted value is loaded in an effect below.
+  const [portRange, setPortRange] = useState(DEFAULT_PORT_RANGE);
+  // Read by `load` so editing the inputs doesn't trigger an auto-rescan; the
+  // scan only runs on mount or when "Refresh scan" is pressed.
+  const portRangeRef = useRef(portRange);
+  portRangeRef.current = portRange;
+
+  // Persist + mirror into the ref synchronously so a scan triggered in the same
+  // tick (e.g. right after a Reset) sees the new value.
+  const updatePortRange = useCallback(
+    (next: typeof DEFAULT_PORT_RANGE) => {
+      portRangeRef.current = next;
+      setPortRange(next);
+      saveScanPortRange(next);
+    },
+    [],
+  );
 
   const loadProbes = useCallback(async (serials: string[]) => {
     const scrcpyResults = await Promise.all(
@@ -107,20 +135,91 @@ export default function AdbPage() {
     setScrcpy(Object.fromEntries(scrcpyResults));
   }, []);
 
+  const missingLiveDevices = useCallback(
+    (s: Awaited<ReturnType<typeof fetchAdbStatus>>) =>
+      s.live_devices.filter(
+        (d) =>
+          !s.configured.some((c) =>
+            adbSerialMatches(c.adb_serial, d.serial, d.canonical_serial),
+          ),
+      ),
+    [],
+  );
+
   const load = useCallback(async () => {
     setError(null);
+    setScanning(true);
+    const { start, end, step } = portRangeRef.current;
+    const toPort = (v: string) => {
+      const n = Number.parseInt(v, 10);
+      return Number.isFinite(n) ? n : null;
+    };
     try {
-      const s = await fetchAdbStatus();
+      const s = await fetchAdbStatus({
+        portStart: toPort(start),
+        portEnd: toPort(end),
+        portStep: toPort(step),
+      });
       setStatus(s);
       void loadProbes(s.live_devices.map((d) => d.serial));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanning(false);
     }
   }, [loadProbes]);
 
+  const refreshScanAndRegister = useCallback(async () => {
+    setError(null);
+    setSuccess(null);
+    setScanning(true);
+    setRegisteringSerial("__scan__");
+    const { start, end, step } = portRangeRef.current;
+    const toPort = (v: string) => {
+      const n = Number.parseInt(v, 10);
+      return Number.isFinite(n) ? n : null;
+    };
+    try {
+      const scanned = await fetchAdbStatus({
+        portStart: toPort(start),
+        portEnd: toPort(end),
+        portStep: toPort(step),
+      });
+      const missing = missingLiveDevices(scanned);
+      if (missing.length > 0) {
+        await Promise.all(missing.map((d) => registerAdbDevice(d.serial)));
+      }
+      await reconcileAdbDevices();
+      const refreshed = await fetchAdbStatus({
+        portStart: toPort(start),
+        portEnd: toPort(end),
+        portStep: toPort(step),
+      });
+      setStatus(refreshed);
+      void loadProbes(refreshed.live_devices.map((d) => d.serial));
+      if (missing.length > 0) {
+        setSuccess(
+          `Registered ${missing.length} device${missing.length === 1 ? "" : "s"}.`,
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRegisteringSerial(null);
+      setScanning(false);
+    }
+  }, [loadProbes, missingLiveDevices]);
+
   useEffect(() => {
+    // Hydrate the saved range into state + ref before the first scan kicks off
+    // (the ref write is synchronous, so the mount `load()` below uses it).
+    const saved = loadScanPortRange();
+    portRangeRef.current = saved;
+    setPortRange(saved);
     load();
-  }, [load]);
+    // Mount-only: `load` is stable; we intentionally seed the range once here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onResetDisplay = async (serial: string) => {
     setError(null);
@@ -215,14 +314,7 @@ export default function AdbPage() {
     resettingSerial !== null ||
     savingBackend !== null;
 
-  const unregistered = status
-    ? status.live_devices.filter(
-        (d) =>
-          !status.configured.some((c) =>
-            adbSerialMatches(c.adb_serial, d.serial, d.canonical_serial),
-          ),
-      )
-    : [];
+  const unregistered = status ? missingLiveDevices(status) : [];
 
   return (
     <>
@@ -236,10 +328,79 @@ export default function AdbPage() {
           Select the backend in the dropdowns below to opt in per device.
         </p>
       </PageHeader>
-      <div className="toolbar mb-4">
-        <button type="button" className="btn-secondary" onClick={load}>
-          Refresh scan
+      <div className="toolbar mb-4 flex flex-wrap items-end gap-3">
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={refreshScanAndRegister}
+          disabled={scanning}
+        >
+          {scanning ? "Scanning…" : "Refresh scan"}
         </button>
+        <div className="flex flex-wrap items-end gap-2 text-xs text-wos-text-muted">
+          <span className="self-center font-semibold uppercase tracking-wide">
+            TCP port range
+          </span>
+          <label className="flex flex-col gap-1">
+            <span>From</span>
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              className={`${PORT_INPUT_CLASS} w-24`}
+              value={portRange.start}
+              onChange={(e) =>
+                updatePortRange({ ...portRangeRef.current, start: e.target.value })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span>To</span>
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              className={`${PORT_INPUT_CLASS} w-24`}
+              value={portRange.end}
+              onChange={(e) =>
+                updatePortRange({ ...portRangeRef.current, end: e.target.value })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span>Step</span>
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              className={`${PORT_INPUT_CLASS} w-20`}
+              value={portRange.step}
+              onChange={(e) =>
+                updatePortRange({ ...portRangeRef.current, step: e.target.value })
+              }
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-secondary self-end"
+            onClick={() => updatePortRange(DEFAULT_PORT_RANGE)}
+            disabled={
+              portRange.start === DEFAULT_PORT_RANGE.start &&
+              portRange.end === DEFAULT_PORT_RANGE.end &&
+              portRange.step === DEFAULT_PORT_RANGE.step
+            }
+          >
+            Reset
+          </button>
+          {status?.scan_port_range && (
+            <span className="self-center">
+              scanned {status.scan_port_range.count} port
+              {status.scan_port_range.count === 1 ? "" : "s"}
+              {status.scan_port_range.start != null &&
+                ` (${status.scan_port_range.start}–${status.scan_port_range.end})`}
+            </span>
+          )}
+        </div>
       </div>
       {error && <p className="error-banner mb-4">{error}</p>}
       {success && <p className="success-banner mb-4">{success}</p>}
