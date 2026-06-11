@@ -593,18 +593,24 @@ def test_capture_corner_reference_records_the_view() -> None:
         capture_corner_reference(_grey_frame(), cfg)
 
 
-def test_position_origin_aborts_on_zoom_mismatch(monkeypatch) -> None:
-    """The minimap viewport rect reading far off the calibrated size means the
-    zoom is wrong — every px<->tile conversion would be garbage. Fail fast."""
+def test_position_origin_tolerates_a_nibbled_pin(monkeypatch) -> None:
+    """The pin is a fixed-size graphic at every zoom — its size can NOT verify
+    zoom, and overlapping markers routinely nibble the ring. An undersized
+    reading must not abort the scan (a size gate here once falsely killed
+    runs with '24x22 vs 24x39')."""
     import modules.radar.scanner as scanner_mod
 
     monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
     cfg = _cfg(label_guard=LabelGuardConfig(enabled=False))
-    wrong_zoom = _grey_frame()
-    cv2.rectangle(wrong_zoom, (120 - 22, 80 - 35), (120 + 22, 80 + 35), (255, 255, 255), 2)
+    grid = build_scan_grid(cfg)
+    target = grid[0]
+    # Pin with its lower third erased by an overlapping marker.
+    nibbled = _rect_frame(target.x, target.y)
+    nibbled[int(target.y) + 8 : int(target.y) + 21, :] = 128
 
-    with pytest.raises(ScanAborted, match="zoom mismatch"):
-        _position_origin(FakeDevice(frames=[wrong_zoom]), cfg, build_scan_grid(cfg)[0])
+    meta = _position_origin(FakeDevice(frames=[nibbled]), cfg, target)
+
+    assert meta["landed_px"] is not None  # read and accepted, no abort
 
 
 def test_viewport_rect_reports_clipping() -> None:
@@ -696,7 +702,9 @@ def test_position_origin_corrects_a_redirected_teleport(monkeypatch) -> None:
     monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
     cfg = _cfg(label_guard=LabelGuardConfig(enabled=False))
     grid = build_scan_grid(cfg)
-    target = grid[0]
+    # An interior cell: near the bbox edge the pin reads as clipped (untrusted)
+    # and the correction loop rightly refuses to steer by it.
+    target = min(grid, key=lambda p: (p.x - 100) ** 2 + (p.y - 100) ** 2)
     # Each origin check runs wait_stable (3 captures): first check sees the
     # camera parked far from the target, the next one sees it on target.
     wrong = _rect_frame(180.0, 80.0)

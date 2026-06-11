@@ -594,9 +594,6 @@ SERVO_FAST_MEASURE_MAX_PX = 120.0
 # A fitted line crossing must sit within this of the dark out-of-bounds edge
 # (when one is measured) — disagreement means a phantom Hough lock.
 CROSS_GAP_AGREE_PX = 200.0
-# Minimap rect size may deviate this much from calibration before the zoom is
-# declared wrong (the whole px<->tile geometry hangs off the calibrated zoom).
-ZOOM_SIZE_TOLERANCE = 0.25
 # Movement feedback: a swipe achieving less than this share of its commanded
 # travel is being eaten by the game (rubber-band/pan clamp)...
 SERVO_MIN_MOVE_EFFECT = 0.3
@@ -628,6 +625,11 @@ def _viewport_rect(frame: np.ndarray, cfg: RadarConfig) -> MinimapRect | None:
     bx, by, bw, bh = cfg.minimap.bbox
     mm = frame[by : by + bh, bx : bx + bw]
     white = cv2.inRange(mm, (230, 230, 230), (255, 255, 255))
+    # Event markers drawn over the minimap fragment the pin's ring into
+    # pieces; closing reunites them so the centroid doesn't wander.
+    white = cv2.morphologyEx(
+        white, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)),
+    )
     count, _labels, stats, centroids = cv2.connectedComponentsWithStats(white)
     best: MinimapRect | None = None
     best_err: float | None = None
@@ -1062,24 +1064,13 @@ def _position_origin(
             logger.warning("radar: origin check — viewport rect not found on the minimap")
             break
         landed = (rect.cx, rect.cy)
-        if not rect.clipped:
-            # The whole px<->tile geometry hangs off the calibrated zoom —
-            # verify it on the first trustworthy reading and fail fast.
-            dev = max(
-                abs(rect.w - cfg.viewport.rect_w) / cfg.viewport.rect_w,
-                abs(rect.h - cfg.viewport.rect_h) / cfg.viewport.rect_h,
-            )
-            if dev > ZOOM_SIZE_TOLERANCE:
-                msg = (
-                    f"zoom mismatch: the minimap viewport rect reads {rect.w}x{rect.h}, "
-                    f"calibration expects {cfg.viewport.rect_w}x{cfg.viewport.rect_h} — "
-                    "reset the camera zoom (or recalibrate) and rescan"
-                )
-                raise ScanAborted(msg)
-        else:
-            # Display-clamped reading: the rect is clipped by the minimap
+        # NOTE: the pin's size cannot verify zoom — it is a fixed-size graphic
+        # at every zoom level (a size-based check here once falsely killed
+        # scans whenever overlapping markers nibbled the ring).
+        if rect.clipped:
+            # Display-clamped reading: the pin is clipped by the minimap
             # widget, its position is a lie — do not steer by it.
-            logger.warning("radar: origin check — viewport rect is clipped, reading untrusted")
+            logger.warning("radar: origin check — viewport pin is clipped, reading untrusted")
             break
         dx, dy = tap_x - rect.cx, tap_y - rect.cy
         if math.hypot(dx, dy) <= ORIGIN_TOLERANCE_PX:
