@@ -60,14 +60,9 @@ export const NAV_GROUPS: NavGroup[] = [
         description: "Kingdom map viewer & scan control",
       },
       {
-        href: "/research-tree",
-        label: "Research tree",
-        description: "Kingshot Academy research reference",
-      },
-      {
-        href: "/buildings",
-        label: "Buildings",
-        description: "Building level dependencies (Furnace gating)",
+        href: "/trees",
+        label: "Game trees",
+        description: "Research & building dependency trees per game",
       },
     ],
   },
