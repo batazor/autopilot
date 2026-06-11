@@ -8,11 +8,11 @@ import pytest
 
 from modules.radar.scanner import MANIFEST_NAME
 from modules.radar.stitch import (
-    _move_prior,
     _orb_features,
     _orb_pair_offset,
     _useful_area_mask,
     _valid_content_mask,
+    move_prior,
     run_stitch,
 )
 
@@ -95,10 +95,10 @@ def test_move_prior_inverts_summed_finger_travel() -> None:
         }
     }
     # Finger went 2×180px left → content went left → next frame sits +360 right.
-    assert _move_prior(entry) == (360.0, 0.0)
-    assert _move_prior({"move": {"mode": "swipe", "origin": True}}) is None
-    assert _move_prior({"move": {"mode": "tap", "target_px": [600, 60]}}) is None
-    assert _move_prior({}) is None
+    assert move_prior(entry) == (360.0, 0.0)
+    assert move_prior({"move": {"mode": "swipe", "origin": True}}) is None
+    assert move_prior({"move": {"mode": "tap", "target_px": [600, 60]}}) is None
+    assert move_prior({}) is None
 
 
 def test_useful_area_mask_excludes_hud_outside_crop() -> None:
@@ -129,6 +129,22 @@ def test_valid_content_mask_uses_yellow_boundary_to_drop_dark_outside() -> None:
     assert mask[150, 150] == 255
     # Yellow boundary itself is kept so the stitched map still shows the edge.
     assert np.count_nonzero(mask[(img[:, :, 1] > 220) & (img[:, :, 2] > 220)]) > 0
+
+
+def test_valid_content_mask_keeps_fog_far_from_the_border() -> None:
+    """Unexplored fog of war is dark too, but it is map content: only dark
+    regions touching the yellow border line may be cut. A golden event marker
+    elsewhere must not turn fog into 'outside the kingdom'."""
+    img = np.full((200, 200, 3), (210, 220, 240), dtype=np.uint8)
+    # Yellow marker pixels in the top-left corner (enough to trip the trigger).
+    for x in range(0, 60, 12):
+        cv2.line(img, (x, 10), (x + 6, 10), (120, 230, 235), 4)
+    # Dark fog blob at the bottom-right, border-touching but far from yellow.
+    cv2.rectangle(img, (140, 140), (200, 200), (60, 62, 70), -1)
+
+    mask = _valid_content_mask(img)
+
+    assert mask[180, 180] == 255  # fog stays on the map
 
 
 def test_run_stitch_places_uncropped_frames(tmp_path) -> None:

@@ -112,6 +112,9 @@ class NavigationConfig(BaseModel):
     swipe_duration_ms: int = Field(default=450, ge=100, le=2000)
     swipe_margin_px: int = Field(default=48, ge=0)
     swipe_scale: float = Field(default=1.0, gt=0.0, le=2.0)
+    # Pause between chunked swipes of one long move. Two quick touches read
+    # as the double-tap-drag ZOOM gesture in-game — this gap prevents it.
+    chunk_pause_ms: int = Field(default=500, ge=0, le=5000)
 
 
 class TimingsConfig(BaseModel):
@@ -122,6 +125,11 @@ class TimingsConfig(BaseModel):
     stabilize_diff_threshold: float = Field(default=2.0, gt=0)
     stabilize_consecutive: int = Field(default=2, ge=1)
     stabilize_timeout_ms: int = Field(default=5000, ge=100)
+    # View guard: a captured frame must ORB-register against the previous
+    # one (same zoom, pure pan). On mismatch the scanner waits and
+    # recaptures up to ``zoom_retry_count`` times, then aborts the scan.
+    zoom_retry_delay_ms: int = Field(default=1000, ge=0)
+    zoom_retry_count: int = Field(default=2, ge=0)
 
 
 class RadarConfig(BaseModel):

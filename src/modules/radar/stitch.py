@@ -116,15 +116,34 @@ def _valid_content_mask(img: np.ndarray) -> np.ndarray:
     if int(np.count_nonzero(outside)) < OUTSIDE_DARK_MIN_AREA:
         return np.full(img.shape[:2], 255, dtype=np.uint8)
 
-    outside = cv2.morphologyEx(
-        outside,
+    # Only dark regions that actually touch the yellow kingdom border are
+    # "outside". Unexplored fog of war is also dark and border-touching, but
+    # it sits far from the boundary line — it must stay on the map (a golden
+    # event marker elsewhere in the frame is enough to trip the yellow
+    # trigger, so the trigger alone cannot be trusted).
+    yellow_zone = cv2.dilate(
+        yellow, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31)),
+    )
+    component_count, labels = cv2.connectedComponents((outside > 0).astype(np.uint8))
+    near_border = np.zeros(img.shape[:2], dtype=np.uint8)
+    for label in range(1, component_count):
+        component = labels == label
+        if np.any(yellow_zone[component] > 0):
+            near_border[component] = 255
+    if not near_border.any():
+        return np.full(img.shape[:2], 255, dtype=np.uint8)
+
+    near_border = cv2.morphologyEx(
+        near_border,
         cv2.MORPH_CLOSE,
         cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (23, 23)),
     )
-    outside = cv2.dilate(outside, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
-    outside[yellow > 0] = 0
+    near_border = cv2.dilate(
+        near_border, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+    )
+    near_border[yellow > 0] = 0
     mask = np.full(img.shape[:2], 255, dtype=np.uint8)
-    mask[outside > 0] = 0
+    mask[near_border > 0] = 0
     return mask
 
 
@@ -227,7 +246,21 @@ def _orb_pair_offset(
     return tx, ty, float(score)
 
 
-def _move_prior(entry: dict) -> tuple[float, float] | None:
+def frames_consistent(
+    prev: np.ndarray,
+    cur: np.ndarray,
+    crop: dict | None,
+    expected: tuple[float, float] | None,
+) -> bool:
+    """Scanner-side view guard: True when two consecutive captures register
+    as a pure pan near the expected offset — i.e. same zoom, same screen,
+    camera only moved. Used to catch accidental zoom gestures mid-scan."""
+    feat_prev = _orb_features(prev, _useful_area_mask(prev, None, crop))
+    feat_cur = _orb_features(cur, _useful_area_mask(cur, None, crop))
+    return _orb_pair_offset(feat_prev, feat_cur, expected=expected) is not None
+
+
+def move_prior(entry: dict) -> tuple[float, float] | None:
     """Expected ``pos_this - pos_previous`` from the swipes that led here.
 
     Dragging the finger by ``f`` moves the content by ``f``, so the same
@@ -308,7 +341,7 @@ def _find_match_edges(
     matched: set[tuple[int, int]] = set()
     for j in range(1, len(entries)):
         i = j - 1
-        edge = _match_pair(entries, features, i, j, _move_prior(entries[j]))
+        edge = _match_pair(entries, features, i, j, move_prior(entries[j]))
         if edge is not None:
             edges.append(edge)
         matched.add((i, j))

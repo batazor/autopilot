@@ -86,6 +86,47 @@ def _central_region(frame: np.ndarray, cfg: RadarConfig) -> np.ndarray:
     return frame[y0 : y0 + c.h // 3, x0 : x0 + c.w // 3]
 
 
+def _guarded_capture(
+    device: RadarDevice,
+    cfg: RadarConfig,
+    prev_frame: np.ndarray | None,
+    expected: tuple[float, float] | None,
+) -> tuple[np.ndarray, bool]:
+    """Capture a stable frame and verify the view is still the same world.
+
+    Every frame after the first must ORB-register against the previous one
+    as a pure pan (same zoom, same screen). A mismatch usually means an
+    accidental zoom gesture or a UI transition — wait and recapture a few
+    times (covers LOD/icon fade-in), then abort: a knowingly broken map is
+    worse than a stopped scan.
+    """
+    # Local import: stitch imports MANIFEST_NAME from this module at load
+    # time, so the reverse import must stay out of module scope.
+    from modules.radar.stitch import frames_consistent
+
+    frame, stable = wait_stable(device, cfg)
+    if prev_frame is None:
+        return frame, stable
+    crop = cfg.crop.model_dump()
+    t = cfg.timings
+    for attempt in range(t.zoom_retry_count + 1):
+        if frames_consistent(prev_frame, frame, crop, expected):
+            return frame, stable
+        if attempt < t.zoom_retry_count:
+            logger.warning(
+                "radar: frame does not register against the previous one "
+                "(attempt %d/%d) — waiting %dms and recapturing",
+                attempt + 1, t.zoom_retry_count, t.zoom_retry_delay_ms,
+            )
+            time.sleep(t.zoom_retry_delay_ms / 1000.0)
+            frame, stable = wait_stable(device, cfg)
+    msg = (
+        "zoom or view changed mid-scan (frame no longer registers against "
+        "the previous one) — reset the camera to the world map and rescan"
+    )
+    raise ScanAborted(msg)
+
+
 def wait_stable(device: RadarDevice, cfg: RadarConfig) -> tuple[np.ndarray, bool]:
     """Capture until two consecutive frames stop differing, or time out.
 
@@ -194,6 +235,10 @@ def _scan_grid(
     out_dir: Path,
     events: RadarEventPublisher | None,
 ) -> None:
+    # Local import — stitch imports MANIFEST_NAME from this module at load
+    # time, so the reverse import must stay out of module scope.
+    from modules.radar.stitch import move_prior
+
     frames: dict = manifest["frames"]
 
     done = 0
@@ -201,12 +246,14 @@ def _scan_grid(
     unstable = 0
     total = len(grid)
     previous: GridPoint | None = None
+    prev_frame: np.ndarray | None = None
     for point in grid:
         key = frame_key(point.ix, point.iy)
         filename = frame_filename(point.ix, point.iy)
         if key in frames and (out_dir / filename).is_file():
             skipped += 1
             previous = point
+            prev_frame = None  # resumed gap: nothing fresh to register against
             if events is not None:
                 # Resumed run: replay already-present frames so the UI's
                 # progress diamond prefills instead of starting empty.
@@ -222,7 +269,10 @@ def _scan_grid(
         move_meta = _move_to_point(device, cfg, previous, point)
         previous = point
         time.sleep(cfg.timings.post_tap_delay_ms / 1000.0)
-        frame, stable = wait_stable(device, cfg)
+        frame, stable = _guarded_capture(
+            device, cfg, prev_frame, move_prior({"move": move_meta}),
+        )
+        prev_frame = frame
         if not stable:
             unstable += 1
         manifest.setdefault("frame_size", {"w": int(frame.shape[1]), "h": int(frame.shape[0])})
@@ -322,7 +372,11 @@ def _swipe_relative(
     step_y = finger_dy / chunks
 
     emitted: list[dict[str, int]] = []
-    for _ in range(chunks):
+    for index in range(chunks):
+        if index > 0 and nav.chunk_pause_ms > 0:
+            # Two quick touches read as the double-tap-drag ZOOM gesture
+            # in-game — keep chunked swipes clearly separated in time.
+            time.sleep(nav.chunk_pause_ms / 1000.0)
         x1, y1, x2, y2 = _swipe_points_for_delta(
             c.x,
             c.y,

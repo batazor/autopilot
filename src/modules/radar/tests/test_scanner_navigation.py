@@ -60,13 +60,20 @@ def test_swipe_relative_inverts_camera_delta_and_stays_inside_crop() -> None:
     assert device.swipes == [(572, 1048, 104, 278, 450)]
 
 
-def test_swipe_relative_chunks_long_moves() -> None:
+def test_swipe_relative_chunks_long_moves(monkeypatch) -> None:
+    import modules.radar.scanner as scanner_mod
+
+    pauses: list[float] = []
+    monkeypatch.setattr(scanner_mod.time, "sleep", pauses.append)
     device = FakeDevice()
 
     emitted = _swipe_relative(device, _cfg(), minimap_dx=60.0, minimap_dy=0.0)
 
     assert len(emitted) > 1  # finger travel > crop width → split into chunks
     assert len(device.swipes) == len(emitted)
+    # Anti-double-tap: a pause separates every consecutive chunk pair, or the
+    # game reads two quick touches as the zoom gesture.
+    assert pauses == [0.5] * (len(emitted) - 1)
     c = _cfg().crop
     for x1, y1, x2, y2, _ms in device.swipes:
         for x in (x1, x2):
