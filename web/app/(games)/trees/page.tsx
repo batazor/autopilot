@@ -384,6 +384,79 @@ function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
   return out;
 }
 
+// ── Buildings ladder layout ─────────────────────────────────────────────────
+// Furnace (and its FC ladder) runs down the center as a vertical spine; every
+// other building gets a side lane, alternating left/right. Rows come from
+// longest-path layering over the prerequisite DAG, so every edge points
+// strictly downward — the same "ladder" reading as the research trees. Lanes
+// are greedily packed: a building whose level span starts after another's
+// ends (plus a gap row) reuses its lane, keeping the graph narrow.
+const B_ROW = 96; // px per layer row
+const B_LANE = 240; // px per lane
+
+function buildingLadderLayout(
+  nodes: FlowTreeNode[],
+  hubId: string,
+): FlowTreeNode[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const layer = new Map<string, number>();
+  const depth = (id: string): number => {
+    const got = layer.get(id);
+    if (got !== undefined) return got;
+    layer.set(id, 0); // cycle guard
+    const n = byId.get(id);
+    const v =
+      n && n.requires.length
+        ? Math.max(
+            ...n.requires.map(
+              (r) => depth(typeof r === "string" ? r : r.id) + 1,
+            ),
+          )
+        : 0;
+    layer.set(id, v);
+    return v;
+  };
+  for (const n of nodes) depth(n.id);
+
+  // fire_crystal_X continues X's chain, so they share a lane.
+  const laneKey = (bid: string) => bid.replace(/^fire_crystal_/, "");
+  const span = new Map<string, { start: number; end: number }>();
+  for (const n of nodes) {
+    const k = laneKey(n.id.split("@")[0]);
+    const l = layer.get(n.id)!;
+    const s = span.get(k);
+    if (!s) span.set(k, { start: l, end: l });
+    else {
+      s.start = Math.min(s.start, l);
+      s.end = Math.max(s.end, l);
+    }
+  }
+  const hubKey = laneKey(hubId);
+  const groups = [...span.entries()]
+    .filter(([k]) => k !== hubKey)
+    .sort((a, b) => a[1].start - b[1].start || a[0].localeCompare(b[0]));
+  const laneX = new Map<string, number>([[hubKey, 0]]);
+  const sides: { end: number }[][] = [[], []]; // 0 = left of spine, 1 = right
+  groups.forEach(([k, s], i) => {
+    const lanes = sides[i % 2];
+    let li = lanes.findIndex((l) => l.end + 2 <= s.start);
+    if (li === -1) {
+      lanes.push({ end: s.end });
+      li = lanes.length - 1;
+    } else lanes[li].end = s.end;
+    laneX.set(k, (i % 2 === 0 ? -1 : 1) * (li + 1) * B_LANE);
+  });
+
+  return nodes.map((n) => {
+    const x = laneX.get(laneKey(n.id.split("@")[0])) ?? 0;
+    return {
+      ...n,
+      dir: "TB" as FlowDir,
+      position: { x: x - NODE_W / 2, y: layer.get(n.id)! * B_ROW },
+    };
+  });
+}
+
 function SourceLine({ url, label }: { url: string; label: string }) {
   return (
     <p className="muted mb-3 text-sm">
@@ -635,7 +708,7 @@ function BuildingsPanel({
   };
 
   const allNodes = useMemo(() => {
-    const base = buildingFlowNodes(view);
+    const base = buildingLadderLayout(buildingFlowNodes(view), view.hub_id);
     const lvls = progress?.buildings;
     if (!lvls) return base;
     // Player overlay: a (building, numeric level) node is done when the

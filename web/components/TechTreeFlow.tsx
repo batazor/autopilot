@@ -428,7 +428,7 @@ export function TechTreeFlow({
         nodeTypes={nodeTypes}
         colorMode={theme}
         fitView
-        minZoom={0.2}
+        minZoom={0.05}
         nodesConnectable={false}
         edgesFocusable={false}
         onNodeMouseEnter={(_, node) => setHoverId(node.id)}
