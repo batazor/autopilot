@@ -109,6 +109,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     players,
     queue,
     radar,
+    research,
     routes,
     version,
     wiki,
@@ -161,6 +162,7 @@ app.include_router(routes.router)
 app.include_router(gift_codes.router)
 app.include_router(wiki.router)
 app.include_router(buildings.router)
+app.include_router(research.router)
 app.include_router(click_approvals.router)
 app.include_router(overlay_test.router)
 app.include_router(dreamscape_onboarding.router)
