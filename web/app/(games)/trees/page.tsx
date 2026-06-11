@@ -192,20 +192,21 @@ function CostSummary({
 }) {
   if (!rows.length && totalTime <= 0) return null;
   return (
-    <div
-      className="mt-2 rounded-md border p-2 text-xs"
-      style={{ borderColor: "var(--wos-border)", background: "var(--wos-surface)" }}
-    >
-      <div className="font-medium">{title}</div>
-      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+    <div className="cost-summary">
+      <div className="cost-summary__title">{title}</div>
+      <div className="cost-summary__stats">
         {rows.map((r) => (
-          <span key={r.name} title={r.name} className="tabular-nums">
-            {r.icon} {fmtNum(r.amount)}
+          <span key={r.name} title={r.name} className="cost-stat">
+            <span className="cost-stat__icon">{r.icon}</span>
+            {fmtNum(r.amount)}
           </span>
         ))}
-        <span title="Total time">⏱ {fmtDuration(totalTime)}</span>
+        <span title="Total time" className="cost-stat cost-stat--time">
+          <span className="cost-stat__icon">⏱</span>
+          {fmtDuration(totalTime)}
+        </span>
       </div>
-      <div className="mt-1 text-wos-text-muted">{note}</div>
+      <div className="cost-summary__note">{note}</div>
     </div>
   );
 }
@@ -521,9 +522,9 @@ function ResearchPanel({
   const renderDetail = (rid: string) => {
     if (rid === FIRE_AGE_HUB)
       return (
-        <div>
-          <div className="font-semibold">Fire Age</div>
-          <div className="mt-1 text-wos-text-muted">
+        <div className="tree-detail">
+          <div className="tree-detail__title">Fire Age</div>
+          <div className="text-wos-text-muted">
             T11 (Helios) and T12 (Molten/Exalted) research for all three troop
             classes. Infantry grows up, lancer right, marksman down; each
             class chains T11 → T12 outward from this hub.
@@ -562,12 +563,23 @@ function ResearchPanel({
       amount: totals.get(r.key)!,
     }));
     return (
-      <div>
-        <div className="font-semibold">{n.name}</div>
-        <div className="text-wos-text-muted">{n.bonus}</div>
-        <div className="mt-1 text-xs text-wos-text-secondary">
-          Tier {ROMAN[n.tier] ?? n.tier} · {n.levels.length} lvls · Requires:{" "}
-          {reqText || "—"}
+      <div className="tree-detail">
+        <div>
+          <div className="tree-detail__title">{n.name}</div>
+          <div className="tree-detail__bonus">{n.bonus}</div>
+          <div className="tree-meta mt-2">
+            <span className="tree-chip">
+              Tier <strong>{ROMAN[n.tier] ?? n.tier}</strong>
+            </span>
+            <span className="tree-chip">
+              <strong>{n.levels.length}</strong> levels
+            </span>
+            {reqText ? (
+              <span className="tree-chip tree-chip--requires" title={reqText}>
+                Requires <span>{reqText}</span>
+              </span>
+            ) : null}
+          </div>
         </div>
         <CostSummary
           title={`Full path to max: ${path.size} techs, ${pathLevels} levels`}
@@ -576,54 +588,64 @@ function ResearchPanel({
           note="Maxing this tech and every transitive prerequisite (no speedups)."
         />
         {n.levels.length ? (
-          <table className="mt-2 w-full border-collapse text-[11px]">
-            <thead className="text-wos-text-secondary">
-              <tr className="text-left">
-                <th className="pr-2 font-medium">Lv</th>
-                <th className="pr-2 font-medium">Effect</th>
-                {hasRC ? (
-                  <th className="pr-2 font-medium" title="Research Center">
-                    RC
-                  </th>
-                ) : null}
-                {hasGate ? (
-                  <th className="pr-2 font-medium" title="War Academy Fire Crystal level">
-                    Gate
-                  </th>
-                ) : null}
-                <th className="pr-2 font-medium">Time</th>
-                <th className="pr-2 font-medium" title="Power">
-                  ⚡
-                </th>
-                {usedRes.map((r) => (
-                  <th key={r.key} className="pr-2 text-right font-medium" title={r.name}>
-                    {r.icon}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {n.levels.map((lv) => (
-                <tr key={lv.level} className="border-t border-[color:var(--wos-border)]">
-                  <td className="pr-2 py-0.5">{lv.level}</td>
-                  <td className="pr-2">{lv.effect || "—"}</td>
-                  {hasRC ? <td className="pr-2">{lv.rc ?? "—"}</td> : null}
-                  {hasGate ? (
-                    <td className="pr-2 whitespace-nowrap">{lv.gate || "—"}</td>
+          <div className="tree-table-wrap">
+            <table className="tree-table">
+              <thead>
+                <tr>
+                  <th>Lv</th>
+                  <th>Effect</th>
+                  {hasRC ? (
+                    <th title="Research Center">RC</th>
                   ) : null}
-                  <td className="pr-2 whitespace-nowrap">
-                    {lv.time || "—"}
-                  </td>
-                  <td className="pr-2">{lv.power ? fmtNum(lv.power) : "—"}</td>
+                  {hasGate ? (
+                    <th title="War Academy Fire Crystal level">Gate</th>
+                  ) : null}
+                  <th className="num">Time</th>
+                  <th className="num" title="Power">
+                    ⚡
+                  </th>
                   {usedRes.map((r) => (
-                    <td key={r.key} className="pr-2 text-right tabular-nums">
-                      {lv.cost[r.key] ? fmtNum(lv.cost[r.key]!) : "—"}
-                    </td>
+                    <th key={r.key} className="num" title={r.name}>
+                      {r.icon}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {n.levels.map((lv) => (
+                  <tr key={lv.level}>
+                    <td>
+                      <span className="tree-table__lv">{lv.level}</span>
+                    </td>
+                    <td>{lv.effect || <span className="muted-cell">—</span>}</td>
+                    {hasRC ? (
+                      <td>{lv.rc ?? <span className="muted-cell">—</span>}</td>
+                    ) : null}
+                    {hasGate ? (
+                      <td className="gate-cell whitespace-nowrap">
+                        {lv.gate || <span className="muted-cell">—</span>}
+                      </td>
+                    ) : null}
+                    <td className="num whitespace-nowrap">
+                      {lv.time || <span className="muted-cell">—</span>}
+                    </td>
+                    <td className="num">
+                      {lv.power ? fmtNum(lv.power) : <span className="muted-cell">—</span>}
+                    </td>
+                    {usedRes.map((r) => (
+                      <td key={r.key} className="num">
+                        {lv.cost[r.key] ? (
+                          fmtNum(lv.cost[r.key]!)
+                        ) : (
+                          <span className="muted-cell">—</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : null}
       </div>
     );
@@ -770,9 +792,22 @@ function BuildingsPanel({
         };
       });
     return (
-      <div>
-        <div className="font-semibold">
-          {b.name} — Lv {lvlStr}
+      <div className="tree-detail">
+        <div>
+          <div className="tree-detail__title">{b.name}</div>
+          <div className="tree-meta mt-2">
+            <span className="tree-chip">
+              Level <strong>{lvlStr}</strong>
+            </span>
+            {lvl?.construction_time && lvl.construction_time !== "-" ? (
+              <span className="tree-chip">⏱ {lvl.construction_time}</span>
+            ) : null}
+            {lvl?.building_power ? (
+              <span className="tree-chip">
+                ⚡ <strong>{lvl.building_power}</strong>
+              </span>
+            ) : null}
+          </div>
         </div>
         <CostSummary
           title={`Full build path: ${path.size} steps`}
@@ -781,26 +816,30 @@ function BuildingsPanel({
           note="Every building level required up to this point (no speedups)."
         />
         {lvl?.prerequisites ? (
-          <div className="mt-1 text-xs text-wos-text-muted">
-            Requires: {lvl.prerequisites}
+          <div className="tree-meta">
+            <span className="tree-chip tree-chip--requires" title={lvl.prerequisites}>
+              Requires <span>{lvl.prerequisites}</span>
+            </span>
           </div>
         ) : null}
-        <div className="mt-2 space-y-0.5 text-xs text-wos-text-secondary">
-          {lvl?.construction_time && lvl.construction_time !== "-" ? (
-            <div>⏱ {lvl.construction_time}</div>
-          ) : null}
-          {lvl?.building_power ? <div>⚡ {lvl.building_power} power</div> : null}
-        </div>
         {lvl?.build_cost?.length ? (
-          <div className="mt-2">
-            <div className="text-xs font-medium">Cost</div>
-            <ul className="text-xs text-wos-text-muted">
-              {lvl.build_cost.map((c, i) => (
-                <li key={i}>
-                  {resourceLabel(c.item)} · {c.amount}
-                </li>
-              ))}
-            </ul>
+          <div className="tree-table-wrap">
+            <table className="tree-table">
+              <thead>
+                <tr>
+                  <th>Resource</th>
+                  <th className="num">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lvl.build_cost.map((c, i) => (
+                  <tr key={i}>
+                    <td>{resourceLabel(c.item)}</td>
+                    <td className="num">{c.amount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : null}
       </div>
