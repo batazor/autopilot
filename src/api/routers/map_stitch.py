@@ -21,6 +21,7 @@ from api.services.map_stitch import (
     saved_map_path,
     start_capture_job,
     start_stitch,
+    stop_job,
 )
 
 router = APIRouter(prefix="/api/map-stitch", tags=["map-stitch"])
@@ -75,6 +76,14 @@ def post_capture(body: CaptureBody) -> dict[str, str]:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"job_id": job_id}
+
+
+@router.post("/{job_id}/stop")
+def post_stop(job_id: str) -> dict[str, bool]:
+    """Abort a running capture/stitch; frames already captured stay stitchable."""
+    if get_job(job_id) is None:
+        raise HTTPException(status_code=404, detail=f"unknown job: {job_id}")
+    return {"ok": stop_job(job_id)}
 
 
 @router.post("/{job_id}/stitch")

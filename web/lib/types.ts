@@ -818,6 +818,7 @@ export type MapStitchJob = {
   map_ready: boolean;
   log: string;
   error: string;
+  stop_requested?: boolean;
   instance_id?: string;
   serial: string;
   rows: number;

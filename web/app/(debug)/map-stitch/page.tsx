@@ -15,6 +15,7 @@ import {
   saveMapStitch,
   startMapCapture,
   startMapStitch,
+  stopMapStitchJob,
 } from "@/lib/api";
 import type { MapStitchJob, MapStitchState } from "@/lib/types";
 
@@ -90,6 +91,15 @@ export default function MapStitchPage() {
 
   const stitch = useMutation({
     mutationFn: () => startMapStitch(jobId as string),
+    onError: (e) => setError(e instanceof Error ? e.message : String(e)),
+  });
+
+  const stop = useMutation({
+    mutationFn: () => stopMapStitchJob(jobId as string),
+    onSuccess: () => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: ["mapStitchJob", jobId] });
+    },
     onError: (e) => setError(e instanceof Error ? e.message : String(e)),
   });
 
@@ -226,6 +236,15 @@ export default function MapStitchPage() {
           title="Start the grid-swipe capture"
         >
           {capturing ? "Capturing…" : "Start capture"}
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => stop.mutate()}
+          disabled={!job || !ACTIVE.has(job.state) || stop.isPending}
+          title="Stop the scan now — frames already captured stay stitchable"
+        >
+          Stop
         </button>
         <button
           type="button"

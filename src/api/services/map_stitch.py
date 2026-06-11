@@ -15,6 +15,7 @@ so the bot should be stopped / the device idle before capturing.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 import shutil
@@ -48,6 +49,7 @@ class MapStitchJob(TypedDict):
     map_ready: bool
     log: str
     error: str
+    stop_requested: bool
     # echoed params
     instance_id: str
     serial: str
@@ -61,6 +63,7 @@ class MapStitchJob(TypedDict):
 
 _JOBS: dict[str, MapStitchJob] = {}
 _JOBS_LOCK = threading.Lock()
+_PROCS: dict[str, subprocess.Popen] = {}  # live capture/stitch subprocess per job
 
 
 # --- storage -----------------------------------------------------------------
@@ -130,18 +133,48 @@ def _stream(job: MapStitchJob, cmd: list[str]) -> int:
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
     )
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        job["log"] = (job["log"] + line)[-_LOG_TAIL_CHARS:]
-        m = _PROGRESS_RE.search(line)
-        if m:
-            job["captured"], job["total"] = int(m.group(1)), int(m.group(2))
-            _refresh_frames(job)
-    return proc.wait()
+    _PROCS[job["job_id"]] = proc
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            job["log"] = (job["log"] + line)[-_LOG_TAIL_CHARS:]
+            m = _PROGRESS_RE.search(line)
+            if m:
+                job["captured"], job["total"] = int(m.group(1)), int(m.group(2))
+                _refresh_frames(job)
+        return proc.wait()
+    finally:
+        _PROCS.pop(job["job_id"], None)
+
+
+def _finish_capture(job: MapStitchJob, rc: int) -> None:
+    """Settle a capture job's final state, honouring an operator stop.
+
+    A stopped capture with frames on disk lands in ``captured`` (not error) so
+    the partial grid can still be stitched — that's the point of stopping
+    early: keep what was scanned, skip the rest.
+    """
+    _refresh_frames(job)
+    if job["stop_requested"]:
+        if job["frames"]:
+            job["state"] = "captured"
+            job["error"] = ""
+        else:
+            job["state"] = "error"
+            job["error"] = "capture stopped before any frame was saved"
+        return
+    if rc != 0:
+        job["state"] = "error"
+        job["error"] = job["error"] or f"capture exited with code {rc}"
+        return
+    job["state"] = "captured"
 
 
 def _capture_worker(job_id: str) -> None:
     job = _JOBS[job_id]
+    if job["stop_requested"]:  # stopped while still queued
+        _finish_capture(job, rc=0)
+        return
     job["state"] = "capturing"
     cmd = [
         sys.executable, str(_tools_dir() / "capture.py"),
@@ -162,12 +195,7 @@ def _capture_worker(job_id: str) -> None:
         job["state"] = "error"
         job["error"] = f"{type(exc).__name__}: {exc}"
         return
-    _refresh_frames(job)
-    if rc != 0:
-        job["state"] = "error"
-        job["error"] = job["error"] or f"capture exited with code {rc}"
-        return
-    job["state"] = "captured"
+    _finish_capture(job, rc)
 
 
 def _stitch_worker(job_id: str) -> None:
@@ -186,6 +214,11 @@ def _stitch_worker(job_id: str) -> None:
         job["error"] = f"{type(exc).__name__}: {exc}"
         return
     if rc != 0 or not map_path(job_id).is_file():
+        if job["stop_requested"]:
+            # Operator aborted the stitch; frames are intact — back to captured.
+            job["state"] = "captured"
+            job["error"] = ""
+            return
         job["state"] = "error"
         job["error"] = job["error"] or f"stitch exited with code {rc}"
         return
@@ -217,7 +250,7 @@ def start_capture_job(
     frames_dir(job_id).mkdir(parents=True, exist_ok=True)
     job: MapStitchJob = MapStitchJob(
         job_id=job_id, state="queued", captured=0, total=rows * cols, frames=[],
-        map_ready=False, log="", error="",
+        map_ready=False, log="", error="", stop_requested=False,
         instance_id=instance_id, serial=serial, rows=rows, cols=cols, overlap=round(overlap, 3),
         swipe_ms=swipe_ms, settle_s=settle_s, home=home,
     )
@@ -238,9 +271,28 @@ def start_stitch(job_id: str) -> bool:
     _refresh_frames(job)
     if not job["frames"] or job["state"] in {"capturing", "stitching"}:
         return False
+    job["stop_requested"] = False  # a fresh stitch clears any earlier capture stop
     threading.Thread(
         target=_stitch_worker, args=(job_id,), name=f"mapstitch-{job_id}", daemon=True,
     ).start()
+    return True
+
+
+def stop_job(job_id: str) -> bool:
+    """Abort a running capture/stitch; keeps frames already on disk.
+
+    Marks the job stopped and terminates its subprocess. The worker thread
+    then settles the final state: ``captured`` when any frames exist (partial
+    grid is still stitchable), ``error`` otherwise.
+    """
+    job = _JOBS.get(job_id)
+    if job is None:
+        return False
+    job["stop_requested"] = True
+    proc = _PROCS.get(job_id)
+    if proc is not None:
+        with contextlib.suppress(OSError):  # already gone
+            proc.terminate()
     return True
 
 

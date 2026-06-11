@@ -894,6 +894,13 @@ export async function startMapStitch(jobId: string): Promise<{ ok: boolean }> {
   );
 }
 
+export async function stopMapStitchJob(jobId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/api/map-stitch/${encodeURIComponent(jobId)}/stop`,
+    { method: "POST" },
+  );
+}
+
 export async function fetchMapStitchJob(jobId: string): Promise<MapStitchJob> {
   return apiFetch<MapStitchJob>(`/api/map-stitch/${encodeURIComponent(jobId)}`);
 }
