@@ -72,10 +72,12 @@ class ViewportConfig(BaseModel):
 
 
 class CropConfig(BaseModel):
-    """Game area on the main screen (HUD/chat/nav excluded).
+    """Useful game area on the main screen (HUD/chat/nav excluded).
 
-    Used only as the stabilization region (where map content moves) — saved
-    frames are full screenshots, not cropped to this rect.
+    Saved frames stay full screenshots (one coordinate system), but this rect
+    bounds everything downstream: swipe gestures, the stabilization region,
+    ORB feature detection AND what gets pasted onto the stitched canvas — so
+    the chat, bottom nav and side buttons never reach the map.
     """
 
     x: int = Field(ge=0)

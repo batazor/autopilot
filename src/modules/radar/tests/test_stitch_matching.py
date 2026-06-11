@@ -8,19 +8,23 @@ import pytest
 
 from modules.radar.scanner import MANIFEST_NAME
 from modules.radar.stitch import (
-    _feature_mask,
     _move_prior,
     _orb_features,
     _orb_pair_offset,
+    _useful_area_mask,
     _valid_content_mask,
     run_stitch,
 )
 
 
 def _make_world(seed: int, h: int, w: int) -> np.ndarray:
-    """Shape-rich texture: icons/buildings analog — plenty of ORB corners."""
+    """Shape-rich texture: icons/buildings analog — plenty of ORB corners.
+
+    Snow-bright background (200): a dark fill would trip the kingdom-edge
+    detector in _valid_content_mask and eat the canvas border in tests.
+    """
     rng = np.random.default_rng(seed)
-    world = np.full((h, w, 3), 40, np.uint8)
+    world = np.full((h, w, 3), 200, np.uint8)
     for _ in range(h * w // 900):
         x, y = int(rng.integers(0, w - 45)), int(rng.integers(0, h - 45))
         s = int(rng.integers(8, 40))
@@ -33,7 +37,7 @@ def _make_world(seed: int, h: int, w: int) -> np.ndarray:
 
 
 def _features(img: np.ndarray):
-    return _orb_features(img, _feature_mask(img, None, None))
+    return _orb_features(img, _useful_area_mask(img, None, None))
 
 
 def _locate(canvas: np.ndarray, frame: np.ndarray) -> tuple[int, int]:
@@ -97,9 +101,9 @@ def test_move_prior_inverts_summed_finger_travel() -> None:
     assert _move_prior({}) is None
 
 
-def test_feature_mask_excludes_hud_outside_crop() -> None:
+def test_useful_area_mask_excludes_hud_outside_crop() -> None:
     img = np.zeros((1280, 720, 3), np.uint8)
-    mask = _feature_mask(img, None, {"x": 0, "y": 156, "w": 620, "h": 940})
+    mask = _useful_area_mask(img, None, {"x": 0, "y": 156, "w": 620, "h": 940})
     assert mask[100, 100] == 0      # top HUD bar
     assert mask[1200, 100] == 0     # bottom nav/chat
     assert mask[600, 680] == 0      # right-side buttons
@@ -166,6 +170,48 @@ def test_run_stitch_places_uncropped_frames(tmp_path) -> None:
         placed = _locate(canvas, world[y : y + frame_h, x : x + frame_w])
         assert placed[0] - origin[0] == pytest.approx(x, abs=2), (ix, iy)
         assert placed[1] - origin[1] == pytest.approx(y, abs=2), (ix, iy)
+
+
+def test_run_stitch_pastes_only_the_crop_region(tmp_path) -> None:
+    """HUD areas (chat at the bottom, buttons on the right, top bar) must not
+    reach the canvas: only the crop region of each frame is pasted, and the
+    canvas is trimmed to painted content."""
+    world = _make_world(13, 600, 800)
+    frame_w, frame_h = 400, 300
+    crop = {"x": 10, "y": 20, "w": 360, "h": 240}  # ends 370 / 260
+    hud_red = (0, 0, 255)
+
+    frames = {}
+    for ix in (0, 1):
+        frame = world[0:frame_h, ix * 200 : ix * 200 + frame_w].copy()
+        frame[: crop["y"], :] = hud_red                        # top bar
+        frame[crop["y"] + crop["h"] :, :] = hud_red            # bottom chat
+        frame[:, crop["x"] + crop["w"] :] = hud_red            # right buttons
+        frame[:, : crop["x"]] = hud_red                        # left edge
+        name = f"frame_{ix:02d}_00.png"
+        cv2.imwrite(str(tmp_path / name), frame)
+        frames[f"{ix:02d}_00"] = {"ix": ix, "iy": 0, "file": name}
+
+    manifest = {
+        "config": {
+            "overlap": 0.5,
+            "stitch_viewport": {"w": frame_w, "h": frame_h},
+            "crop": crop,
+        },
+        "frames": frames,
+    }
+    (tmp_path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
+
+    canvas = cv2.imread(str(run_stitch(tmp_path)))
+
+    assert canvas is not None
+    red = (canvas[:, :, 2] == 255) & (canvas[:, :, 1] == 0) & (canvas[:, :, 0] == 0)
+    assert not red.any()  # no HUD pixels in the map
+    # Trimmed to painted content: two crop regions 200px apart. The dark-red
+    # HUD stripes also trip the content mask, whose dilation nibbles a few
+    # border pixels — hence the loose tolerance.
+    assert canvas.shape[1] == pytest.approx(200 + crop["w"], abs=8)
+    assert canvas.shape[0] == pytest.approx(crop["h"], abs=8)
 
 
 def test_run_stitch_measures_isometric_grid_basis(tmp_path) -> None:

@@ -128,7 +128,7 @@ def _valid_content_mask(img: np.ndarray) -> np.ndarray:
     return mask
 
 
-def _feature_mask(
+def _useful_area_mask(
     img: np.ndarray,
     content_mask: np.ndarray | None,
     crop: dict | None,
@@ -478,7 +478,7 @@ def run_stitch(run_dir: Path) -> Path:
     # screen diagonally), so even the nominal layout uses the *measured*
     # right/down vectors; axis-aligned geometry is only the no-match fallback.
     features = [
-        _orb_features(img, _feature_mask(img, mask, cfg.get("crop")))
+        _orb_features(img, _useful_area_mask(img, mask, cfg.get("crop")))
         if img is not None and mask is not None
         else None
         for img, mask in zip(images, masks, strict=True)
@@ -495,11 +495,14 @@ def run_stitch(run_dir: Path) -> Path:
     ]
     positions = _solve_matched_positions(nominal_positions, images, edges)
 
-    # Frames are saved as-is (full screenshots, no UI crop), so the tile size
-    # comes from each image instead of config geometry — capture and stitch
-    # share one coordinate system.
+    # Frames are saved as-is (full screenshots) so coordinates stay in one
+    # system, but only the crop region — game world without the HUD (top bar,
+    # bottom chat/nav, right-side buttons) — is pasted onto the canvas. The
+    # cut-off margins are always covered by a neighbouring frame's crop
+    # region; only the outer border of the whole map loses them, and the
+    # canvas is trimmed to painted content at the end.
     placed = [
-        (img, mask, pos)
+        (img, _useful_area_mask(img, mask, cfg.get("crop")), pos)
         for img, mask, pos in zip(images, masks, positions, strict=True)
         if img is not None and mask is not None
     ]
@@ -509,13 +512,20 @@ def run_stitch(run_dir: Path) -> Path:
     canvas_h = max(int(round(py - off_y)) + img.shape[0] for img, _, (_, py) in placed)
     logger.info("canvas %d×%d from %d frames", canvas_w, canvas_h, len(placed))
     canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
-    for img, mask, (px, py) in placed:
+    painted = np.zeros((canvas_h, canvas_w), dtype=bool)
+    for img, paste_mask, (px, py) in placed:
         x = int(round(px - off_x))
         y = int(round(py - off_y))
         h, w = img.shape[:2]
         roi = canvas[y : y + h, x : x + w]
-        valid = mask > 0
+        valid = paste_mask > 0
         roi[valid] = img[valid]
+        painted[y : y + h, x : x + w] |= valid
+
+    ys, xs = np.where(painted)
+    if len(xs):
+        canvas = canvas[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+    canvas_h, canvas_w = canvas.shape[:2]
 
     # Atomic writes: during a scan the live stitcher rewrites these every few
     # seconds while the API serves the preview — readers must never see a
