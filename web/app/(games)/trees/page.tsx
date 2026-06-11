@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { AppTabs } from "@/components/headless";
@@ -72,26 +73,17 @@ function researchFlowNodes(branch: ResearchBranchView): FlowTreeNode[] {
   }));
 }
 
-// Per-(building, level) swimlane layout: one node per building level, laid out
-// with x = level and y = building row. Scoped to the Furnace build ladder —
-// every Furnace level plus the transitive build/upgrade prerequisites it needs
-// — so the graph is the real, acyclic build order instead of a cyclic blob.
-const LANE_LABEL_X = 0;
-const LANE_LABEL_W = 150;
-const LEVEL_X0 = 180;
-const LEVEL_STEP = 86;
-const LANE_H = 84;
-const LEVEL_W = 66;
-
 function levelKey(building: string, level: number): string {
   return `${building}@${level}`;
 }
 
+// One node per (building, level) wired by per-level prerequisites — at level
+// granularity the graph is an acyclic tree (laid out by dagre). Scoped to the
+// Furnace build ladder: every Furnace level plus its transitive prerequisites.
 function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
   const hubId = view.hub_id;
   const nameOf = new Map(view.buildings.map((b) => [b.id, b.name]));
 
-  // (building@level) -> its prerequisite (building@level) keys.
   const reqOf = new Map<string, { building: string; level: number }[]>();
   for (const b of view.buildings) {
     for (const [lvlStr, lvl] of Object.entries(b.requirements_by_level)) {
@@ -99,7 +91,6 @@ function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
     }
   }
 
-  // Closure: seed with every Furnace level, pull in transitive prerequisites.
   const seen = new Set<string>();
   const stack: { building: string; level: number }[] = view.buildings
     .filter((b) => b.id === hubId)
@@ -117,45 +108,20 @@ function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
     for (const r of reqOf.get(key) ?? []) stack.push(r);
   }
 
-  // Group included levels by building; order rows by earliest level (hub first).
-  const byBuilding = new Map<string, number[]>();
-  for (const key of seen) {
-    const [bid, lvl] = key.split("@");
-    byBuilding.set(bid, [...(byBuilding.get(bid) ?? []), Number(lvl)]);
-  }
-  const rows = [...byBuilding.entries()].sort((a, b) => {
-    if (a[0] === hubId) return -1;
-    if (b[0] === hubId) return 1;
-    return Math.min(...a[1]) - Math.min(...b[1]) || a[0].localeCompare(b[0]);
-  });
-
-  const nodes: FlowTreeNode[] = [];
-  rows.forEach(([bid, levels], rowIdx) => {
-    const y = rowIdx * LANE_H;
-    // Lane label (building name + icon) at the left.
-    nodes.push({
-      id: `lane:${bid}`,
+  return [...seen].map((key) => {
+    const [bid, lvlStr] = key.split("@");
+    const level = Number(lvlStr);
+    return {
+      id: key,
       tier: 0,
       title: nameOf.get(bid) ?? bid,
+      badge: `Lv ${level}`,
       icon: buildingIcon(bid),
-      position: { x: LANE_LABEL_X, y },
-      width: LANE_LABEL_W,
-      requires: [],
-    });
-    for (const level of levels) {
-      nodes.push({
-        id: levelKey(bid, level),
-        tier: 0,
-        title: `Lv ${level}`,
-        position: { x: LEVEL_X0 + (level - 1) * LEVEL_STEP, y },
-        width: LEVEL_W,
-        requires: (reqOf.get(levelKey(bid, level)) ?? [])
-          .map((r) => levelKey(r.building, r.level))
-          .filter((k) => seen.has(k)),
-      });
-    }
+      requires: (reqOf.get(key) ?? [])
+        .map((r) => levelKey(r.building, r.level))
+        .filter((k) => seen.has(k)),
+    };
   });
-  return nodes;
 }
 
 function SourceLine({ url, label }: { url: string; label: string }) {
@@ -170,9 +136,17 @@ function SourceLine({ url, label }: { url: string; label: string }) {
   );
 }
 
-function ResearchPanel({ game }: { game: ResearchGameView }) {
-  const [branchId, setBranchId] = useState(game.branches[0]?.id ?? "");
-  const branch = game.branches.find((b) => b.id === branchId) ?? game.branches[0];
+function ResearchPanel({
+  game,
+  branchId,
+  onBranch,
+}: {
+  game: ResearchGameView;
+  branchId: string | null;
+  onBranch: (id: string) => void;
+}) {
+  const branch =
+    game.branches.find((b) => b.id === branchId) ?? game.branches[0];
   const nodes = useMemo(
     () => (branch ? researchFlowNodes(branch) : []),
     [branch],
@@ -186,7 +160,7 @@ function ResearchPanel({ game }: { game: ResearchGameView }) {
         variant="section"
         renderPanels={false}
         selectedKey={branch.id}
-        onChange={setBranchId}
+        onChange={onBranch}
         tabs={game.branches.map((b) => ({
           key: b.id,
           label: `${b.label} (${branchTotalLevels(b)})`,
@@ -242,14 +216,17 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
         label="whiteoutsurvival.wiki/buildings"
       />
       <div className="flex flex-col gap-4">
-        <TechTreeFlow nodes={nodes} height={720} />
+        <TechTreeFlow nodes={nodes} height={720} defaultDirection="LR" />
         <BuildingCatalog buildings={view.buildings} />
       </div>
     </>
   );
 }
 
-export default function TreesPage() {
+type DataType = "research" | "buildings";
+
+function TreesContent() {
+  const params = useSearchParams();
   const research = useQuery<ResearchView>({
     queryKey: ["research"],
     queryFn: fetchResearch,
@@ -259,14 +236,57 @@ export default function TreesPage() {
     queryFn: fetchBuildings,
   });
 
-  // Game list = every game with research; buildings exist for a subset.
   const games = research.data?.games ?? [];
   const buildingsGameId = buildings.data?.game ?? "wos";
 
-  const [gameId, setGameId] = useState<string | null>(null);
-  const [type, setType] = useState<"research" | "buildings">("research");
+  // Navigation state lives in the URL (?game=&type=&branch=) so views are
+  // shareable/bookmarkable. We mirror local state to it via the History API
+  // (router.replace soft-navigates and would drop useSearchParams updates).
+  const [gameId, setGameId] = useState<string | null>(params.get("game"));
+  const [type, setType] = useState<DataType>(
+    params.get("type") === "buildings" ? "buildings" : "research",
+  );
+  const [branchId, setBranchId] = useState<string | null>(params.get("branch"));
 
   const game = games.find((g) => g.id === gameId) ?? games[0];
+
+  const syncUrl = useCallback(
+    (next: { game?: string; type?: DataType; branch?: string | null }) => {
+      const url = new URL(window.location.href);
+      if (next.game !== undefined) url.searchParams.set("game", next.game);
+      if (next.type !== undefined) url.searchParams.set("type", next.type);
+      if (next.branch !== undefined) {
+        if (next.branch) url.searchParams.set("branch", next.branch);
+        else url.searchParams.delete("branch");
+      }
+      window.history.replaceState(null, "", url.pathname + url.search);
+    },
+    [],
+  );
+
+  // Adopt the URL on external navigation (back/forward, a shared link).
+  useEffect(() => {
+    const g = params.get("game");
+    const t = params.get("type");
+    const b = params.get("branch");
+    if (g) setGameId(g);
+    if (t === "research" || t === "buildings") setType(t);
+    setBranchId(b);
+  }, [params]);
+
+  const onGameChange = (next: string) => {
+    setGameId(next);
+    syncUrl({ game: next });
+  };
+  const onTypeChange = (next: DataType) => {
+    setType(next);
+    syncUrl({ type: next });
+  };
+  const onBranchChange = (next: string) => {
+    setBranchId(next);
+    syncUrl({ branch: next });
+  };
+
   const isLoading = research.isLoading || buildings.isLoading;
   const error = research.error ?? buildings.error;
 
@@ -292,7 +312,7 @@ export default function TreesPage() {
             <AppTabs
               renderPanels={false}
               selectedKey={game.id}
-              onChange={setGameId}
+              onChange={onGameChange}
               tabs={games.map((g) => ({ key: g.id, label: g.label, title: g.id }))}
             />
           ) : null}
@@ -301,7 +321,7 @@ export default function TreesPage() {
             variant="section"
             renderPanels={false}
             selectedKey={type}
-            onChange={(k) => setType(k as "research" | "buildings")}
+            onChange={(k) => onTypeChange(k as DataType)}
             tabs={[
               { key: "research", label: "Research" },
               { key: "buildings", label: "Buildings" },
@@ -310,7 +330,12 @@ export default function TreesPage() {
 
           <div className="mt-3">
             {type === "research" ? (
-              <ResearchPanel key={game.id} game={game} />
+              <ResearchPanel
+                key={game.id}
+                game={game}
+                branchId={branchId}
+                onBranch={onBranchChange}
+              />
             ) : buildings.data && game.id === buildingsGameId ? (
               <BuildingsPanel view={buildings.data} />
             ) : (
@@ -320,5 +345,13 @@ export default function TreesPage() {
         </>
       ) : null}
     </>
+  );
+}
+
+export default function TreesPage() {
+  return (
+    <Suspense fallback={<p className="muted">Loading…</p>}>
+      <TreesContent />
+    </Suspense>
   );
 }
