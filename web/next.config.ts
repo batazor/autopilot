@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const apiUrl = process.env.WOS_API_URL || "http://127.0.0.1:8765";
 
 const nextConfig: NextConfig = {
+  // Two Next servers sharing web/.next clobber each other (CSS chunk 404s),
+  // so an auxiliary dev/preview server gets its own dist dir to coexist with
+  // a running `uv run play` production server.
+  distDir: process.env.NEXT_DIST_DIR || undefined,
   // Standalone output triggers the "Collecting build traces" pass; only the
   // prod Docker image actually consumes .next/standalone, so opt-in by env.
   output: process.env.WOS_BUILD_STANDALONE === "1" ? "standalone" : undefined,

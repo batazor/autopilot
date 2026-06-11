@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Dagre from "@dagrejs/dagre";
 import { toPng } from "html-to-image";
 import {
@@ -98,7 +98,9 @@ type TechNodeData = {
   selected: boolean;
 };
 
-/** Custom React Flow node — icon chip + text, handles oriented by direction. */
+/** Custom React Flow node — icon chip + text, handles oriented by direction.
+ *  Memoized on the data fields (not object identity) so hover/selection only
+ *  re-renders the nodes whose dim/selected state actually changed. */
 const TechNode = memo(function TechNode({ data }: NodeProps) {
   const { node: n, dir, dim, selected } = data as TechNodeData;
   const [targetPos, sourcePos] = HANDLE_POS[n.dir ?? dir];
@@ -162,6 +164,12 @@ const TechNode = memo(function TechNode({ data }: NodeProps) {
       </div>
       <Handle type="source" position={sourcePos} style={{ opacity: 0 }} />
     </div>
+  );
+}, (prev, next) => {
+  const a = prev.data as TechNodeData;
+  const b = next.data as TechNodeData;
+  return (
+    a.node === b.node && a.dir === b.dir && a.dim === b.dim && a.selected === b.selected
   );
 });
 
@@ -360,6 +368,27 @@ export function TechTreeFlow({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const effectiveDir: Dir = fixed ? defaultDirection : dir;
 
+  // Clearing hover is slightly delayed so cursor jitter at a node's border
+  // (leave → enter within a few ms) doesn't pulse the whole-graph dimming.
+  const hoverClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverEnter = (id: string) => {
+    if (hoverClearTimer.current) {
+      clearTimeout(hoverClearTimer.current);
+      hoverClearTimer.current = null;
+    }
+    setHoverId(id);
+  };
+  const hoverLeave = () => {
+    if (hoverClearTimer.current) clearTimeout(hoverClearTimer.current);
+    hoverClearTimer.current = setTimeout(() => setHoverId(null), 120);
+  };
+  useEffect(
+    () => () => {
+      if (hoverClearTimer.current) clearTimeout(hoverClearTimer.current);
+    },
+    [],
+  );
+
   // Layout (dagre) is recomputed only when the graph or direction changes —
   // hover/selection just restyle, so they never re-run the layout.
   const { layoutNodes, edges } = useMemo(() => {
@@ -374,7 +403,10 @@ export function TechTreeFlow({
     return { layoutNodes: fixed ? base : dagreLayout(base, e, dir), edges: e };
   }, [nodes, dir, fixed]);
 
+  // Graph highlight previews whatever is under the cursor; the detail card is
+  // pinned to the clicked node and only follows hover while nothing is pinned.
   const activeId = hoverId ?? selectedId;
+  const detailId = selectedId ?? hoverId;
   const related = useMemo(() => {
     if (!activeId) return null;
     const set = relatedSet(activeId, edges);
@@ -383,37 +415,66 @@ export function TechTreeFlow({
     return set.size > 1 ? set : null;
   }, [activeId, edges]);
 
-  const rfNodes = useMemo(
-    () =>
-      layoutNodes.map((n) => ({
-        ...n,
-        data: {
-          node: (n.data as { node: FlowTreeNode }).node,
-          dir: effectiveDir,
-          dim: related ? !related.has(n.id) : false,
-          selected: n.id === selectedId,
-        },
-      })),
-    [layoutNodes, effectiveDir, related, selectedId],
-  );
+  // React Flow skips unchanged nodes/edges by object identity, so reuse the
+  // previous objects for items whose styling didn't change — a hover then only
+  // re-renders the nodes that actually dim/undim instead of the whole graph.
+  const prevNodes = useRef(new Map<string, Node>());
+  const rfNodes = useMemo(() => {
+    const next = new Map<string, Node>();
+    const out = layoutNodes.map((base) => {
+      const data: TechNodeData = {
+        node: (base.data as { node: FlowTreeNode }).node,
+        dir: effectiveDir,
+        dim: related ? !related.has(base.id) : false,
+        selected: base.id === selectedId,
+      };
+      const prev = prevNodes.current.get(base.id);
+      const pd = prev?.data as TechNodeData | undefined;
+      const keep =
+        prev &&
+        prev.position === base.position &&
+        pd!.node === data.node &&
+        pd!.dir === data.dir &&
+        pd!.dim === data.dim &&
+        pd!.selected === data.selected;
+      const node = keep ? prev : { ...base, data };
+      next.set(base.id, node);
+      return node;
+    });
+    prevNodes.current = next;
+    return out;
+  }, [layoutNodes, effectiveDir, related, selectedId]);
 
-  const rfEdges = useMemo(
-    () =>
-      edges.map((e) => {
-        const on = related ? related.has(e.source) && related.has(e.target) : true;
-        return {
-          ...e,
-          style: related
-            ? {
-                opacity: on ? 1 : 0.12,
-                stroke: on ? "var(--wos-accent)" : undefined,
-                strokeWidth: on ? 2 : undefined,
-              }
-            : undefined,
-        };
-      }),
-    [edges, related],
-  );
+  const prevEdges = useRef(new Map<string, Edge>());
+  const rfEdges = useMemo(() => {
+    const next = new Map<string, Edge>();
+    const out = edges.map((e) => {
+      const on = related ? related.has(e.source) && related.has(e.target) : null;
+      const prev = prevEdges.current.get(e.id);
+      const prevOn = prev ? ((prev as Edge & { __on?: boolean | null }).__on ?? null) : undefined;
+      const keep = prev && prevOn === on;
+      const edge = keep
+        ? prev
+        : Object.assign(
+            {
+              ...e,
+              style:
+                on === null
+                  ? undefined
+                  : {
+                      opacity: on ? 1 : 0.12,
+                      stroke: on ? "var(--wos-accent)" : undefined,
+                      strokeWidth: on ? 2 : undefined,
+                    },
+            },
+            { __on: on },
+          );
+      next.set(e.id, edge);
+      return edge;
+    });
+    prevEdges.current = next;
+    return out;
+  }, [edges, related]);
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row">
@@ -431,8 +492,8 @@ export function TechTreeFlow({
         minZoom={0.05}
         nodesConnectable={false}
         edgesFocusable={false}
-        onNodeMouseEnter={(_, node) => setHoverId(node.id)}
-        onNodeMouseLeave={() => setHoverId(null)}
+        onNodeMouseEnter={(_, node) => hoverEnter(node.id)}
+        onNodeMouseLeave={hoverLeave}
         onNodeClick={(_, node) => setSelectedId(node.id)}
         onPaneClick={() => setSelectedId(null)}
       >
@@ -485,7 +546,7 @@ export function TechTreeFlow({
           className="panel w-full shrink-0 overflow-auto lg:w-[420px]"
           style={{ height, padding: 12 }}
         >
-          {activeId ? (
+          {detailId ? (
             <div className="text-sm">
               {selectedId ? (
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -501,7 +562,7 @@ export function TechTreeFlow({
                   </button>
                 </div>
               ) : null}
-              {renderDetail(activeId)}
+              {renderDetail(detailId)}
             </div>
           ) : (
             <p className="muted m-0 text-sm">
