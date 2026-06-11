@@ -46,7 +46,7 @@ function WikiPageInner() {
   // Buildings now live on the /trees graph — redirect old deep links there.
   useEffect(() => {
     if (sectionParam === "buildings") {
-      router.replace("/trees/wos/buildings");
+      router.replace("/trees?game=wos&tab=buildings");
     }
   }, [sectionParam, router]);
   const [game, setGame] = useState("wos");
@@ -137,7 +137,7 @@ function WikiPageInner() {
       <PageHeader title="Wiki reference">
         Heroes, gear and items — reference data from <code>db/</code> and{" "}
         <code>modules/*/wiki/</code>. Buildings moved to the{" "}
-        <a className="underline" href="/trees/wos/buildings">
+        <a className="underline" href="/trees?game=wos&tab=buildings">
           Game trees
         </a>{" "}
         graph.

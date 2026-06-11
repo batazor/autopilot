@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { AppTabs } from "@/components/headless";
@@ -417,7 +417,7 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
 type DataType = "research" | "buildings";
 
 function TreesContent() {
-  const routeParams = useParams<{ path?: string[] }>();
+  const params = useSearchParams();
   const research = useQuery<ResearchView>({
     queryKey: ["research"],
     queryFn: fetchResearch,
@@ -430,44 +430,40 @@ function TreesContent() {
   const games = research.data?.games ?? [];
   const buildingsGameId = buildings.data?.game ?? "wos";
 
-  // Navigation state lives in the URL path (/trees/<game>/<type>/<branch?>) so
-  // views are shareable/bookmarkable. We mirror local state to it via the
-  // History API (router.replace soft-navigates and would drop the route params).
-  const seg = routeParams.path ?? [];
-  const [gameId, setGameId] = useState<string | null>(seg[0] ?? null);
+  // Navigation state lives in the URL query (?game=&tab=&branch=) so views are
+  // shareable/bookmarkable. We mirror local state to it via the History API
+  // (router.replace soft-navigates and would drop the useSearchParams updates).
+  const [gameId, setGameId] = useState<string | null>(params.get("game"));
   const [type, setType] = useState<DataType>(
-    seg[1] === "buildings" ? "buildings" : "research",
+    params.get("tab") === "buildings" ? "buildings" : "research",
   );
-  const [branchId, setBranchId] = useState<string | null>(seg[2] ?? null);
+  const [branchId, setBranchId] = useState<string | null>(params.get("branch"));
 
   const game = games.find((g) => g.id === gameId) ?? games[0];
 
   const syncUrl = useCallback(
-    (next: { game?: string; type?: DataType; branch?: string | null }) => {
-      const g = next.game ?? gameId ?? game?.id;
-      if (!g) return;
-      const t = next.type ?? type;
-      const b = next.branch !== undefined ? next.branch : branchId;
-      const parts = ["trees", g, t];
-      if (b) parts.push(b);
-      window.history.replaceState(null, "", "/" + parts.join("/"));
+    (next: { game?: string; tab?: DataType; branch?: string | null }) => {
+      const url = new URL(window.location.href);
+      if (next.game !== undefined) url.searchParams.set("game", next.game);
+      if (next.tab !== undefined) url.searchParams.set("tab", next.tab);
+      if (next.branch !== undefined) {
+        if (next.branch) url.searchParams.set("branch", next.branch);
+        else url.searchParams.delete("branch");
+      }
+      window.history.replaceState(null, "", url.pathname + url.search);
     },
-    [gameId, type, branchId, game?.id],
+    [],
   );
 
-  // Once the games load, normalize a bare /trees URL to the canonical path.
+  // Adopt the URL on external navigation (back/forward, a shared link).
   useEffect(() => {
-    if (game && seg.length < 2) syncUrl({});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.id]);
-
-  // Adopt the URL on external navigation (a shared link, in-app <Link>).
-  useEffect(() => {
-    const s = routeParams.path ?? [];
-    if (s[0]) setGameId(s[0]);
-    if (s[1] === "research" || s[1] === "buildings") setType(s[1]);
-    setBranchId(s[2] ?? null);
-  }, [routeParams]);
+    const g = params.get("game");
+    const t = params.get("tab");
+    const b = params.get("branch");
+    if (g) setGameId(g);
+    if (t === "research" || t === "buildings") setType(t);
+    setBranchId(b);
+  }, [params]);
 
   const onGameChange = (next: string) => {
     setGameId(next);
@@ -475,7 +471,7 @@ function TreesContent() {
   };
   const onTypeChange = (next: DataType) => {
     setType(next);
-    syncUrl({ type: next });
+    syncUrl({ tab: next });
   };
   const onBranchChange = (next: string) => {
     setBranchId(next);
