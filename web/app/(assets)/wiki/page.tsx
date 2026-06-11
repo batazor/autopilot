@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AppListbox, AppTabs } from "@/components/headless";
 import { PageHeader } from "@/components/PageHeader";
 import { PageLoading } from "@/components/ui/Spinner";
@@ -11,10 +11,9 @@ import {
   fetchWikiEntries,
   fetchWikiGearDetail,
   fetchWikiGearList,
-  fetchWikiScopes,
   wikiIconUrl,
 } from "@/lib/api";
-import type { WikiDetail, WikiEntrySummary, WikiScope } from "@/lib/wiki";
+import type { WikiDetail, WikiEntrySummary } from "@/lib/wiki";
 
 // Buildings moved to the /trees graph (table + click-to-detail); the wiki keeps
 // the remaining reference entity types.
@@ -25,6 +24,51 @@ const TABS: { key: EntityTab; label: string }[] = [
   { key: "gear", label: "Gear" },
   { key: "items", label: "Items" },
 ];
+
+// Troop classes. Each generation is a trio of one Infantry / Lancer / Marksman.
+type UnitClass = "infantry" | "lancer" | "marksman";
+const CLASS_LABEL: Record<UnitClass, string> = {
+  infantry: "Infantry",
+  lancer: "Lancer",
+  marksman: "Marksman",
+};
+const CLASS_FILTERS: { value: string; label: string }[] = [
+  { value: "all", label: "All classes" },
+  { value: "infantry", label: "Infantry" },
+  { value: "lancer", label: "Lancer" },
+  { value: "marksman", label: "Marksman" },
+];
+
+// Heroes are grouped by release generation in the list. Generations sort
+// ascending (Gen 1 first); non-generation heroes (Epic/Rare, generation: null)
+// fall into a trailing "Non-generation" bucket.
+type GenGroup = { key: string; short: string; label: string; items: WikiEntrySummary[] };
+
+function groupByGeneration(list: WikiEntrySummary[]): GenGroup[] {
+  const byGen = new Map<number, WikiEntrySummary[]>();
+  const other: WikiEntrySummary[] = [];
+  for (const e of list) {
+    if (typeof e.generation === "number") {
+      const bucket = byGen.get(e.generation) ?? [];
+      bucket.push(e);
+      byGen.set(e.generation, bucket);
+    } else {
+      other.push(e);
+    }
+  }
+  const groups: GenGroup[] = [...byGen.keys()]
+    .sort((a, b) => a - b)
+    .map((g) => ({
+      key: `gen-${g}`,
+      short: `G${g}`,
+      label: `Generation ${g}`,
+      items: byGen.get(g)!,
+    }));
+  if (other.length) {
+    groups.push({ key: "other", short: "NG", label: "Non-generation", items: other });
+  }
+  return groups;
+}
 
 // Game selector. Wiki content is Whiteout Survival only for now; other games
 // are listed as "(soon)" and can't be selected until their wiki data lands.
@@ -50,8 +94,6 @@ function WikiPageInner() {
     }
   }, [sectionParam, router]);
   const [game, setGame] = useState("wos");
-  const [scopes, setScopes] = useState<WikiScope[]>([]);
-  const [scope, setScope] = useState("all");
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState<WikiEntrySummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -60,10 +102,30 @@ function WikiPageInner() {
   );
   const [gearList, setGearList] = useState<Array<{ id: string; title: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const [classFilter, setClassFilter] = useState("all");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    fetchWikiScopes().then(setScopes).catch(() => {});
-  }, []);
+  // Heroes filtered by troop class (client-side; class lives on the summary).
+  const heroEntries = useMemo(
+    () =>
+      classFilter === "all"
+        ? entries
+        : entries.filter((e) => e.unit_class === classFilter),
+    [entries, classFilter],
+  );
+  const groups = useMemo(() => groupByGeneration(heroEntries), [heroEntries]);
+
+  const toggleGroup = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const jumpToGroup = (key: string) =>
+    document
+      .getElementById(`wiki-group-${key}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const deepLinkId =
     params.get("id")?.trim() ||
@@ -80,13 +142,13 @@ function WikiPageInner() {
   const loadEntries = useCallback(async () => {
     if (tab === "gear") return;
     try {
-      const data = await fetchWikiEntries(tab, scope, search);
+      const data = await fetchWikiEntries(tab, "all", search);
       setEntries(data.entries);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [tab, scope, search]);
+  }, [tab, search]);
 
   useEffect(() => {
     loadEntries();
@@ -113,10 +175,10 @@ function WikiPageInner() {
         .catch((e: Error) => setError(e.message));
       return;
     }
-    fetchWikiDetail(tab, selectedId, scope)
+    fetchWikiDetail(tab, selectedId)
       .then(setDetail)
       .catch((e: Error) => setError(e.message));
-  }, [selectedId, tab, scope]);
+  }, [selectedId, tab]);
 
   const onTab = (key: EntityTab) => {
     setTab(key);
@@ -127,10 +189,54 @@ function WikiPageInner() {
     window.history.replaceState(null, "", url.pathname + url.search);
   };
 
+  const renderTile = (e: WikiEntrySummary) => (
+    <button
+      key={e.id}
+      type="button"
+      className={`wiki-tile${selectedId === e.id ? " active" : ""}`}
+      onClick={() => setSelectedId(e.id)}
+      title={e.name || e.id}
+    >
+      {e.paid_only ? (
+        <span className="wiki-tile__paid" title="Only available as a paid (premium) hero">
+          💎 Paid
+        </span>
+      ) : null}
+      {e.has_icon ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={wikiIconUrl(tab, e.id)}
+          alt=""
+          className="wiki-tile__img"
+          width={48}
+          height={48}
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <div className="wiki-tile__placeholder">?</div>
+      )}
+      <span className="wiki-tile__name">{e.name || e.id}</span>
+      {e.unit_class ? (
+        <span className={`wiki-tile__class wiki-tile__class--${e.unit_class}`}>
+          {CLASS_LABEL[e.unit_class]}
+        </span>
+      ) : null}
+      {e.source !== "core" ? (
+        <span className="wiki-tile__module">{e.source}</span>
+      ) : null}
+    </button>
+  );
+
   const showSearch = tab !== "gear";
-  const listCount = tab === "gear" ? gearList.length : entries.length;
-  const countNoun = tab === "gear" ? "gear sets" : "entries";
-  const activeTabLabel = TABS.find((t) => t.key === tab)?.label ?? "";
+  const listCount =
+    tab === "gear"
+      ? gearList.length
+      : tab === "heroes"
+        ? heroEntries.length
+        : entries.length;
+  const countNoun =
+    tab === "gear" ? "gear sets" : tab === "heroes" ? "heroes" : "entries";
 
   return (
     <>
@@ -168,15 +274,15 @@ function WikiPageInner() {
           />
         </div>
 
-        {tab !== "gear" ? (
+        {tab === "heroes" ? (
           <div className="wiki-filterbar__field">
             <AppListbox
               fullWidth
-              label="Scope"
-              value={scope}
-              onChange={setScope}
-              options={scopes.map((s) => ({ value: s.key, label: s.label }))}
-              maxWidth={220}
+              label="Class"
+              value={classFilter}
+              onChange={setClassFilter}
+              options={CLASS_FILTERS}
+              maxWidth={200}
             />
           </div>
         ) : null}
@@ -213,43 +319,68 @@ function WikiPageInner() {
 
       <div className="wiki-layout">
         <section className="panel wiki-list-panel">
-          <div className="wiki-list-panel__head">
-            <h2>{activeTabLabel}</h2>
-            <span className="wiki-count-chip">{listCount}</span>
-          </div>
-          {tab !== "gear" ? (
+          {tab === "heroes" ? (
+            heroEntries.length === 0 ? (
+              <div className="wiki-empty wiki-empty--list">
+                <span className="wiki-empty__icon">🔍</span>
+                <p>No heroes match the current filters.</p>
+              </div>
+            ) : (
+              <>
+                <nav className="wiki-gen-nav" aria-label="Jump to generation">
+                  {groups.map((grp) => (
+                    <button
+                      key={grp.key}
+                      type="button"
+                      className="wiki-gen-nav__btn"
+                      onClick={() => jumpToGroup(grp.key)}
+                      title={grp.label}
+                    >
+                      {grp.short}
+                    </button>
+                  ))}
+                </nav>
+                <div className="wiki-gen-groups">
+                  {groups.map((grp) => {
+                    const isCollapsed = collapsed.has(grp.key);
+                    return (
+                      <div
+                        key={grp.key}
+                        id={`wiki-group-${grp.key}`}
+                        className="wiki-gen-group"
+                      >
+                        <button
+                          type="button"
+                          className="wiki-gen-group__head"
+                          onClick={() => toggleGroup(grp.key)}
+                          aria-expanded={!isCollapsed}
+                        >
+                          <span
+                            className={`wiki-gen-group__chevron${isCollapsed ? " is-collapsed" : ""}`}
+                            aria-hidden
+                          >
+                            ▾
+                          </span>
+                          <h3 className="wiki-gen-group__title">{grp.label}</h3>
+                          <span className="wiki-count-chip">{grp.items.length}</span>
+                        </button>
+                        {!isCollapsed ? (
+                          <div className="wiki-tiles">{grp.items.map(renderTile)}</div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )
+          ) : tab === "items" ? (
             entries.length === 0 ? (
               <div className="wiki-empty wiki-empty--list">
                 <span className="wiki-empty__icon">🔍</span>
                 <p>No entries match the current filters.</p>
               </div>
             ) : (
-              <div className="wiki-tiles">
-                {entries.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    className={`wiki-tile${selectedId === e.id ? " active" : ""}`}
-                    onClick={() => setSelectedId(e.id)}
-                    title={e.name || e.id}
-                  >
-                    {e.has_icon ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={wikiIconUrl(tab, e.id)}
-                        alt=""
-                        className="wiki-tile__img"
-                      />
-                    ) : (
-                      <div className="wiki-tile__placeholder">?</div>
-                    )}
-                    <span className="wiki-tile__name">{e.name || e.id}</span>
-                    {e.source !== "core" ? (
-                      <span className="wiki-tile__module">{e.source}</span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
+              <div className="wiki-tiles">{entries.map(renderTile)}</div>
             )
           ) : gearList.length === 0 ? (
             <div className="wiki-empty wiki-empty--list">

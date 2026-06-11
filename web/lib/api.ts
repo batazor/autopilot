@@ -1275,6 +1275,8 @@ export type ExternalAccount = {
 export type ExternalAccountsView = {
   game: string;
   feature_licensed: boolean;
+  // Per-game cap from the license tier (0 when no active license).
+  limit: number;
   accounts: ExternalAccount[];
   count: number;
 };
@@ -1411,7 +1413,7 @@ export async function fetchWikiScopes(game?: string): Promise<WikiScope[]> {
 
 export async function fetchWikiEntries(
   entity: "buildings" | "heroes" | "items",
-  scope: string,
+  scope = "all",
   q = "",
 ): Promise<{ entries: WikiEntrySummary[]; count: number }> {
   const params = new URLSearchParams({ scope, ...gameQueryEntries() });
@@ -1426,7 +1428,7 @@ export function wikiIconUrl(entity: string, id: string): string {
 export async function fetchWikiDetail(
   entity: "buildings" | "heroes" | "items",
   id: string,
-  scope: string,
+  scope = "all",
 ): Promise<WikiDetail> {
   const params = new URLSearchParams({ scope, ...gameQueryEntries() });
   return apiFetch<WikiDetail>(`/api/wiki/${entity}/${encodeURIComponent(id)}?${params}`);

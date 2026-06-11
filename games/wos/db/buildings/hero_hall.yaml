@@ -1,6 +1,13 @@
 id: hero_hall
 name: Hero Hall
 category: unknown
-requires: []
-requirements_by_level: {}
+requires:
+- building: furnace
+  level: 4
+requirements_by_level:
+  '1':
+    prerequisites: Furnace 4
+    build_cost: []
+    construction_time: '-'
+    building_power: null
 wiki_url: https://www.whiteoutsurvival.wiki/buildings/hero-hall/

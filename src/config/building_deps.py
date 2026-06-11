@@ -30,17 +30,44 @@ def name_index(buildings: tuple[BuildingDef, ...]) -> list[tuple[str, str]]:
     return sorted(pairs.items(), key=lambda kv: -len(kv[0]))
 
 
-def refs_in_text(text: str, names: list[tuple[str, str]]) -> dict[str, int]:
-    """Resolve a prerequisites string to {building_id: required_level}."""
+# "FC 1" / "FC-1" / "FC Lv. 10" right after a building name — the Fire Crystal
+# ladder of that building (a separate fire_crystal_* entry in the registry).
+_FC_RE = re.compile(r"^[\s\-]*fc[\s\-]*(?:lv\.?\s*)?(\d+)")
+
+
+def _level_rank(level: int | str) -> tuple[int, int]:
+    """Orderable rank for mixed levels: numeric < FC; higher number wins."""
+    if isinstance(level, int):
+        return (0, level)
+    m = _NUM_RE.search(str(level))
+    return (1, int(m.group()) if m else 0)
+
+
+def refs_in_text(
+    text: str,
+    names: list[tuple[str, str]],
+    fc_twins: dict[str, str] | None = None,
+) -> dict[str, int | str]:
+    """Resolve a prerequisites string to {building_id: required_level}.
+
+    Levels are ints for the core ladder; "FC <n>" strings when the text
+    references a building's Fire Crystal ladder ("Furnace FC1") — those refs
+    point at the fire_crystal_* twin from ``fc_twins`` (base id -> twin id).
+    """
     norm = normalize(text)
-    refs: dict[str, int] = {}
+    refs: dict[str, int | str] = {}
     for name, bid in names:
         start = 0
         while (i := norm.find(name, start)) != -1:
             tail = norm[i + len(name) : i + len(name) + 14]
-            m = _NUM_RE.search(tail)
-            level = int(m.group()) if m else 1
-            refs[bid] = max(refs.get(bid, 0), level)
+            fc = _FC_RE.match(tail)
+            if fc and fc_twins and bid in fc_twins:
+                target, level = fc_twins[bid], f"FC {int(fc.group(1))}"
+            else:
+                m = _NUM_RE.search(tail)
+                target, level = bid, (int(m.group()) if m else 1)
+            if _level_rank(level) > _level_rank(refs.get(target, 0)):
+                refs[target] = level
             # Blank the match so a shorter name can't re-match inside it
             # (e.g. "Marksman Camp" inside "Fire Crystal Marksman Camp").
             norm = norm[:i] + (" " * len(name)) + norm[i + len(name) :]

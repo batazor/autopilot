@@ -1,6 +1,13 @@
 id: beast_cage
 name: Beast Cage
 category: unknown
-requires: []
-requirements_by_level: {}
+requires:
+- building: furnace
+  level: 18
+requirements_by_level:
+  '1':
+    prerequisites: Furnace 18
+    build_cost: []
+    construction_time: '-'
+    building_power: null
 wiki_url: https://www.whiteoutsurvival.wiki/buildings/beast-cage/

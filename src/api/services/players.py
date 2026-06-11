@@ -51,6 +51,41 @@ def get_persisted_state(player_id: str) -> dict[str, Any]:
     return get_persisted_player(player_id)
 
 
+def get_tree_progress(player_id: str) -> dict[str, Any]:
+    """Per-tech research levels + per-building levels for the trees overlay."""
+    from config.state_store import get_state_store
+
+    store = get_state_store().get(str(player_id))
+    if store is None:
+        msg = f"unknown player: {player_id}"
+        raise KeyError(msg)
+    snap = store.snapshot()
+    return {
+        "player_id": str(player_id),
+        "research": dict(snap.researches.levels),
+        "buildings": dict(snap.buildings.levels),
+    }
+
+
+def set_tree_progress(
+    player_id: str,
+    research: dict[str, int] | None = None,
+    buildings: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    """Merge research/building level entries into the player's persisted state."""
+    from config.state_store import get_state_store
+
+    store = get_state_store().get(str(player_id))
+    if store is None:
+        msg = f"unknown player: {player_id}"
+        raise KeyError(msg)
+    for tech, lvl in (research or {}).items():
+        store.set(f"researches.levels.{tech}", max(0, int(lvl)))
+    for bid, lvl in (buildings or {}).items():
+        store.set(f"buildings.levels.{bid}", max(0, int(lvl)))
+    return get_tree_progress(player_id)
+
+
 def get_player_stats(player_id: str) -> dict[str, Any]:
     return get_player_power_stats(player_id)
 

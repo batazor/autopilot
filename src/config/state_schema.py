@@ -160,6 +160,9 @@ class ResearchLevel(BaseModel):
 class Researches(BaseModel):
     battle: ResearchLevel = Field(default_factory=ResearchLevel)
     economy: ResearchLevel = Field(default_factory=ResearchLevel)
+    # Per-tech researched level keyed by tech id from games/<game>/db/research.yaml
+    # (e.g. "weapons_prep_v": 4). Mirrors Buildings.levels; enriched incrementally.
+    levels: dict[str, int] = Field(default_factory=dict)
 
 
 class TundraAdventureState(BaseModel):

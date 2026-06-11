@@ -7,6 +7,13 @@ export type WikiEntrySummary = {
   wiki_url: string;
   has_icon: boolean;
   yaml_path: string;
+  // Release generation for heroes (1..N); null for non-generation (Epic/Rare)
+  // heroes and for non-hero entities.
+  generation?: number | null;
+  // True when the hero is obtainable only through paid channels.
+  paid_only?: boolean;
+  // Troop class for heroes: "infantry" | "lancer" | "marksman".
+  unit_class?: "infantry" | "lancer" | "marksman" | null;
 };
 
 export type WikiDetail = {

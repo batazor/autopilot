@@ -45,14 +45,6 @@
     @apply flex flex-col;
   }
 
-  .wiki-list-panel__head {
-    @apply mb-3 flex items-center gap-2;
-  }
-
-  .wiki-list-panel__head h2 {
-    @apply m-0;
-  }
-
   .wiki-count-chip {
     @apply rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-xs font-semibold text-wos-text-muted;
   }
@@ -86,8 +78,66 @@
     @apply grid max-h-[65vh] grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2 overflow-y-auto;
   }
 
+  /* Heroes list grouped by generation: the outer wrapper owns the scroll so
+     each generation's grid flows at its natural height under a sticky header. */
+  .wiki-gen-groups {
+    @apply flex max-h-[65vh] flex-col gap-4 overflow-y-auto pr-1;
+  }
+
+  /* Sticky generation jump bar above the scrolling list. */
+  .wiki-gen-nav {
+    @apply mb-2 flex flex-wrap gap-1;
+  }
+
+  .wiki-gen-nav__btn {
+    @apply cursor-pointer rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-xs font-semibold text-wos-text-muted hover:border-sky-400 hover:text-wos-text;
+  }
+
+  /* The group header is a full-width toggle button (collapse/expand). */
+  .wiki-gen-group__head {
+    @apply sticky top-0 z-10 mb-2 flex w-full cursor-pointer items-center gap-2 bg-wos-panel/95 py-1 text-left backdrop-blur;
+  }
+
+  .wiki-gen-group__chevron {
+    @apply text-xs text-wos-text-muted transition-transform duration-150;
+  }
+
+  .wiki-gen-group__chevron.is-collapsed {
+    @apply -rotate-90;
+  }
+
+  .wiki-gen-group__title {
+    @apply m-0 text-sm font-semibold text-wos-text-muted;
+  }
+
+  .wiki-gen-group .wiki-tiles {
+    @apply max-h-none overflow-visible;
+  }
+
   .wiki-tile {
-    @apply flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border border-wos-border-subtle bg-wos-surface p-2 text-xs text-wos-text hover:border-sky-400;
+    @apply relative flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border border-wos-border-subtle bg-wos-surface p-2 text-xs text-wos-text hover:border-sky-400;
+  }
+
+  /* Paid-only heroes (obtainable solely via real-money packs) get a corner badge. */
+  .wiki-tile__paid {
+    @apply absolute right-1 top-1 rounded-full border border-amber-400/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-300;
+  }
+
+  /* Troop-class chip, colour-coded per class (Infantry/Lancer/Marksman). */
+  .wiki-tile__class {
+    @apply rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none;
+  }
+
+  .wiki-tile__class--infantry {
+    @apply border-sky-400/40 bg-sky-500/15 text-sky-300;
+  }
+
+  .wiki-tile__class--lancer {
+    @apply border-emerald-400/40 bg-emerald-500/15 text-emerald-300;
+  }
+
+  .wiki-tile__class--marksman {
+    @apply border-rose-400/40 bg-rose-500/15 text-rose-300;
   }
 
   .wiki-tile.active {

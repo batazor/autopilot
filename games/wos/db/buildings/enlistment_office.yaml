@@ -1,6 +1,13 @@
 id: enlistment_office
 name: Enlistment Office
 category: unknown
-requires: []
-requirements_by_level: {}
+requires:
+- building: furnace
+  level: 11
+requirements_by_level:
+  '1':
+    prerequisites: Furnace 11
+    build_cost: []
+    construction_time: '-'
+    building_power: null
 wiki_url: https://www.whiteoutsurvival.wiki/buildings/enlistment-office/

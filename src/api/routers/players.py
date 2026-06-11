@@ -52,6 +52,30 @@ def get_player_persisted(player_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/players/{player_id}/tree-progress")
+def get_tree_progress(player_id: str) -> dict[str, Any]:
+    """Per-tech research + per-building levels for the /trees overlay."""
+    try:
+        return players_svc.get_tree_progress(player_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/players/{player_id}/tree-progress")
+def put_tree_progress(player_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Merge {"research": {tech: level}, "buildings": {id: level}} into player state."""
+    research = body.get("research") or {}
+    buildings = body.get("buildings") or {}
+    if not isinstance(research, dict) or not isinstance(buildings, dict):
+        raise HTTPException(status_code=422, detail="research/buildings must be objects")
+    try:
+        return players_svc.set_tree_progress(player_id, research, buildings)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.get("/players/{player_id}/stats")
 def get_player_stats(player_id: str) -> dict[str, Any]:
     ids = players_svc.list_player_ids()

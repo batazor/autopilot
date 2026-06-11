@@ -32,7 +32,9 @@ class BuildingDef:
     name: str
     category: str = "unknown"
     requires: tuple[BuildingRequire, ...] = ()
-    requirements_by_level: dict[int, dict[str, object]] = field(default_factory=dict)
+    # Keyed by the wiki's level label: numeric core levels ("1".."30") plus the
+    # Fire Crystal era ladder ("30-1", "FC 1", "FC 5.1", ...).
+    requirements_by_level: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -125,17 +127,11 @@ def load_buildings(path: Path | None = None) -> BuildingRegistry:
                     requires.append(BuildingRequire(building=dep, level=lvl))
 
             req_raw = item.get("requirements_by_level") or {}
-            req_by_level: dict[int, dict[str, object]] = {}
+            req_by_level: dict[str, dict[str, object]] = {}
             if isinstance(req_raw, dict):
                 for level_k, level_v in req_raw.items():
-                    try:
-                        if isinstance(level_k, (int, float, str, bytes, bytearray)):
-                            level = int(level_k)
-                        else:
-                            continue
-                    except (TypeError, ValueError):
-                        continue
-                    if isinstance(level_v, dict):
+                    level = str(level_k).strip()
+                    if level and isinstance(level_v, dict):
                         req_by_level[level] = cast("dict[str, object]", level_v)
 
             buildings.append(

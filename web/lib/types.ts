@@ -875,7 +875,8 @@ export type BuildingLevelReq = {
   requires?: BuildingRequire[];
 };
 
-export type BuildingRequire = { building: string; level: number };
+/** level is the numeric core ladder (7) or a Fire Crystal label ("FC 1"). */
+export type BuildingRequire = { building: string; level: number | string };
 
 export type BuildingDef = {
   id: string;
@@ -894,13 +895,35 @@ export type BuildingsView = {
 
 // --- Research trees (/research-tree) — served from games/<game>/db/research.yaml ---
 
+export type ResearchResource =
+  | "meat"
+  | "wood"
+  | "coal"
+  | "iron"
+  | "steel"
+  | "fire_crystal"
+  | "refined_fc"
+  | "fc_shards";
+
+export type ResearchLevelView = {
+  level: number;
+  effect: string;
+  rc: number | null;
+  time: string;
+  power: number | null;
+  cost: Partial<Record<ResearchResource, number>>;
+  /** Fire Crystal era gate, e.g. "FC10" (War Academy level); "" for core techs. */
+  gate: string;
+};
+
 export type ResearchNodeView = {
   id: string;
   name: string;
+  line: string;
   tier: number;
-  levels: number;
   bonus: string;
   requires: string[];
+  levels: ResearchLevelView[];
 };
 
 export type ResearchBranchView = {
