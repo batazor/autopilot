@@ -194,7 +194,7 @@ function ResearchPanel({ game }: { game: ResearchGameView }) {
         }))}
       />
       <p className="muted mb-3 mt-1 text-sm">{branch.blurb}</p>
-      <TechTreeFlow nodes={nodes} />
+      <TechTreeFlow nodes={nodes} defaultDirection="TB" />
     </>
   );
 }
