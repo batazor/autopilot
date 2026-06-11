@@ -1,9 +1,17 @@
-"""Assemble scanned frames into one canvas: ``map_full.png`` + a preview."""
+"""Assemble scanned frames into one canvas: ``map_full.png`` + a preview.
+
+Registration is feature-based: the map has plenty of ORB keypoints (icons,
+buildings, even snow has texture), so frame offsets are *measured* from
+matched keypoints with a RANSAC translation fit instead of trusted from
+navigation. Swipe drift and tap clamping therefore never reach the canvas —
+they only change where the overlap happens to be.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -20,14 +28,15 @@ logger = logging.getLogger(__name__)
 PREVIEW_LONG_SIDE = 4096
 DEFAULT_STITCH_VIEWPORT_W = 720
 DEFAULT_STITCH_VIEWPORT_H = 1185
-MATCH_SEARCH_PX = 140
-MATCH_MAX_TEMPLATE_PX = 420
-MATCH_MIN_TEMPLATE_PX = 72
 MATCH_MIN_SCORE = 0.08
-WIDE_MATCH_MIN_SCORE = 0.2
 NOMINAL_REGULARIZATION_WEIGHT = 0.04
 YELLOW_BOUNDARY_MIN_PIXELS = 80
 OUTSIDE_DARK_MIN_AREA = 1200
+ORB_FEATURES = 3000
+ORB_MIN_INLIERS = 12
+ORB_RANSAC_THRESH = 4.0
+ORB_MAX_SCALE_DRIFT = 0.03   # camera only pans — reject zoom-looking fits
+ORB_MAX_ROTATION_DEG = 2.5   # ... and rotation-looking fits
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,16 +68,6 @@ def _capture_size(manifest: dict, cfg: dict) -> tuple[int, int]:
         if w > 0 and h > 0:
             return w, h
     return DEFAULT_STITCH_VIEWPORT_W, DEFAULT_STITCH_VIEWPORT_H
-
-
-def _match_image(img: np.ndarray) -> np.ndarray:
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (3, 3), 0)
-    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
-    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-    mag = cv2.magnitude(gx, gy)
-    cv2.normalize(mag, mag, 0.0, 1.0, cv2.NORM_MINMAX)
-    return mag
 
 
 def _yellow_boundary_mask(img: np.ndarray) -> np.ndarray:
@@ -121,138 +120,143 @@ def _valid_content_mask(img: np.ndarray) -> np.ndarray:
     return mask
 
 
-def _prepare_for_matching(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    if np.all(mask):
-        return img
-    prepared = img.copy()
-    valid = mask > 0
-    fill = (
-        np.median(prepared[valid], axis=0).astype(np.uint8)
-        if np.any(valid)
-        else np.array((0, 0, 0), dtype=np.uint8)
-    )
-    prepared[~valid] = fill
-    return prepared
+def _feature_mask(
+    img: np.ndarray,
+    content_mask: np.ndarray | None,
+    crop: dict | None,
+) -> np.ndarray:
+    """Where keypoints may live: the gesture-safe game area, on valid content.
 
-
-def _overlap_rect(w: int, h: int, dx: int, dy: int) -> tuple[int, int, int, int] | None:
-    x0 = max(0, dx)
-    y0 = max(0, dy)
-    x1 = min(w, dx + w)
-    y1 = min(h, dy + h)
-    if x1 - x0 < MATCH_MIN_TEMPLATE_PX or y1 - y0 < MATCH_MIN_TEMPLATE_PX:
-        return None
-    return x0, y0, x1, y1
-
-
-def _centered_template_rect(rect: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
-    x0, y0, x1, y1 = rect
-    ow = x1 - x0
-    oh = y1 - y0
-    tw = min(ow, MATCH_MAX_TEMPLATE_PX)
-    th = min(oh, MATCH_MAX_TEMPLATE_PX)
-    tx0 = x0 + (ow - tw) // 2
-    ty0 = y0 + (oh - th) // 2
-    return tx0, ty0, tx0 + tw, ty0 + th
-
-
-def _estimate_pair_offset(
-    a: np.ndarray,
-    b: np.ndarray,
-    expected_dx: float,
-    expected_dy: float,
-) -> tuple[float, float, float] | None:
-    h, w = a.shape[:2]
-    dx0 = int(round(expected_dx))
-    dy0 = int(round(expected_dy))
-    overlap = _overlap_rect(w, h, dx0, dy0)
-    if overlap is None:
-        return None
-
-    ax0, ay0, ax1, ay1 = _centered_template_rect(overlap)
-    patch_a = a[ay0:ay1, ax0:ax1]
-    patch_b = b[ay0 - dy0 : ay1 - dy0, ax0 - dx0 : ax1 - dx0]
-    if patch_a.shape != patch_b.shape or patch_a.size == 0:
-        return None
-    if float(np.std(patch_a)) < 0.01 or float(np.std(patch_b)) < 0.01:
-        return None
-
-    window = cv2.createHanningWindow((patch_a.shape[1], patch_a.shape[0]), cv2.CV_32F)
-    shift, score = cv2.phaseCorrelate(patch_a, patch_b, window)
-    shift_x, shift_y = float(shift[0]), float(shift[1])
-    if (
-        score < MATCH_MIN_SCORE
-        or abs(shift_x) > MATCH_SEARCH_PX
-        or abs(shift_y) > MATCH_SEARCH_PX
-    ):
-        return None
-
-    actual_dx = expected_dx - shift_x
-    actual_dy = expected_dy - shift_y
-    return float(actual_dx), float(actual_dy), float(score)
-
-
-def _prepare_all(
-    images: list[np.ndarray | None],
-    masks: list[np.ndarray | None],
-) -> list[np.ndarray | None]:
-    return [
-        _match_image(_prepare_for_matching(img, mask))
-        if img is not None and mask is not None
-        else None
-        for img, mask in zip(images, masks, strict=True)
-    ]
-
-
-def _wide_pair_offset(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float] | None:
-    """Offset of frame ``b``'s origin in ``a``'s coords, searched frame-wide.
-
-    Unlike :func:`_estimate_pair_offset` this needs no position prior: a
-    central template of ``b`` is matched across the whole of ``a``. Used to
-    measure the true screen-space grid basis — the isometric world view moves
-    diagonally for a vertical minimap step, so axis-aligned guesses are far
-    off and the prior-window matcher would never see the real overlap.
+    Frames are saved uncropped, so the HUD (top bar, bottom nav/chat, side
+    buttons) is identical in every frame — features there would match with
+    zero offset and drag the RANSAC fit toward "no movement". The crop rect
+    from the scan config bounds detection to the world-content area.
     """
-    h, w = b.shape[:2]
-    tw = min(MATCH_MAX_TEMPLATE_PX, w // 2)
-    th = min(MATCH_MAX_TEMPLATE_PX, h // 2)
-    if tw < MATCH_MIN_TEMPLATE_PX or th < MATCH_MIN_TEMPLATE_PX:
+    h, w = img.shape[:2]
+    mask = np.zeros((h, w), dtype=np.uint8)
+    if isinstance(crop, dict):
+        x0 = max(0, int(crop.get("x") or 0))
+        y0 = max(0, int(crop.get("y") or 0))
+        x1 = min(w, x0 + int(crop.get("w") or w))
+        y1 = min(h, y0 + int(crop.get("h") or h))
+        if x1 > x0 and y1 > y0:
+            mask[y0:y1, x0:x1] = 255
+        else:
+            mask[:] = 255
+    else:
+        mask[:] = 255
+    if content_mask is not None:
+        mask[content_mask == 0] = 0
+    return mask
+
+
+def _orb_features(
+    img: np.ndarray, mask: np.ndarray,
+) -> tuple[list[cv2.KeyPoint], np.ndarray | None]:
+    orb = cv2.ORB_create(nfeatures=ORB_FEATURES)
+    keypoints, descriptors = orb.detectAndCompute(
+        cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), mask,
+    )
+    return list(keypoints), descriptors
+
+
+def _orb_pair_offset(
+    feat_a: tuple[list[cv2.KeyPoint], np.ndarray | None],
+    feat_b: tuple[list[cv2.KeyPoint], np.ndarray | None],
+) -> tuple[float, float, float] | None:
+    """Translation ``pos_b - pos_a`` measured from matched keypoints.
+
+    Needs no position prior: descriptors match globally, RANSAC rejects the
+    outliers (animated icons, chat bubbles), and the similarity fit is then
+    gated to a near-pure pan — the camera never rotates or zooms mid-scan.
+    """
+    kp_a, desc_a = feat_a
+    kp_b, desc_b = feat_b
+    if desc_a is None or desc_b is None:
         return None
-    tx = (w - tw) // 2
-    ty = (h - th) // 2
-    template = b[ty : ty + th, tx : tx + tw]
-    if float(template.std()) < 0.01:
+    if len(kp_a) < ORB_MIN_INLIERS or len(kp_b) < ORB_MIN_INLIERS:
         return None
-    result = cv2.matchTemplate(a, template, cv2.TM_CCOEFF_NORMED)
-    _, score, _, loc = cv2.minMaxLoc(result)
-    if score < WIDE_MATCH_MIN_SCORE:
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = sorted(bf.match(desc_b, desc_a), key=lambda m: m.distance)
+    if len(matches) < ORB_MIN_INLIERS:
         return None
-    return float(loc[0] - tx), float(loc[1] - ty), float(score)
+    src = np.float32([kp_b[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+    dst = np.float32([kp_a[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+    # M maps b-points onto a-points; for the same world feature seen in both
+    # frames, p_a - p_b == pos_b - pos_a, so M's translation IS the edge.
+    M, inlier_mask = cv2.estimateAffinePartial2D(
+        src, dst, method=cv2.RANSAC, ransacReprojThreshold=ORB_RANSAC_THRESH,
+    )
+    if M is None or inlier_mask is None:
+        return None
+    inliers = int(inlier_mask.sum())
+    if inliers < ORB_MIN_INLIERS:
+        return None
+    scale = float(math.hypot(M[0, 0], M[1, 0]))
+    angle = abs(math.degrees(math.atan2(M[1, 0], M[0, 0])))
+    if abs(scale - 1.0) > ORB_MAX_SCALE_DRIFT or angle > ORB_MAX_ROTATION_DEG:
+        return None
+    score = inliers / len(matches)
+    return float(M[0, 2]), float(M[1, 2]), float(score)
+
+
+def _candidate_pairs(entries: list[dict]) -> list[tuple[int, int]]:
+    """Pairs worth matching: consecutive in capture order + grid neighbors.
+
+    Consecutive frames share the most overlap (one camera move apart); grid
+    neighbors close loops across rows so drift cannot accumulate row by row.
+    """
+    pairs: set[tuple[int, int]] = set()
+    for k in range(1, len(entries)):
+        pairs.add((k - 1, k))
+    by_idx = {(int(e["ix"]), int(e["iy"])): i for i, e in enumerate(entries)}
+    for (ix, iy), i in by_idx.items():
+        for dix, diy in ((1, 0), (0, 1)):
+            j = by_idx.get((ix + dix, iy + diy))
+            if j is not None:
+                pairs.add((min(i, j), max(i, j)))
+    return sorted(pairs)
+
+
+def _find_match_edges(
+    entries: list[dict],
+    features: list[tuple[list[cv2.KeyPoint], np.ndarray | None] | None],
+) -> list[MatchEdge]:
+    edges: list[MatchEdge] = []
+    for i, j in _candidate_pairs(entries):
+        feat_a = features[i]
+        feat_b = features[j]
+        if feat_a is None or feat_b is None:
+            continue
+        estimate = _orb_pair_offset(feat_a, feat_b)
+        if estimate is None:
+            continue
+        dx, dy, score = estimate
+        edges.append(MatchEdge(i=i, j=j, dx=dx, dy=dy, score=score))
+    logger.info("stitch edge matching: %d frame-pair matches", len(edges))
+    return edges
 
 
 def _grid_basis(
     entries: list[dict],
-    prepared: list[np.ndarray | None],
+    edges: list[MatchEdge],
     fallback_right: tuple[float, float],
     fallback_down: tuple[float, float],
 ) -> tuple[tuple[float, float], tuple[float, float]]:
-    """Screen-space vectors for one grid step right / down, measured from frames."""
-    by_idx = {(int(e["ix"]), int(e["iy"])): i for i, e in enumerate(entries)}
-    right_offsets: list[tuple[float, float, float]] = []
-    down_offsets: list[tuple[float, float, float]] = []
-    for (ix, iy), i in by_idx.items():
-        if prepared[i] is None:
-            continue
-        for (dix, diy), bucket in (((1, 0), right_offsets), ((0, 1), down_offsets)):
-            j = by_idx.get((ix + dix, iy + diy))
-            if j is None or prepared[j] is None:
-                continue
-            estimate = _wide_pair_offset(prepared[i], prepared[j])
-            if estimate is not None:
-                bucket.append(estimate)
+    """Screen-space vectors for one grid step right / down, from measured edges."""
+    cells = [(int(e["ix"]), int(e["iy"])) for e in entries]
+    right_offsets: list[tuple[float, float]] = []
+    down_offsets: list[tuple[float, float]] = []
+    for edge in edges:
+        dix = cells[edge.j][0] - cells[edge.i][0]
+        diy = cells[edge.j][1] - cells[edge.i][1]
+        if (dix, diy) == (1, 0):
+            right_offsets.append((edge.dx, edge.dy))
+        elif (dix, diy) == (0, 1):
+            down_offsets.append((edge.dx, edge.dy))
 
     def median_offset(
-        bucket: list[tuple[float, float, float]], fallback: tuple[float, float],
+        bucket: list[tuple[float, float]], fallback: tuple[float, float],
     ) -> tuple[float, float]:
         if not bucket:
             return fallback
@@ -267,34 +271,6 @@ def _grid_basis(
         right[0], right[1], len(right_offsets), down[0], down[1], len(down_offsets),
     )
     return right, down
-
-
-def _find_match_edges(
-    prepared: list[np.ndarray | None],
-    nominal_positions: list[tuple[float, float]],
-) -> list[MatchEdge]:
-    edges: list[MatchEdge] = []
-    for i, img_a in enumerate(prepared):
-        if img_a is None:
-            continue
-        ax, ay = nominal_positions[i]
-        for j in range(i + 1, len(prepared)):
-            img_b = prepared[j]
-            if img_b is None:
-                continue
-            bx, by = nominal_positions[j]
-            expected_dx = bx - ax
-            expected_dy = by - ay
-            h, w = img_a.shape[:2]
-            if _overlap_rect(w, h, int(round(expected_dx)), int(round(expected_dy))) is None:
-                continue
-            estimate = _estimate_pair_offset(img_a, img_b, expected_dx, expected_dy)
-            if estimate is None:
-                continue
-            dx, dy, score = estimate
-            edges.append(MatchEdge(i=i, j=j, dx=dx, dy=dy, score=score))
-    logger.info("stitch edge matching: %d frame-pair matches", len(edges))
-    return edges
 
 
 def _solve_matched_positions(
@@ -397,13 +373,20 @@ def run_stitch(run_dir: Path) -> Path:
         msg = f"none of the {len(entries)} manifest frames could be read from {run_dir}"
         raise ValueError(msg)
 
-    # The world view is isometric: one minimap grid step maps to a *diagonal*
-    # screen shift. Measure the actual right/down screen vectors from adjacent
-    # frame pairs instead of assuming axis-aligned steps; the axis-aligned
-    # geometry only remains as the fallback when nothing matches.
-    prepared = _prepare_all(images, masks)
+    # Feature-based registration: ORB keypoints (icons, buildings, snow
+    # texture) matched per pair give the real frame offsets — no trust in
+    # navigation. The world view is isometric (a minimap grid step shifts the
+    # screen diagonally), so even the nominal layout uses the *measured*
+    # right/down vectors; axis-aligned geometry is only the no-match fallback.
+    features = [
+        _orb_features(img, _feature_mask(img, mask, cfg.get("crop")))
+        if img is not None and mask is not None
+        else None
+        for img, mask in zip(images, masks, strict=True)
+    ]
+    edges = _find_match_edges(entries, features)
     right, down = _grid_basis(
-        entries, prepared, fallback_right=(step_x, 0.0), fallback_down=(0.0, step_y),
+        entries, edges, fallback_right=(step_x, 0.0), fallback_down=(0.0, step_y),
     )
     nominal_positions = [
         (
@@ -412,11 +395,7 @@ def run_stitch(run_dir: Path) -> Path:
         )
         for entry in entries
     ]
-    positions = _solve_matched_positions(
-        nominal_positions,
-        images,
-        _find_match_edges(prepared, nominal_positions),
-    )
+    positions = _solve_matched_positions(nominal_positions, images, edges)
 
     # Frames are saved as-is (full screenshots, no UI crop), so the tile size
     # comes from each image instead of config geometry — capture and stitch

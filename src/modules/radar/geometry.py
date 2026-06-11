@@ -151,6 +151,37 @@ def limit_grid_centered(
     ]
 
 
+def order_grid_center_first(grid: list[GridPoint], corners: Corners) -> list[GridPoint]:
+    """Greedy nearest-neighbor route starting at the minimap center.
+
+    Swipe navigation is relative: the first captured frame is wherever the
+    user has positioned the camera. Starting at the grid cell closest to the
+    minimap center keeps that assumption aligned with the manifest indices,
+    then the nearest-neighbor walk keeps each camera move short.
+    """
+    if not grid:
+        return []
+    cx, cy = diamond_center(corners)
+    remaining = list(grid)
+    current = min(remaining, key=lambda p: ((p.x - cx) ** 2 + (p.y - cy) ** 2, p.iy, p.ix))
+    remaining.remove(current)
+    route = [current]
+    while remaining:
+        current = min(
+            remaining,
+            key=lambda p: (
+                (p.x - current.x) ** 2 + (p.y - current.y) ** 2,
+                abs(p.iy - current.iy),
+                abs(p.ix - current.ix),
+                p.iy,
+                p.ix,
+            ),
+        )
+        remaining.remove(current)
+        route.append(current)
+    return route
+
+
 def _centered_axis_positions(
     min_pos: float,
     max_pos: float,

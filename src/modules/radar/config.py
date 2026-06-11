@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -97,6 +98,20 @@ class GridLimitConfig(BaseModel):
     rows: int = Field(gt=0)
 
 
+class NavigationConfig(BaseModel):
+    """How the scanner moves the map between frames.
+
+    ``swipe`` is the default: minimap tap-teleports proved imprecise (the
+    game clamps/quantizes the jump), while swipe drift does not matter —
+    the stitcher measures real offsets from ORB features afterwards.
+    """
+
+    mode: Literal["swipe", "tap"] = "swipe"
+    swipe_duration_ms: int = Field(default=450, ge=100, le=2000)
+    swipe_margin_px: int = Field(default=48, ge=0)
+    swipe_scale: float = Field(default=1.0, gt=0.0, le=2.0)
+
+
 class TimingsConfig(BaseModel):
     """Waits and stabilization thresholds used by the scan loop."""
 
@@ -125,6 +140,7 @@ class RadarConfig(BaseModel):
     # When set, scan only this many grid cells around the center (debug runs).
     grid_limit: GridLimitConfig | None = None
     game_size: int = Field(default=1200, gt=1)
+    navigation: NavigationConfig = NavigationConfig()
     timings: TimingsConfig = TimingsConfig()
 
 

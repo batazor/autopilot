@@ -39,6 +39,11 @@ grid_limit:
   cols: 2
   rows: 3
 game_size: 1200
+navigation:
+  mode: swipe
+  swipe_duration_ms: 450
+  swipe_margin_px: 48
+  swipe_scale: 1.0
 timings:
   post_tap_delay_ms: 300
   stabilize_interval_ms: 150

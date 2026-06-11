@@ -1,4 +1,4 @@
-"""Edge matching used by radar stitch."""
+"""Feature-based (ORB) registration used by radar stitch."""
 
 import json
 
@@ -8,41 +8,67 @@ import pytest
 
 from modules.radar.scanner import MANIFEST_NAME
 from modules.radar.stitch import (
-    _estimate_pair_offset,
-    _match_image,
+    _feature_mask,
+    _orb_features,
+    _orb_pair_offset,
     _valid_content_mask,
     run_stitch,
 )
 
 
-def test_estimate_pair_offset_recovers_small_swipe_drift() -> None:
-    rng = np.random.default_rng(7)
-    canvas = rng.integers(0, 256, (700, 900, 3), dtype=np.uint8)
-    canvas = cv2.GaussianBlur(canvas, (5, 5), 0)
-    frame_w, frame_h = 300, 240
-    expected_dx, expected_dy = 120, 60
-    drift_x, drift_y = 17, -11
-    actual_dx = expected_dx + drift_x
-    actual_dy = expected_dy + drift_y
+def _make_world(seed: int, h: int, w: int) -> np.ndarray:
+    """Shape-rich texture: icons/buildings analog — plenty of ORB corners."""
+    rng = np.random.default_rng(seed)
+    world = np.full((h, w, 3), 40, np.uint8)
+    for _ in range(h * w // 900):
+        x, y = int(rng.integers(0, w - 45)), int(rng.integers(0, h - 45))
+        s = int(rng.integers(8, 40))
+        color = tuple(int(c) for c in rng.integers(60, 255, 3))
+        if rng.random() < 0.5:
+            cv2.rectangle(world, (x, y), (x + s, y + s), color, -1)
+        else:
+            cv2.circle(world, (x + s // 2, y + s // 2), s // 2 + 2, color, -1)
+    return world
 
-    a = canvas[100 : 100 + frame_h, 100 : 100 + frame_w]
-    b = canvas[
-        100 + actual_dy : 100 + actual_dy + frame_h,
-        100 + actual_dx : 100 + actual_dx + frame_w,
-    ]
 
-    estimate = _estimate_pair_offset(
-        _match_image(a),
-        _match_image(b),
-        expected_dx,
-        expected_dy,
-    )
+def _features(img: np.ndarray):
+    return _orb_features(img, _feature_mask(img, None, None))
+
+
+def _locate(canvas: np.ndarray, frame: np.ndarray) -> tuple[int, int]:
+    """Exact-search a frame inside the stitched canvas; returns (x, y)."""
+    result = cv2.matchTemplate(canvas, frame, cv2.TM_SQDIFF)
+    _, _, loc, _ = cv2.minMaxLoc(result)
+    return loc
+
+
+def test_orb_pair_offset_recovers_diagonal_shift() -> None:
+    world = _make_world(7, 700, 900)
+    a = world[100:400, 100:500]
+    b = world[160:460, 230:630]  # pos_b - pos_a = (130, 60) — diagonal move
+
+    estimate = _orb_pair_offset(_features(a), _features(b))
 
     assert estimate is not None
     dx, dy, score = estimate
-    assert dx == pytest.approx(actual_dx, abs=0.5)
-    assert dy == pytest.approx(actual_dy, abs=0.5)
+    assert dx == pytest.approx(130, abs=1.0)
+    assert dy == pytest.approx(60, abs=1.0)
     assert score > 0.3
+
+
+def test_orb_pair_offset_rejects_featureless_frames() -> None:
+    flat = np.full((300, 400, 3), 128, np.uint8)
+    textured = _make_world(5, 300, 400)
+    assert _orb_pair_offset(_features(flat), _features(textured)) is None
+
+
+def test_feature_mask_excludes_hud_outside_crop() -> None:
+    img = np.zeros((1280, 720, 3), np.uint8)
+    mask = _feature_mask(img, None, {"x": 0, "y": 156, "w": 620, "h": 940})
+    assert mask[100, 100] == 0      # top HUD bar
+    assert mask[1200, 100] == 0     # bottom nav/chat
+    assert mask[600, 680] == 0      # right-side buttons
+    assert mask[600, 300] == 255    # world content area
 
 
 def test_valid_content_mask_uses_yellow_boundary_to_drop_dark_outside() -> None:
@@ -68,10 +94,7 @@ def test_valid_content_mask_uses_yellow_boundary_to_drop_dark_outside() -> None:
 
 def test_run_stitch_places_uncropped_frames(tmp_path) -> None:
     """Frames are placed as-is: tile size comes from the image, not config."""
-    rng = np.random.default_rng(3)
-    world = cv2.GaussianBlur(
-        rng.integers(0, 256, (600, 800, 3), dtype=np.uint8), (5, 5), 0
-    )
+    world = _make_world(3, 600, 800)
     frame_w, frame_h = 400, 300
     overlap = 0.5
     step_x = int(frame_w * (1 - overlap))  # 200
@@ -88,8 +111,8 @@ def test_run_stitch_places_uncropped_frames(tmp_path) -> None:
         "config": {
             "overlap": overlap,
             "stitch_viewport": {"w": frame_w, "h": frame_h},
-            # crop intentionally differs from the frame size — must be ignored
-            "crop": {"x": 0, "y": 156, "w": 620, "h": 940},
+            # crop applies to feature masking only and must not shrink tiles
+            "crop": {"x": 0, "y": 0, "w": frame_w, "h": frame_h},
         },
         "frames": frames,
     }
@@ -99,19 +122,22 @@ def test_run_stitch_places_uncropped_frames(tmp_path) -> None:
 
     canvas = cv2.imread(str(out))
     assert canvas is not None
-    assert (canvas.shape[1], canvas.shape[0]) == (step_x + frame_w, step_y + frame_h)
-    # Every pixel of the 2×2 mosaic should come straight from the world image.
-    assert np.array_equal(canvas, world[: step_y + frame_h, : step_x + frame_w])
+    # ORB registration is subpixel-accurate; allow ±2 px of rounding.
+    assert canvas.shape[1] == pytest.approx(step_x + frame_w, abs=2)
+    assert canvas.shape[0] == pytest.approx(step_y + frame_h, abs=2)
+    origin = _locate(canvas, world[:frame_h, :frame_w])
+    for ix, iy in [(1, 0), (0, 1), (1, 1)]:
+        x, y = ix * step_x, iy * step_y
+        placed = _locate(canvas, world[y : y + frame_h, x : x + frame_w])
+        assert placed[0] - origin[0] == pytest.approx(x, abs=2), (ix, iy)
+        assert placed[1] - origin[1] == pytest.approx(y, abs=2), (ix, iy)
 
 
 def test_run_stitch_measures_isometric_grid_basis(tmp_path) -> None:
     """A minimap grid step moves the screen diagonally — the stitcher must
     measure the real right/down screen vectors instead of assuming axis-aligned
     steps."""
-    rng = np.random.default_rng(11)
-    world = cv2.GaussianBlur(
-        rng.integers(0, 256, (900, 1100, 3), dtype=np.uint8), (5, 5), 0
-    )
+    world = _make_world(11, 900, 1100)
     frame_w, frame_h = 480, 360
     right = (100, 50)   # screen shift per ix+1 (diagonal: isometry)
     down = (-50, 90)    # screen shift per iy+1
@@ -150,11 +176,20 @@ def test_run_stitch_measures_isometric_grid_basis(tmp_path) -> None:
     min_y = min(py for _, py in offsets.values())
     expected_w = max(px for px, _ in offsets.values()) - min_x + frame_w
     expected_h = max(py for _, py in offsets.values()) - min_y + frame_h
-    assert (canvas.shape[1], canvas.shape[0]) == (expected_w, expected_h)
-    for (ix, iy), (px, py) in offsets.items():
-        x, y = px - min_x, py - min_y
-        window = world[
-            base_y + py : base_y + py + frame_h,
-            base_x + px : base_x + px + frame_w,
-        ]
-        assert np.array_equal(canvas[y : y + frame_h, x : x + frame_w], window), (ix, iy)
+    # ORB registration is subpixel-accurate; allow ±2 px of rounding.
+    assert canvas.shape[1] == pytest.approx(expected_w, abs=2)
+    assert canvas.shape[0] == pytest.approx(expected_h, abs=2)
+    located = {
+        cell: _locate(
+            canvas,
+            world[
+                base_y + py : base_y + py + frame_h,
+                base_x + px : base_x + px + frame_w,
+            ],
+        )
+        for cell, (px, py) in offsets.items()
+    }
+    origin = located[(0, 0)]
+    for cell, (px, py) in offsets.items():
+        assert located[cell][0] - origin[0] == pytest.approx(px, abs=2), cell
+        assert located[cell][1] - origin[1] == pytest.approx(py, abs=2), cell
