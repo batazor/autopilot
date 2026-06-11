@@ -9,7 +9,7 @@ requires:
 - building: coal_mine
   level: 3
 - building: hero_hall
-  level: 3
+  level: 1
 - building: iron_mine
   level: 5
 - building: hunters_hut
@@ -58,7 +58,7 @@ requirements_by_level:
     construction_time: 00:03:00
     building_power: null
   '5':
-    prerequisites: Hero Hall Shelter 3 Lv. 3
+    prerequisites: Hero Hall Lv. 1, Shelter 3 Lv. 3
     build_cost:
     - item: item_icon_103
       amount: 7.6k
