@@ -1,11 +1,13 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
+import Dagre from "@dagrejs/dagre";
 import {
   Background,
   Controls,
   Handle,
   MarkerType,
+  Panel,
   Position,
   ReactFlow,
   type Edge,
@@ -18,7 +20,7 @@ import "@xyflow/react/dist/style.css";
 export type FlowRequire = string | { id: string; label?: string };
 
 /** A dependency-graph node: `requires` are ids of prerequisite nodes (edges
- *  are drawn prerequisite → this). `tier` is the column (1 = leftmost). */
+ *  are drawn prerequisite → this). */
 export type FlowTreeNode = {
   id: string;
   tier: number;
@@ -28,32 +30,40 @@ export type FlowTreeNode = {
   badge?: string;
   /** Emoji or short glyph shown in the node's icon chip. */
   icon?: string;
+  /** Explicit canvas position; when set, overrides auto (dagre) layout. */
+  position?: { x: number; y: number };
+  /** Card width in px (default 200). */
+  width?: number;
   requires: FlowRequire[];
 };
 
-const COL_W = 250;
-const ROW_H = 108;
+/** Layout direction: top→bottom (vertical) or left→right (horizontal). */
+type Dir = "TB" | "LR";
+
 const NODE_W = 200;
+const NODE_H = 64;
 
 function reqId(r: FlowRequire): string {
   return typeof r === "string" ? r : r.id;
 }
 
-type TechNodeData = { node: FlowTreeNode };
+type TechNodeData = { node: FlowTreeNode; dir: Dir };
 
-/** Custom React Flow node — icon chip + text, with left/right handles. */
+/** Custom React Flow node — icon chip + text, handles oriented by direction. */
 const TechNode = memo(function TechNode({ data }: NodeProps) {
-  const n = (data as TechNodeData).node;
+  const { node: n, dir } = data as TechNodeData;
+  const targetPos = dir === "TB" ? Position.Top : Position.Left;
+  const sourcePos = dir === "TB" ? Position.Bottom : Position.Right;
   return (
     <div
       className="flex items-center gap-2 rounded-lg border p-2 shadow-sm"
       style={{
-        width: NODE_W,
+        width: n.width ?? NODE_W,
         background: "var(--wos-panel-raised)",
         borderColor: "var(--wos-border)",
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle type="target" position={targetPos} style={{ opacity: 0 }} />
       {n.icon ? (
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-lg"
@@ -89,57 +99,84 @@ const TechNode = memo(function TechNode({ data }: NodeProps) {
           <div className="text-[11px] text-wos-text-secondary">{n.footer}</div>
         ) : null}
       </div>
-      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle type="source" position={sourcePos} style={{ opacity: 0 }} />
     </div>
   );
 });
 
 const nodeTypes = { tech: TechNode };
 
+function buildEdges(nodes: FlowTreeNode[]): Edge[] {
+  const ids = new Set(nodes.map((n) => n.id));
+  return nodes.flatMap((n) =>
+    n.requires
+      .filter((r) => ids.has(reqId(r)))
+      .map((r) => {
+        const src = reqId(r);
+        return {
+          id: `${src}->${n.id}`,
+          source: src,
+          target: n.id,
+          type: "smoothstep",
+          label: typeof r === "string" ? undefined : r.label,
+          markerEnd: { type: MarkerType.ArrowClosed },
+        };
+      }),
+  );
+}
+
+/** Dagre auto-layout (https://reactflow.dev/examples/layout/dagre). */
+function dagreLayout(rfNodes: Node[], edges: Edge[], dir: Dir): Node[] {
+  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: dir, nodesep: 40, ranksep: 80 });
+  for (const n of rfNodes) {
+    const w = (n.style?.width as number) ?? NODE_W;
+    g.setNode(n.id, { width: w, height: NODE_H });
+  }
+  for (const e of edges) g.setEdge(e.source, e.target);
+  Dagre.layout(g);
+  return rfNodes.map((n) => {
+    const { x, y } = g.node(n.id);
+    const w = (n.style?.width as number) ?? NODE_W;
+    return { ...n, position: { x: x - w / 2, y: y - NODE_H / 2 } };
+  });
+}
+
 export function TechTreeFlow({
   nodes,
   height = 600,
+  defaultDirection = "LR",
 }: {
   nodes: FlowTreeNode[];
   height?: number;
+  defaultDirection?: Dir;
 }) {
-  const { rfNodes, rfEdges } = useMemo(() => {
-    const rowOf = new Map<number, number>();
-    const rfNodes: Node[] = nodes.map((n) => {
-      const row = rowOf.get(n.tier) ?? 0;
-      rowOf.set(n.tier, row + 1);
-      return {
-        id: n.id,
-        type: "tech",
-        position: { x: (n.tier - 1) * COL_W, y: row * ROW_H },
-        data: { node: n },
-        style: { width: NODE_W },
-      };
-    });
+  // Nodes carrying explicit positions (e.g. building swimlanes) opt out of
+  // dagre and the direction toggle.
+  const fixed = nodes.some((n) => n.position);
+  const [dir, setDir] = useState<Dir>(defaultDirection);
+  const effectiveDir: Dir = fixed ? "LR" : dir;
 
-    const ids = new Set(nodes.map((n) => n.id));
-    const rfEdges: Edge[] = nodes.flatMap((n) =>
-      n.requires
-        .filter((r) => ids.has(reqId(r)))
-        .map((r) => {
-          const src = reqId(r);
-          const label = typeof r === "string" ? undefined : r.label;
-          return {
-            id: `${src}->${n.id}`,
-            source: src,
-            target: n.id,
-            type: "smoothstep",
-            label,
-            markerEnd: { type: MarkerType.ArrowClosed },
-          };
-        }),
-    );
-    return { rfNodes, rfEdges };
-  }, [nodes]);
+  const { rfNodes, rfEdges } = useMemo(() => {
+    const base: Node[] = nodes.map((n) => ({
+      id: n.id,
+      type: "tech",
+      position: n.position ?? { x: 0, y: 0 },
+      data: { node: n, dir: effectiveDir },
+      style: { width: n.width ?? NODE_W },
+    }));
+    const edges = buildEdges(nodes);
+    return {
+      rfNodes: fixed ? base : dagreLayout(base, edges, dir),
+      rfEdges: edges,
+    };
+  }, [nodes, dir, fixed, effectiveDir]);
 
   return (
     <div className="panel" style={{ height, padding: 0, overflow: "hidden" }}>
       <ReactFlow
+        // Remount on direction change so fitView re-frames the new layout.
+        key={fixed ? "fixed" : dir}
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
@@ -148,10 +185,29 @@ export function TechTreeFlow({
         minZoom={0.2}
         nodesConnectable={false}
         edgesFocusable={false}
-        defaultEdgeOptions={{ type: "smoothstep" }}
       >
         <Background />
         <Controls showInteractive={false} />
+        {!fixed ? (
+          <Panel position="top-right">
+            <div className="flex gap-1">
+              <button
+                type="button"
+                className={dir === "TB" ? "btn-primary" : "btn-secondary"}
+                onClick={() => setDir("TB")}
+              >
+                Vertical
+              </button>
+              <button
+                type="button"
+                className={dir === "LR" ? "btn-primary" : "btn-secondary"}
+                onClick={() => setDir("LR")}
+              >
+                Horizontal
+              </button>
+            </div>
+          </Panel>
+        ) : null}
       </ReactFlow>
     </div>
   );
