@@ -88,7 +88,13 @@ _COMMON_PATTERNS: tuple[tuple[str, str, str], ...] = (
      "Limited-time stamina supply ready to claim"),
     ("scout_detected", r"(is scouting|scout(ing)?.*(your city|detected|spotted))", "Enemy scouting your city"),
     ("idle_income", r"idle income.*(max|claim|ready|explor)", "Idle exploration income ready to claim"),
+    ("offline_income", r"offline\s+income.*(max|maxed|claim|ready)", "Offline income ready to claim"),
     ("pet_adventure", r"pet.*adventure.*(complete|finished|done)", "Pet adventure completed"),
+    ("trek_supply", r"trek supplies?.*(ready|claim)", "Trek supplies ready to claim"),
+    ("alliance_gathering_node", r"secured alliance gathering node.*(placed|gather)",
+     "Secured alliance gathering node placed"),
+    ("sanctuary_battle", r"(sanctuary battle|battle for fortress).*(begun|get ready|started)",
+     "Kingshot sanctuary battle / fortress battle started"),
 )
 
 GAMES: dict[str, Game] = {

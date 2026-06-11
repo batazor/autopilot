@@ -161,6 +161,39 @@ def test_matcher_recognizes_storehouse_supply():
     assert res.event_type == "storehouse_supply"
 
 
+@pytest.mark.parametrize(("game", "event_type", "regex", "sample"), [
+    (
+        "wos",
+        "offline_income",
+        r"offline\s+income.*(max|maxed|claim|ready)",
+        "Claim Offline Income — Honored batazor, offline Income is maxed out. Come and claim it!",
+    ),
+    (
+        "wos",
+        "trek_supply",
+        r"trek supplies?.*(ready|claim)",
+        "Trek Supplies ready to be claimed — Honored batazor, Trek Supplies are ready. Claim them now!",
+    ),
+    (
+        "wos",
+        "alliance_gathering_node",
+        r"secured alliance gathering node.*(placed|gather)",
+        "Secured Alliance Gathering Node — Secured Alliance Gathering Node has been placed. Log in now to gather resources!",
+    ),
+    (
+        "kingshot",
+        "sanctuary_battle",
+        r"(sanctuary battle|battle for fortress).*(begun|get ready|started)",
+        "Sanctuary Battle — Battle for Fortress No. 1 has begun! Get ready!",
+    ),
+])
+def test_matcher_recognizes_recent_live_notifications(game, event_type, regex, sample):
+    m = _FakeMatcher([(1, game, event_type, regex)])
+    res = m.match(sample, game)
+    assert res is not None
+    assert res.event_type == event_type
+
+
 class _FakeMatcher(parser.PatternMatcher):
     """PatternMatcher with patterns injected directly (no DB)."""
 

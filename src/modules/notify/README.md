@@ -24,6 +24,39 @@ in the FastAPI lifespan hook). Open the URL and use the tabs:
 - **Unrecognized** — mark reviewed or **promote** to a new pattern
 - **Settings** — polling interval, ADB serial/path, enable/disable monitor
 
+## API examples
+
+These examples target the standalone notify service. When using the main web
+API, use the same suffixes under `/api/notify/...`.
+
+```sh
+# Inspect current monitor state and connected ADB devices.
+curl -s http://127.0.0.1:8800/api/status
+
+# Trigger one poll cycle now.
+curl -s -X POST http://127.0.0.1:8800/api/poll
+
+# Register a player explicitly; players are also auto-discovered from text.
+curl -s -X POST http://127.0.0.1:8800/api/players \
+  -H 'Content-Type: application/json' \
+  -d '{"nickname":"batazor","game":"wos","active":true}'
+
+# Add a recognition-only pattern.
+curl -s -X POST http://127.0.0.1:8800/api/patterns \
+  -H 'Content-Type: application/json' \
+  -d '{"game":"wos","event_type":"trek_supply","pattern_regex":"trek supplies?.*(ready|claim)","description":"Trek supplies ready to claim"}'
+
+# Add a pattern that pushes a DSL scenario when it matches.
+curl -s -X POST http://127.0.0.1:8800/api/patterns \
+  -H 'Content-Type: application/json' \
+  -d '{"game":"wos","event_type":"intel_lighthouse","pattern_regex":"(intel|lighthouse).*(new|intel|check)","description":"New Intel in the Lighthouse","scenario":"intel_lighthouse"}'
+
+# Test a regex before saving it.
+curl -s -X POST http://127.0.0.1:8800/api/patterns/test \
+  -H 'Content-Type: application/json' \
+  -d '{"pattern_regex":"offline\\s+income.*(max|maxed|claim|ready)","sample_text":"Claim Offline Income — Honored batazor, offline Income is maxed out. Come and claim it!"}'
+```
+
 ## How it works
 
 ```
@@ -45,6 +78,11 @@ ADB dumpsys notification  ─►  parser  ─►  PatternMatcher (hot-reload fro
 - **Hot-reload:** pattern edits in the UI take effect within seconds — the
   matcher reloads from SQLite (no restart). Poll interval / ADB serial are read
   fresh each cycle.
+- **Seed sync:** default patterns are inserted on boot only when a `(game,
+  event_type)` pair is missing. Existing operator edits stay intact. The current
+  seeds include live notification examples such as Storehouse Supply, Offline
+  Income, Trek Supplies, Secured Alliance Gathering Node, and Kingshot Sanctuary
+  Battle.
 
 ## Modules
 
