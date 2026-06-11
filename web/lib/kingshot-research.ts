@@ -1,4 +1,5 @@
-// Kingshot Academy research tree — curated reference data.
+// Kingshot Academy research tree — curated reference data (Kingshot only).
+// Shared types live in research-types.ts; WoS data lives in wos-research.ts.
 //
 // Modeled on the public tree at https://kingshot.net/research-tree (three
 // categories: Growth, Economy, Battle). That page is "under construction" and
@@ -12,27 +13,7 @@
 // `tier` doubles as the column (1 = leftmost / unlocked first ... 6 = deepest).
 // `requires` lists the node ids that must be completed before this one opens.
 
-export type ResearchBranchId = "growth" | "economy" | "battle";
-
-export type ResearchNode = {
-  id: string;
-  name: string;
-  /** Column / unlock depth, 1..6 (rendered as tier I..VI). */
-  tier: number;
-  /** Number of upgrade levels this research has. */
-  levels: number;
-  /** What maxing the research grants. */
-  bonus: string;
-  /** Prerequisite node ids (same branch). */
-  requires: string[];
-};
-
-export type ResearchBranch = {
-  id: ResearchBranchId;
-  label: string;
-  blurb: string;
-  nodes: ResearchNode[];
-};
+import type { ResearchGame, ResearchNode } from "@/lib/research-types";
 
 const GROWTH: ResearchNode[] = [
   { id: "g_construction_1", name: "Construction I", tier: 1, levels: 5, bonus: "+Construction speed", requires: [] },
@@ -84,27 +65,29 @@ const BATTLE: ResearchNode[] = [
   { id: "b_fortified_mail", name: "Fortified Mail", tier: 6, levels: 6, bonus: "+Troop defense", requires: ["b_leathercraft"] },
 ];
 
-export const RESEARCH_BRANCHES: ResearchBranch[] = [
-  {
-    id: "growth",
-    label: "Growth",
-    blurb: "Construction, research, healing and march bonuses.",
-    nodes: GROWTH,
-  },
-  {
-    id: "economy",
-    label: "Economy",
-    blurb: "Resource production, gathering and protection.",
-    nodes: ECONOMY,
-  },
-  {
-    id: "battle",
-    label: "Battle",
-    blurb: "Troop attack, defense, health and lethality across three lanes.",
-    nodes: BATTLE,
-  },
-];
-
-export function branchTotalLevels(branch: ResearchBranch): number {
-  return branch.nodes.reduce((sum, n) => sum + n.levels, 0);
-}
+export const KINGSHOT_RESEARCH: ResearchGame = {
+  id: "kingshot",
+  label: "Kingshot",
+  sourceUrl: "https://kingshot.net/research-tree",
+  sourceLabel: "kingshot.net/research-tree",
+  branches: [
+    {
+      id: "growth",
+      label: "Growth",
+      blurb: "Construction, research, healing and march bonuses.",
+      nodes: GROWTH,
+    },
+    {
+      id: "economy",
+      label: "Economy",
+      blurb: "Resource production, gathering and protection.",
+      nodes: ECONOMY,
+    },
+    {
+      id: "battle",
+      label: "Battle",
+      blurb: "Troop attack, defense, health and lethality across three lanes.",
+      nodes: BATTLE,
+    },
+  ],
+};
