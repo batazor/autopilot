@@ -151,7 +151,32 @@ function ResearchPanel({
     () => (branch ? researchFlowNodes(branch) : []),
     [branch],
   );
+  const nodeById = useMemo(
+    () => new Map((branch?.nodes ?? []).map((n) => [n.id, n])),
+    [branch],
+  );
   if (!branch) return <p className="muted">No research data.</p>;
+
+  const renderDetail = (id: string) => {
+    const n = nodeById.get(id);
+    if (!n) return null;
+    const reqNames = n.requires
+      .map((r) => nodeById.get(r)?.name)
+      .filter(Boolean)
+      .join(", ");
+    return (
+      <div>
+        <div className="font-semibold">{n.name}</div>
+        <div className="text-wos-text-muted">{n.bonus}</div>
+        <div className="mt-2 text-xs text-wos-text-secondary">
+          Tier {ROMAN[n.tier] ?? n.tier} · {n.levels} levels
+        </div>
+        <div className="mt-1 text-xs text-wos-text-secondary">
+          Requires: {reqNames || "—"}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -168,7 +193,7 @@ function ResearchPanel({
         }))}
       />
       <p className="muted mb-3 mt-1 text-sm">{branch.blurb}</p>
-      <TechTreeFlow nodes={nodes} defaultDirection="TB" />
+      <TechTreeFlow nodes={nodes} defaultDirection="TB" renderDetail={renderDetail} />
     </>
   );
 }
@@ -209,6 +234,48 @@ function BuildingCatalog({ buildings }: { buildings: BuildingDef[] }) {
 
 function BuildingsPanel({ view }: { view: BuildingsView }) {
   const nodes = useMemo(() => buildingFlowNodes(view), [view]);
+  const byId = useMemo(
+    () => new Map(view.buildings.map((b) => [b.id, b])),
+    [view],
+  );
+
+  const renderDetail = (key: string) => {
+    const [bid, lvlStr] = key.split("@");
+    const b = byId.get(bid);
+    const lvl = b?.requirements_by_level[lvlStr];
+    if (!b) return null;
+    return (
+      <div>
+        <div className="font-semibold">
+          {b.name} — Lv {lvlStr}
+        </div>
+        {lvl?.prerequisites ? (
+          <div className="mt-1 text-xs text-wos-text-muted">
+            Requires: {lvl.prerequisites}
+          </div>
+        ) : null}
+        <div className="mt-2 space-y-0.5 text-xs text-wos-text-secondary">
+          {lvl?.construction_time && lvl.construction_time !== "-" ? (
+            <div>⏱ {lvl.construction_time}</div>
+          ) : null}
+          {lvl?.building_power ? <div>⚡ {lvl.building_power} power</div> : null}
+        </div>
+        {lvl?.build_cost?.length ? (
+          <div className="mt-2">
+            <div className="text-xs font-medium">Cost</div>
+            <ul className="text-xs text-wos-text-muted">
+              {lvl.build_cost.map((c, i) => (
+                <li key={i}>
+                  {c.amount} · {c.item.replace("item_icon_", "#")}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <>
       <SourceLine
@@ -216,7 +283,12 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
         label="whiteoutsurvival.wiki/buildings"
       />
       <div className="flex flex-col gap-4">
-        <TechTreeFlow nodes={nodes} height={720} defaultDirection="LR" />
+        <TechTreeFlow
+          nodes={nodes}
+          height={720}
+          defaultDirection="LR"
+          renderDetail={renderDetail}
+        />
         <BuildingCatalog buildings={view.buildings} />
       </div>
     </>
