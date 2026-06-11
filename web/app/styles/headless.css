@@ -115,7 +115,7 @@
   }
 
   .headless-radio--pill {
-    @apply cursor-pointer select-none rounded-md px-2.5 py-1 text-sm text-wos-text-secondary transition hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-checked:bg-sky-500 data-checked:text-white data-disabled:cursor-not-allowed data-disabled:opacity-50;
+    @apply inline-flex shrink-0 cursor-pointer select-none items-center justify-center whitespace-nowrap rounded-md px-2.5 py-1 text-sm text-wos-text-secondary transition hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-checked:bg-sky-500 data-checked:text-white data-disabled:cursor-not-allowed data-disabled:opacity-50;
   }
 
   .headless-radio--row {

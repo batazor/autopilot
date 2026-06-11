@@ -108,6 +108,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     overview,
     players,
     queue,
+    radar,
     routes,
     version,
     wiki,
@@ -151,6 +152,7 @@ app.add_middleware(
 app.include_router(instances.router)
 app.include_router(overview.router)
 app.include_router(queue.router)
+app.include_router(radar.router)
 app.include_router(events.router)
 app.include_router(players.router)
 app.include_router(alliances.router)

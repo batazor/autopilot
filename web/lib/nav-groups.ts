@@ -54,6 +54,11 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Notify monitor",
         description: "Android notification events per player",
       },
+      {
+        href: "/radar",
+        label: "Radar",
+        description: "Kingdom map viewer & scan control",
+      },
     ],
   },
   {

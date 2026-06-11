@@ -426,7 +426,7 @@ export default function AdbPage() {
           Select the backend in the dropdowns below to opt in per device.
         </p>
       </PageHeader>
-      <div className="toolbar mb-4 flex flex-wrap items-center gap-3">
+      <div className="adb-filterbar">
         <button
           type="button"
           className="btn-secondary"
@@ -435,7 +435,7 @@ export default function AdbPage() {
         >
           {scanning ? "Scanning…" : "Refresh scan"}
         </button>
-        <label className="module-search max-w-md">
+        <label className="module-search adb-filterbar__search">
           <Icon name="search" size="sm" />
           <input
             value={filter}

@@ -302,6 +302,26 @@
     @apply -mr-1 inline-flex h-7 w-7 items-center justify-center px-0 py-0;
   }
 
+  .adb-filterbar {
+    @apply mb-4 flex flex-wrap items-center gap-2 sm:gap-3;
+  }
+
+  .adb-filterbar__search {
+    @apply w-full min-w-0 flex-none sm:w-auto sm:min-w-[18rem] sm:flex-1 md:max-w-md;
+  }
+
+  .adb-filterbar .headless-radio-group--segmented {
+    @apply max-w-full shrink-0 overflow-x-auto;
+  }
+
+  .adb-filterbar .headless-popover {
+    @apply w-full sm:w-auto;
+  }
+
+  .adb-filterbar .headless-popover__button {
+    @apply h-9 w-full sm:w-auto;
+  }
+
   .module-editor-panel {
     @apply mt-4;
   }

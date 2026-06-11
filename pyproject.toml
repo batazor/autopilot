@@ -48,6 +48,7 @@ dev = [
     "pytest-clarity>=1.0.1",
     "pytest-sugar>=1.1.1",
     "pytest-timeout>=2.4.0",
+    "jsonschema>=4.21",
 ]
 # Used by the Docker build to compile selected packages (licensing, worker, …)
 # to native ``*.so`` extensions via ``scripts/compile_protected.sh``. Not needed
@@ -62,6 +63,7 @@ bot = "worker.supervisor:main"
 api = "api.main:main"
 issue-license = "licensing.cli:main"
 gen-license-keypair = "licensing.keypair_cli:main"
+radar = "modules.radar.cli:main"
 
 [build-system]
 requires = ["hatchling"]

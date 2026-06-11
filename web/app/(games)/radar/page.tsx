@@ -1,0 +1,642 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useState,
+} from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AppConfirmDialog, AppListbox } from "@/components/headless";
+import { ErrorBanner, useFeedback } from "@/components/feedback";
+import { PendingButton } from "@/components/ui/PendingButton";
+import { PageLoading } from "@/components/ui/Spinner";
+import ScanProgressDiamond, {
+  cellKey,
+  type CellMark,
+} from "@/components/radar/ScanProgressDiamond";
+import { ApiError } from "@/lib/api";
+import {
+  RADAR_EVENTS_URL,
+  buildRadarTiles,
+  deleteRadarRun,
+  fetchRadarActive,
+  fetchRadarManifest,
+  fetchRadarRuns,
+  fetchRadarTilesMeta,
+  startRadarScan,
+  type RadarEvent,
+  type RadarGridCell,
+  type RadarManifest,
+} from "@/lib/radar-api";
+
+const RadarMapViewer = dynamic(() => import("@/components/radar/RadarMapViewer"), {
+  ssr: false,
+  loading: () => <PageLoading />,
+});
+
+const errMsg = (e: unknown) =>
+  e instanceof ApiError ? e.detail || e.message : e instanceof Error ? e.message : String(e);
+
+// ---------------------------------------------------------------------------
+// Live scan state (fed exclusively by SSE — no polling)
+// ---------------------------------------------------------------------------
+
+type LiveState = {
+  phase: "idle" | "queued" | "scanning" | "failed";
+  runId: string | null;
+  done: number;
+  total: number;
+  grid: RadarGridCell[] | null;
+  cells: Record<string, CellMark>;
+  error: string | null;
+  /** Receipt timestamps of recent frame_done events, for the ETA. */
+  frameAt: number[];
+};
+
+const LIVE_IDLE: LiveState = {
+  phase: "idle",
+  runId: null,
+  done: 0,
+  total: 0,
+  grid: null,
+  cells: {},
+  error: null,
+  frameAt: [],
+};
+
+type LiveAction =
+  | { type: "event"; event: RadarEvent; at: number }
+  | { type: "queued"; runId: string; total: number; grid: RadarGridCell[] }
+  | { type: "hydrate"; grid: RadarGridCell[]; cells: Record<string, CellMark> };
+
+function liveReducer(state: LiveState, action: LiveAction): LiveState {
+  if (action.type === "queued") {
+    return {
+      ...LIVE_IDLE,
+      phase: "scanning",
+      runId: action.runId,
+      total: action.total,
+      grid: action.grid,
+    };
+  }
+  if (action.type === "hydrate") {
+    // Mid-scan page (re)load: grid + already-done cells come from the manifest.
+    if (state.grid !== null) return state;
+    return { ...state, grid: action.grid, cells: { ...action.cells, ...state.cells } };
+  }
+  const ev = action.event;
+  switch (ev.type) {
+    case "scan_active": {
+      // Connection bootstrap: rebase on the server's authoritative state.
+      if (!ev.active) {
+        return state.phase === "scanning" || state.phase === "queued" ? LIVE_IDLE : state;
+      }
+      const sameRun = state.runId === ev.active.run_id;
+      const cells = sameRun ? state.cells : {};
+      const grid = (sameRun ? state.grid : null) ?? ev.active.grid ?? null;
+      return {
+        ...state,
+        phase: ev.active.status === "queued" ? "queued" : "scanning",
+        runId: ev.active.run_id,
+        done: ev.active.done,
+        total: ev.active.total,
+        grid,
+        cells: grid ? markDonePrefix(grid, ev.active.done, cells) : cells,
+        error: null,
+      };
+    }
+    case "scan_started":
+      return {
+        ...LIVE_IDLE,
+        phase: "scanning",
+        runId: ev.run_id,
+        total: ev.total_frames,
+        grid: ev.grid,
+      };
+    case "frame_done": {
+      if (state.runId !== null && ev.run_id !== state.runId) return state;
+      return {
+        ...state,
+        phase: "scanning",
+        runId: ev.run_id,
+        done: ev.done,
+        total: ev.total,
+        cells: { ...state.cells, [cellKey(ev)]: ev.unstable ? "unstable" : "done" },
+        frameAt: [...state.frameAt.slice(-19), action.at],
+      };
+    }
+    case "scan_finished":
+      return LIVE_IDLE;
+    case "scan_failed":
+      return { ...state, phase: "failed", error: ev.error };
+    case "tiles_ready":
+      return state;
+    default:
+      return state;
+  }
+}
+
+function manifestCells(manifest: RadarManifest): {
+  grid: RadarGridCell[];
+  cells: Record<string, CellMark>;
+} {
+  const frames = Object.values(manifest.frames ?? {});
+  const grid =
+    manifest.grid?.points ?? frames.map((f) => ({ ix: f.ix, iy: f.iy }));
+  const cells: Record<string, CellMark> = {};
+  for (const f of frames) cells[cellKey(f)] = f.unstable ? "unstable" : "done";
+  return { grid, cells };
+}
+
+function markDonePrefix(
+  grid: RadarGridCell[],
+  done: number,
+  cells: Record<string, CellMark>,
+): Record<string, CellMark> {
+  if (!Number.isFinite(done) || done <= 0) return cells;
+  const next = { ...cells };
+  for (const cell of grid.slice(0, Math.min(done, grid.length))) {
+    const key = cellKey(cell);
+    if (!(key in next)) next[key] = "done";
+  }
+  return next;
+}
+
+function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+}
+
+function formatStartedAt(ts: number): string {
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function progressPercent(done: number, total: number): number {
+  if (!Number.isFinite(done) || !Number.isFinite(total) || total <= 0) return 0;
+  return Math.max(0, Math.min(100, (done / total) * 100));
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export default function RadarPage() {
+  const queryClient = useQueryClient();
+  const { showSuccess, showInfo } = useFeedback();
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [deleteConfirmRunId, setDeleteConfirmRunId] = useState<string | null>(null);
+  const [live, dispatch] = useReducer(liveReducer, LIVE_IDLE);
+
+  const runs = useQuery({ queryKey: ["radar", "runs"], queryFn: fetchRadarRuns });
+  const activeScan = useQuery({
+    queryKey: ["radar", "active"],
+    queryFn: fetchRadarActive,
+    refetchOnWindowFocus: true,
+  });
+  const runId = selectedRunId ?? runs.data?.[0]?.run_id ?? null;
+
+  const tiles = useQuery({
+    queryKey: ["radar", "tiles", runId],
+    queryFn: () => fetchRadarTilesMeta(runId as string),
+    enabled: runId !== null,
+  });
+  const manifest = useQuery({
+    queryKey: ["radar", "manifest", runId],
+    queryFn: () => fetchRadarManifest(runId as string),
+    enabled: runId !== null,
+  });
+
+  const refreshAll = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["radar"] }),
+    [queryClient],
+  );
+  const refreshActive = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["radar", "active"] }),
+    [queryClient],
+  );
+
+  useEffect(() => {
+    if (!activeScan.data) return;
+    dispatch({
+      type: "event",
+      event: { type: "scan_active", active: activeScan.data.active },
+      at: Date.now(),
+    });
+  }, [activeScan.data]);
+
+  // SSE is the live channel. The active JSON snapshot is only a resync hook for
+  // mount/focus/reconnect, so progress does not depend on timer polling.
+  useEffect(() => {
+    const es = new EventSource(RADAR_EVENTS_URL);
+    let opens = 0;
+    es.onopen = () => {
+      opens += 1;
+      refreshActive();
+      if (opens > 1) refreshAll();
+    };
+    es.onerror = () => {
+      refreshActive();
+    };
+    es.onmessage = (msg) => {
+      let ev: RadarEvent;
+      try {
+        ev = JSON.parse(msg.data as string) as RadarEvent;
+      } catch {
+        return;
+      }
+      dispatch({ type: "event", event: ev, at: Date.now() });
+      if (ev.type === "scan_finished") {
+        refreshAll();
+        setSelectedRunId(ev.run_id);
+        showSuccess(`Scan ${ev.run_id} finished in ${formatDuration(ev.duration_s)}`);
+      } else if (ev.type === "tiles_ready") {
+        refreshAll();
+        showInfo(`Tiles ready for ${ev.run_id}`);
+      }
+    };
+    return () => es.close();
+  }, [refreshActive, refreshAll, showSuccess, showInfo]);
+
+  // Page opened mid-scan: the bootstrap only carries counters, so pull the
+  // grid layout + already-captured cells from the active run's manifest.
+  useEffect(() => {
+    if (live.phase !== "scanning" || live.grid !== null || !live.runId) return;
+    let cancelled = false;
+    fetchRadarManifest(live.runId)
+      .then((m) => {
+        if (!cancelled) dispatch({ type: "hydrate", ...manifestCells(m) });
+      })
+      .catch(() => {
+        /* manifest may not exist yet right after scan start */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [live.phase, live.grid, live.runId]);
+
+  const scan = useMutation({
+    mutationFn: startRadarScan,
+    onSuccess: (res) => {
+      dispatch({
+        type: "queued",
+        runId: res.run_id,
+        total: res.total_frames,
+        grid: res.grid,
+      });
+      refreshActive();
+      showInfo(`Scan ${res.run_id} started on ${res.instance_id}`);
+    },
+  });
+  const tilesBuild = useMutation({
+    mutationFn: () => buildRadarTiles(runId as string),
+    onSuccess: () => showInfo("Tile build started — the map appears when it finishes"),
+  });
+  const deleteRun = useMutation({
+    mutationFn: deleteRadarRun,
+    onSuccess: (res) => {
+      setDeleteConfirmRunId(null);
+      if (selectedRunId === res.run_id) setSelectedRunId(null);
+      queryClient.removeQueries({ queryKey: ["radar", "manifest", res.run_id] });
+      queryClient.removeQueries({ queryKey: ["radar", "tiles", res.run_id] });
+      refreshAll();
+      showInfo(`Run ${res.run_id} deleted`);
+    },
+  });
+
+  const scanActive = live.phase === "queued" || live.phase === "scanning";
+
+  // The viewer subtree depends only on (runId, tiles meta) — progress events
+  // re-render the page but never re-mount or re-render the tile layer.
+  const viewer = useMemo(() => {
+    if (runId === null) return null;
+    if (tiles.data == null) return null;
+    return <RadarMapViewer runId={runId} meta={tiles.data} />;
+  }, [runId, tiles.data]);
+
+  // Idle metrics come from the selected run's manifest; live ones from SSE.
+  const manifestStats = useMemo(() => {
+    const m = manifest.data;
+    if (!m) return null;
+    const frames = Object.values(m.frames ?? {});
+    const ts = frames.map((f) => f.ts).filter(Boolean);
+    return {
+      done: frames.length,
+      total: m.grid?.count ?? frames.length,
+      unstable: frames.filter((f) => f.unstable).length,
+      duration: ts.length > 1 ? Math.max(...ts) - Math.min(...ts) : 0,
+    };
+  }, [manifest.data]);
+
+  const liveUnstable = useMemo(
+    () => Object.values(live.cells).filter((m) => m === "unstable").length,
+    [live.cells],
+  );
+
+  const eta = useMemo(() => {
+    if (live.phase !== "scanning" || live.frameAt.length < 2 || live.total === 0) return null;
+    const at = live.frameAt;
+    const avgMs = (at[at.length - 1] - at[0]) / (at.length - 1);
+    return ((live.total - live.done) * avgMs) / 1000;
+  }, [live.phase, live.frameAt, live.done, live.total]);
+
+  const progressGrid = scanActive
+    ? live.grid
+    : manifest.data
+      ? manifestCells(manifest.data).grid
+      : null;
+  const progressCells = scanActive
+    ? live.cells
+    : manifest.data
+      ? manifestCells(manifest.data).cells
+      : {};
+  const linearProgress = scanActive
+    ? { done: live.done, total: live.total }
+    : manifestStats
+      ? { done: manifestStats.done, total: manifestStats.total }
+      : { done: 0, total: 0 };
+  const linearProgressPct = progressPercent(linearProgress.done, linearProgress.total);
+  const linearProgressLabel =
+    linearProgress.total > 0
+      ? `${Math.round(linearProgressPct)}%`
+      : scanActive
+        ? "starting"
+        : "—";
+  const linearProgressWidth =
+    scanActive && linearProgress.total === 0 ? 100 : linearProgressPct;
+
+  const statusPill =
+    live.phase === "scanning" ? (
+      <span className="status-pill pill-busy">
+        scanning {live.done}/{live.total}
+      </span>
+    ) : live.phase === "queued" ? (
+      <span className="status-pill pill-busy">queued</span>
+    ) : live.phase === "failed" ? (
+      <span className="status-pill pill-danger" title={live.error ?? undefined}>
+        failed
+      </span>
+    ) : (
+      <span className="status-pill pill-offline">idle</span>
+    );
+
+  const runOptions = (runs.data ?? []).map((r) => ({
+    value: r.run_id,
+    label: `${r.run_id} (${r.frames_done}/${r.frames_total})`,
+  }));
+
+  const queryError = runs.isError
+    ? errMsg(runs.error)
+    : manifest.isError
+      ? errMsg(manifest.error)
+      : tiles.isError
+        ? errMsg(tiles.error)
+        : null;
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      {/* Header row */}
+      <div className="panel flex flex-wrap items-center gap-3 p-3">
+        <h1 className="text-lg font-semibold">Radar</h1>
+        <AppListbox
+          aria-label="Run"
+          options={runOptions}
+          value={runId ?? ""}
+          onChange={setSelectedRunId}
+          placeholder={runs.isLoading ? "Loading runs…" : "No runs yet"}
+          loading={runs.isLoading}
+          disabled={runOptions.length === 0}
+          minWidth={260}
+          inline
+        />
+        <PendingButton
+          variant="primary"
+          pending={scan.isPending}
+          disabled={scanActive}
+          title={scanActive ? "A scan is already in progress" : "Start a full kingdom scan"}
+          onClick={() => scan.mutate()}
+        >
+          Start scan
+        </PendingButton>
+        {statusPill}
+        <div className="ml-auto" />
+      </div>
+
+      <div className="panel !p-3">
+        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+          <span className="font-medium text-wos-text-muted">Scan progress</span>
+          <span className="tabular-nums text-wos-text-secondary">
+            {linearProgress.total > 0
+              ? `${linearProgress.done}/${linearProgress.total} · ${linearProgressLabel}`
+              : linearProgressLabel}
+          </span>
+        </div>
+        <div
+          className="h-2.5 overflow-hidden rounded-full bg-wos-panel-raised"
+          role="progressbar"
+          aria-label="Radar scan progress"
+          aria-valuemin={0}
+          aria-valuemax={Math.max(linearProgress.total, 1)}
+          aria-valuenow={Math.min(linearProgress.done, linearProgress.total || 0)}
+        >
+          <div
+            className={`h-full rounded-full bg-sky-400 transition-[width] duration-300 ${
+              scanActive && linearProgress.total === 0 ? "animate-pulse" : ""
+            }`}
+            style={{ width: `${linearProgressWidth}%` }}
+          />
+        </div>
+      </div>
+
+      {scan.isError ? <ErrorBanner message={errMsg(scan.error)} /> : null}
+      {live.phase === "failed" && live.error ? (
+        <ErrorBanner message={`Scan failed: ${live.error}`} />
+      ) : null}
+      {deleteRun.isError ? <ErrorBanner message={errMsg(deleteRun.error)} /> : null}
+      {queryError ? (
+        <ErrorBanner
+          message={queryError}
+          onRetry={() => void refreshAll()}
+          retrying={runs.isFetching}
+        />
+      ) : null}
+
+      {/* Map viewer */}
+      <div className="panel p-3">
+        {runId === null ? (
+          <div className="flex h-64 flex-col items-center justify-center gap-2 text-wos-text-muted">
+            <p>No scan runs yet.</p>
+            <p className="text-sm">Press “Start scan” to capture the kingdom map.</p>
+          </div>
+        ) : tiles.isLoading ? (
+          <PageLoading />
+        ) : viewer ?? (
+            <div className="flex h-64 flex-col items-center justify-center gap-3 text-wos-text-muted">
+              <p>This run has no map tiles yet.</p>
+              <PendingButton
+                variant="secondary"
+                pending={tilesBuild.isPending}
+                onClick={() => tilesBuild.mutate()}
+              >
+                Build tiles
+              </PendingButton>
+              {tilesBuild.isError ? (
+                <p className="text-sm text-red-400">{errMsg(tilesBuild.error)}</p>
+              ) : null}
+            </div>
+          )}
+      </div>
+
+      {/* Metric cards */}
+      <div className="metrics-row">
+        <div className="metric-card">
+          <div className="label">Frames</div>
+          <div className="value">
+            {scanActive
+              ? `${live.done}/${live.total}`
+              : manifestStats
+                ? `${manifestStats.done}/${manifestStats.total}`
+                : "—"}
+          </div>
+        </div>
+        <div className="metric-card">
+          <div className="label">Duration</div>
+          <div className="value">
+            {scanActive
+              ? eta !== null
+                ? `ETA ${formatDuration(eta)}`
+                : "…"
+              : formatDuration(manifestStats?.duration ?? 0)}
+          </div>
+        </div>
+        <div
+          className={`metric-card${(scanActive ? liveUnstable : (manifestStats?.unstable ?? 0)) > 0 ? " metric-card--warn" : ""}`}
+        >
+          <div className="label">Unstable frames</div>
+          <div className="value">
+            {scanActive ? liveUnstable : (manifestStats?.unstable ?? "—")}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom row: progress + history */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="panel p-3">
+          <h2 className="mb-2 text-sm font-semibold text-wos-text-muted">Scan progress</h2>
+          {progressGrid && progressGrid.length > 0 ? (
+            <>
+              <ScanProgressDiamond
+                grid={progressGrid}
+                cells={progressCells}
+                scanning={live.phase === "scanning"}
+              />
+              <p className="mt-2 text-center text-sm text-wos-text-muted">
+                {scanActive
+                  ? `${live.done}/${live.total}${eta !== null ? ` · ETA ${formatDuration(eta)}` : ""}`
+                  : manifestStats
+                    ? `${manifestStats.done}/${manifestStats.total}`
+                    : ""}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-wos-text-muted">
+              {scanActive ? "Waiting for scan grid…" : "Select a run to see its grid."}
+            </p>
+          )}
+        </div>
+
+        <div className="panel p-3">
+          <h2 className="mb-2 text-sm font-semibold text-wos-text-muted">Run history</h2>
+          {(runs.data ?? []).length === 0 ? (
+            <p className="text-sm text-wos-text-muted">No runs recorded yet.</p>
+          ) : (
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Run</th>
+                    <th>Started</th>
+                    <th>Frames</th>
+                    <th>Duration</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(runs.data ?? []).map((r) => (
+                    <tr key={r.run_id} className={r.run_id === runId ? "fleet-row--accent" : ""}>
+                      <td>{r.run_id}</td>
+                      <td>{formatStartedAt(r.started_at)}</td>
+                      <td>
+                        {r.frames_done}/{r.frames_total}
+                        {r.unstable_count > 0 ? (
+                          <span
+                            className="status-pill pill-paused ml-2"
+                            title={`${r.unstable_count} unstable frame(s)`}
+                          >
+                            {r.unstable_count} unstable
+                          </span>
+                        ) : null}
+                      </td>
+                      <td>{formatDuration(r.duration_s)}</td>
+                      <td>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={r.run_id === runId}
+                            onClick={() => setSelectedRunId(r.run_id)}
+                          >
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={
+                              deleteRun.isPending ||
+                              (scanActive && live.runId === r.run_id)
+                            }
+                            title={
+                              scanActive && live.runId === r.run_id
+                                ? "Cannot delete an active scan"
+                                : "Delete this scan run"
+                            }
+                            onClick={() => setDeleteConfirmRunId(r.run_id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <AppConfirmDialog
+        open={deleteConfirmRunId !== null}
+        onClose={() => {
+          if (!deleteRun.isPending) setDeleteConfirmRunId(null);
+        }}
+        onConfirm={() => {
+          if (deleteConfirmRunId !== null) deleteRun.mutate(deleteConfirmRunId);
+        }}
+        title="Delete scan?"
+        confirmLabel={deleteRun.isPending ? "Deleting…" : "Delete scan"}
+        variant="danger"
+        busy={deleteRun.isPending}
+      >
+        <p>
+          Delete scan <code>{deleteConfirmRunId}</code> and all of its frames,
+          stitched maps, and tiles? This cannot be undone.
+        </p>
+      </AppConfirmDialog>
+    </div>
+  );
+}

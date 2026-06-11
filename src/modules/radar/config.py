@@ -1,0 +1,140 @@
+"""Radar configuration: pydantic models + YAML load/save (``radar_config.yaml``).
+
+Every runtime number — timings and geometry — lives here so the scanner and
+stitcher contain no magic constants.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Literal
+
+import yaml
+from pydantic import BaseModel, Field
+
+from modules.radar.geometry import Corners
+
+CONFIG_VERSION = 1
+RUNS_DIR_ENV = "RADAR_RUNS_DIR"
+DEFAULT_CONFIG_NAME = "radar_config.yaml"
+MINIMAP_REFERENCE_NAME = "radar_minimap_ref.png"
+
+
+def runs_root() -> Path:
+    """Directory holding all scan runs — ``RADAR_RUNS_DIR`` or ``<repo>/runs``."""
+    raw = os.environ.get(RUNS_DIR_ENV, "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    from config.paths import repo_root
+
+    return repo_root() / "runs"
+
+
+class CornersConfig(BaseModel):
+    """Diamond corners in absolute screen pixels."""
+
+    top: tuple[float, float]
+    right: tuple[float, float]
+    bottom: tuple[float, float]
+    left: tuple[float, float]
+
+    def as_geometry(self) -> Corners:
+        return Corners(top=self.top, right=self.right, bottom=self.bottom, left=self.left)
+
+
+class MinimapConfig(BaseModel):
+    """Where the minimap sits on screen."""
+
+    bbox: tuple[int, int, int, int]  # x, y, w, h
+    corners: CornersConfig
+    reference: str = MINIMAP_REFERENCE_NAME
+
+
+class ViewportConfig(BaseModel):
+    """Camera viewport size inside the minimap, used to derive tap spacing."""
+
+    rect_w: int = Field(gt=0)
+    rect_h: int = Field(gt=0)
+
+
+class CropConfig(BaseModel):
+    """Useful game area on the main screen (HUD/chat/nav excluded)."""
+
+    x: int = Field(ge=0)
+    y: int = Field(ge=0)
+    w: int = Field(gt=0)
+    h: int = Field(gt=0)
+
+
+class StitchViewportConfig(BaseModel):
+    """Visible map viewport size used to place cropped frames on the canvas."""
+
+    w: int = Field(gt=0)
+    h: int = Field(gt=0)
+
+
+class TimingsConfig(BaseModel):
+    """Waits and stabilization thresholds used by the scan loop."""
+
+    post_tap_delay_ms: int = Field(default=300, ge=0)
+    stabilize_interval_ms: int = Field(default=150, ge=10)
+    stabilize_diff_threshold: float = Field(default=2.0, gt=0)
+    stabilize_consecutive: int = Field(default=2, ge=1)
+    stabilize_timeout_ms: int = Field(default=5000, ge=100)
+
+
+class NavigationConfig(BaseModel):
+    """How the scanner moves the map between frames."""
+
+    mode: Literal["swipe", "tap"] = "swipe"
+    swipe_duration_ms: int = Field(default=450, ge=100, le=2000)
+    swipe_margin_px: int = Field(default=48, ge=0)
+    swipe_scale: float = Field(default=1.0, gt=0.0, le=2.0)
+
+
+class RadarConfig(BaseModel):
+    """Everything ``radar scan`` needs."""
+
+    version: int = CONFIG_VERSION
+    device_serial: str = ""
+    adb_bin: str = "adb"
+    minimap: MinimapConfig
+    viewport: ViewportConfig
+    # Minimap taps too close to the current viewport often do not move the
+    # camera in-game. Keep overlap below 0.5 so each tap advances by more than
+    # half of the minimap viewport in both axes.
+    overlap: float = Field(default=0.25, ge=0.0, lt=0.5)
+    edge_margin_px: float | None = Field(default=None, ge=0.0)
+    crop: CropConfig
+    stitch_viewport: StitchViewportConfig | None = None
+    game_size: int = Field(default=1200, gt=1)
+    navigation: NavigationConfig = NavigationConfig()
+    timings: TimingsConfig = TimingsConfig()
+
+
+def load_config(path: Path) -> RadarConfig:
+    if not path.is_file():
+        msg = f"radar config not found: {path} — create radar_config.yaml first"
+        raise FileNotFoundError(msg)
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        msg = f"radar config {path} is not a YAML mapping"
+        raise TypeError(msg)
+    cfg = RadarConfig.model_validate(raw)
+    if cfg.version != CONFIG_VERSION:
+        msg = (
+            f"radar config {path} has version {cfg.version}, expected {CONFIG_VERSION} — "
+            "refresh radar_config.yaml"
+        )
+        raise ValueError(msg)
+    return cfg
+
+
+def save_config(cfg: RadarConfig, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # mode="json" turns tuples into lists, which is what yaml.safe_dump can emit.
+    path.write_text(
+        yaml.safe_dump(cfg.model_dump(mode="json"), sort_keys=False),
+        encoding="utf-8",
+    )
