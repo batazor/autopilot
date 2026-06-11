@@ -871,6 +871,8 @@ export type BuildingLevelReq = {
   construction_time?: string | null;
   building_power?: number | null;
   build_cost: BuildingCostItem[];
+  /** Cross-building deps parsed from this level's prerequisites text. */
+  requires?: BuildingRequire[];
 };
 
 export type BuildingRequire = { building: string; level: number };

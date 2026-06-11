@@ -28,6 +28,10 @@ export type FlowTreeNode = {
   badge?: string;
   /** Emoji or short glyph shown in the node's icon chip. */
   icon?: string;
+  /** Explicit canvas position; when set, overrides the auto tier layout. */
+  position?: { x: number; y: number };
+  /** Card width in px (default 200). */
+  width?: number;
   requires: FlowRequire[];
 };
 
@@ -48,7 +52,7 @@ const TechNode = memo(function TechNode({ data }: NodeProps) {
     <div
       className="flex items-center gap-2 rounded-lg border p-2 shadow-sm"
       style={{
-        width: NODE_W,
+        width: n.width ?? NODE_W,
         background: "var(--wos-panel-raised)",
         borderColor: "var(--wos-border)",
       }}
@@ -108,12 +112,14 @@ export function TechTreeFlow({
     const rfNodes: Node[] = nodes.map((n) => {
       const row = rowOf.get(n.tier) ?? 0;
       rowOf.set(n.tier, row + 1);
+      const position =
+        n.position ?? { x: (n.tier - 1) * COL_W, y: row * ROW_H };
       return {
         id: n.id,
         type: "tech",
-        position: { x: (n.tier - 1) * COL_W, y: row * ROW_H },
+        position,
         data: { node: n },
-        style: { width: NODE_W },
+        style: { width: n.width ?? NODE_W },
       };
     });
 

@@ -16,37 +16,8 @@ the new block — the rest of each generated file is left byte-for-byte intact.
 """
 from __future__ import annotations
 
-import re
-
+from config.building_deps import name_index, refs_in_text
 from config.buildings import buildings_db_dir, get_building_registry
-
-_ALIASES = {"command centre": "command_center"}
-_NUM_RE = re.compile(r"\d+")
-
-
-def _normalize(text: str) -> str:
-    return text.replace("’", "'").replace("`", "'").lower().strip()
-
-
-def _name_index() -> list[tuple[str, str]]:
-    pairs = {_normalize(b.name): b.id for b in get_building_registry().buildings}
-    pairs.update(_ALIASES)
-    return sorted(pairs.items(), key=lambda kv: -len(kv[0]))
-
-
-def _refs_in_text(text: str, names: list[tuple[str, str]]) -> dict[str, int]:
-    norm = _normalize(text)
-    refs: dict[str, int] = {}
-    for name, bid in names:
-        start = 0
-        while (i := norm.find(name, start)) != -1:
-            tail = norm[i + len(name) : i + len(name) + 14]
-            m = _NUM_RE.search(tail)
-            level = int(m.group()) if m else 1
-            refs[bid] = max(refs.get(bid, 0), level)
-            norm = norm[:i] + (" " * len(name)) + norm[i + len(name) :]
-            start = i + len(name)
-    return refs
 
 
 def _unlock_requires(
@@ -57,7 +28,7 @@ def _unlock_requires(
         text = str(req_by_level[level].get("prerequisites") or "")
         if not text:
             continue
-        for bid, lvl in _refs_in_text(text, names).items():
+        for bid, lvl in refs_in_text(text, names).items():
             if bid != building_id and bid not in gates:
                 gates[bid] = lvl
     return list(gates.items())
@@ -94,8 +65,8 @@ def _strip_existing(lines: list[str]) -> list[str]:
 
 
 def main() -> None:
-    names = _name_index()
     registry = get_building_registry()
+    names = name_index(registry.buildings)
     by_id = {b.id: b for b in registry.buildings}
     db_dir = buildings_db_dir()
 

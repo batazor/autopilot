@@ -72,31 +72,90 @@ function researchFlowNodes(branch: ResearchBranchView): FlowTreeNode[] {
   }));
 }
 
+// Per-(building, level) swimlane layout: one node per building level, laid out
+// with x = level and y = building row. Scoped to the Furnace build ladder —
+// every Furnace level plus the transitive build/upgrade prerequisites it needs
+// — so the graph is the real, acyclic build order instead of a cyclic blob.
+const LANE_LABEL_X = 0;
+const LANE_LABEL_W = 150;
+const LEVEL_X0 = 180;
+const LEVEL_STEP = 86;
+const LANE_H = 84;
+const LEVEL_W = 66;
+
+function levelKey(building: string, level: number): string {
+  return `${building}@${level}`;
+}
+
 function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
   const hubId = view.hub_id;
-  const connected = new Set<string>([hubId]);
+  const nameOf = new Map(view.buildings.map((b) => [b.id, b.name]));
+
+  // (building@level) -> its prerequisite (building@level) keys.
+  const reqOf = new Map<string, { building: string; level: number }[]>();
   for (const b of view.buildings) {
-    for (const r of b.requires) {
-      connected.add(b.id);
-      connected.add(r.building);
+    for (const [lvlStr, lvl] of Object.entries(b.requirements_by_level)) {
+      reqOf.set(levelKey(b.id, Number(lvlStr)), lvl.requires ?? []);
     }
   }
-  return view.buildings
-    .filter((b) => connected.has(b.id))
-    .map((b) => {
-      const furnaceReq = b.requires.find((r) => r.building === hubId);
-      const lvl = furnaceReq?.level ?? null;
-      const tier = b.id === hubId ? 1 : lvl ? 2 + Math.floor((lvl - 1) / 4) : 2;
-      return {
-        id: b.id,
-        tier,
-        title: b.name,
-        icon: buildingIcon(b.id),
-        subtitle: b.id === hubId ? "Gates & caps every building" : undefined,
-        footer: b.max_level ? `max Lv ${b.max_level}` : undefined,
-        requires: b.requires.map((r) => ({ id: r.building, label: `Lv ${r.level}` })),
-      };
+
+  // Closure: seed with every Furnace level, pull in transitive prerequisites.
+  const seen = new Set<string>();
+  const stack: { building: string; level: number }[] = view.buildings
+    .filter((b) => b.id === hubId)
+    .flatMap((b) =>
+      Object.keys(b.requirements_by_level).map((l) => ({
+        building: b.id,
+        level: Number(l),
+      })),
+    );
+  while (stack.length) {
+    const n = stack.pop()!;
+    const key = levelKey(n.building, n.level);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    for (const r of reqOf.get(key) ?? []) stack.push(r);
+  }
+
+  // Group included levels by building; order rows by earliest level (hub first).
+  const byBuilding = new Map<string, number[]>();
+  for (const key of seen) {
+    const [bid, lvl] = key.split("@");
+    byBuilding.set(bid, [...(byBuilding.get(bid) ?? []), Number(lvl)]);
+  }
+  const rows = [...byBuilding.entries()].sort((a, b) => {
+    if (a[0] === hubId) return -1;
+    if (b[0] === hubId) return 1;
+    return Math.min(...a[1]) - Math.min(...b[1]) || a[0].localeCompare(b[0]);
+  });
+
+  const nodes: FlowTreeNode[] = [];
+  rows.forEach(([bid, levels], rowIdx) => {
+    const y = rowIdx * LANE_H;
+    // Lane label (building name + icon) at the left.
+    nodes.push({
+      id: `lane:${bid}`,
+      tier: 0,
+      title: nameOf.get(bid) ?? bid,
+      icon: buildingIcon(bid),
+      position: { x: LANE_LABEL_X, y },
+      width: LANE_LABEL_W,
+      requires: [],
     });
+    for (const level of levels) {
+      nodes.push({
+        id: levelKey(bid, level),
+        tier: 0,
+        title: `Lv ${level}`,
+        position: { x: LEVEL_X0 + (level - 1) * LEVEL_STEP, y },
+        width: LEVEL_W,
+        requires: (reqOf.get(levelKey(bid, level)) ?? [])
+          .map((r) => levelKey(r.building, r.level))
+          .filter((k) => seen.has(k)),
+      });
+    }
+  });
+  return nodes;
 }
 
 function SourceLine({ url, label }: { url: string; label: string }) {
@@ -183,7 +242,7 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
         label="whiteoutsurvival.wiki/buildings"
       />
       <div className="flex flex-col gap-4">
-        <TechTreeFlow nodes={nodes} />
+        <TechTreeFlow nodes={nodes} height={720} />
         <BuildingCatalog buildings={view.buildings} />
       </div>
     </>
