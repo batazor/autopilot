@@ -46,6 +46,7 @@ class RadarScanTask:
         from config.loader import load_settings
         from modules.radar.config import default_config_path, runs_root
         from modules.radar.events import RadarEventPublisher, read_active
+        from modules.radar.live import live_stitching
         from modules.radar.scanner import run_scan
         from modules.radar.stitch import run_stitch
         from modules.radar.tiles import generate_tiles
@@ -70,13 +71,14 @@ class RadarScanTask:
             out_dir = runs_root() / run_id
             publisher = RadarEventPublisher(client, run_id)
             try:
-                run_scan(
-                    default_config_path(),
-                    out_dir,
-                    serial=serial,
-                    adb_bin=settings.worker.adb_executable or "adb",
-                    events=publisher,
-                )
+                with live_stitching(out_dir, publisher):
+                    run_scan(
+                        default_config_path(),
+                        out_dir,
+                        serial=serial,
+                        adb_bin=settings.worker.adb_executable or "adb",
+                        events=publisher,
+                    )
             except Exception as exc:
                 # run_scan already published scan_failed and cleared the key.
                 logger.exception("radar scan failed (run %s)", run_id)

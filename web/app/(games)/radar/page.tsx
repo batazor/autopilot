@@ -26,6 +26,7 @@ import {
   fetchRadarManifest,
   fetchRadarRuns,
   fetchRadarTilesMeta,
+  radarPreviewUrl,
   startRadarScan,
   type RadarEvent,
   type RadarGridCell,
@@ -54,6 +55,8 @@ type LiveState = {
   error: string | null;
   /** Receipt timestamps of recent frame_done events, for the ETA. */
   frameAt: number[];
+  /** Bumps on every map_updated — cache-busts the live preview image. */
+  mapVersion: number;
 };
 
 const LIVE_IDLE: LiveState = {
@@ -65,6 +68,7 @@ const LIVE_IDLE: LiveState = {
   cells: {},
   error: null,
   frameAt: [],
+  mapVersion: 0,
 };
 
 type LiveAction =
@@ -106,6 +110,8 @@ function liveReducer(state: LiveState, action: LiveAction): LiveState {
         grid,
         cells: grid ? markDonePrefix(grid, ev.active.done, cells) : cells,
         error: null,
+        // Mid-scan (re)connect: frames already done imply a stitched preview.
+        mapVersion: sameRun ? Math.max(state.mapVersion, ev.active.done) : ev.active.done,
       };
     }
     case "scan_started":
@@ -132,6 +138,9 @@ function liveReducer(state: LiveState, action: LiveAction): LiveState {
       return LIVE_IDLE;
     case "scan_failed":
       return { ...state, phase: "failed", error: ev.error };
+    case "map_updated":
+      if (state.runId !== null && ev.run_id !== state.runId) return state;
+      return { ...state, mapVersion: Math.max(state.mapVersion + 1, ev.frames) };
     case "tiles_ready":
       return state;
     default:
@@ -309,6 +318,8 @@ export default function RadarPage() {
   });
 
   const scanActive = live.phase === "queued" || live.phase === "scanning";
+  const selectedRunHasMap =
+    (runs.data ?? []).find((r) => r.run_id === runId)?.has_map ?? false;
 
   // The viewer subtree depends only on (runId, tiles meta) — progress events
   // re-render the page but never re-mount or re-render the tile layer.
@@ -467,7 +478,28 @@ export default function RadarPage() {
 
       {/* Map viewer */}
       <div className="panel p-3">
-        {runId === null ? (
+        {scanActive && live.runId ? (
+          // Live mode: the map grows in front of you — every captured frame is
+          // re-stitched on the fly and pushed here via the map_updated event.
+          live.mapVersion > 0 ? (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={radarPreviewUrl(live.runId, live.mapVersion)}
+                alt={`live stitched map (${live.done}/${live.total} frames)`}
+                className="block h-auto w-full rounded"
+              />
+              <span className="status-pill pill-busy absolute right-2 top-2">
+                live · {live.done}/{live.total}
+              </span>
+            </div>
+          ) : (
+            <div className="flex h-64 flex-col items-center justify-center gap-2 text-wos-text-muted">
+              <p>Capturing the first frame…</p>
+              <p className="text-sm">The map appears here and grows as frames land.</p>
+            </div>
+          )
+        ) : runId === null ? (
           <div className="flex h-64 flex-col items-center justify-center gap-2 text-wos-text-muted">
             <p>No scan runs yet.</p>
             <p className="text-sm">Press “Start scan” to capture the kingdom map.</p>
@@ -475,7 +507,15 @@ export default function RadarPage() {
         ) : tiles.isLoading ? (
           <PageLoading />
         ) : viewer ?? (
-            <div className="flex h-64 flex-col items-center justify-center gap-3 text-wos-text-muted">
+            <div className="flex flex-col items-center justify-center gap-3 py-4 text-wos-text-muted">
+              {selectedRunHasMap ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={radarPreviewUrl(runId, "final")}
+                  alt="stitched map preview"
+                  className="block h-auto w-full rounded"
+                />
+              ) : null}
               <p>This run has no map tiles yet.</p>
               <PendingButton
                 variant="secondary"

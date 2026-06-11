@@ -129,5 +129,9 @@ class RadarEventPublisher:
         clear_active(self._client)
         self._publish({"type": "scan_failed", "error": error})
 
+    def map_updated(self, frames: int) -> None:
+        """Live preview re-stitched with ``frames`` frames — UI should refetch it."""
+        self._publish({"type": "map_updated", "frames": frames})
+
     def tiles_ready(self) -> None:
         self._publish({"type": "tiles_ready"})

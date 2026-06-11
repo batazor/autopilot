@@ -30,6 +30,7 @@ from modules.radar.events import (
     set_active,
 )
 from modules.radar.scanner import MANIFEST_NAME
+from modules.radar.stitch import MAP_PREVIEW_NAME
 from modules.radar.tiles import MAP_FULL_NAME, TILES_DIR_NAME, TILES_META_NAME
 
 if TYPE_CHECKING:
@@ -159,6 +160,24 @@ def get_tile(run_id: str, z: int, x: int, y: int) -> FileResponse:
     )
 
 
+@router.get("/runs/{run_id}/preview.jpg")
+def get_map_preview(run_id: str) -> FileResponse:
+    """Latest stitched preview (long side capped). During a scan the live
+    stitcher rewrites it after every frame — hence no-store."""
+    path = _run_dir(run_id) / MAP_PREVIEW_NAME
+    if not path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"run {run_id} has no stitched preview yet",
+            headers={"Cache-Control": "no-store"},
+        )
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+
 class ScanRequest(BaseModel):
     instance_id: str = ""
 
@@ -178,6 +197,7 @@ def _radar_config_path() -> Path:
 
 def _run_scan_now_blocking(run_id: str, instance_id: str, client: redis.Redis) -> None:
     """Run a radar scan immediately from the API process, outside the bot queue."""
+    from modules.radar.live import live_stitching
     from modules.radar.scanner import run_scan
     from modules.radar.stitch import run_stitch
     from modules.radar.tiles import generate_tiles
@@ -194,13 +214,14 @@ def _run_scan_now_blocking(run_id: str, instance_id: str, client: redis.Redis) -
     out_dir = runs_root() / run_id
     publisher = RadarEventPublisher(client, run_id)
     try:
-        run_scan(
-            _radar_config_path(),
-            out_dir,
-            serial=serial,
-            adb_bin=settings.worker.adb_executable or "adb",
-            events=publisher,
-        )
+        with live_stitching(out_dir, publisher):
+            run_scan(
+                _radar_config_path(),
+                out_dir,
+                serial=serial,
+                adb_bin=settings.worker.adb_executable or "adb",
+                events=publisher,
+            )
     except Exception as exc:
         # ``run_scan`` reports failures after scan_started; this branch also
         # covers earlier setup failures (config/ADB/device discovery).

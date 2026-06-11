@@ -26,6 +26,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 PREVIEW_LONG_SIDE = 4096
+MAP_FULL_NAME = "map_full.png"
+MAP_PREVIEW_NAME = "map_preview.jpg"
 DEFAULT_STITCH_VIEWPORT_W = 720
 DEFAULT_STITCH_VIEWPORT_H = 1185
 MATCH_MIN_SCORE = 0.08
@@ -419,10 +421,15 @@ def run_stitch(run_dir: Path) -> Path:
         valid = mask > 0
         roi[valid] = img[valid]
 
-    full_path = run_dir / "map_full.png"
-    if not cv2.imwrite(str(full_path), canvas):
+    # Atomic writes: during a scan the live stitcher rewrites these every few
+    # seconds while the API serves the preview — readers must never see a
+    # half-written file.
+    full_path = run_dir / MAP_FULL_NAME
+    full_tmp = run_dir / f".{MAP_FULL_NAME}.tmp.png"
+    if not cv2.imwrite(str(full_tmp), canvas):
         msg = f"failed to write {full_path}"
         raise RuntimeError(msg)
+    full_tmp.replace(full_path)
 
     scale = PREVIEW_LONG_SIDE / max(canvas_w, canvas_h)
     preview = canvas
@@ -432,7 +439,9 @@ def run_stitch(run_dir: Path) -> Path:
             (int(canvas_w * scale), int(canvas_h * scale)),
             interpolation=cv2.INTER_AREA,
         )
-    preview_path = run_dir / "map_preview.jpg"
-    cv2.imwrite(str(preview_path), preview)
+    preview_path = run_dir / MAP_PREVIEW_NAME
+    preview_tmp = run_dir / f".{MAP_PREVIEW_NAME}.tmp.jpg"
+    cv2.imwrite(str(preview_tmp), preview)
+    preview_tmp.replace(preview_path)
     logger.info("stitched map saved: %s (+ %s)", full_path, preview_path)
     return full_path

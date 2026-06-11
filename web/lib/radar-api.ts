@@ -77,12 +77,17 @@ export type RadarEvent =
     }
   | { type: "scan_finished"; run_id: string; duration_s: number }
   | { type: "scan_failed"; run_id: string; error: string }
+  | { type: "map_updated"; run_id: string; frames: number }
   | { type: "tiles_ready"; run_id: string };
 
 export const RADAR_EVENTS_URL = "/api/radar/events";
 
 export const radarTileUrl = (runId: string) =>
   `/api/radar/runs/${encodeURIComponent(runId)}/tiles/{z}/{x}/{y}`;
+
+/** Live stitched preview; `version` busts the browser cache per map_updated. */
+export const radarPreviewUrl = (runId: string, version: number | string) =>
+  `/api/radar/runs/${encodeURIComponent(runId)}/preview.jpg?v=${encodeURIComponent(version)}`;
 
 export function fetchRadarRuns(): Promise<RadarRunSummary[]> {
   return rfetch("/api/radar/runs");
