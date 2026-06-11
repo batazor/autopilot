@@ -77,39 +77,47 @@ function levelKey(building: string, level: number): string {
   return `${building}@${level}`;
 }
 
-// One node per (building, level) wired by per-level prerequisites — at level
-// granularity the graph is an acyclic tree (laid out by dagre). Scoped to the
-// Furnace build ladder: every Furnace level plus its transitive prerequisites.
+// One node per (building, level). The graph follows the actual game rules,
+// not the (inconsistent) free-text prerequisites:
+//   • Furnace Lv N requires its support buildings at Lv N-1 (from furnace data).
+//   • Any building at Lv L requires Furnace at Lv L (the level cap) — the wiki
+//     lists a constant unlock level for camps/etc., which is wrong for build
+//     order, so we apply the cap rule uniformly.
+//   • Consecutive levels of a building chain (Lv L-1 → Lv L).
+// Scoped to the Furnace build ladder (every Furnace level + what gates it).
 function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
   const hubId = view.hub_id;
   const nameOf = new Map(view.buildings.map((b) => [b.id, b.name]));
+  const furnace = view.buildings.find((b) => b.id === hubId);
+  if (!furnace) return [];
 
-  const reqOf = new Map<string, { building: string; level: number }[]>();
-  for (const b of view.buildings) {
-    for (const [lvlStr, lvl] of Object.entries(b.requirements_by_level)) {
-      reqOf.set(levelKey(b.id, Number(lvlStr)), lvl.requires ?? []);
-    }
+  // Furnace level → its support-building requirements (correct in the data).
+  const furnaceReq = new Map<number, { building: string; level: number }[]>();
+  for (const [lvlStr, lvl] of Object.entries(furnace.requirements_by_level)) {
+    furnaceReq.set(Number(lvlStr), lvl.requires ?? []);
   }
 
+  // Cross/cap requirements of a (building@level), by rule.
+  const ruleReqs = (key: string): string[] => {
+    const [bid, lvlStr] = key.split("@");
+    const level = Number(lvlStr);
+    if (bid === hubId) {
+      return (furnaceReq.get(level) ?? []).map((r) => levelKey(r.building, r.level));
+    }
+    return [levelKey(hubId, level)]; // building Lv L needs Furnace Lv L
+  };
+
+  // Closure from every Furnace level.
   const seen = new Set<string>();
-  const stack: { building: string; level: number }[] = view.buildings
-    .filter((b) => b.id === hubId)
-    .flatMap((b) =>
-      Object.keys(b.requirements_by_level).map((l) => ({
-        building: b.id,
-        level: Number(l),
-      })),
-    );
+  const stack = [...furnaceReq.keys()].map((l) => levelKey(hubId, l));
   while (stack.length) {
-    const n = stack.pop()!;
-    const key = levelKey(n.building, n.level);
+    const key = stack.pop()!;
     if (seen.has(key)) continue;
     seen.add(key);
-    for (const r of reqOf.get(key) ?? []) stack.push(r);
+    for (const dep of ruleReqs(key)) stack.push(dep);
   }
 
-  // Previous included level of the same building, so each building forms a
-  // sequential chain (Furnace Lv2 → Lv3 → …) in addition to cross-building deps.
+  // Previous included level per building → sequential chain edges.
   const byBuilding = new Map<string, number[]>();
   for (const key of seen) {
     const [bid, lvl] = key.split("@");
@@ -126,11 +134,9 @@ function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
   return [...seen].map((key) => {
     const [bid, lvlStr] = key.split("@");
     const level = Number(lvlStr);
-    const crossReqs = (reqOf.get(key) ?? [])
-      .map((r) => levelKey(r.building, r.level))
-      .filter((k) => seen.has(k));
+    const base = ruleReqs(key).filter((k) => seen.has(k));
     const prev = prevLevel.get(key);
-    const requires = prev !== undefined ? [levelKey(bid, prev), ...crossReqs] : crossReqs;
+    const requires = prev !== undefined ? [levelKey(bid, prev), ...base] : base;
     return {
       id: key,
       tier: 0,
