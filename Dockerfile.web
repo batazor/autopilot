@@ -34,11 +34,12 @@ COPY web/ ./
 # IMPORTANT: Next bakes ``rewrites()`` destinations into ``routes-manifest.json``
 # at *build* time — the runtime ``WOS_API_URL`` env is never re-read. So this
 # build arg, not the compose env, decides where ``/api/*`` is proxied. The
-# published image runs only under ``docker-compose.prod.yml`` where web and API
-# share host networking so API can see the host ADB server too; default to
-# loopback. (Local dev never builds this image — it runs web on the host via
+# published image runs only under ``docker-compose.prod.yml``, where ``web``
+# and ``api`` sit on the default bridge network (only ``bot`` is host-mode for
+# ADB), so the API is reachable by its Compose DNS name — default to that.
+# (Local dev never builds this image — it runs web on the host via
 # ``uv run play`` and proxies to 127.0.0.1.)
-ARG WOS_API_URL=http://127.0.0.1:8765
+ARG WOS_API_URL=http://api:8765
 ENV WOS_API_URL=${WOS_API_URL} \
     WOS_BUILD_STANDALONE=1 \
     NEXT_TELEMETRY_DISABLED=1
