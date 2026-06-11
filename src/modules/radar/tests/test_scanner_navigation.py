@@ -530,6 +530,28 @@ def test_servo_aligns_to_corner_reference_at_the_clamp(monkeypatch) -> None:
         assert x2 < x1
 
 
+def test_servo_targets_the_recorded_corner_view(monkeypatch) -> None:
+    """With a corner reference, the lock target is the RECORDED crossing
+    position — the operator proved that view reachable. The theoretical
+    (center, target_frac) point can sit beyond the pan clamp."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(
+        grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
+        label_guard=LabelGuardConfig(enabled=False),
+    )
+    # Recorded view: the X sits off-center and LOW — not where theory wants it.
+    cfg.corner_ref = CornerRefConfig(cross_px=(400.0, 900.0))
+    device = FakeDevice(frames=[_x_frame(400, 900)])
+
+    meta = _position_origin(device, cfg, build_scan_grid(cfg)[0])
+
+    # Lock on the first measurement: the view already matches the reference.
+    assert meta["servo_steps"] == 0
+    assert meta["border_apex_px"] == [pytest.approx(400, abs=10), pytest.approx(900, abs=10)]
+
+
 def test_servo_aborts_at_reference_position_without_a_crossing(monkeypatch) -> None:
     """Camera at the calibrated corner reading but no X in view: a precise,
     actionable abort (recalibrate) — not an endless probe."""

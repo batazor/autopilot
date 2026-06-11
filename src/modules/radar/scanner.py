@@ -726,7 +726,14 @@ def _servo_to_border(
     slide_cap_px = min(step_px, float(b.cross_margin_px))
     max_blind_px = b.max_blind_screens * viewport_h
     crop = c.model_dump()
-    target = (c.x + c.w / 2.0, c.y + c.h * b.target_frac)
+    if cfg.corner_ref is not None:
+        # Aim for the recorded, PROVABLY REACHABLE corner view — the operator
+        # panned the camera there by hand. The theoretical (center, target_frac)
+        # point can sit beyond the pan clamp, leaving the servo chasing a view
+        # the game will never grant.
+        target = (float(cfg.corner_ref.cross_px[0]), float(cfg.corner_ref.cross_px[1]))
+    else:
+        target = (c.x + c.w / 2.0, c.y + c.h * b.target_frac)
     cross: tuple[float, float] | None = None
     steps = 0
     blind_px = 0.0
