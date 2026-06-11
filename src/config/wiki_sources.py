@@ -27,11 +27,12 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 CORE_SOURCE = "core"
-EntityKey = Literal["buildings", "heroes", "items"]
+# Buildings reference moved to the /trees graph (config.buildings + /api/buildings);
+# the wiki stack only serves heroes and items now.
+EntityKey = Literal["heroes", "items"]
 
 # index.yaml has ``{<entity_key>: [...]}`` with the same plural key as the entity.
 _INDEX_LIST_KEY: dict[str, str] = {
-    "buildings": "buildings",
     "heroes": "heroes",
     "items": "items",
 }

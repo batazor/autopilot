@@ -11,7 +11,7 @@ from config.paths import repo_root
 from config.wiki_sources import EntityKey, WikiEntry, find_entry, load_merged_entries
 
 _REPO = repo_root()
-EntitySection = Literal["buildings", "heroes", "items", "gear"]
+EntitySection = Literal["heroes", "items", "gear"]
 
 
 def _request_game() -> str:

@@ -36,7 +36,7 @@ def get_gear_detail(gear_id: str) -> dict[str, Any]:
 
 @router.get("/{entity}")
 def list_entries(
-    entity: Literal["buildings", "heroes", "items"],
+    entity: Literal["heroes", "items"],
     scope: str = Query(default="all"),
     q: str = Query(default=""),
 ) -> dict[str, Any]:
@@ -45,7 +45,7 @@ def list_entries(
 
 @router.get("/{entity}/{entity_id}")
 def get_entry_detail(
-    entity: Literal["buildings", "heroes", "items"],
+    entity: Literal["heroes", "items"],
     entity_id: str,
     scope: str = Query(default="all"),
 ) -> dict[str, Any]:
@@ -57,7 +57,7 @@ def get_entry_detail(
 
 @router.get("/{entity}/{entity_id}/icon")
 def get_entry_icon(
-    entity: Literal["buildings", "heroes", "items"],
+    entity: Literal["heroes", "items"],
     entity_id: str,
 ) -> Response:
     try:
