@@ -64,6 +64,11 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Research tree",
         description: "Kingshot Academy research reference",
       },
+      {
+        href: "/buildings",
+        label: "Buildings",
+        description: "Building level dependencies (Furnace gating)",
+      },
     ],
   },
   {
