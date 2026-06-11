@@ -27,11 +27,13 @@ viewport:
 # Half-screen steps: >50% shared content per pair → reliable ORB matching.
 overlap: 0.5
 edge_margin_px: 0
+# Bottom trimmed to 1026px: keeps the magnifier button (~y1085) and chat
+# overlay out of the ORB feature mask.
 crop:
   x: 0
   y: 156
   w: 620
-  h: 940
+  h: 870
 stitch_viewport:
   w: 720
   h: 1185

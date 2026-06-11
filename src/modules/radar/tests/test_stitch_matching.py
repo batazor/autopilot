@@ -9,6 +9,7 @@ import pytest
 from modules.radar.scanner import MANIFEST_NAME
 from modules.radar.stitch import (
     _feature_mask,
+    _move_prior,
     _orb_features,
     _orb_pair_offset,
     _valid_content_mask,
@@ -60,6 +61,40 @@ def test_orb_pair_offset_rejects_featureless_frames() -> None:
     flat = np.full((300, 400, 3), 128, np.uint8)
     textured = _make_world(5, 300, 400)
     assert _orb_pair_offset(_features(flat), _features(textured)) is None
+
+
+def test_orb_pair_offset_prior_gates_the_consensus() -> None:
+    """The prior window keeps aliases out and rejects offsets navigation
+    cannot explain (e.g. static-UI zero-shift consensus on a 200px swipe)."""
+    world = _make_world(9, 700, 900)
+    a = world[100:400, 100:500]
+    b = world[190:490, 300:700]  # true offset (200, 90)
+
+    near = _orb_pair_offset(_features(a), _features(b), expected=(210.0, 80.0))
+    assert near is not None
+    assert near[0] == pytest.approx(200, abs=1.0)
+    assert near[1] == pytest.approx(90, abs=1.0)
+
+    # A prior of "no movement" cannot explain a (200, 90) shift → no edge,
+    # better nominal fallback than a confidently wrong placement.
+    assert _orb_pair_offset(_features(a), _features(b), expected=(0.0, 0.0)) is None
+
+
+def test_move_prior_inverts_summed_finger_travel() -> None:
+    entry = {
+        "move": {
+            "mode": "swipe",
+            "swipes": [
+                {"x1": 572, "y1": 204, "x2": 392, "y2": 204, "ms": 600},
+                {"x1": 572, "y1": 204, "x2": 392, "y2": 204, "ms": 600},
+            ],
+        }
+    }
+    # Finger went 2×180px left → content went left → next frame sits +360 right.
+    assert _move_prior(entry) == (360.0, 0.0)
+    assert _move_prior({"move": {"mode": "swipe", "origin": True}}) is None
+    assert _move_prior({"move": {"mode": "tap", "target_px": [600, 60]}}) is None
+    assert _move_prior({}) is None
 
 
 def test_feature_mask_excludes_hud_outside_crop() -> None:

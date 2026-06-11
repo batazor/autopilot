@@ -39,6 +39,12 @@ ORB_MIN_INLIERS = 12
 ORB_RANSAC_THRESH = 4.0
 ORB_MAX_SCALE_DRIFT = 0.03   # camera only pans — reject zoom-looking fits
 ORB_MAX_ROTATION_DEG = 2.5   # ... and rotation-looking fits
+# Navigation prior gate: the map is full of identical sprites and a diagonal
+# iso grid, so an unconstrained consensus can lock onto a diagonally-shifted
+# alias (right dx, phantom dy). Matches are pre-filtered to a window around
+# the offset navigation says happened: the swipe vector ± fling inertia.
+PRIOR_TOLERANCE_MIN_PX = 140.0
+PRIOR_TOLERANCE_FRAC = 0.6
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,15 +168,22 @@ def _orb_features(
     return list(keypoints), descriptors
 
 
+def _prior_tolerance(expected: tuple[float, float]) -> float:
+    return max(PRIOR_TOLERANCE_MIN_PX, PRIOR_TOLERANCE_FRAC * math.hypot(*expected))
+
+
 def _orb_pair_offset(
     feat_a: tuple[list[cv2.KeyPoint], np.ndarray | None],
     feat_b: tuple[list[cv2.KeyPoint], np.ndarray | None],
+    expected: tuple[float, float] | None = None,
 ) -> tuple[float, float, float] | None:
     """Translation ``pos_b - pos_a`` measured from matched keypoints.
 
-    Needs no position prior: descriptors match globally, RANSAC rejects the
-    outliers (animated icons, chat bubbles), and the similarity fit is then
-    gated to a near-pure pan — the camera never rotates or zooms mid-scan.
+    With ``expected`` (the offset navigation believes happened) the match set
+    is pre-filtered to displacements near it, so static-UI matches (zero
+    displacement) and repeated-sprite aliases (phantom diagonal shifts) never
+    reach the consensus. The RANSAC similarity fit is then gated to a
+    near-pure pan — the camera never rotates or zooms mid-scan.
     """
     kp_a, desc_a = feat_a
     kp_b, desc_b = feat_b
@@ -180,6 +193,15 @@ def _orb_pair_offset(
         return None
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
     matches = sorted(bf.match(desc_b, desc_a), key=lambda m: m.distance)
+    if expected is not None:
+        tol = _prior_tolerance(expected)
+        matches = [
+            m for m in matches
+            if math.hypot(
+                (kp_a[m.trainIdx].pt[0] - kp_b[m.queryIdx].pt[0]) - expected[0],
+                (kp_a[m.trainIdx].pt[1] - kp_b[m.queryIdx].pt[1]) - expected[1],
+            ) <= tol
+        ]
     if len(matches) < ORB_MIN_INLIERS:
         return None
     src = np.float32([kp_b[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
@@ -198,8 +220,33 @@ def _orb_pair_offset(
     angle = abs(math.degrees(math.atan2(M[1, 0], M[0, 0])))
     if abs(scale - 1.0) > ORB_MAX_SCALE_DRIFT or angle > ORB_MAX_ROTATION_DEG:
         return None
+    tx, ty = float(M[0, 2]), float(M[1, 2])
+    if expected is not None and math.hypot(tx - expected[0], ty - expected[1]) > _prior_tolerance(expected):
+        return None
     score = inliers / len(matches)
-    return float(M[0, 2]), float(M[1, 2]), float(score)
+    return tx, ty, float(score)
+
+
+def _move_prior(entry: dict) -> tuple[float, float] | None:
+    """Expected ``pos_this - pos_previous`` from the swipes that led here.
+
+    Dragging the finger by ``f`` moves the content by ``f``, so the same
+    world point sits at ``p + f`` in the new frame → the frame-origin offset
+    is ``-f``. Fling inertia only stretches it along the same direction,
+    which the prior tolerance absorbs.
+    """
+    move = entry.get("move")
+    if not isinstance(move, dict) or move.get("mode") != "swipe":
+        return None
+    swipes = move.get("swipes")
+    if not isinstance(swipes, list) or not swipes:
+        return None
+    try:
+        fx = sum(float(s["x2"]) - float(s["x1"]) for s in swipes)
+        fy = sum(float(s["y2"]) - float(s["y1"]) for s in swipes)
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (-fx, -fy)
 
 
 def _candidate_pairs(entries: list[dict]) -> list[tuple[int, int]]:
@@ -220,29 +267,73 @@ def _candidate_pairs(entries: list[dict]) -> list[tuple[int, int]]:
     return sorted(pairs)
 
 
+def _match_pair(
+    entries: list[dict],
+    features: list[tuple[list[cv2.KeyPoint], np.ndarray | None] | None],
+    i: int,
+    j: int,
+    expected: tuple[float, float] | None,
+) -> MatchEdge | None:
+    feat_a = features[i]
+    feat_b = features[j]
+    if feat_a is None or feat_b is None:
+        return None
+    cell_a = (entries[i].get("ix"), entries[i].get("iy"))
+    cell_b = (entries[j].get("ix"), entries[j].get("iy"))
+    estimate = _orb_pair_offset(feat_a, feat_b, expected=expected)
+    prior_label = (
+        f" (prior {expected[0]:.0f},{expected[1]:.0f})" if expected is not None else ""
+    )
+    if estimate is None:
+        logger.info("stitch edge %s->%s: NO MATCH%s", cell_a, cell_b, prior_label)
+        return None
+    dx, dy, score = estimate
+    logger.info(
+        "stitch edge %s->%s: dx=%.1f dy=%.1f score=%.2f%s",
+        cell_a, cell_b, dx, dy, score, prior_label,
+    )
+    return MatchEdge(i=i, j=j, dx=dx, dy=dy, score=score)
+
+
 def _find_match_edges(
     entries: list[dict],
     features: list[tuple[list[cv2.KeyPoint], np.ndarray | None] | None],
-) -> list[MatchEdge]:
+    fallback_right: tuple[float, float],
+    fallback_down: tuple[float, float],
+) -> tuple[list[MatchEdge], tuple[float, float], tuple[float, float]]:
+    """Two-stage matching: consecutive pairs first (navigation prior from the
+    actual swipes), then the remaining grid neighbors with the measured basis
+    as their prior. Returns the edges plus the right/down basis vectors."""
     edges: list[MatchEdge] = []
+    matched: set[tuple[int, int]] = set()
+    for j in range(1, len(entries)):
+        i = j - 1
+        edge = _match_pair(entries, features, i, j, _move_prior(entries[j]))
+        if edge is not None:
+            edges.append(edge)
+        matched.add((i, j))
+
+    right, down = _grid_basis(entries, edges, fallback_right, fallback_down)
+
+    cells = [(int(e["ix"]), int(e["iy"])) for e in entries]
     for i, j in _candidate_pairs(entries):
-        feat_a = features[i]
-        feat_b = features[j]
-        if feat_a is None or feat_b is None:
+        if (i, j) in matched:
             continue
-        cell_a = (entries[i].get("ix"), entries[i].get("iy"))
-        cell_b = (entries[j].get("ix"), entries[j].get("iy"))
-        estimate = _orb_pair_offset(feat_a, feat_b)
-        if estimate is None:
-            logger.info("stitch edge %s->%s: NO MATCH", cell_a, cell_b)
-            continue
-        dx, dy, score = estimate
-        logger.info(
-            "stitch edge %s->%s: dx=%.1f dy=%.1f score=%.2f", cell_a, cell_b, dx, dy, score,
+        dix = cells[j][0] - cells[i][0]
+        diy = cells[j][1] - cells[i][1]
+        expected = (
+            dix * right[0] + diy * down[0],
+            dix * right[1] + diy * down[1],
         )
-        edges.append(MatchEdge(i=i, j=j, dx=dx, dy=dy, score=score))
+        edge = _match_pair(entries, features, i, j, expected)
+        if edge is not None:
+            edges.append(edge)
+    # Final basis over ALL measured edges (stage 2 usually adds the first
+    # true down-pairs) so the nominal layout regularizes toward measured
+    # geometry instead of the axis-aligned fallback.
+    right, down = _grid_basis(entries, edges, right, down)
     logger.info("stitch edge matching: %d frame-pair matches", len(edges))
-    return edges
+    return edges, right, down
 
 
 def _grid_basis(
@@ -392,9 +483,8 @@ def run_stitch(run_dir: Path) -> Path:
         else None
         for img, mask in zip(images, masks, strict=True)
     ]
-    edges = _find_match_edges(entries, features)
-    right, down = _grid_basis(
-        entries, edges, fallback_right=(step_x, 0.0), fallback_down=(0.0, step_y),
+    edges, right, down = _find_match_edges(
+        entries, features, fallback_right=(step_x, 0.0), fallback_down=(0.0, step_y),
     )
     nominal_positions = [
         (
