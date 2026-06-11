@@ -24,7 +24,8 @@ minimap:
 viewport:
   rect_w: 24
   rect_h: 39
-overlap: 0.48
+# Half-screen steps: >50% shared content per pair → reliable ORB matching.
+overlap: 0.5
 edge_margin_px: 0
 crop:
   x: 0
@@ -41,7 +42,7 @@ grid_limit:
 game_size: 1200
 navigation:
   mode: swipe
-  swipe_duration_ms: 450
+  swipe_duration_ms: 600
   swipe_margin_px: 48
   swipe_scale: 1.0
 timings:

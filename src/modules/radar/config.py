@@ -130,10 +130,12 @@ class RadarConfig(BaseModel):
     adb_bin: str = "adb"
     minimap: MinimapConfig
     viewport: ViewportConfig
-    # Minimap taps too close to the current viewport often do not move the
-    # camera in-game. Keep overlap below 0.5 so each tap advances by more than
-    # half of the minimap viewport in both axes.
-    overlap: float = Field(default=0.25, ge=0.0, lt=0.5)
+    # Fraction of the viewport shared between neighbouring frames. With swipe
+    # navigation high overlap is *good*: a half-screen step (0.5) guarantees
+    # >50% common content per pair, which is what makes ORB registration
+    # reliable. (Tap mode caveat: jumps shorter than ~half a viewport may not
+    # move the camera at all — keep overlap below 0.5 if you switch to taps.)
+    overlap: float = Field(default=0.5, ge=0.0, le=0.75)
     edge_margin_px: float | None = Field(default=None, ge=0.0)
     crop: CropConfig
     stitch_viewport: StitchViewportConfig | None = None
