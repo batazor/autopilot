@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { AppListbox, AppTabs } from "@/components/headless";
 import { PageHeader } from "@/components/PageHeader";
@@ -18,10 +18,11 @@ import {
 } from "@/lib/api";
 import type { WikiDetail, WikiEntrySummary, WikiScope } from "@/lib/wiki";
 
-type EntityTab = "buildings" | "heroes" | "items" | "gear" | "faq";
+// Buildings moved to the /trees graph (table + click-to-detail); the wiki keeps
+// the remaining reference entity types.
+type EntityTab = "heroes" | "items" | "gear" | "faq";
 
 const TABS: { key: EntityTab; label: string }[] = [
-  { key: "buildings", label: "Buildings" },
   { key: "heroes", label: "Heroes" },
   { key: "gear", label: "Gear" },
   { key: "items", label: "Items" },
@@ -37,9 +38,20 @@ const WIKI_GAMES: { value: string; label: string; available: boolean }[] = [
 
 function WikiPageInner() {
   const params = useSearchParams();
+  const router = useRouter();
+  const sectionParam = params.get("section");
   const [tab, setTab] = useState<EntityTab>(
-    (params.get("section") as EntityTab) || "buildings",
+    TABS.some((t) => t.key === sectionParam)
+      ? (sectionParam as EntityTab)
+      : "heroes",
   );
+
+  // Buildings now live on the /trees graph — redirect old deep links there.
+  useEffect(() => {
+    if (sectionParam === "buildings") {
+      router.replace("/trees?game=wos&type=buildings");
+    }
+  }, [sectionParam, router]);
   const [game, setGame] = useState("wos");
   const [scopes, setScopes] = useState<WikiScope[]>([]);
   const [scope, setScope] = useState("all");
@@ -59,7 +71,6 @@ function WikiPageInner() {
 
   const deepLinkId =
     params.get("id")?.trim() ||
-    (tab === "buildings" ? params.get("building")?.trim() : null) ||
     (tab === "heroes" ? params.get("hero")?.trim() : null) ||
     null;
 
@@ -134,8 +145,12 @@ function WikiPageInner() {
   return (
     <>
       <PageHeader title="Wiki reference">
-        Buildings, heroes, items, gear and FAQ — reference data from{" "}
-        <code>db/</code> and <code>modules/*/wiki/</code>.
+        Heroes, gear, items and FAQ — reference data from <code>db/</code> and{" "}
+        <code>modules/*/wiki/</code>. Buildings moved to the{" "}
+        <a className="underline" href="/trees?game=wos&type=buildings">
+          Game trees
+        </a>{" "}
+        graph.
       </PageHeader>
 
       {error ? <div className="error-banner">{error}</div> : null}
