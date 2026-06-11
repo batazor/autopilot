@@ -2,9 +2,12 @@
 
 import { memo, useMemo, useState, type ReactNode } from "react";
 import Dagre from "@dagrejs/dagre";
+import { toPng } from "html-to-image";
 import {
   Background,
   Controls,
+  getNodesBounds,
+  getViewportForBounds,
   Handle,
   MarkerType,
   MiniMap,
@@ -248,17 +251,58 @@ function SearchPanel({
   );
 }
 
+/** Export the whole graph (all nodes, not just the viewport) to a PNG. */
+function DownloadButton({ name }: { name: string }) {
+  const { getNodes } = useReactFlow();
+  const onClick = () => {
+    const viewport = document.querySelector<HTMLElement>(".react-flow__viewport");
+    if (!viewport) return;
+    const bounds = getNodesBounds(getNodes());
+    const pad = 48;
+    const width = Math.min(8000, Math.ceil(bounds.width) + pad * 2);
+    const height = Math.min(8000, Math.ceil(bounds.height) + pad * 2);
+    const vp = getViewportForBounds(bounds, width, height, 0.2, 2, pad);
+    const bg =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--wos-bg")
+        .trim() || "#1c2433";
+    void toPng(viewport, {
+      backgroundColor: bg,
+      width,
+      height,
+      style: {
+        width: `${width}px`,
+        height: `${height}px`,
+        transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
+      },
+    }).then((dataUrl) => {
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `${name}.png`;
+      a.click();
+    });
+  };
+  return (
+    <button type="button" className="btn-secondary" onClick={onClick}>
+      Export PNG
+    </button>
+  );
+}
+
 export function TechTreeFlow({
   nodes,
   height = 600,
   defaultDirection = "LR",
   renderDetail,
+  exportName = "graph",
 }: {
   nodes: FlowTreeNode[];
   height?: number;
   defaultDirection?: Dir;
   /** Detail content for the selected node id; shown in a side panel. */
   renderDetail?: (id: string) => ReactNode;
+  /** Base filename for the PNG export. */
+  exportName?: string;
 }) {
   const fixed = nodes.some((n) => n.position);
   const [dir, setDir] = useState<Dir>(defaultDirection);
@@ -339,26 +383,29 @@ export function TechTreeFlow({
         <Controls showInteractive={false} />
         <MiniMap pannable zoomable />
         <SearchPanel nodes={nodes} onPick={setSelectedId} />
-        {!fixed ? (
-          <Panel position="top-right">
-            <div className="flex gap-1">
-              <button
-                type="button"
-                className={dir === "TB" ? "btn-primary" : "btn-secondary"}
-                onClick={() => setDir("TB")}
-              >
-                Vertical
-              </button>
-              <button
-                type="button"
-                className={dir === "LR" ? "btn-primary" : "btn-secondary"}
-                onClick={() => setDir("LR")}
-              >
-                Horizontal
-              </button>
-            </div>
-          </Panel>
-        ) : null}
+        <Panel position="top-right">
+          <div className="flex gap-1">
+            {!fixed ? (
+              <>
+                <button
+                  type="button"
+                  className={dir === "TB" ? "btn-primary" : "btn-secondary"}
+                  onClick={() => setDir("TB")}
+                >
+                  Vertical
+                </button>
+                <button
+                  type="button"
+                  className={dir === "LR" ? "btn-primary" : "btn-secondary"}
+                  onClick={() => setDir("LR")}
+                >
+                  Horizontal
+                </button>
+              </>
+            ) : null}
+            <DownloadButton name={exportName} />
+          </div>
+        </Panel>
         {renderDetail && selectedId ? (
           <Panel position="top-left">
             <div

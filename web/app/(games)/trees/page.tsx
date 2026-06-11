@@ -256,7 +256,12 @@ function ResearchPanel({
         }))}
       />
       <p className="muted mb-3 mt-1 text-sm">{branch.blurb}</p>
-      <TechTreeFlow nodes={nodes} defaultDirection="TB" renderDetail={renderDetail} />
+      <TechTreeFlow
+        nodes={nodes}
+        defaultDirection="TB"
+        renderDetail={renderDetail}
+        exportName={`research-${game.id}-${branch.id}`}
+      />
     </>
   );
 }
@@ -351,6 +356,7 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
           height={720}
           defaultDirection="LR"
           renderDetail={renderDetail}
+          exportName={`buildings-${view.game}`}
         />
         <BuildingCatalog buildings={view.buildings} />
       </div>
