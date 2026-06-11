@@ -32,15 +32,15 @@ edge_margin_px: 0
 crop:
   x: 0
   y: 156
-  w: 620
+  w: 580
   h: 870
 stitch_viewport:
   w: 720
   h: 1185
-# Debug window: a single 5-frame horizontal strip. Remove for full scans.
+# Debug window: 5×2 to exercise vertical stitching. Remove for full scans.
 grid_limit:
   cols: 5
-  rows: 1
+  rows: 2
 game_size: 1200
 navigation:
   mode: swipe

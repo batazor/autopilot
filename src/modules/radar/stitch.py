@@ -34,6 +34,10 @@ MATCH_MIN_SCORE = 0.08
 NOMINAL_REGULARIZATION_WEIGHT = 0.04
 YELLOW_BOUNDARY_MIN_PIXELS = 80
 OUTSIDE_DARK_MIN_AREA = 1200
+# Opening kernel for _yellow_boundary_mask: wider than the dashed border line
+# (a few px) but narrower than the gold castle / event-marker blobs, so opening
+# removes the line and leaves only the blobs to subtract away.
+YELLOW_BLOB_KERNEL = (11, 11)
 ORB_FEATURES = 3000
 ORB_MIN_INLIERS = 12
 ORB_RANSAC_THRESH = 4.0
@@ -82,7 +86,18 @@ def _yellow_boundary_mask(img: np.ndarray) -> np.ndarray:
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     # The kingdom edge marker is a pale yellow dashed line. Keep the range a
     # little broad because screenshots can be darkened by fog/edge overlays.
-    return cv2.inRange(hsv, np.array((18, 35, 105)), np.array((42, 255, 255)))
+    yellow = cv2.inRange(hsv, np.array((18, 35, 105)), np.array((42, 255, 255)))
+    # The player's own gold castle (and golden event markers) share this hue
+    # but are thick solid blobs, not a thin line — and they would otherwise
+    # trip the border trigger and black out the dark plot underneath. Opening
+    # with a kernel wider than the dashed line erases the line and keeps the
+    # blobs; subtract those back out so only the thin border survives.
+    blobs = cv2.morphologyEx(
+        yellow,
+        cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, YELLOW_BLOB_KERNEL),
+    )
+    return cv2.subtract(yellow, blobs)
 
 
 def _valid_content_mask(img: np.ndarray) -> np.ndarray:
@@ -487,6 +502,12 @@ def run_stitch(run_dir: Path) -> Path:
         msg = f"{manifest_path} contains no frames"
         raise ValueError(msg)
 
+    # The kingdom-edge masking blacks out dark terrain it judges to be
+    # "outside the world". On this game's map legitimate terrain is dark too,
+    # so it over-cuts; keep it off unless a scan explicitly opts in. The crop
+    # already excludes the HUD, and featureless out-of-world black yields no
+    # ORB keypoints anyway, so leaving it in costs only a thin true-edge band.
+    mask_outside = bool(cfg.get("mask_outside_border"))
     images: list[np.ndarray | None] = []
     masks: list[np.ndarray | None] = []
     missing = 0
@@ -498,7 +519,7 @@ def run_stitch(run_dir: Path) -> Path:
             masks.append(None)
             continue
         images.append(img)
-        masks.append(_valid_content_mask(img))
+        masks.append(_valid_content_mask(img) if mask_outside else None)
     if missing:
         logger.warning("%d frame file(s) listed in the manifest are missing on disk", missing)
     if all(img is None for img in images):
@@ -512,7 +533,7 @@ def run_stitch(run_dir: Path) -> Path:
     # right/down vectors; axis-aligned geometry is only the no-match fallback.
     features = [
         _orb_features(img, _useful_area_mask(img, mask, cfg.get("crop")))
-        if img is not None and mask is not None
+        if img is not None
         else None
         for img, mask in zip(images, masks, strict=True)
     ]
@@ -537,7 +558,7 @@ def run_stitch(run_dir: Path) -> Path:
     placed = [
         (img, _useful_area_mask(img, mask, cfg.get("crop")), pos)
         for img, mask, pos in zip(images, masks, positions, strict=True)
-        if img is not None and mask is not None
+        if img is not None
     ]
     off_x = min(px for _, _, (px, _) in placed)
     off_y = min(py for _, _, (_, py) in placed)

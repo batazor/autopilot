@@ -148,6 +148,23 @@ def test_valid_content_mask_keeps_dark_terrain_far_from_the_border() -> None:
     assert mask[180, 180] == 255  # dark terrain stays on the map
 
 
+def test_valid_content_mask_keeps_dark_plot_under_gold_castle() -> None:
+    """The player's gold castle shares the border hue but is a thick solid
+    blob, not a thin dashed line. It must not trip the kingdom-edge trigger,
+    so the dark plot it sits on stays on the map instead of going black."""
+    img = np.full((200, 200, 3), (210, 220, 240), dtype=np.uint8)
+    # Dark diamond plot under the castle, frame-border-touching.
+    plot = np.array([[(100, 30), (170, 100), (100, 170), (30, 100)]], dtype=np.int32)
+    cv2.fillPoly(img, plot, (40, 42, 50))
+    # Big solid gold castle blob in the middle of the plot (BGR gold).
+    cv2.circle(img, (100, 100), 40, (60, 200, 230), -1)
+
+    mask = _valid_content_mask(img)
+
+    assert mask[100, 100] == 255  # castle plot is kept, not masked to black
+    assert mask[60, 100] == 255   # dark plot around the castle stays too
+
+
 def test_run_stitch_places_uncropped_frames(tmp_path) -> None:
     """Frames are placed as-is: tile size comes from the image, not config."""
     world = _make_world(3, 600, 800)
