@@ -394,46 +394,31 @@ const TIER_UPGRADES: Record<
   string,
   { nextTier: string; features: TierFeature[] } | null
 > = {
-  free: {
-    nextTier: "trial",
-    features: [
-      {
-        title: "Full bot runtime",
-        description:
-          "Trial unlocks running scenarios on your device, OCR, and the approvals queue.",
-      },
-      {
-        title: "Multi-account on one device",
-        description:
-          "Cycle through several player profiles per emulator instead of one.",
-      },
-    ],
-  },
-  trial: {
-    nextTier: "pro",
+  r2: {
+    nextTier: "R3 · $5",
     features: [
       {
         title: "External gift-code accounts",
         description:
           "Redeem promo codes for alliance members and partner farms — accounts the bot doesn't own.",
       },
+    ],
+  },
+  r3: {
+    nextTier: "R4 · $30",
+    features: [
       {
-        title: "Alliance statistics",
+        title: "Radar kingdom-map scanner",
         description:
-          "Daily alliance power, members, and trends pulled from per-player snapshots.",
-      },
-      {
-        title: "Multiple devices",
-        description:
-          "Run more emulator instances in parallel under the same license.",
+          "Scan and stitch the world map, browse it tile-by-tile (alliance R4 perk).",
       },
     ],
   },
-  pro: null,
+  r4: null,
 };
 
 function NextTierCard({ tier }: { tier: string | null }) {
-  const current = (tier || "free").toLowerCase();
+  const current = (tier || "r2").toLowerCase();
   const upgrade = TIER_UPGRADES[current];
   if (!upgrade) return null;
   return (

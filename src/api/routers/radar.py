@@ -22,6 +22,9 @@ from pydantic import BaseModel
 
 from api.deps import get_redis
 from config.loader import load_settings
+from licensing.gate import has_feature, require_feature
+from licensing.models import LicenseError
+from licensing.plans import FEATURE_RADAR
 from modules.radar.config import default_config_path, runs_root
 from modules.radar.events import (
     STREAM,
@@ -47,6 +50,17 @@ _TILES_BUILD_KEY_FMT = "radar:tiles_building:{run_id}"
 _TILES_BUILD_TTL_S = 600
 _SSE_STREAM_BLOCK_MS = 1000
 _SSE_HEARTBEAT_INTERVAL_S = 25.0
+
+
+def _require_radar() -> None:
+    """Radar is an R4 ($30) feature — 402 for callers without it."""
+    try:
+        require_feature(FEATURE_RADAR)
+    except LicenseError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={"reason": "feature_not_licensed", "msg": str(exc)},
+        ) from exc
 
 
 def _run_dir(run_id: str) -> Path:
@@ -108,6 +122,12 @@ def list_runs() -> list[dict[str, Any]]:
     ]
     summaries.sort(key=lambda s: s["started_at"], reverse=True)
     return summaries
+
+
+@router.get("/access")
+def get_access() -> dict[str, Any]:
+    """Whether the current license unlocks Radar (R4 feature) — drives the UI lock."""
+    return {"licensed": has_feature(FEATURE_RADAR), "tier": "r4"}
 
 
 @router.get("/active")
@@ -225,6 +245,7 @@ def start_scan(
     client: RedisDep,
     body: ScanRequest | None = None,
 ) -> dict[str, Any]:
+    _require_radar()
     settings = load_settings()
     if not settings.instances:
         raise HTTPException(status_code=503, detail="no instances configured")
@@ -287,6 +308,7 @@ def build_tiles(run_id: str, client: RedisDep, background: BackgroundTasks) -> d
     """Stitch + tile an existing run in the background (for runs scanned before
     tiling existed, or after a stitch failure). Completion is announced as a
     ``tiles_ready`` event on the SSE stream."""
+    _require_radar()
     run_dir = _run_dir(run_id)
     _read_manifest(run_dir)  # 404 for directories that aren't runs
     if not list(run_dir.glob("frame_*.png")):

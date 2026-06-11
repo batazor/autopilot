@@ -45,11 +45,23 @@ type FormState = {
   maxPlayersPerDevice: number;
 };
 
+// Plan catalog (mirrors src/licensing/plans.py). The backend injects each
+// tier's canonical features on issue; the features box is for extra add-ons.
+const PLANS: { id: string; label: string; features: string[] }[] = [
+  { id: "r2", label: "R2 · Free", features: [] },
+  { id: "r3", label: "R3 · $5", features: ["gift_codes.external_accounts"] },
+  {
+    id: "r4",
+    label: "R4 · $30 (Radar)",
+    features: ["gift_codes.external_accounts", "radar"],
+  },
+];
+
 const DEFAULTS: FormState = {
   sub: "",
   machineId: "",
   days: 30,
-  tier: "pro",
+  tier: "r3",
   features: "",
   maxDevices: 1,
   maxPlayersPerDevice: 3,
@@ -91,11 +103,11 @@ export default function LicenseAdminPage() {
     loadStatus();
   }, [loadStatus]);
 
-  // Pro licenses are bound to one host, so the machine fingerprint is
-  // mandatory. Trial licenses are host-agnostic (issued as machine_id "*"), so
-  // the fingerprint is optional there.
-  const tier = form.tier.trim() || "pro";
-  const requiresFingerprint = tier === "pro";
+  // Paid tiers (R3/R4) are bound to one host, so the machine fingerprint is
+  // mandatory. The free tier (R2) is host-agnostic (issued as machine_id "*"),
+  // so the fingerprint is optional there.
+  const tier = form.tier.trim() || "r3";
+  const requiresFingerprint = tier !== "r2";
 
   const canSubmit = useMemo(
     () =>
@@ -125,7 +137,7 @@ export default function LicenseAdminPage() {
       // when the fingerprint is left blank. Pro requires a real fingerprint
       // (enforced by canSubmit), so it always carries one here.
       const machineId =
-        form.machineId.trim() || (tier === "trial" ? "*" : "");
+        form.machineId.trim() || (tier === "r2" ? "*" : "");
       const out = await issueLicense(
         {
           sub: form.sub.trim(),
@@ -250,13 +262,21 @@ export default function LicenseAdminPage() {
               value={tier}
               onChange={(e) => setForm({ ...form, tier: e.target.value })}
             >
-              <option value="pro">pro</option>
-              <option value="trial">trial</option>
+              {PLANS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
             </select>
+            <span className="meta">
+              Includes:{" "}
+              {PLANS.find((p) => p.id === tier)?.features.join(", ") || "—"}{" "}
+              (auto-added on issue)
+            </span>
           </label>
 
           <label>
-            <span>Features (comma-separated)</span>
+            <span>Extra features (comma-separated, optional)</span>
             <input
               type="text"
               value={form.features}

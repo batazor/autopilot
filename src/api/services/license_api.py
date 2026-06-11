@@ -11,6 +11,7 @@ from licensing.fingerprint import fingerprint_components, generate_fingerprint
 from licensing.issue import issue_license
 from licensing.keys import admin_issuing_available
 from licensing.models import LicenseError
+from licensing.plans import PLANS, features_for_tier
 from licensing.status import license_status
 from licensing.storage import (
     extract_token,
@@ -77,13 +78,16 @@ def issue(
     ``payload`` is the JWT claims for display/inspection; ``token`` is the
     authoritative signed string the user must keep.
     """
+    # Resolve the plan's canonical features so a tier always carries what it
+    # promises (e.g. R4 always includes radar), unioned with any explicit extras.
+    resolved_features = sorted(set(features) | set(features_for_tier(tier)))
     try:
         token, payload = issue_license(
             sub=sub,
             machine_id=machine_id,
             days=days,
             tier=tier,
-            features=features,
+            features=resolved_features,
             max_devices=max_devices,
             max_players_per_device=max_players_per_device,
         )
@@ -92,6 +96,20 @@ def issue(
     except LicenseError as exc:
         raise HTTPException(status_code=500, detail=exc.reason) from exc
     return {"token": token, "payload": payload}
+
+
+def list_plans() -> list[dict[str, Any]]:
+    """Public plan catalog (tiers, prices, features) for the UI."""
+    return [
+        {
+            "id": p.id,
+            "label": p.label,
+            "price_usd": p.price_usd,
+            "features": list(p.features),
+            "blurb": p.blurb,
+        }
+        for p in PLANS
+    ]
 
 
 def import_license_file(content: bytes) -> dict[str, Any]:
