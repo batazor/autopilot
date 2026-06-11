@@ -4,12 +4,16 @@ import { useMemo } from "react";
 import {
   Background,
   Controls,
+  MarkerType,
   Position,
   ReactFlow,
   type Edge,
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+
+/** A prerequisite edge: id of the required node, plus an optional edge label. */
+export type FlowRequire = string | { id: string; label?: string };
 
 /** A dependency-graph node: `requires` are ids of prerequisite nodes (edges
  *  are drawn prerequisite → this). `tier` is the column (1 = leftmost). */
@@ -20,8 +24,12 @@ export type FlowTreeNode = {
   subtitle?: string;
   footer?: string;
   badge?: string;
-  requires: string[];
+  requires: FlowRequire[];
 };
+
+function reqId(r: FlowRequire): string {
+  return typeof r === "string" ? r : r.id;
+}
 
 const COL_W = 240;
 const ROW_H = 104;
@@ -96,13 +104,19 @@ export function TechTreeFlow({
     const ids = new Set(nodes.map((n) => n.id));
     const rfEdges: Edge[] = nodes.flatMap((n) =>
       n.requires
-        .filter((r) => ids.has(r))
-        .map((r) => ({
-          id: `${r}->${n.id}`,
-          source: r,
-          target: n.id,
-          type: "smoothstep",
-        })),
+        .filter((r) => ids.has(reqId(r)))
+        .map((r) => {
+          const src = reqId(r);
+          const label = typeof r === "string" ? undefined : r.label;
+          return {
+            id: `${src}->${n.id}`,
+            source: src,
+            target: n.id,
+            type: "smoothstep",
+            label,
+            markerEnd: { type: MarkerType.ArrowClosed },
+          };
+        }),
     );
     return { rfNodes, rfEdges };
   }, [nodes]);

@@ -10,44 +10,40 @@ import type { BuildingDef, BuildingsView } from "@/lib/types";
 const SOURCE_URL = "https://www.whiteoutsurvival.wiki/buildings/";
 const SOURCE_LABEL = "whiteoutsurvival.wiki/buildings";
 
-/** Furnace level that unlocks a building, parsed from its level-1 prereq text. */
-function unlockFurnaceLevel(b: BuildingDef): number | null {
-  const text = b.requirements_by_level["1"]?.prerequisites ?? "";
-  const m = /furnace[^0-9]*(\d+)/i.exec(text);
-  return m ? Number(m[1]) : null;
-}
-
 function toFlowNodes(view: BuildingsView): FlowTreeNode[] {
-  const hub = view.buildings.find((b) => b.id === view.hub_id);
-  const nodes: FlowTreeNode[] = [];
+  const hubId = view.hub_id;
 
-  if (hub) {
-    nodes.push({
-      id: hub.id,
-      tier: 1,
-      title: hub.name,
-      subtitle: "Gates & caps every building",
-      footer: hub.max_level ? `max Lv ${hub.max_level}` : undefined,
-      requires: [],
-    });
-  }
-
+  // Only graph buildings that participate in a dependency (have a prerequisite
+  // or are one), plus the hub — keeps isolated entries out of the canvas.
+  const connected = new Set<string>([hubId]);
   for (const b of view.buildings) {
-    if (b.id === view.hub_id) continue;
-    const lvl = unlockFurnaceLevel(b);
-    // Bucket the unlock level into a column (1-5 → col 2, 6-10 → col 3, …).
-    const tier = lvl ? 2 + Math.floor((lvl - 1) / 5) : 2;
-    nodes.push({
-      id: b.id,
-      tier,
-      title: b.name,
-      subtitle: lvl ? `Unlocks at Furnace Lv ${lvl}` : undefined,
-      footer: b.max_level ? `max Lv ${b.max_level}` : undefined,
-      requires: hub ? [hub.id] : [],
-    });
+    for (const r of b.requires) {
+      connected.add(b.id);
+      connected.add(r.building);
+    }
   }
 
-  return nodes;
+  return view.buildings
+    .filter((b) => connected.has(b.id))
+    .map((b) => {
+      const furnaceReq = b.requires.find((r) => r.building === hubId);
+      // Column by the Furnace level that gates the building (hub = column 1).
+      const lvl = furnaceReq?.level ?? null;
+      const tier =
+        b.id === hubId ? 1 : lvl ? 2 + Math.floor((lvl - 1) / 4) : 2;
+      return {
+        id: b.id,
+        tier,
+        title: b.name,
+        subtitle:
+          b.id === hubId ? "Gates & caps every building" : undefined,
+        footer: b.max_level ? `max Lv ${b.max_level}` : undefined,
+        requires: b.requires.map((r) => ({
+          id: r.building,
+          label: `Lv ${r.level}`,
+        })),
+      };
+    });
 }
 
 function BuildingCatalog({ buildings }: { buildings: BuildingDef[] }) {
