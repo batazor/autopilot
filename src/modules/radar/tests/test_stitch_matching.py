@@ -131,20 +131,21 @@ def test_valid_content_mask_uses_yellow_boundary_to_drop_dark_outside() -> None:
     assert np.count_nonzero(mask[(img[:, :, 1] > 220) & (img[:, :, 2] > 220)]) > 0
 
 
-def test_valid_content_mask_keeps_fog_far_from_the_border() -> None:
-    """Unexplored fog of war is dark too, but it is map content: only dark
-    regions touching the yellow border line may be cut. A golden event marker
-    elsewhere must not turn fog into 'outside the kingdom'."""
+def test_valid_content_mask_keeps_dark_terrain_far_from_the_border() -> None:
+    """Dark map content (mountains, cliffs, terrain shadows) must stay: only
+    dark regions touching the yellow border line may be cut. A golden event
+    marker elsewhere must not turn dark terrain into 'outside the kingdom'."""
     img = np.full((200, 200, 3), (210, 220, 240), dtype=np.uint8)
     # Yellow marker pixels in the top-left corner (enough to trip the trigger).
     for x in range(0, 60, 12):
         cv2.line(img, (x, 10), (x + 6, 10), (120, 230, 235), 4)
-    # Dark fog blob at the bottom-right, border-touching but far from yellow.
+    # Dark terrain blob at the bottom-right, frame-border-touching but far
+    # from any yellow boundary line.
     cv2.rectangle(img, (140, 140), (200, 200), (60, 62, 70), -1)
 
     mask = _valid_content_mask(img)
 
-    assert mask[180, 180] == 255  # fog stays on the map
+    assert mask[180, 180] == 255  # dark terrain stays on the map
 
 
 def test_run_stitch_places_uncropped_frames(tmp_path) -> None:

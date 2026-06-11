@@ -117,10 +117,10 @@ def _valid_content_mask(img: np.ndarray) -> np.ndarray:
         return np.full(img.shape[:2], 255, dtype=np.uint8)
 
     # Only dark regions that actually touch the yellow kingdom border are
-    # "outside". Unexplored fog of war is also dark and border-touching, but
-    # it sits far from the boundary line — it must stay on the map (a golden
-    # event marker elsewhere in the frame is enough to trip the yellow
-    # trigger, so the trigger alone cannot be trusted).
+    # "outside". Regular map content can be dark too (mountains, cliffs,
+    # terrain shadows — especially at the wrong zoom), and a golden event
+    # marker elsewhere in the frame is enough to trip the yellow trigger,
+    # so the trigger alone cannot be trusted to mean "border in frame".
     yellow_zone = cv2.dilate(
         yellow, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31)),
     )
