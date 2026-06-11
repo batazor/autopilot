@@ -1007,19 +1007,21 @@ def capture_corner_reference(frame: np.ndarray, cfg: RadarConfig) -> CornerRefCo
 
 
 def _servo_safe_tap_point(cfg: RadarConfig) -> tuple[float, float]:
-    """Origin tap target on the minimap: well INSIDE the diamond, never the vertex.
+    """Origin tap target on the minimap: a small fixed inset above the vertex.
 
-    The game redirects/quantizes minimap taps (observed teleporting to a
-    corner), and the white-rect verification clamps near the vertex — so a tap
-    next to the bare tip can land across the border before any guard sees a
-    single frame. Tap ``safe_tap_frac`` of the way from the bottom vertex
-    toward the diamond center instead: even a redirected tap stays inside, and
-    the servo closes the remaining distance to the corner with feedback.
+    Inset in PX, not a diamond fraction: the minimap's white "rect" is a
+    fixed-size pin, and the true world scale is only ~4 minimap px per screen
+    — a fraction-based tap (25% ≈ 17 px) landed 4+ screens above the corner,
+    beyond any blind budget. ``safe_tap_inset_px`` (~6 px ≈ 1.5 screens) puts
+    the camera safely inside yet within the servo's measured descend.
     """
     corners = cfg.minimap.corners.as_geometry()
     cx, cy = diamond_center(corners)
     bx, by = corners.bottom
-    f = cfg.border.safe_tap_frac
+    norm = math.hypot(cx - bx, cy - by)
+    if norm < 1e-6:
+        return bx, by
+    f = cfg.border.safe_tap_inset_px / norm
     return bx + (cx - bx) * f, by + (cy - by) * f
 
 

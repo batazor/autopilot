@@ -64,11 +64,13 @@ border:
   servo: true
   target_frac: 0.66       # the line crossing is steered to (crop center x, this fraction of crop h)
   tolerance_px: 80
-  max_steps: 12
+  max_steps: 16
   approach_step_screens: 0.3   # gentle blind descend — a big leap can jump past the vertex into the next state
-  max_blind_screens: 1.5       # stop after this much blind descend if the border never appears (crossed the vertex)
+  max_blind_screens: 3.0       # stop after this much blind descend if the border never appears
   gap_back_off_frac: 0.9       # lower-band out-of-bounds ≥ this ⇒ in the inter-kingdom gap ⇒ climb back (robust anti-cross)
-  safe_tap_frac: 0.25          # origin taps this fraction from the bottom vertex toward the diamond center (never the vertex)
+  # The minimap white "rect" is a fixed-size PIN (~24x39), NOT the viewport:
+  # true scale ≈ 4 minimap px per screen. Hence a PX inset, not a fraction.
+  safe_tap_inset_px: 6         # origin taps this many px above the bottom vertex (≈1.5 screens)
   stop_at_top: true
   require_cross: true      # don't start capturing until the dashed-line X (kingdom corner) is in view
   block_crossing: true     # never swipe across the yellow line mid-scan

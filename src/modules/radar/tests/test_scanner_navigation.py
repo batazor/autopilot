@@ -379,8 +379,8 @@ def test_position_origin_taps_a_safe_interior_point(monkeypatch) -> None:
     meta = _position_origin(device, cfg, build_scan_grid(cfg)[0])
 
     # Corners: top (100,0), right (200,100), bottom (100,200), left (0,100) →
-    # center (100,100); the tap is 25% of the way from the vertex to the center.
-    assert device.taps == [(100.0, 175.0)]
+    # center (100,100); the tap is safe_tap_inset_px (6) above the vertex.
+    assert device.taps == [(100.0, 194.0)]
     assert meta["border_apex_px"] is not None
     assert meta["grid_start_px"] is not None
 
@@ -647,7 +647,7 @@ def test_position_origin_servo_gives_up_when_cross_not_required(monkeypatch) -> 
         grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
         label_guard=LabelGuardConfig(enabled=False),
         # Loose blind cap so max_steps is the binding limit here.
-        border=BorderConfig(require_cross=False, max_blind_screens=4.0),
+        border=BorderConfig(require_cross=False, max_blind_screens=6.0),
     )
     device = FakeDevice()  # plain grey screens: no border anywhere
 

@@ -176,9 +176,9 @@ class BorderConfig(BaseModel):
     # height (horizontally it is steered to the crop center).
     target_frac: float = Field(default=0.66, gt=0.0, lt=1.0)
     tolerance_px: int = Field(default=80, ge=10)
-    # Generous: the approach may need blind descend steps AND a few slides
-    # along a single visible line before the crossing enters the view.
-    max_steps: int = Field(default=12, ge=1)
+    # Generous: the approach may need ~10 blind descend steps (max_blind_screens
+    # / approach_step_screens) AND a few corrections before the crossing locks.
+    max_steps: int = Field(default=16, ge=1)
     # Capture starts only once the X where the two dashed lines cross (the
     # kingdom corner) is actually in view: if the servo exhausts max_steps
     # without ever seeing it, the scan aborts instead of shooting blind —
@@ -189,20 +189,23 @@ class BorderConfig(BaseModel):
     # corner) straight into the neighbouring state before any border shows.
     approach_step_screens: float = Field(default=0.3, gt=0.0, le=2.0)
     # Hard cap on the TOTAL blind descend (screen-heights) before the border
-    # is ever seen. The start cell sits just above the corner, so the border
-    # should appear within ~1 screen; descending much further means the camera
-    # has crossed the vertex into the next state — stop instead of marching on.
-    max_blind_screens: float = Field(default=1.5, gt=0.0, le=4.0)
+    # is ever seen. The tap point sits ~1.5 screens above the corner; the
+    # margin covers minimap-scale uncertainty (see safe_tap_inset_px). A
+    # descend past the cap means the start is off — stop instead of marching.
+    max_blind_screens: float = Field(default=3.0, gt=0.0, le=6.0)
     # Lower-band out-of-bounds fraction above which the camera is judged to be
     # IN the inter-kingdom gap (across the border): the servo then climbs back
     # toward the kingdom instead of descending. Set above a valid edge frame
     # (~0.85) and below the all-dark gap (~1.0). The robust anti-cross stop.
     gap_back_off_frac: float = Field(default=0.9, gt=0.0, le=1.0)
-    # Origin tap target: fraction of the way from the bottom vertex toward the
-    # diamond center. The game redirects/quantizes minimap taps, and a tap near
-    # the bare vertex can land ACROSS the border before any guard sees a frame
-    # — tap well inside and let the servo close the distance with feedback.
-    safe_tap_frac: float = Field(default=0.25, gt=0.0, le=0.9)
+    # Origin tap target: this many minimap px above the bottom vertex, toward
+    # the diamond center. IMPORTANT SCALE FACT: the white minimap "rect" is a
+    # fixed-size PIN graphic (~24x39), NOT the viewport extent — the true
+    # world scale is only ~4 minimap px per screen of camera travel. A
+    # fraction-of-diamond tap (the old 25% ≈ 17 px) therefore landed 4+
+    # screens above the corner, beyond any sane blind budget. ~6 px ≈ 1.5
+    # screens above the vertex: close enough for the servo, safely inside.
+    safe_tap_inset_px: float = Field(default=6.0, ge=0.0, le=40.0)
     # End an unbounded bottom-up scan when the top corner enters the view.
     stop_at_top: bool = True
     # Don't carry the camera across the border with inter-cell swipes: before
