@@ -130,10 +130,22 @@ export function startRadarScan(): Promise<RadarScanStart> {
   return rfetch("/api/radar/scan", jsonInit("POST", {}));
 }
 
+export function stopRadarScan(): Promise<{ run_id: string; status: string }> {
+  return rfetch("/api/radar/scan/stop", jsonInit("POST", {}));
+}
+
 export function buildRadarTiles(runId: string): Promise<{ run_id: string; status: string }> {
   return rfetch(`/api/radar/runs/${encodeURIComponent(runId)}/tiles`, jsonInit("POST"));
 }
 
 export function deleteRadarRun(runId: string): Promise<{ run_id: string; status: string }> {
   return rfetch(`/api/radar/runs/${encodeURIComponent(runId)}`, jsonInit("DELETE"));
+}
+
+export function deleteAllRadarRuns(): Promise<{
+  deleted: string[];
+  skipped: string[];
+  status: string;
+}> {
+  return rfetch("/api/radar/runs", jsonInit("DELETE"));
 }

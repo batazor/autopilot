@@ -30,6 +30,7 @@ from modules.radar.events import (
     STREAM,
     RadarEventPublisher,
     read_active,
+    request_stop,
     set_active,
 )
 from modules.radar.scanner import MANIFEST_NAME
@@ -139,6 +140,30 @@ def get_active_scan(client: RedisDep) -> dict[str, Any]:
 @router.get("/runs/{run_id}/manifest")
 def get_manifest(run_id: str) -> JSONResponse:
     return JSONResponse(_read_manifest(_run_dir(run_id)))
+
+
+@router.delete("/runs")
+def delete_all_runs(client: RedisDep) -> dict[str, Any]:
+    """Clear the run history. The currently scanning run (if any) is kept."""
+    active = read_active(client) or {}
+    active_run = str(active.get("run_id") or "")
+    root = runs_root()
+    deleted: list[str] = []
+    skipped: list[str] = []
+    if root.is_dir():
+        for child in sorted(root.iterdir()):
+            if not child.is_dir() or _run_summary(child) is None:
+                continue
+            if child.name == active_run:
+                skipped.append(child.name)
+                continue
+            try:
+                shutil.rmtree(child)
+                deleted.append(child.name)
+            except OSError:
+                logger.exception("radar: failed to delete run %s", child.name)
+                skipped.append(child.name)
+    return {"deleted": deleted, "skipped": skipped, "status": "cleared"}
 
 
 @router.delete("/runs/{run_id}")
@@ -302,6 +327,19 @@ def start_scan(
     background.add_task(_run_scan_now_blocking, run_id, instance_id, client)
     logger.info("radar scan %s started immediately for instance %s", run_id, instance_id)
     return {"run_id": run_id, "instance_id": instance_id, "total_frames": len(grid), "grid": grid}
+
+
+@router.post("/scan/stop")
+def stop_scan(client: RedisDep) -> dict[str, Any]:
+    """Ask the running scan to stop after its current frame (partial map kept)."""
+    _require_radar()
+    active = read_active(client)
+    if not active or not active.get("run_id"):
+        raise HTTPException(status_code=409, detail="no radar scan is currently running")
+    run_id = str(active["run_id"])
+    request_stop(client, run_id)
+    logger.info("radar scan %s stop requested", run_id)
+    return {"run_id": run_id, "status": "stopping"}
 
 
 def _build_tiles_blocking(run_id: str, run_dir: Path) -> None:

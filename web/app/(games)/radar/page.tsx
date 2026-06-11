@@ -22,6 +22,7 @@ import { ApiError } from "@/lib/api";
 import {
   RADAR_EVENTS_URL,
   buildRadarTiles,
+  deleteAllRadarRuns,
   deleteRadarRun,
   fetchRadarAccess,
   fetchRadarActive,
@@ -30,6 +31,7 @@ import {
   fetchRadarTilesMeta,
   radarPreviewUrl,
   startRadarScan,
+  stopRadarScan,
   type RadarEvent,
   type RadarGridCell,
   type RadarManifest,
@@ -201,6 +203,7 @@ export default function RadarPage() {
   const { showSuccess, showInfo } = useFeedback();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [deleteConfirmRunId, setDeleteConfirmRunId] = useState<string | null>(null);
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
   const [live, dispatch] = useReducer(liveReducer, LIVE_IDLE);
 
   const access = useQuery({
@@ -324,6 +327,13 @@ export default function RadarPage() {
       showInfo(`Scan ${res.run_id} started on ${res.instance_id}`);
     },
   });
+  const stopScan = useMutation({
+    mutationFn: stopRadarScan,
+    onSuccess: (res) => {
+      refreshActive();
+      showInfo(`Stopping scan ${res.run_id} — frames so far are kept`);
+    },
+  });
   const tilesBuild = useMutation({
     mutationFn: () => buildRadarTiles(runId as string),
     onSuccess: () => showInfo("Tile build started — the map appears when it finishes"),
@@ -337,6 +347,23 @@ export default function RadarPage() {
       queryClient.removeQueries({ queryKey: ["radar", "tiles", res.run_id] });
       refreshAll();
       showInfo(`Run ${res.run_id} deleted`);
+    },
+  });
+  const clearAllRuns = useMutation({
+    mutationFn: deleteAllRadarRuns,
+    onSuccess: (res) => {
+      setClearAllConfirm(false);
+      if (selectedRunId !== null && res.deleted.includes(selectedRunId)) setSelectedRunId(null);
+      for (const id of res.deleted) {
+        queryClient.removeQueries({ queryKey: ["radar", "manifest", id] });
+        queryClient.removeQueries({ queryKey: ["radar", "tiles", id] });
+      }
+      refreshAll();
+      showInfo(
+        res.skipped.length > 0
+          ? `${res.deleted.length} run(s) deleted, ${res.skipped.length} kept (active scan)`
+          : `${res.deleted.length} run(s) deleted`,
+      );
     },
   });
 
@@ -464,15 +491,25 @@ export default function RadarPage() {
           minWidth={260}
           inline
         />
-        <PendingButton
-          variant="primary"
-          pending={scan.isPending}
-          disabled={scanActive}
-          title={scanActive ? "A scan is already in progress" : "Start a full kingdom scan"}
-          onClick={() => scan.mutate()}
-        >
-          Start scan
-        </PendingButton>
+        {scanActive ? (
+          <PendingButton
+            variant="danger"
+            pending={stopScan.isPending}
+            title="Stop the running scan — frames captured so far are kept and stitched"
+            onClick={() => stopScan.mutate()}
+          >
+            Stop scan
+          </PendingButton>
+        ) : (
+          <PendingButton
+            variant="primary"
+            pending={scan.isPending}
+            title="Start a full kingdom scan"
+            onClick={() => scan.mutate()}
+          >
+            Start scan
+          </PendingButton>
+        )}
         {statusPill}
         <div className="ml-auto" />
       </div>
@@ -508,6 +545,7 @@ export default function RadarPage() {
         <ErrorBanner message={`Scan failed: ${live.error}`} />
       ) : null}
       {deleteRun.isError ? <ErrorBanner message={errMsg(deleteRun.error)} /> : null}
+      {clearAllRuns.isError ? <ErrorBanner message={errMsg(clearAllRuns.error)} /> : null}
       {queryError ? (
         <ErrorBanner
           message={queryError}
@@ -630,7 +668,20 @@ export default function RadarPage() {
         </div>
 
         <div className="panel p-3">
-          <h2 className="mb-2 text-sm font-semibold text-wos-text-muted">Run history</h2>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-wos-text-muted">Run history</h2>
+            {(runs.data ?? []).length > 0 ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={clearAllRuns.isPending}
+                title="Delete every recorded run (an active scan is kept)"
+                onClick={() => setClearAllConfirm(true)}
+              >
+                {clearAllRuns.isPending ? "Clearing…" : "Clear all"}
+              </button>
+            ) : null}
+          </div>
           {(runs.data ?? []).length === 0 ? (
             <p className="text-sm text-wos-text-muted">No runs recorded yet.</p>
           ) : (
@@ -698,6 +749,24 @@ export default function RadarPage() {
           )}
         </div>
       </div>
+
+      <AppConfirmDialog
+        open={clearAllConfirm}
+        onClose={() => {
+          if (!clearAllRuns.isPending) setClearAllConfirm(false);
+        }}
+        onConfirm={() => clearAllRuns.mutate()}
+        title="Clear run history?"
+        confirmLabel={clearAllRuns.isPending ? "Clearing…" : "Delete all runs"}
+        variant="danger"
+        busy={clearAllRuns.isPending}
+      >
+        <p>
+          Delete <strong>{(runs.data ?? []).length}</strong> recorded run(s) with all
+          frames, stitched maps, and tiles? An active scan (if running) is kept.
+          This cannot be undone.
+        </p>
+      </AppConfirmDialog>
 
       <AppConfirmDialog
         open={deleteConfirmRunId !== null}
