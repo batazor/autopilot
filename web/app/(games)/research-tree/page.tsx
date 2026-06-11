@@ -1,14 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { AppTabs } from "@/components/headless";
-import { RESEARCH_GAMES } from "@/lib/research-games";
-import {
-  branchTotalLevels,
-  type ResearchBranch,
-  type ResearchNode,
-} from "@/lib/research-types";
+import { fetchResearch } from "@/lib/api";
+import type {
+  ResearchBranchView,
+  ResearchNodeView,
+  ResearchView,
+} from "@/lib/types";
 
 const NODE_W = 176;
 const NODE_H = 84;
@@ -17,10 +18,14 @@ const ROW_GAP = 24;
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 
-type Placed = ResearchNode & { x: number; y: number; row: number };
+type Placed = ResearchNodeView & { x: number; y: number; row: number };
+
+function branchTotalLevels(branch: ResearchBranchView): number {
+  return branch.nodes.reduce((sum, n) => sum + n.levels, 0);
+}
 
 /** Lay nodes out in columns by tier; row = order among same-tier nodes. */
-function layout(branch: ResearchBranch): {
+function layout(branch: ResearchBranchView): {
   placed: Placed[];
   byId: Map<string, Placed>;
   width: number;
@@ -38,8 +43,8 @@ function layout(branch: ResearchBranch): {
     };
   });
   const byId = new Map(placed.map((p) => [p.id, p]));
-  const maxTier = Math.max(...placed.map((p) => p.tier));
-  const maxRow = Math.max(...placed.map((p) => p.row)) + 1;
+  const maxTier = Math.max(1, ...placed.map((p) => p.tier));
+  const maxRow = Math.max(0, ...placed.map((p) => p.row)) + 1;
   return {
     placed,
     byId,
@@ -48,15 +53,12 @@ function layout(branch: ResearchBranch): {
   };
 }
 
-function ResearchTreeGraph({ branch }: { branch: ResearchBranch }) {
+function ResearchTreeGraph({ branch }: { branch: ResearchBranchView }) {
   const { placed, byId, width, height } = useMemo(() => layout(branch), [branch]);
 
   return (
     <div className="panel overflow-x-auto">
-      <div
-        className="relative mx-auto"
-        style={{ width, height, minWidth: width }}
-      >
+      <div className="relative mx-auto" style={{ width, height, minWidth: width }}>
         <svg
           className="pointer-events-none absolute inset-0"
           width={width}
@@ -110,7 +112,7 @@ function ResearchTreeGraph({ branch }: { branch: ResearchBranch }) {
                 }}
                 title={`Tier ${ROMAN[node.tier]}`}
               >
-                {ROMAN[node.tier]}
+                {ROMAN[node.tier] ?? node.tier}
               </span>
             </div>
             <span className="truncate text-xs text-wos-text-muted" title={node.bonus}>
@@ -127,22 +129,26 @@ function ResearchTreeGraph({ branch }: { branch: ResearchBranch }) {
 }
 
 export default function ResearchTreePage() {
-  const [gameId, setGameId] = useState(RESEARCH_GAMES[0]!.id);
-  const [branchId, setBranchId] = useState<string>(
-    RESEARCH_GAMES[0]!.branches[0]!.id,
-  );
+  const { data, error, isLoading } = useQuery<ResearchView>({
+    queryKey: ["research"],
+    queryFn: fetchResearch,
+  });
 
-  const game = RESEARCH_GAMES.find((g) => g.id === gameId) ?? RESEARCH_GAMES[0]!;
+  const games = data?.games ?? [];
+  const [gameId, setGameId] = useState<string | null>(null);
+  const [branchId, setBranchId] = useState<string | null>(null);
+
+  const game = games.find((g) => g.id === gameId) ?? games[0];
   const branch =
-    game.branches.find((b) => b.id === branchId) ?? game.branches[0]!;
+    game?.branches.find((b) => b.id === branchId) ?? game?.branches[0];
 
   // Switching game keeps the same branch when it exists, else falls back to the
   // first branch of the new game.
   const onGameChange = (next: string) => {
     setGameId(next);
-    const nextGame = RESEARCH_GAMES.find((g) => g.id === next);
+    const nextGame = games.find((g) => g.id === next);
     if (nextGame && !nextGame.branches.some((b) => b.id === branchId)) {
-      setBranchId(nextGame.branches[0]!.id);
+      setBranchId(nextGame.branches[0]?.id ?? null);
     }
   };
 
@@ -150,45 +156,61 @@ export default function ResearchTreePage() {
     <>
       <PageHeader title="Research tree">
         <p className="muted m-0">
-          Curated research reference per game — sourced from{" "}
-          <a
-            className="underline"
-            href={game.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {game.sourceLabel}
-          </a>
-          . Edit the per-game data file to correct it.
+          Curated research reference per game — served from{" "}
+          <code>games/&lt;game&gt;/db/research.yaml</code>
+          {game ? (
+            <>
+              {" "}
+              · sourced from{" "}
+              <a
+                className="underline"
+                href={game.source_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {game.source_label}
+              </a>
+            </>
+          ) : null}
+          .
         </p>
       </PageHeader>
 
-      <AppTabs
-        renderPanels={false}
-        selectedKey={gameId}
-        onChange={onGameChange}
-        tabs={RESEARCH_GAMES.map((g) => ({
-          key: g.id,
-          label: g.label,
-          title: g.id,
-        }))}
-      />
+      {error ? (
+        <div className="error-banner">
+          {error instanceof Error ? error.message : String(error)}
+        </div>
+      ) : null}
+      {isLoading ? <p className="muted">Loading…</p> : null}
 
-      <AppTabs
-        variant="section"
-        renderPanels={false}
-        selectedKey={branch.id}
-        onChange={(k) => setBranchId(k)}
-        tabs={game.branches.map((b) => ({
-          key: b.id,
-          label: `${b.label} (${branchTotalLevels(b)})`,
-          title: b.blurb,
-        }))}
-      />
+      {game && branch ? (
+        <>
+          {games.length > 1 ? (
+            <AppTabs
+              renderPanels={false}
+              selectedKey={game.id}
+              onChange={onGameChange}
+              tabs={games.map((g) => ({ key: g.id, label: g.label, title: g.id }))}
+            />
+          ) : null}
 
-      <p className="muted mb-3 mt-1 text-sm">{branch.blurb}</p>
+          <AppTabs
+            variant="section"
+            renderPanels={false}
+            selectedKey={branch.id}
+            onChange={(k) => setBranchId(k)}
+            tabs={game.branches.map((b) => ({
+              key: b.id,
+              label: `${b.label} (${branchTotalLevels(b)})`,
+              title: b.blurb,
+            }))}
+          />
 
-      <ResearchTreeGraph branch={branch} />
+          <p className="muted mb-3 mt-1 text-sm">{branch.blurb}</p>
+
+          <ResearchTreeGraph branch={branch} />
+        </>
+      ) : null}
     </>
   );
 }

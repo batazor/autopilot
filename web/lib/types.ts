@@ -886,3 +886,31 @@ export type BuildingsView = {
   hub_id: string;
   buildings: BuildingDef[];
 };
+
+// --- Research trees (/research-tree) — served from games/<game>/db/research.yaml ---
+
+export type ResearchNodeView = {
+  id: string;
+  name: string;
+  tier: number;
+  levels: number;
+  bonus: string;
+  requires: string[];
+};
+
+export type ResearchBranchView = {
+  id: string;
+  label: string;
+  blurb: string;
+  nodes: ResearchNodeView[];
+};
+
+export type ResearchGameView = {
+  id: string;
+  label: string;
+  source_url: string;
+  source_label: string;
+  branches: ResearchBranchView[];
+};
+
+export type ResearchView = { games: ResearchGameView[] };
