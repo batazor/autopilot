@@ -10,11 +10,18 @@ import type { ResearchBranchView, ResearchView } from "@/lib/types";
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 
+const BRANCH_ICON: Record<string, string> = {
+  growth: "🌱",
+  economy: "💰",
+  battle: "⚔️",
+};
+
 function branchTotalLevels(branch: ResearchBranchView): number {
   return branch.nodes.reduce((sum, n) => sum + n.levels, 0);
 }
 
 function toFlowNodes(branch: ResearchBranchView): FlowTreeNode[] {
+  const icon = BRANCH_ICON[branch.id] ?? "🔬";
   return branch.nodes.map((n) => ({
     id: n.id,
     tier: n.tier,
@@ -22,6 +29,7 @@ function toFlowNodes(branch: ResearchBranchView): FlowTreeNode[] {
     subtitle: n.bonus,
     footer: `0 / ${n.levels} levels`,
     badge: ROMAN[n.tier] ?? String(n.tier),
+    icon,
     requires: n.requires,
   }));
 }

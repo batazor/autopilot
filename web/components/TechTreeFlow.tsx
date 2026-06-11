@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import {
   Background,
   Controls,
+  Handle,
   MarkerType,
   Position,
   ReactFlow,
   type Edge,
   type Node,
+  type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -24,54 +26,75 @@ export type FlowTreeNode = {
   subtitle?: string;
   footer?: string;
   badge?: string;
+  /** Emoji or short glyph shown in the node's icon chip. */
+  icon?: string;
   requires: FlowRequire[];
 };
+
+const COL_W = 250;
+const ROW_H = 108;
+const NODE_W = 200;
 
 function reqId(r: FlowRequire): string {
   return typeof r === "string" ? r : r.id;
 }
 
-const COL_W = 240;
-const ROW_H = 104;
-const NODE_W = 190;
+type TechNodeData = { node: FlowTreeNode };
 
-function Card({ n }: { n: FlowTreeNode }) {
+/** Custom React Flow node — icon chip + text, with left/right handles. */
+const TechNode = memo(function TechNode({ data }: NodeProps) {
+  const n = (data as TechNodeData).node;
   return (
     <div
-      className="rounded-lg border p-2 text-left"
+      className="flex items-center gap-2 rounded-lg border p-2 shadow-sm"
       style={{
         width: NODE_W,
         background: "var(--wos-panel-raised)",
         borderColor: "var(--wos-border)",
       }}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-medium" title={n.title}>
-          {n.title}
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      {n.icon ? (
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-lg"
+          style={{ background: "var(--wos-surface)" }}
+          aria-hidden
+        >
+          {n.icon}
         </span>
-        {n.badge ? (
-          <span
-            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
-            style={{
-              background: "var(--wos-status-info-bg)",
-              color: "var(--wos-status-info-fg)",
-            }}
-          >
-            {n.badge}
+      ) : null}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-1.5">
+          <span className="truncate text-sm font-medium" title={n.title}>
+            {n.title}
           </span>
+          {n.badge ? (
+            <span
+              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+              style={{
+                background: "var(--wos-status-info-bg)",
+                color: "var(--wos-status-info-fg)",
+              }}
+            >
+              {n.badge}
+            </span>
+          ) : null}
+        </div>
+        {n.subtitle ? (
+          <div className="truncate text-xs text-wos-text-muted" title={n.subtitle}>
+            {n.subtitle}
+          </div>
+        ) : null}
+        {n.footer ? (
+          <div className="text-[11px] text-wos-text-secondary">{n.footer}</div>
         ) : null}
       </div>
-      {n.subtitle ? (
-        <div className="truncate text-xs text-wos-text-muted" title={n.subtitle}>
-          {n.subtitle}
-        </div>
-      ) : null}
-      {n.footer ? (
-        <div className="mt-0.5 text-[11px] text-wos-text-secondary">{n.footer}</div>
-      ) : null}
+      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
   );
-}
+});
+
+const nodeTypes = { tech: TechNode };
 
 export function TechTreeFlow({
   nodes,
@@ -87,17 +110,10 @@ export function TechTreeFlow({
       rowOf.set(n.tier, row + 1);
       return {
         id: n.id,
+        type: "tech",
         position: { x: (n.tier - 1) * COL_W, y: row * ROW_H },
-        data: { label: <Card n={n} /> },
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
-        draggable: true,
-        style: {
-          width: NODE_W,
-          padding: 0,
-          border: "none",
-          background: "transparent",
-        },
+        data: { node: n },
+        style: { width: NODE_W },
       };
     });
 
@@ -126,6 +142,7 @@ export function TechTreeFlow({
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
+        nodeTypes={nodeTypes}
         colorMode="dark"
         fitView
         minZoom={0.2}
