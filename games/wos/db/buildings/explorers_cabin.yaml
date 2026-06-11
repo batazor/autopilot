@@ -1,5 +1,6 @@
 id: explorers_cabin
 name: Explorers Cabin
 category: unknown
+requires: []
 requirements_by_level: {}
 wiki_url: https://www.whiteoutsurvival.wiki/buildings/explorers-cabin/

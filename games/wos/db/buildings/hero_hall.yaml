@@ -1,5 +1,6 @@
 id: hero_hall
 name: Hero Hall
 category: unknown
+requires: []
 requirements_by_level: {}
 wiki_url: https://www.whiteoutsurvival.wiki/buildings/hero-hall/

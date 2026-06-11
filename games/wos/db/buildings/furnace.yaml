@@ -1,6 +1,33 @@
 id: furnace
 name: Furnace
 category: unknown
+requires:
+- building: sawmill
+  level: 1
+- building: shelter
+  level: 1
+- building: coal_mine
+  level: 3
+- building: hero_hall
+  level: 3
+- building: iron_mine
+  level: 5
+- building: hunters_hut
+  level: 6
+- building: infantry_camp
+  level: 7
+- building: infirmary
+  level: 1
+- building: embassy
+  level: 8
+- building: research_center
+  level: 1
+- building: marksman_camp
+  level: 9
+- building: lancer_camp
+  level: 10
+- building: command_center
+  level: 1
 requirements_by_level:
   '1':
     prerequisites: ''

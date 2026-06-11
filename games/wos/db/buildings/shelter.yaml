@@ -1,6 +1,9 @@
 id: shelter
 name: Shelter
 category: unknown
+requires:
+- building: furnace
+  level: 1
 requirements_by_level:
   '1':
     prerequisites: Furnace Lv. 1

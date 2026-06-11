@@ -1,6 +1,9 @@
 id: infantry_camp
 name: Infantry Camp
 category: unknown
+requires:
+- building: furnace
+  level: 7
 requirements_by_level:
   '1':
     prerequisites: Furnace Lv. 7

@@ -19,10 +19,19 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class BuildingRequire:
+    """Explicit dependency edge: this building needs ``building`` at ``level``."""
+
+    building: str
+    level: int
+
+
+@dataclass(frozen=True)
 class BuildingDef:
     id: str
     name: str
     category: str = "unknown"
+    requires: tuple[BuildingRequire, ...] = ()
     requirements_by_level: dict[int, dict[str, object]] = field(default_factory=dict)
 
 
@@ -100,6 +109,21 @@ def load_buildings(path: Path | None = None) -> BuildingRegistry:
 
             category = str(item.get("category") or "unknown").strip() or "unknown"
 
+            requires_raw = item.get("requires") or []
+            requires: list[BuildingRequire] = []
+            if isinstance(requires_raw, list):
+                for r in requires_raw:
+                    if not isinstance(r, dict):
+                        continue
+                    dep = str(r.get("building") or "").strip()
+                    if not dep:
+                        continue
+                    try:
+                        lvl = int(r.get("level") or 1)
+                    except (TypeError, ValueError):
+                        lvl = 1
+                    requires.append(BuildingRequire(building=dep, level=lvl))
+
             req_raw = item.get("requirements_by_level") or {}
             req_by_level: dict[int, dict[str, object]] = {}
             if isinstance(req_raw, dict):
@@ -119,6 +143,7 @@ def load_buildings(path: Path | None = None) -> BuildingRegistry:
                     id=rid,
                     name=name,
                     category=category,
+                    requires=tuple(requires),
                     requirements_by_level=req_by_level,
                 )
             )

@@ -1,6 +1,9 @@
 id: barricade
 name: Barricade
 category: unknown
+requires:
+- building: furnace
+  level: 7
 requirements_by_level:
   '1':
     prerequisites: '-'
