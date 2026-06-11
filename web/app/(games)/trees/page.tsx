@@ -55,12 +55,38 @@ function buildingIcon(id: string): string {
   return BUILDING_ICON[id] ?? BUILDING_ICON[id.replace(/^fire_crystal_/, "")] ?? "🏗️";
 }
 
+// Per-research icon by what the bonus does (more telling than one per branch).
+const RESEARCH_ICON_RULES: [RegExp, string][] = [
+  [/lancer|cavalry/, "🐎"],
+  [/marksman|archer/, "🏹"],
+  [/infantry/, "🛡️"],
+  [/meat/, "🍖"],
+  [/wood/, "🪵"],
+  [/coal/, "⚫"],
+  [/iron/, "🔩"],
+  [/gather/, "⛏️"],
+  [/production|output/, "🏭"],
+  [/heal/, "💊"],
+  [/construction|build/, "🏗️"],
+  [/research/, "🔬"],
+  [/march|capacity|army size/, "🚩"],
+  [/attack|lethality/, "⚔️"],
+  [/defense/, "🛡️"],
+  [/health/, "❤️"],
+  [/tool|speedup/, "🔧"],
+];
+
+function researchIcon(node: { bonus: string; name: string }, branchId: string): string {
+  const hay = `${node.bonus} ${node.name}`.toLowerCase();
+  for (const [re, icon] of RESEARCH_ICON_RULES) if (re.test(hay)) return icon;
+  return BRANCH_ICON[branchId] ?? "🔬";
+}
+
 function branchTotalLevels(branch: ResearchBranchView): number {
   return branch.nodes.reduce((sum, n) => sum + n.levels, 0);
 }
 
 function researchFlowNodes(branch: ResearchBranchView): FlowTreeNode[] {
-  const icon = BRANCH_ICON[branch.id] ?? "🔬";
   return branch.nodes.map((n) => ({
     id: n.id,
     tier: n.tier,
@@ -68,9 +94,22 @@ function researchFlowNodes(branch: ResearchBranchView): FlowTreeNode[] {
     subtitle: n.bonus,
     footer: `0 / ${n.levels} levels`,
     badge: ROMAN[n.tier] ?? String(n.tier),
-    icon,
+    icon: researchIcon(n, branch.id),
     requires: n.requires,
   }));
+}
+
+// In-game resource icon ids (verified vs the wiki: 103=Wood, 104=Coal, 105=Iron).
+const RESOURCE: Record<string, { name: string; icon: string }> = {
+  item_icon_102: { name: "Meat", icon: "🍖" },
+  item_icon_103: { name: "Wood", icon: "🪵" },
+  item_icon_104: { name: "Coal", icon: "⚫" },
+  item_icon_105: { name: "Iron", icon: "🔩" },
+};
+
+function resourceLabel(item: string): string {
+  const r = RESOURCE[item];
+  return r ? `${r.icon} ${r.name}` : item.replace("item_icon_", "#");
 }
 
 function levelKey(building: string, level: number): string {
@@ -290,7 +329,7 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
             <ul className="text-xs text-wos-text-muted">
               {lvl.build_cost.map((c, i) => (
                 <li key={i}>
-                  {c.amount} · {c.item.replace("item_icon_", "#")}
+                  {resourceLabel(c.item)} · {c.amount}
                 </li>
               ))}
             </ul>
