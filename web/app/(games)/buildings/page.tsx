@@ -3,61 +3,51 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
+import { TechTreeFlow, type FlowTreeNode } from "@/components/TechTreeFlow";
 import { fetchBuildings } from "@/lib/api";
 import type { BuildingDef, BuildingsView } from "@/lib/types";
 
 const SOURCE_URL = "https://www.whiteoutsurvival.wiki/buildings/";
 const SOURCE_LABEL = "whiteoutsurvival.wiki/buildings";
 
-/** Hub (Furnace) upgrade dependency spine — one row per level with a prereq. */
-function HubSpine({ hub }: { hub: BuildingDef }) {
-  const rows = useMemo(
-    () =>
-      Object.entries(hub.requirements_by_level)
-        .map(([level, req]) => ({ level: Number(level), prereq: req.prerequisites }))
-        .filter((r) => r.prereq)
-        .sort((a, b) => a.level - b.level),
-    [hub],
-  );
+/** Furnace level that unlocks a building, parsed from its level-1 prereq text. */
+function unlockFurnaceLevel(b: BuildingDef): number | null {
+  const text = b.requirements_by_level["1"]?.prerequisites ?? "";
+  const m = /furnace[^0-9]*(\d+)/i.exec(text);
+  return m ? Number(m[1]) : null;
+}
 
-  return (
-    <section className="panel">
-      <div className="fleet-section__head">
-        <h2>{hub.name} upgrade requirements</h2>
-        {hub.max_level ? (
-          <span className="fleet-count">max Lv {hub.max_level}</span>
-        ) : null}
-      </div>
-      <p className="muted mb-3 text-sm">
-        {hub.name} level gates and caps every other building. To advance it, the
-        listed building(s) must first reach the shown level.
-      </p>
+function toFlowNodes(view: BuildingsView): FlowTreeNode[] {
+  const hub = view.buildings.find((b) => b.id === view.hub_id);
+  const nodes: FlowTreeNode[] = [];
 
-      <ol className="relative ml-3 border-l-2 border-[color:var(--wos-border-hover)] pl-5">
-        {rows.map((r) => (
-          <li key={r.level} className="relative mb-3 last:mb-0">
-            <span
-              className="absolute -left-[1.65rem] top-1 h-3 w-3 rounded-full border-2"
-              style={{ background: "var(--wos-accent)", borderColor: "var(--wos-bg)" }}
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className="rounded px-2 py-0.5 text-sm font-semibold"
-                style={{
-                  background: "var(--wos-status-info-bg)",
-                  color: "var(--wos-status-info-fg)",
-                }}
-              >
-                {hub.name} Lv {r.level}
-              </span>
-              <span className="text-xs text-wos-text-muted">needs</span>
-              <span className="text-sm">{r.prereq}</span>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
+  if (hub) {
+    nodes.push({
+      id: hub.id,
+      tier: 1,
+      title: hub.name,
+      subtitle: "Gates & caps every building",
+      footer: hub.max_level ? `max Lv ${hub.max_level}` : undefined,
+      requires: [],
+    });
+  }
+
+  for (const b of view.buildings) {
+    if (b.id === view.hub_id) continue;
+    const lvl = unlockFurnaceLevel(b);
+    // Bucket the unlock level into a column (1-5 → col 2, 6-10 → col 3, …).
+    const tier = lvl ? 2 + Math.floor((lvl - 1) / 5) : 2;
+    nodes.push({
+      id: b.id,
+      tier,
+      title: b.name,
+      subtitle: lvl ? `Unlocks at Furnace Lv ${lvl}` : undefined,
+      footer: b.max_level ? `max Lv ${b.max_level}` : undefined,
+      requires: hub ? [hub.id] : [],
+    });
+  }
+
+  return nodes;
 }
 
 function BuildingCatalog({ buildings }: { buildings: BuildingDef[] }) {
@@ -102,7 +92,7 @@ export default function BuildingsPage() {
     queryFn: fetchBuildings,
   });
 
-  const hub = data?.buildings.find((b) => b.id === data.hub_id);
+  const flowNodes = useMemo(() => (data ? toFlowNodes(data) : []), [data]);
 
   return (
     <>
@@ -111,15 +101,10 @@ export default function BuildingsPage() {
           Building level dependencies — served from{" "}
           <code>games/&lt;game&gt;/db/buildings/*.yaml</code> (single source of
           truth), sourced from{" "}
-          <a
-            className="underline"
-            href={SOURCE_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a className="underline" href={SOURCE_URL} target="_blank" rel="noreferrer">
             {SOURCE_LABEL}
           </a>
-          .
+          . Furnace gates and caps every other building.
         </p>
       </PageHeader>
 
@@ -132,7 +117,7 @@ export default function BuildingsPage() {
 
       {data ? (
         <div className="flex flex-col gap-4">
-          {hub ? <HubSpine hub={hub} /> : null}
+          <TechTreeFlow nodes={flowNodes} />
           <BuildingCatalog buildings={data.buildings} />
         </div>
       ) : null}
