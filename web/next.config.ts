@@ -2,7 +2,17 @@ import type { NextConfig } from "next";
 
 const apiUrl = process.env.WOS_API_URL || "http://127.0.0.1:8765";
 
+// Cap static-generation workers when asked (e.g. `uv run play` building while a
+// preview dev server is up): the default is one worker per core, which on an
+// 18-core box spawns 17 workers and OOM-kills one under memory pressure. Only
+// applied when WOS_BUILD_CPUS is set, so Docker/CI builds keep full parallelism.
+const buildCpus = Number(process.env.WOS_BUILD_CPUS);
+const cappedCpus =
+  Number.isFinite(buildCpus) && buildCpus >= 1 ? Math.floor(buildCpus) : undefined;
+
 const nextConfig: NextConfig = {
+  // Limit build workers under memory pressure (set by the play launcher).
+  ...(cappedCpus ? { experimental: { cpus: cappedCpus } } : {}),
   // Two Next servers sharing web/.next clobber each other (CSS chunk 404s),
   // so an auxiliary dev/preview server gets its own dist dir to coexist with
   // a running `uv run play` production server.

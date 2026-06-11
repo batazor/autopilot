@@ -161,6 +161,17 @@ def _clear_port_or_fail(*, host: str, port: int, label: str) -> None:
     raise SystemExit(msg)
 
 
+def _default_build_cpus() -> int:
+    """Worker cap for the play-driven Next build: gentle on memory, still quick.
+
+    Half the cores (min 2, max 4) keeps the static-generation pass parallel
+    enough for ~30 pages while leaving headroom so a worker is not OOM-killed
+    when a preview dev server or other apps are also resident.
+    """
+    cores = os.cpu_count() or 4
+    return max(2, min(4, cores // 2))
+
+
 def _prepare_child_env(repo: Path) -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
@@ -344,10 +355,18 @@ class _PlayStack:
                 check=True,
             )
         print("Building Next.js (npm run build)…", flush=True)
+        # Cap build workers so the static-generation pass doesn't OOM-kill a
+        # worker under memory pressure (e.g. a preview dev server also up). The
+        # default is one worker per core — on a many-core box that is a lot of
+        # concurrent memory. next.config.ts reads WOS_BUILD_CPUS into
+        # experimental.cpus; a user-set value is respected. Build-only: not
+        # forwarded to `next start`.
+        build_env = dict(self._env)
+        build_env.setdefault("WOS_BUILD_CPUS", str(_default_build_cpus()))
         subprocess.run(
             [npm, "run", "build"],
             cwd=str(web_dir),
-            env=self._env,
+            env=build_env,
             check=True,
         )
         next_bin = web_dir / "node_modules" / ".bin" / "next"
