@@ -1,0 +1,43 @@
+id: valeria
+name: Valeria
+wiki_url: https://www.whiteoutsurvival.wiki/experts/valeria/
+role: High Marshal
+type: Expedition
+base_stats:
+- stat: Troops Lethality
+  value: +20%
+- stat: Troops Health
+  value: +20%
+affinity:
+  stat: Troops Lethality & Health
+  max: +20.00%
+skills:
+- name: Well Prepared
+  effect: Grants +20% State of Power's Preparation Phase Point gains and +3 bonus tier for daily Personal
+    Point rewards.
+  values:
+  - +20%
+  - '+3'
+- name: Radiant Honor
+  effect: Increases Sunfire Tokens earned when claiming Medal Rewards by 50 and adds 3 extra items to
+    the State of Power Shop.
+  values:
+  - '50'
+  - '3'
+- name: Battle Concerto
+  effect: All troops gain +30% Lethality and Health during State of Power's Battle Phase.
+  values:
+  - +30%
+- name: Crushing Force
+  effect: Increases Rally Capacity in State of Power Battle Phase by 150,000.
+  values:
+  - 150,000
+talent:
+  name: Conqueror's Spirit
+  effect: All troops' Attack and Defense +30% in State of Power Battle Phase.
+  max_level: 11
+story: Valeria commands the Dawnbreaker Brigade and is known for "textbook Imperial tactics" and leading
+  one of the largest armies in the Tundra. She achieved an "impossible victory" defending cities against
+  Phaethon's forces using terrain advantages. Originally from the noble city of Altea, she questioned
+  the aristocracy's brutal rule and joined the Dawnbreakers to escape endless bloodshed, now fighting
+  against her former countrymen's imperial ambitions.

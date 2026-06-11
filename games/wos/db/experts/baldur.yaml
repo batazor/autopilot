@@ -1,0 +1,47 @@
+id: baldur
+name: Baldur
+wiki_url: https://www.whiteoutsurvival.wiki/experts/baldur/
+role: Negotiator
+type: Expedition
+base_stats:
+- stat: Troops Attack
+  value: +10%
+- stat: Troops Defense
+  value: +10%
+affinity:
+  stat: Troops Attack & Defense
+  max: +10.00%
+skills:
+- name: Blazing Sunrise
+  effect: An exquisite Badge to show off outstanding Alliance member contributions. +20% Alliance Mobilization
+    Points, +3 milestone bonus tier(s)
+  values:
+  - +20%
+  - '+3'
+- name: Honored Conquest
+  effect: Baldur has crafted more badges to showcase outstanding Alliance contributors. +50% Alliance
+    Championship Badges... and +3 Alliance Championship Shop bonus items.
+  values:
+  - +50%
+  - '+3'
+- name: Bounty Hunter
+  effect: Baldur has added of his fortune to the sizeable bounty on Crazy Joe... earning +50% Crazy Joe
+    point rewards and a bonus Chest per 200,000 points (limit of 10 per season).
+  values:
+  - +50%
+- name: Dawn Hymn
+  effect: Baldur is a master strategist particularly around points, gaining +50% Alliance Showdown points
+    (except Tundra Trade Route) and +3 bonus tier(s) for the daily milestone reward.
+  values:
+  - +50%
+  - '+3'
+talent:
+  name: Master Negotiator
+  effect: Thanks to Baldur's reputation and charm, the prices for items at the Alliance Shop are reduced
+    by +15%, and rewards from Personal Activity Triumph Chests are increased by +100% Defense.
+  max_level: 11
+story: Baldur serves as a diplomat for the Dawn Alliance. Described as "astute," "conniving," and "inscrutable,"
+  he balances allied interests strategically. Though rumored to descend from Solaris Dynasty nobility,
+  he claims ordinary survivor status. Beyond diplomacy, Baldur excels in combat—his swordsmanship tested
+  against Jeronimo and marksmanship against Bahiti both earned praise. Recently, he mediated a conflict
+  between lords Guillaume and Hilmar by uncovering forged wills.

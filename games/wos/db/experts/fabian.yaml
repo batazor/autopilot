@@ -1,0 +1,48 @@
+id: fabian
+name: Fabian
+wiki_url: https://www.whiteoutsurvival.wiki/experts/fabian/
+role: Master of Arms
+type: Expedition
+base_stats:
+- stat: Troops Lethality
+  value: +15%
+- stat: Troops Health
+  value: +15%
+affinity:
+  stat: Troops Lethality & Health
+  max: +15.00%
+skills:
+- name: Salvager
+  effect: Metals from the filed of war can be salvaged into coinage. Arsenal Tokens +10% → 100%.
+  values:
+  - 10%
+  - 100%
+- name: Crisis Rescue
+  effect: His first aid team allows instant recovery of 100,000 → 1,000,000 troops each Foundry Battle
+    and Tundra Hellfire.
+  values:
+  - 100,000
+  - 1,000,000
+- name: Heightened Firepower
+  effect: Custom gear grants Foundry Battle and Tundra Hellfire troops +1.5% → 30% Lethality and +1.5%
+    → 30% Health.
+  values:
+  - +1.5%
+  - 30%
+- name: Battle Bulwark
+  effect: Weapons production grants squads greater focus in Foundry Battle and Tundra Hellfire with +7,500
+    → 150,000 Rally Capacity.
+  values:
+  - 7,500
+  - 150,000
+talent:
+  name: Craftsman of War
+  effect: Fabian's mighty weapons grant all allied troops in Foundry Battle and Tundra Hellfire 2% → 30%
+    Attack and 2% → 30% Defense.
+  max_level: 11
+story: Fabian was a gifted young engineer at the Imperial Foundry who joined the Rebels to fight tyranny.
+  After the old Solaris Empire fell, he left at the peak of fame to live quietly with his family. A devastating
+  storm killed his wife and children, spurring him to invent protective technologies. He was hired by
+  a wealthy client—secretly a Phaethon officer—to build the "Typhon Tank." Upon discovering this weapon
+  would enable mass destruction, he realized his terrible mistake and now develops weapons to counter
+  large-scale threats.

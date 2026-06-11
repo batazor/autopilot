@@ -1,0 +1,48 @@
+id: kathy
+name: Kathy
+wiki_url: https://www.whiteoutsurvival.wiki/experts/kathy/
+role: Mining Specialist
+type: Expedition
+base_stats:
+- stat: Troops Lethality
+  value: +15%
+- stat: Troops Health
+  value: +15%
+affinity:
+  stat: Troops Lethality & Health
+  max: +15.00%
+skills:
+- name: Icefire Hunter
+  effect: Grants 5% → 50% additional XP from defeating Mine Patrols in Frostfire Skill upgrades.
+  values:
+  - 5%
+  - 50%
+- name: Valorous Cold
+  effect: Provides 5,000 → 50,000 extra troop capacity and reduces hero recovery time by 6% → 60%.
+  values:
+  - 5,000
+  - 50,000
+  - 6%
+  - 60%
+- name: Winter Treasures
+  effect: Grants 6 → 60 additional Charm Designs upon collecting 200,000 Orichalcum in Frostfire Mine
+    event.
+  values:
+  - '6'
+  - '60'
+- name: Efficient Mining
+  effect: Earns 500 → 5,000 Orichalcum per minute during Frostfire battle phase; awards 10 → 100 Charm
+    Guides upon collecting 200,000 Orichalcum.
+  values:
+  - '500'
+  - 5,000
+  - '10'
+  - '100'
+talent:
+  name: Child of Frost
+  effect: Increases troops' Lethality and Health by 2% → 30% in Frostfire Mine battles.
+  max_level: 11
+story: Kathy is a mining expert from Frostfire, trained since childhood in Orichalcum extraction. She
+  leads her own crew with strong leadership and compassion, contrasting with competitors like Antaeus
+  who use mercenary tactics. When earthquakes devastated Frostfire, she investigated beyond legends of
+  an underground beast, discovering the real cause with help from an explorer and chief.

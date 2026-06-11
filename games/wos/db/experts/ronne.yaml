@@ -1,0 +1,49 @@
+id: ronne
+name: Ronne
+wiki_url: https://www.whiteoutsurvival.wiki/experts/ronne/
+role: Convoy Queen
+type: Expedition
+base_stats:
+- stat: Troops Attack
+  value: +15%
+- stat: Troops Defense
+  value: +15%
+affinity:
+  stat: Troops Attack & Defense
+  max: +15.00%
+skills:
+- name: Cartographic Memory
+  effect: Photographic route memory accelerates arrival times by +2% → +20%. Storied reputation allows
+    1 → 3 more free refreshes per truck.
+  values:
+  - 2%
+  - 20%
+  - '1'
+  - '3'
+- name: Treasure Scent
+  effect: Grants a 10% → 100% chance of raiding 1 extra cargo.
+  values:
+  - 10%
+  - 100%
+- name: Giving Back
+  effect: 5% → 50% chance of recovering 1 cargo when raided. Escorts 0 → 2 Elite Guardboxes (cannot be
+    raided).
+  values:
+  - 5%
+  - 50%
+  - '0'
+  - '2'
+- name: Gold Class
+  effect: Legendary escort mission after each 12 → 4 completed missions with better rewards. At level
+    10, escorts 1 extra truck daily.
+  values:
+  - '12'
+  - '4'
+talent:
+  name: Trade Dominion
+  effect: When caravan is raided or attacks other trucks in tundra, troops gain +2% → 30% Attack and Defense.
+  max_level: 11
+story: Ronne transitioned from mercenary work to convoy escort duty. She's renowned for her "reckless
+  shock-and-awe tactics" that are actually calculated strategies to avoid battles. She modified vehicles
+  into armored transports and earned a "flawless track record" protecting valuable cargo across Tundra
+  trade routes. She eventually joined the Chief's city to leverage her experience for broader good.

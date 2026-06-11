@@ -227,6 +227,102 @@ function PetDetail({ body }: { body: Record<string, unknown> }) {
   );
 }
 
+// Keys ExpertDetail renders itself, so the generic KeyValueTable skips them.
+const EXPERT_OMIT = ["role", "type", "base_stats", "affinity", "skills", "talent", "story"];
+
+function ExpertDetail({ body }: { body: Record<string, unknown> }) {
+  const baseStats = Array.isArray(body.base_stats)
+    ? (body.base_stats as Array<Record<string, unknown>>)
+    : [];
+  const affinity = body.affinity as Record<string, unknown> | undefined;
+  const skills = Array.isArray(body.skills)
+    ? (body.skills as Array<Record<string, unknown>>)
+    : [];
+  const talent = body.talent as Record<string, unknown> | undefined;
+  const facts: [string, unknown][] = [
+    ["Role", body.role],
+    ["Type", body.type],
+  ].filter(([, v]) => v != null && v !== "") as [string, unknown][];
+  return (
+    <>
+      {facts.length ? (
+        <table className="data-table">
+          <tbody>
+            {facts.map(([k, v]) => (
+              <tr key={k}>
+                <td>{k}</td>
+                <td style={{ wordBreak: "break-word" }}>{String(v)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+
+      {baseStats.length || affinity?.max ? (
+        <>
+          <h3>Bonuses</h3>
+          <table className="data-table">
+            <tbody>
+              {baseStats.map((s, i) => (
+                <tr key={i}>
+                  <td>{String(s.stat ?? "—")}</td>
+                  <td>{String(s.value ?? "—")}</td>
+                </tr>
+              ))}
+              {affinity?.max ? (
+                <tr>
+                  <td>
+                    Affinity (max)
+                    {affinity.stat ? ` — ${String(affinity.stat)}` : ""}
+                  </td>
+                  <td>{String(affinity.max)}</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </>
+      ) : null}
+
+      {skills.length ? (
+        <>
+          <h3>Skills</h3>
+          {skills.map((s, i) => {
+            const values = Array.isArray(s.values) ? (s.values as unknown[]) : [];
+            return (
+              <div key={i} style={{ marginBottom: "0.5rem" }}>
+                <strong>{String(s.name ?? `Skill ${i + 1}`)}</strong>
+                {values.length ? (
+                  <span className="meta"> ({values.map((v) => String(v)).join(" → ")})</span>
+                ) : null}
+                {s.effect ? <p className="meta">{String(s.effect)}</p> : null}
+              </div>
+            );
+          })}
+        </>
+      ) : null}
+
+      {talent && (talent.name || talent.effect) ? (
+        <>
+          <h3>
+            Talent{talent.name ? <> — {String(talent.name)}</> : null}
+            {talent.max_level != null ? (
+              <span className="meta"> (max Lv {String(talent.max_level)})</span>
+            ) : null}
+          </h3>
+          {talent.effect ? <p className="meta">{String(talent.effect)}</p> : null}
+        </>
+      ) : null}
+
+      {body.story ? (
+        <>
+          <h3>Story</h3>
+          <p className="meta">{String(body.story)}</p>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 export function WikiDetailPanel({ detail }: { detail: WikiDetail | null }) {
   if (!detail) {
     return <p className="meta">Select an entry from the list or tiles.</p>;
@@ -245,8 +341,18 @@ export function WikiDetailPanel({ detail }: { detail: WikiDetail | null }) {
       {entity === "buildings" ? <BuildingRequirements body={body} /> : null}
       {entity === "heroes" ? <HeroLevels body={body} /> : null}
       {entity === "pets" ? <PetDetail body={body} /> : null}
+      {entity === "experts" ? <ExpertDetail body={body} /> : null}
       <h3>Fields</h3>
-      <KeyValueTable data={body} omit={entity === "pets" ? PET_OMIT : DEFAULT_OMIT} />
+      <KeyValueTable
+        data={body}
+        omit={
+          entity === "pets"
+            ? PET_OMIT
+            : entity === "experts"
+              ? EXPERT_OMIT
+              : DEFAULT_OMIT
+        }
+      />
       <details style={{ marginTop: "1rem" }}>
         <summary className="meta">Raw YAML (JSON)</summary>
         <pre
