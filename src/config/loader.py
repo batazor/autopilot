@@ -90,6 +90,15 @@ class WorkerConfig:
     """
     adb_executable: str = ""
     """Explicit ``adb`` path when empty PATH differs from GUI (taps + screencap)."""
+    adb_probe_host: str = "127.0.0.1"
+    """Host whose TCP ports the /adb scan probes for emulator endpoints.
+
+    The default is right whenever the API runs on the machine that hosts the
+    emulators. In the prod compose, the API lives in a bridge-network container,
+    so its loopback is not the host's — set ``WOS_ADB_PROBE_HOST`` to
+    ``host.docker.internal`` (paired with ``ADB_SERVER_SOCKET`` pointing at the
+    host's adb server) so the scan reaches host-bound emulator ports.
+    """
     device_display: DeviceDisplayConfig | None = None
     """Default ADB display profile applied at worker boot (per-device overrides in devices.yaml)."""
 
@@ -175,6 +184,8 @@ def load_settings(path: Path | None = None) -> Settings:
     inference_cfg = InferenceConfig(**inference_raw)
     scheduler_cfg = SchedulerConfig(**(raw.get("scheduler") or {}))
     worker_raw = dict(raw.get("worker") or {})
+    if adb_probe_host := _env_value("WOS_ADB_PROBE_HOST"):
+        worker_raw["adb_probe_host"] = adb_probe_host
     device_display = parse_device_display(worker_raw.pop("device_display", None))
     worker_cfg = WorkerConfig(**worker_raw, device_display=device_display)
 

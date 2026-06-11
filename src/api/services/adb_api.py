@@ -109,18 +109,27 @@ def _has_live_adb_serial(live: list[dict[str, Any]], serial: str) -> bool:
     )
 
 
-def _port_open(port: int, timeout: float = 0.3) -> bool:
+def _port_open(host: str, port: int, timeout: float = 0.3) -> bool:
     """Cheap TCP liveness check so we only ``adb connect`` ports that listen."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(timeout)
-        return sock.connect_ex(("127.0.0.1", port)) == 0
+        return sock.connect_ex((host, port)) == 0
 
 
 def _probe_default_tcp_adb_targets(
     adb_exe: str,
     live: list[dict[str, Any]],
     ports: list[int] | None = None,
+    probe_host: str = "127.0.0.1",
 ) -> bool:
+    """Discover emulator ADB endpoints by probing ``probe_host``'s TCP ports.
+
+    ``probe_host`` is where the emulators live as seen *from this process*
+    (``host.docker.internal`` when the API runs in a bridge-network container).
+    The ``adb connect`` target stays ``127.0.0.1:<port>`` regardless: it is
+    resolved by the adb *server* (the host's, via ``ADB_SERVER_SOCKET``), and
+    the resulting serial must match what the bot and the user see.
+    """
     if ports is None:
         ports = list(_ADB_TCP_PORT_RANGE)
     candidates = [
@@ -140,7 +149,9 @@ def _probe_default_tcp_adb_targets(
         open_ports = [
             port
             for port, is_open in zip(
-                candidates, pool.map(_port_open, candidates), strict=True
+                candidates,
+                pool.map(lambda port: _port_open(probe_host, port), candidates),
+                strict=True,
             )
             if is_open
         ]
@@ -238,12 +249,15 @@ def get_adb_status(
 ) -> dict[str, Any]:
     settings = load_settings()
     adb_exe = str(settings.worker.adb_executable or "adb")
+    probe_host = str(settings.worker.adb_probe_host or "127.0.0.1")
     ports = build_tcp_port_range(port_start, port_end, port_step)
     live: list[dict[str, Any]]
     scan_error: str | None = None
     try:
         live, scan_error = _scan_adb_devices(adb_exe)
-        if scan_error is None and _probe_default_tcp_adb_targets(adb_exe, live, ports):
+        if scan_error is None and _probe_default_tcp_adb_targets(
+            adb_exe, live, ports, probe_host=probe_host
+        ):
             refreshed_live, refreshed_error = _scan_adb_devices(adb_exe)
             if refreshed_error is None:
                 live = refreshed_live
@@ -290,6 +304,7 @@ def get_adb_status(
             "step": port_step if port_step is not None else _ADB_TCP_PORT_DEFAULT_STEP,
             "count": len(ports),
         },
+        "scan_probe_host": probe_host,
     }
 
 
