@@ -190,18 +190,37 @@ function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
     }
   }
 
+  // Manual layout: Furnace is the central vertical spine (x=0); support
+  // buildings flank it, each in its own lane alternating left/right. Support
+  // rows are interleaved half a step below their Furnace level so every
+  // prerequisite edge points straight downward.
+  const ROW = 96; // vertical px per half-step
+  const HGAP = 240; // horizontal px per support lane
+  const supportIds = [
+    ...new Set([...seen].map((k) => k.split("@")[0]).filter((b) => b !== hubId)),
+  ].sort();
+  const laneX = new Map<string, number>([[hubId, 0]]);
+  supportIds.forEach((bid, i) => {
+    const dist = Math.floor(i / 2) + 1; // 1,1,2,2,3,3,…
+    const side = i % 2 === 0 ? -1 : 1; // left, right, left, …
+    laneX.set(bid, side * dist * HGAP);
+  });
+  const minLevel = Math.min(...[...seen].map((k) => Number(k.split("@")[1])));
+
   return [...seen].map((key) => {
     const [bid, lvlStr] = key.split("@");
     const level = Number(lvlStr);
     const base = ruleReqs(key).filter((k) => seen.has(k));
     const prev = prevLevel.get(key);
     const requires = prev !== undefined ? [levelKey(bid, prev), ...base] : base;
+    const step = (level - minLevel) * 2 + (bid === hubId ? 0 : 1);
     return {
       id: key,
       tier: 0,
       title: nameOf.get(bid) ?? bid,
       badge: `Lv ${level}`,
       icon: buildingIcon(bid),
+      position: { x: laneX.get(bid) ?? 0, y: step * ROW },
       requires,
     };
   });
@@ -385,7 +404,7 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
         <TechTreeFlow
           nodes={nodes}
           height={720}
-          defaultDirection="LR"
+          defaultDirection="TB"
           renderDetail={renderDetail}
           exportName={`buildings-${view.game}`}
         />

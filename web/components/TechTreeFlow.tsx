@@ -308,7 +308,7 @@ export function TechTreeFlow({
   const [dir, setDir] = useState<Dir>(defaultDirection);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const effectiveDir: Dir = fixed ? "LR" : dir;
+  const effectiveDir: Dir = fixed ? defaultDirection : dir;
 
   // Layout (dagre) is recomputed only when the graph or direction changes —
   // hover/selection just restyle, so they never re-run the layout.
