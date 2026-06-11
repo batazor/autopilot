@@ -59,7 +59,9 @@ async def get_events_stream(
         body(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            # no-transform keeps `next start`'s gzip middleware from buffering
+            # the stream (it skips responses marked no-transform).
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },

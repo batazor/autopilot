@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -202,10 +203,14 @@ export default function RadarPage() {
   const [live, dispatch] = useReducer(liveReducer, LIVE_IDLE);
 
   const runs = useQuery({ queryKey: ["radar", "runs"], queryFn: fetchRadarRuns });
+  const scanActiveNow = live.phase === "queued" || live.phase === "scanning";
   const activeScan = useQuery({
     queryKey: ["radar", "active"],
     queryFn: fetchRadarActive,
     refetchOnWindowFocus: true,
+    // Safety net: SSE is the live channel, but if a proxy buffers or drops
+    // it, this poll keeps progress + the live map moving during a scan.
+    refetchInterval: scanActiveNow ? 2000 : false,
   });
   const runId = selectedRunId ?? runs.data?.[0]?.run_id ?? null;
 
@@ -229,14 +234,20 @@ export default function RadarPage() {
     [queryClient],
   );
 
+  const wasActiveRef = useRef(false);
   useEffect(() => {
     if (!activeScan.data) return;
+    const isActive = activeScan.data.active !== null;
+    // Poll-only path (SSE dead): when the scan ends, the active key clears —
+    // refresh runs/tiles the same way the scan_finished event would.
+    if (wasActiveRef.current && !isActive) void refreshAll();
+    wasActiveRef.current = isActive;
     dispatch({
       type: "event",
       event: { type: "scan_active", active: activeScan.data.active },
       at: Date.now(),
     });
-  }, [activeScan.data]);
+  }, [activeScan.data, refreshAll]);
 
   // SSE is the live channel. The active JSON snapshot is only a resync hook for
   // mount/focus/reconnect, so progress does not depend on timer polling.
@@ -317,7 +328,7 @@ export default function RadarPage() {
     },
   });
 
-  const scanActive = live.phase === "queued" || live.phase === "scanning";
+  const scanActive = scanActiveNow;
   const selectedRunHasMap =
     (runs.data ?? []).find((r) => r.run_id === runId)?.has_map ?? false;
 

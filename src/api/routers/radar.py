@@ -401,7 +401,11 @@ async def radar_events(request: Request, client: RedisDep) -> StreamingResponse:
         body(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            # no-transform: the Next.js production server (`next start`) gzips
+            # proxied responses, and its compression middleware buffers SSE
+            # until the zlib window fills — events would arrive minutes late.
+            # Compression skips responses marked no-transform.
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },

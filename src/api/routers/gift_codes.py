@@ -152,5 +152,6 @@ async def external_account_redeem_stream(
     return StreamingResponse(
         event_source(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        # no-transform keeps `next start`'s gzip middleware from buffering SSE.
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )
