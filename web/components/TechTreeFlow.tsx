@@ -7,9 +7,11 @@ import {
   Controls,
   Handle,
   MarkerType,
+  MiniMap,
   Panel,
   Position,
   ReactFlow,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeProps,
@@ -177,6 +179,75 @@ function relatedSet(id: string, edges: Edge[]): Set<string> {
   return out;
 }
 
+/** Search box (inside the flow) that centers + selects a matching node. */
+function SearchPanel({
+  nodes,
+  onPick,
+}: {
+  nodes: FlowTreeNode[];
+  onPick: (id: string) => void;
+}) {
+  const rf = useReactFlow();
+  const [q, setQ] = useState("");
+  const matches = q.trim()
+    ? nodes
+        .filter((n) => n.title.toLowerCase().includes(q.trim().toLowerCase()))
+        .slice(0, 8)
+    : [];
+
+  const focus = (id: string) => {
+    const n = rf.getNode(id);
+    if (n) {
+      const w = (n.width ?? (n.style?.width as number) ?? NODE_W) as number;
+      rf.setCenter(n.position.x + w / 2, n.position.y + NODE_H / 2, {
+        zoom: 1.3,
+        duration: 400,
+      });
+    }
+    onPick(id);
+    setQ("");
+  };
+
+  return (
+    <Panel position="top-left">
+      <div
+        className="rounded-lg border p-1.5 shadow"
+        style={{
+          background: "var(--wos-panel-raised)",
+          borderColor: "var(--wos-border)",
+        }}
+      >
+        <input
+          type="search"
+          placeholder="Search…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="w-40 rounded bg-transparent px-1.5 py-1 text-sm outline-none"
+        />
+        {matches.length ? (
+          <ul className="mt-1 max-h-48 overflow-auto text-sm">
+            {matches.map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-[color:var(--wos-option-hover)]"
+                  onClick={() => focus(m.id)}
+                >
+                  {m.icon ? <span>{m.icon}</span> : null}
+                  <span className="truncate">
+                    {m.title}
+                    {m.badge ? ` · ${m.badge}` : ""}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </Panel>
+  );
+}
+
 export function TechTreeFlow({
   nodes,
   height = 600,
@@ -266,6 +337,8 @@ export function TechTreeFlow({
       >
         <Background />
         <Controls showInteractive={false} />
+        <MiniMap pannable zoomable />
+        <SearchPanel nodes={nodes} onPick={setSelectedId} />
         {!fixed ? (
           <Panel position="top-right">
             <div className="flex gap-1">
