@@ -20,6 +20,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useTheme } from "@/components/ThemeProvider";
 
 /** A prerequisite edge: id of the required node, plus an optional edge label. */
 export type FlowRequire = string | { id: string; label?: string };
@@ -33,8 +34,10 @@ export type FlowTreeNode = {
   subtitle?: string;
   footer?: string;
   badge?: string;
-  /** Emoji or short glyph shown in the node's icon chip. */
+  /** Emoji/short glyph, or an image path (starts with "/") for the icon chip. */
   icon?: string;
+  /** Player-progress overlay: node fully completed. */
+  done?: boolean;
   /** Explicit canvas position; when set, overrides auto (dagre) layout. */
   position?: { x: number; y: number };
   /** Card width in px (default 200). */
@@ -69,8 +72,14 @@ const TechNode = memo(function TechNode({ data }: NodeProps) {
       className="flex items-center gap-2 rounded-lg border p-2 shadow-sm transition-opacity"
       style={{
         width: n.width ?? NODE_W,
-        background: "var(--wos-panel-raised)",
-        borderColor: selected ? "var(--wos-accent)" : "var(--wos-border)",
+        background: n.done
+          ? "color-mix(in srgb, #22c55e 12%, var(--wos-panel-raised))"
+          : "var(--wos-panel-raised)",
+        borderColor: selected
+          ? "var(--wos-accent)"
+          : n.done
+            ? "#22c55e88"
+            : "var(--wos-border)",
         boxShadow: selected ? "0 0 0 2px var(--wos-accent)" : undefined,
         opacity: dim ? 0.2 : 1,
       }}
@@ -78,11 +87,16 @@ const TechNode = memo(function TechNode({ data }: NodeProps) {
       <Handle type="target" position={targetPos} style={{ opacity: 0 }} />
       {n.icon ? (
         <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-lg"
+          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md text-lg"
           style={{ background: "var(--wos-surface)" }}
           aria-hidden
         >
-          {n.icon}
+          {n.icon.startsWith("/") ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={n.icon} alt="" className="h-9 w-9 object-contain" />
+          ) : (
+            n.icon
+          )}
         </span>
       ) : null}
       <div className="min-w-0 flex-1">
@@ -304,6 +318,7 @@ export function TechTreeFlow({
   /** Base filename for the PNG export. */
   exportName?: string;
 }) {
+  const { theme } = useTheme();
   const fixed = nodes.some((n) => n.position);
   const [dir, setDir] = useState<Dir>(defaultDirection);
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -350,11 +365,11 @@ export function TechTreeFlow({
         const on = related ? related.has(e.source) && related.has(e.target) : true;
         return {
           ...e,
-          animated: Boolean(related) && on,
           style: related
             ? {
-                opacity: on ? 1 : 0.1,
+                opacity: on ? 1 : 0.12,
                 stroke: on ? "var(--wos-accent)" : undefined,
+                strokeWidth: on ? 2 : undefined,
               }
             : undefined,
         };
@@ -363,13 +378,17 @@ export function TechTreeFlow({
   );
 
   return (
-    <div className="panel" style={{ height, padding: 0, overflow: "hidden" }}>
-      <ReactFlow
+    <div className="flex flex-col gap-3 lg:flex-row">
+      <div
+        className="panel min-w-0 flex-1"
+        style={{ height, padding: 0, overflow: "hidden" }}
+      >
+        <ReactFlow
         key={fixed ? "fixed" : dir}
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
-        colorMode="dark"
+        colorMode={theme}
         fitView
         minZoom={0.2}
         nodesConnectable={false}
@@ -381,7 +400,22 @@ export function TechTreeFlow({
       >
         <Background />
         <Controls showInteractive={false} />
-        <MiniMap pannable zoomable />
+        <MiniMap
+          pannable
+          zoomable
+          ariaLabel="Mini map"
+          bgColor="var(--wos-surface)"
+          maskColor="color-mix(in srgb, var(--wos-bg) 65%, transparent)"
+          nodeStrokeColor="var(--wos-accent)"
+          nodeStrokeWidth={3}
+          nodeBorderRadius={4}
+          nodeColor={(node) => {
+            const d = node.data as Partial<TechNodeData>;
+            if (d.selected) return "#38bdf8"; // sky-400
+            if (d.dim) return "#475569"; // slate-600 (out-of-path)
+            return "#7dd3fc"; // sky-300
+          }}
+        />
         <SearchPanel nodes={nodes} onPick={setSelectedId} />
         <Panel position="top-right">
           <div className="flex gap-1">
@@ -406,29 +440,39 @@ export function TechTreeFlow({
             <DownloadButton name={exportName} />
           </div>
         </Panel>
-        {renderDetail && selectedId ? (
-          <Panel position="top-left">
-            <div
-              className="max-w-xs rounded-lg border p-3 text-sm shadow-lg"
-              style={{
-                background: "var(--wos-panel-raised)",
-                borderColor: "var(--wos-border)",
-              }}
-            >
-              <div className="mb-2 flex justify-end">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setSelectedId(null)}
-                >
-                  Close
-                </button>
-              </div>
-              {renderDetail(selectedId)}
+        </ReactFlow>
+      </div>
+      {renderDetail ? (
+        <aside
+          className="panel w-full shrink-0 overflow-auto lg:w-[420px]"
+          style={{ height, padding: 12 }}
+        >
+          {activeId ? (
+            <div className="text-sm">
+              {selectedId ? (
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs text-wos-text-muted">
+                    Закреплено — клик по фону графа, чтобы снять
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setSelectedId(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : null}
+              {renderDetail(activeId)}
             </div>
-          </Panel>
-        ) : null}
-      </ReactFlow>
+          ) : (
+            <p className="muted m-0 text-sm">
+              Наведите на узел — здесь появится карточка технологии. Клик по
+              узлу закрепляет её.
+            </p>
+          )}
+        </aside>
+      ) : null}
     </div>
   );
 }

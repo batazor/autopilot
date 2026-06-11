@@ -4,14 +4,22 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { AppTabs } from "@/components/headless";
+import { AppListbox, AppSwitch, AppTabs } from "@/components/headless";
 import { TechTreeFlow, type FlowTreeNode } from "@/components/TechTreeFlow";
-import { fetchBuildings, fetchResearch } from "@/lib/api";
+import {
+  fetchBuildings,
+  fetchPlayers,
+  fetchResearch,
+  fetchTreeProgress,
+  type TreeProgress,
+} from "@/lib/api";
+import wosIcons from "@/lib/generated/wos-icons.json";
 import type {
   BuildingDef,
   BuildingsView,
   ResearchBranchView,
   ResearchGameView,
+  ResearchResource,
   ResearchView,
 } from "@/lib/types";
 
@@ -51,8 +59,15 @@ const BUILDING_ICON: Record<string, string> = {
   war_academy: "⚔️",
 };
 
+const ICONS = wosIcons as { research: Record<string, string>; buildings: Record<string, string> };
+
 function buildingIcon(id: string): string {
-  return BUILDING_ICON[id] ?? BUILDING_ICON[id.replace(/^fire_crystal_/, "")] ?? "🏗️";
+  return (
+    ICONS.buildings[id] ??
+    BUILDING_ICON[id] ??
+    BUILDING_ICON[id.replace(/^fire_crystal_/, "")] ??
+    "🏗️"
+  );
 }
 
 // Per-research icon by what the bonus does (more telling than one per branch).
@@ -76,55 +91,153 @@ const RESEARCH_ICON_RULES: [RegExp, string][] = [
   [/tool|speedup/, "🔧"],
 ];
 
-function researchIcon(node: { bonus: string; name: string }, branchId: string): string {
+function researchIcon(
+  node: { id: string; bonus: string; name: string },
+  branchId: string,
+): string {
+  // Wiki icon by id; icon URLs were collected before the molten_* id cleanup,
+  // so fall back to the bare line key (icons are shared across tiers anyway).
+  const fromWiki =
+    ICONS.research[node.id] ?? ICONS.research[node.id.replace(/_(i{1,3}|iv|v|vi|vii)$/, "")];
+  if (fromWiki) return fromWiki;
   const hay = `${node.bonus} ${node.name}`.toLowerCase();
   for (const [re, icon] of RESEARCH_ICON_RULES) if (re.test(hay)) return icon;
   return BRANCH_ICON[branchId] ?? "🔬";
 }
 
 function branchTotalLevels(branch: ResearchBranchView): number {
-  return branch.nodes.reduce((sum, n) => sum + n.levels, 0);
+  return branch.nodes.reduce((sum, n) => sum + n.levels.length, 0);
 }
 
-function researchLevelKey(nodeId: string, level: number): string {
-  return `${nodeId}@${level}`;
+const RESEARCH_RES: { key: ResearchResource; name: string; icon: string }[] = [
+  { key: "meat", name: "Мясо", icon: "🍖" },
+  { key: "wood", name: "Дерево", icon: "🪵" },
+  { key: "coal", name: "Уголь", icon: "⚫" },
+  { key: "iron", name: "Железо", icon: "🔩" },
+  { key: "steel", name: "Сталь", icon: "⚙️" },
+  { key: "fire_crystal", name: "Огн. кристалл", icon: "🔥" },
+  { key: "refined_fc", name: "Очищ. кристалл", icon: "💎" },
+  { key: "fc_shards", name: "Осколки FC", icon: "🔸" },
+];
+
+function fmtNum(n: number): string {
+  return n.toLocaleString("ru-RU");
 }
 
-// One node per (research, level). Edges follow the game's unlock rules:
-//   • Level L of a research requires its own Level L-1 (sequential chain).
-//   • Level 1 requires the FINAL level of each prerequisite research — in WoS a
-//     research column only unlocks once the prior research is fully maxed.
-function researchFlowNodes(branch: ResearchBranchView): FlowTreeNode[] {
-  const maxLevel = new Map(branch.nodes.map((n) => [n.id, n.levels]));
-  return branch.nodes.flatMap((n) =>
-    Array.from({ length: n.levels }, (_, i) => {
-      const level = i + 1;
-      const requires =
-        level > 1
-          ? [researchLevelKey(n.id, level - 1)]
-          : n.requires
-              .filter((r) => maxLevel.has(r))
-              .map((r) => researchLevelKey(r, maxLevel.get(r)!));
-      return {
-        id: researchLevelKey(n.id, level),
-        tier: n.tier,
-        title: n.name,
-        subtitle: n.bonus,
-        footer: `Tier ${ROMAN[n.tier] ?? n.tier}`,
-        badge: `Lv ${level}`,
-        icon: researchIcon(n, branch.id),
-        requires,
-      } satisfies FlowTreeNode;
-    }),
+// "5.3K" / "1.4M" / "23,000" / 270 → number (0 when unparsable).
+function parseAmount(v: string | number): number {
+  if (typeof v === "number") return v;
+  const s = v.trim().replace(/,/g, "");
+  const m = /^(\d+(?:\.\d+)?)\s*([KMB])?$/i.exec(s);
+  if (!m) return 0;
+  const mult = { K: 1e3, M: 1e6, B: 1e9 }[m[2]?.toUpperCase() as "K" | "M" | "B"] ?? 1;
+  return Math.round(Number(m[1]) * mult);
+}
+
+// "00:21:30" / "90:16:40" (hours can exceed 24) / "7d" / "2d 02:00:00" → seconds.
+function parseDuration(s: string | null | undefined): number {
+  const t = (s ?? "").trim();
+  if (!t || t === "-") return 0;
+  let sec = 0;
+  const d = /(\d+)\s*d/i.exec(t);
+  if (d) sec += Number(d[1]) * 86400;
+  const hms = /(\d+):(\d{2}):(\d{2})/.exec(t);
+  if (hms) sec += Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3]);
+  return sec;
+}
+
+function fmtDuration(sec: number): string {
+  if (sec <= 0) return "—";
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return [d ? `${d}д` : "", h ? `${h}ч` : "", m ? `${m}м` : ""].filter(Boolean).join(" ") || "<1м";
+}
+
+/** Transitive prerequisite closure (incl. `id` itself) over FlowTreeNodes. */
+function pathClosure(nodes: FlowTreeNode[], id: string): Set<string> {
+  const reqs = new Map(
+    nodes.map((n) => [n.id, n.requires.map((r) => (typeof r === "string" ? r : r.id))]),
+  );
+  const seen = new Set<string>();
+  const stack = [id];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (seen.has(cur) || !reqs.has(cur)) continue;
+    seen.add(cur);
+    for (const dep of reqs.get(cur)!) stack.push(dep);
+  }
+  return seen;
+}
+
+function CostSummary({
+  title,
+  rows,
+  totalTime,
+  note,
+}: {
+  title: string;
+  rows: { icon: string; name: string; amount: number }[];
+  totalTime: number;
+  note: string;
+}) {
+  if (!rows.length && totalTime <= 0) return null;
+  return (
+    <div
+      className="mt-2 rounded-md border p-2 text-xs"
+      style={{ borderColor: "var(--wos-border)", background: "var(--wos-surface)" }}
+    >
+      <div className="font-medium">{title}</div>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+        {rows.map((r) => (
+          <span key={r.name} title={r.name} className="tabular-nums">
+            {r.icon} {fmtNum(r.amount)}
+          </span>
+        ))}
+        <span title="Суммарное время">⏱ {fmtDuration(totalTime)}</span>
+      </div>
+      <div className="mt-1 text-wos-text-muted">{note}</div>
+    </div>
   );
 }
 
-// In-game resource icon ids (verified vs the wiki: 103=Wood, 104=Coal, 105=Iron).
+// One node per research (roman tier), mirroring the in-game tree. The tier is
+// in the name; per-level costs live in the hover detail table. With player
+// progress, the badge shows researched/total ("4/6" or "MAX") like the game.
+function researchFlowNodes(
+  branch: ResearchBranchView,
+  progress?: Record<string, number>,
+): FlowTreeNode[] {
+  const known = new Set(branch.nodes.map((n) => n.id));
+  return branch.nodes.map((n) => {
+    const cur = progress?.[n.id];
+    const max = n.levels.length;
+    const done = cur !== undefined && max > 0 && cur >= max;
+    return {
+      id: n.id,
+      tier: n.tier,
+      title: n.name,
+      subtitle: n.bonus,
+      footer: `Tier ${ROMAN[n.tier] ?? n.tier}`,
+      badge:
+        progress && cur !== undefined ? (done ? "MAX" : `${cur}/${max}`) : undefined,
+      done,
+      icon: researchIcon(n, branch.id),
+      requires: n.requires.filter((r) => known.has(r)),
+    } satisfies FlowTreeNode;
+  });
+}
+
+// In-game resource icon ids (verified vs the wiki: 103=Wood, 104=Coal, 105=Iron;
+// building tables use 100011 for Meat; 100081/100082 are the Fire Crystal pair).
 const RESOURCE: Record<string, { name: string; icon: string }> = {
   item_icon_102: { name: "Meat", icon: "🍖" },
+  item_icon_100011: { name: "Meat", icon: "🍖" },
   item_icon_103: { name: "Wood", icon: "🪵" },
   item_icon_104: { name: "Coal", icon: "⚫" },
   item_icon_105: { name: "Iron", icon: "🔩" },
+  item_icon_100081: { name: "Fire Crystal", icon: "🔥" },
+  item_icon_100082: { name: "Refined FC", icon: "💎" },
 };
 
 function resourceLabel(item: string): string {
@@ -132,98 +245,53 @@ function resourceLabel(item: string): string {
   return r ? `${r.icon} ${r.name}` : item.replace("item_icon_", "#");
 }
 
-function levelKey(building: string, level: number): string {
+function levelKey(building: string, level: number | string): string {
   return `${building}@${level}`;
 }
 
-// One node per (building, level). The graph follows the actual game rules,
-// not the (inconsistent) free-text prerequisites:
-//   • Furnace Lv N requires its support buildings at Lv N-1 (from furnace data).
-//   • Any building at Lv L requires Furnace at Lv L (the level cap) — the wiki
-//     lists a constant unlock level for camps/etc., which is wrong for build
-//     order, so we apply the cap rule uniformly.
-//   • Consecutive levels of a building chain (Lv L-1 → Lv L).
-// Scoped to the Furnace build ladder (every Furnace level + what gates it).
+// One node per (building, level), edges straight from the wiki data:
+//   • the level's parsed cross-building prerequisites (lvl.requires) — e.g.
+//     Barricade Lv 2 ← Furnace Lv 7, Command Center Lv 5 ← Furnace 10 + Embassy 5;
+//   • the building's previous level (sequential chain; the API emits levels
+//     already sorted: "1".."30", then "30-1".., then the "FC …" ladder);
+//   • a fire_crystal_* ladder chains onto its base building's last numeric
+//     level (Furnace 30 → Fire Crystal Furnace 30-1 → … → FC 10).
+// Layout is dagre (auto).
 function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
-  const hubId = view.hub_id;
-  const nameOf = new Map(view.buildings.map((b) => [b.id, b.name]));
-  const furnace = view.buildings.find((b) => b.id === hubId);
-  if (!furnace) return [];
-
-  // Furnace level → its support-building requirements (correct in the data).
-  const furnaceReq = new Map<number, { building: string; level: number }[]>();
-  for (const [lvlStr, lvl] of Object.entries(furnace.requirements_by_level)) {
-    furnaceReq.set(Number(lvlStr), lvl.requires ?? []);
+  const byId = new Map(view.buildings.map((b) => [b.id, b]));
+  const out: FlowTreeNode[] = [];
+  for (const b of view.buildings) {
+    const levels = Object.keys(b.requirements_by_level);
+    const base = b.id.startsWith("fire_crystal_")
+      ? byId.get(b.id.slice("fire_crystal_".length))
+      : undefined;
+    const baseTop = base
+      ? Object.keys(base.requirements_by_level)
+          .filter((k) => /^\d+$/.test(k))
+          .map(Number)
+          .sort((a, z) => z - a)[0]
+      : undefined;
+    levels.forEach((level, i) => {
+      const lvl = b.requirements_by_level[level];
+      const requires: string[] = [];
+      if (i > 0) requires.push(levelKey(b.id, levels[i - 1]));
+      else if (base && baseTop !== undefined)
+        requires.push(levelKey(base.id, baseTop));
+      for (const r of lvl?.requires ?? []) {
+        const key = levelKey(r.building, r.level);
+        if (!requires.includes(key)) requires.push(key);
+      }
+      out.push({
+        id: levelKey(b.id, level),
+        tier: 0,
+        title: b.name,
+        badge: /^\d+$/.test(level) ? `Lv ${level}` : level,
+        icon: buildingIcon(b.id),
+        requires,
+      });
+    });
   }
-
-  // Cross/cap requirements of a (building@level), by rule.
-  const ruleReqs = (key: string): string[] => {
-    const [bid, lvlStr] = key.split("@");
-    const level = Number(lvlStr);
-    if (bid === hubId) {
-      return (furnaceReq.get(level) ?? []).map((r) => levelKey(r.building, r.level));
-    }
-    return [levelKey(hubId, level)]; // building Lv L needs Furnace Lv L
-  };
-
-  // Closure from every Furnace level.
-  const seen = new Set<string>();
-  const stack = [...furnaceReq.keys()].map((l) => levelKey(hubId, l));
-  while (stack.length) {
-    const key = stack.pop()!;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    for (const dep of ruleReqs(key)) stack.push(dep);
-  }
-
-  // Previous included level per building → sequential chain edges.
-  const byBuilding = new Map<string, number[]>();
-  for (const key of seen) {
-    const [bid, lvl] = key.split("@");
-    byBuilding.set(bid, [...(byBuilding.get(bid) ?? []), Number(lvl)]);
-  }
-  const prevLevel = new Map<string, number>();
-  for (const [bid, levels] of byBuilding) {
-    levels.sort((a, b) => a - b);
-    for (let i = 1; i < levels.length; i++) {
-      prevLevel.set(levelKey(bid, levels[i]), levels[i - 1]);
-    }
-  }
-
-  // Manual layout: Furnace is the central vertical spine (x=0); support
-  // buildings flank it, each in its own lane alternating left/right. Support
-  // rows are interleaved half a step below their Furnace level so every
-  // prerequisite edge points straight downward.
-  const ROW = 96; // vertical px per half-step
-  const HGAP = 240; // horizontal px per support lane
-  const supportIds = [
-    ...new Set([...seen].map((k) => k.split("@")[0]).filter((b) => b !== hubId)),
-  ].sort();
-  const laneX = new Map<string, number>([[hubId, 0]]);
-  supportIds.forEach((bid, i) => {
-    const dist = Math.floor(i / 2) + 1; // 1,1,2,2,3,3,…
-    const side = i % 2 === 0 ? -1 : 1; // left, right, left, …
-    laneX.set(bid, side * dist * HGAP);
-  });
-  const minLevel = Math.min(...[...seen].map((k) => Number(k.split("@")[1])));
-
-  return [...seen].map((key) => {
-    const [bid, lvlStr] = key.split("@");
-    const level = Number(lvlStr);
-    const base = ruleReqs(key).filter((k) => seen.has(k));
-    const prev = prevLevel.get(key);
-    const requires = prev !== undefined ? [levelKey(bid, prev), ...base] : base;
-    const step = (level - minLevel) * 2 + (bid === hubId ? 0 : 1);
-    return {
-      id: key,
-      tier: 0,
-      title: nameOf.get(bid) ?? bid,
-      badge: `Lv ${level}`,
-      icon: buildingIcon(bid),
-      position: { x: laneX.get(bid) ?? 0, y: step * ROW },
-      requires,
-    };
-  });
+  return out;
 }
 
 function SourceLine({ url, label }: { url: string; label: string }) {
@@ -242,16 +310,18 @@ function ResearchPanel({
   game,
   branchId,
   onBranch,
+  progress,
 }: {
   game: ResearchGameView;
   branchId: string | null;
   onBranch: (id: string) => void;
+  progress?: TreeProgress;
 }) {
   const branch =
     game.branches.find((b) => b.id === branchId) ?? game.branches[0];
   const nodes = useMemo(
-    () => (branch ? researchFlowNodes(branch) : []),
-    [branch],
+    () => (branch ? researchFlowNodes(branch, progress?.research) : []),
+    [branch, progress],
   );
   const nodeById = useMemo(
     () => new Map((branch?.nodes ?? []).map((n) => [n.id, n])),
@@ -259,34 +329,103 @@ function ResearchPanel({
   );
   if (!branch) return <p className="muted">No research data.</p>;
 
-  // Detail for a (research@level) node id.
-  const renderDetail = (key: string) => {
-    const [rid, lvlStr] = key.split("@");
+  // Detail for a research node id — full per-level table (cost / time / power).
+  const renderDetail = (rid: string) => {
     const n = nodeById.get(rid);
     if (!n) return null;
-    const level = Number(lvlStr);
-    const reqText =
-      level > 1
-        ? `${n.name} Lv ${level - 1}`
-        : n.requires
-            .map((r) => {
-              const dep = nodeById.get(r);
-              return dep ? `${dep.name} Lv ${dep.levels}` : null;
-            })
-            .filter(Boolean)
-            .join(", ");
+    const reqText = n.requires
+      .map((r) => nodeById.get(r)?.name)
+      .filter(Boolean)
+      .join(", ");
+    const usedRes = RESEARCH_RES.filter((r) =>
+      n.levels.some((lv) => (lv.cost[r.key] ?? 0) > 0),
+    );
+    const hasRC = n.levels.some((lv) => lv.rc != null);
+    const hasGate = n.levels.some((lv) => lv.gate);
+    // Cost planner: max out this tech + every transitive prerequisite.
+    const path = pathClosure(nodes, rid);
+    const totals = new Map<ResearchResource, number>();
+    let pathTime = 0;
+    let pathLevels = 0;
+    for (const pid of path) {
+      const pn = nodeById.get(pid);
+      if (!pn) continue;
+      pathLevels += pn.levels.length;
+      for (const lv of pn.levels) {
+        pathTime += parseDuration(lv.time);
+        for (const r of RESEARCH_RES)
+          if (lv.cost[r.key]) totals.set(r.key, (totals.get(r.key) ?? 0) + lv.cost[r.key]!);
+      }
+    }
+    const costRows = RESEARCH_RES.filter((r) => totals.get(r.key)).map((r) => ({
+      icon: r.icon,
+      name: r.name,
+      amount: totals.get(r.key)!,
+    }));
     return (
       <div>
-        <div className="font-semibold">
-          {n.name} — Lv {level} / {n.levels}
-        </div>
+        <div className="font-semibold">{n.name}</div>
         <div className="text-wos-text-muted">{n.bonus}</div>
-        <div className="mt-2 text-xs text-wos-text-secondary">
-          Tier {ROMAN[n.tier] ?? n.tier}
-        </div>
         <div className="mt-1 text-xs text-wos-text-secondary">
-          Requires: {reqText || "—"}
+          Tier {ROMAN[n.tier] ?? n.tier} · {n.levels.length} ур. · Требует:{" "}
+          {reqText || "—"}
         </div>
+        <CostSummary
+          title={`Весь путь до максимума: ${path.size} тех., ${pathLevels} ур.`}
+          rows={costRows}
+          totalTime={pathTime}
+          note="Полная прокачка этого теха и всех его пререквизитов (без ускорений)."
+        />
+        {n.levels.length ? (
+          <table className="mt-2 w-full border-collapse text-[11px]">
+            <thead className="text-wos-text-secondary">
+              <tr className="text-left">
+                <th className="pr-2 font-medium">Ур.</th>
+                <th className="pr-2 font-medium">Эффект</th>
+                {hasRC ? (
+                  <th className="pr-2 font-medium" title="Research Center">
+                    RC
+                  </th>
+                ) : null}
+                {hasGate ? (
+                  <th className="pr-2 font-medium" title="War Academy Fire Crystal level">
+                    Гейт
+                  </th>
+                ) : null}
+                <th className="pr-2 font-medium">Время</th>
+                <th className="pr-2 font-medium" title="Power">
+                  ⚡
+                </th>
+                {usedRes.map((r) => (
+                  <th key={r.key} className="pr-2 text-right font-medium" title={r.name}>
+                    {r.icon}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {n.levels.map((lv) => (
+                <tr key={lv.level} className="border-t border-[color:var(--wos-border)]">
+                  <td className="pr-2 py-0.5">{lv.level}</td>
+                  <td className="pr-2">{lv.effect || "—"}</td>
+                  {hasRC ? <td className="pr-2">{lv.rc ?? "—"}</td> : null}
+                  {hasGate ? (
+                    <td className="pr-2 whitespace-nowrap">{lv.gate || "—"}</td>
+                  ) : null}
+                  <td className="pr-2 whitespace-nowrap">
+                    {lv.time || "—"}
+                  </td>
+                  <td className="pr-2">{lv.power ? fmtNum(lv.power) : "—"}</td>
+                  {usedRes.map((r) => (
+                    <td key={r.key} className="pr-2 text-right tabular-nums">
+                      {lv.cost[r.key] ? fmtNum(lv.cost[r.key]!) : "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
       </div>
     );
   };
@@ -350,8 +489,53 @@ function BuildingCatalog({ buildings }: { buildings: BuildingDef[] }) {
   );
 }
 
-function BuildingsPanel({ view }: { view: BuildingsView }) {
-  const nodes = useMemo(() => buildingFlowNodes(view), [view]);
+function BuildingsPanel({
+  view,
+  progress,
+}: {
+  view: BuildingsView;
+  progress?: TreeProgress;
+}) {
+  // Toggle: full graph ⇄ the Furnace ladder (Furnace/FC-Furnace levels plus
+  // everything transitively required to advance them). Kept in ?bview=ladder.
+  const [ladder, setLadder] = useState<boolean>(
+    () =>
+      typeof window !== "undefined" &&
+      new URL(window.location.href).searchParams.get("bview") === "ladder",
+  );
+  const onLadder = (next: boolean) => {
+    setLadder(next);
+    const url = new URL(window.location.href);
+    if (next) url.searchParams.set("bview", "ladder");
+    else url.searchParams.delete("bview");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  };
+
+  const allNodes = useMemo(() => {
+    const base = buildingFlowNodes(view);
+    const lvls = progress?.buildings;
+    if (!lvls) return base;
+    // Player overlay: a (building, numeric level) node is done when the
+    // player's recorded level reaches it.
+    return base.map((n) => {
+      const [bid, lvlStr] = n.id.split("@");
+      const have = lvls[bid];
+      const done =
+        have !== undefined && /^\d+$/.test(lvlStr) && have >= Number(lvlStr);
+      return done ? { ...n, done } : n;
+    });
+  }, [view, progress]);
+  const nodes = useMemo(() => {
+    if (!ladder) return allNodes;
+    const keep = new Set<string>();
+    for (const n of allNodes) {
+      const bid = n.id.split("@")[0];
+      if (bid === view.hub_id || bid === `fire_crystal_${view.hub_id}`) {
+        for (const k of pathClosure(allNodes, n.id)) keep.add(k);
+      }
+    }
+    return allNodes.filter((n) => keep.has(n.id));
+  }, [allNodes, ladder, view.hub_id]);
   const byId = useMemo(
     () => new Map(view.buildings.map((b) => [b.id, b])),
     [view],
@@ -362,11 +546,40 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
     const b = byId.get(bid);
     const lvl = b?.requirements_by_level[lvlStr];
     if (!b) return null;
+    // Cost planner: build everything this (building, level) depends on.
+    const path = pathClosure(nodes, key);
+    const totals = new Map<string, number>();
+    let pathTime = 0;
+    for (const pid of path) {
+      const [pb, plv] = pid.split("@");
+      const pl = byId.get(pb)?.requirements_by_level[plv];
+      if (!pl) continue;
+      pathTime += parseDuration(pl.construction_time);
+      for (const c of pl.build_cost ?? []) {
+        totals.set(c.item, (totals.get(c.item) ?? 0) + parseAmount(c.amount));
+      }
+    }
+    const costRows = [...totals.entries()]
+      .filter(([, amt]) => amt > 0)
+      .map(([item, amount]) => {
+        const r = RESOURCE[item];
+        return {
+          icon: r?.icon ?? "❔",
+          name: r?.name ?? item.replace("item_icon_", "#"),
+          amount,
+        };
+      });
     return (
       <div>
         <div className="font-semibold">
           {b.name} — Lv {lvlStr}
         </div>
+        <CostSummary
+          title={`Весь путь постройки: ${path.size} шагов`}
+          rows={costRows}
+          totalTime={pathTime}
+          note="Все уровни всех зданий, требуемых до этой точки (без ускорений)."
+        />
         {lvl?.prerequisites ? (
           <div className="mt-1 text-xs text-wos-text-muted">
             Requires: {lvl.prerequisites}
@@ -401,12 +614,20 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
         label="whiteoutsurvival.wiki/buildings"
       />
       <div className="flex flex-col gap-4">
+        <AppSwitch
+          inline
+          checked={ladder}
+          onChange={onLadder}
+          label="Лестница печки"
+          title="Показывать только цепочку Furnace (вкл. FC) и всё, что нужно для её прокачки"
+        />
         <TechTreeFlow
+          key={ladder ? "ladder" : "full"}
           nodes={nodes}
           height={720}
           defaultDirection="TB"
           renderDetail={renderDetail}
-          exportName={`buildings-${view.game}`}
+          exportName={`buildings-${view.game}${ladder ? "-ladder" : ""}`}
         />
         <BuildingCatalog buildings={view.buildings} />
       </div>
@@ -438,17 +659,37 @@ function TreesContent() {
     params.get("tab") === "buildings" ? "buildings" : "research",
   );
   const [branchId, setBranchId] = useState<string | null>(params.get("branch"));
+  const [playerId, setPlayerId] = useState<string>(params.get("player") ?? "");
+
+  const players = useQuery<string[]>({
+    queryKey: ["players"],
+    queryFn: () => fetchPlayers(),
+  });
+  const progress = useQuery<TreeProgress>({
+    queryKey: ["tree-progress", playerId],
+    queryFn: () => fetchTreeProgress(playerId),
+    enabled: Boolean(playerId),
+  });
 
   const game = games.find((g) => g.id === gameId) ?? games[0];
 
   const syncUrl = useCallback(
-    (next: { game?: string; tab?: DataType; branch?: string | null }) => {
+    (next: {
+      game?: string;
+      tab?: DataType;
+      branch?: string | null;
+      player?: string | null;
+    }) => {
       const url = new URL(window.location.href);
       if (next.game !== undefined) url.searchParams.set("game", next.game);
       if (next.tab !== undefined) url.searchParams.set("tab", next.tab);
       if (next.branch !== undefined) {
         if (next.branch) url.searchParams.set("branch", next.branch);
         else url.searchParams.delete("branch");
+      }
+      if (next.player !== undefined) {
+        if (next.player) url.searchParams.set("player", next.player);
+        else url.searchParams.delete("player");
       }
       window.history.replaceState(null, "", url.pathname + url.search);
     },
@@ -476,6 +717,10 @@ function TreesContent() {
   const onBranchChange = (next: string) => {
     setBranchId(next);
     syncUrl({ branch: next });
+  };
+  const onPlayerChange = (next: string) => {
+    setPlayerId(next);
+    syncUrl({ player: next || null });
   };
 
   const isLoading = research.isLoading || buildings.isLoading;
@@ -509,7 +754,7 @@ function TreesContent() {
           ) : null}
 
           <AppTabs
-            variant="section"
+            variant="toolbar"
             renderPanels={false}
             selectedKey={type}
             onChange={(k) => onTypeChange(k as DataType)}
@@ -517,6 +762,20 @@ function TreesContent() {
               { key: "research", label: "Research" },
               { key: "buildings", label: "Buildings" },
             ]}
+            afterTabs={
+              <AppListbox
+                inline
+                label="Игрок"
+                value={playerId}
+                onChange={onPlayerChange}
+                loading={players.isLoading}
+                minWidth={160}
+                options={[
+                  { value: "", label: "— без прогресса —" },
+                  ...(players.data ?? []).map((p) => ({ value: p, label: p })),
+                ]}
+              />
+            }
           />
 
           <div className="mt-3">
@@ -526,9 +785,10 @@ function TreesContent() {
                 game={game}
                 branchId={branchId}
                 onBranch={onBranchChange}
+                progress={progress.data}
               />
             ) : buildings.data && game.id === buildingsGameId ? (
-              <BuildingsPanel view={buildings.data} />
+              <BuildingsPanel view={buildings.data} progress={progress.data} />
             ) : (
               <p className="muted">No building data for {game.label} yet.</p>
             )}
