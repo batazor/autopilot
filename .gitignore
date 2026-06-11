@@ -70,6 +70,7 @@ db/state/
 .next/
 temporal/
 .tmp_ocr/
+runs/
 # Live MCP/AI-Editor captures (per-step dumps); commit only rehearsal/fixtures/ for pytest.
 **/rehearsal/*
 !**/rehearsal/fixtures/

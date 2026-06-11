@@ -801,44 +801,6 @@ export type FishVideoJob = {
   frames: FishVideoFrame[];
 };
 
-export type MapStitchState =
-  | "queued"
-  | "capturing"
-  | "captured"
-  | "stitching"
-  | "done"
-  | "error";
-
-export type MapStitchJob = {
-  job_id: string;
-  state: MapStitchState;
-  captured: number;
-  total: number;
-  frames: string[];
-  map_ready: boolean;
-  log: string;
-  error: string;
-  stop_requested?: boolean;
-  instance_id?: string;
-  serial: string;
-  rows: number;
-  cols: number;
-  overlap: number;
-  swipe_ms: number;
-  settle_s: number;
-  home: boolean;
-};
-
-export type MapStitchParams = {
-  instance_id: string;
-  rows: number;
-  cols: number;
-  overlap: number;
-  swipe_ms: number;
-  settle_s: number;
-  home: boolean;
-};
-
 export type ProbeCropSide = {
   available?: boolean;
   width?: number;

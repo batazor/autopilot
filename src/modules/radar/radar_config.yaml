@@ -1,0 +1,47 @@
+version: 1
+device_serial: 127.0.0.1:5555
+adb_bin: adb
+minimap:
+  bbox:
+  - 506
+  - 12
+  - 195
+  - 145
+  corners:
+    top:
+    - 603.0
+    - 18.0
+    right:
+    - 695.0
+    - 84.0
+    bottom:
+    - 606.0
+    - 151.0
+    left:
+    - 512.0
+    - 84.0
+  reference: radar_minimap_ref.png
+viewport:
+  rect_w: 24
+  rect_h: 39
+overlap: 0.48
+edge_margin_px: 0
+crop:
+  x: 0
+  y: 156
+  w: 620
+  h: 940
+stitch_viewport:
+  w: 720
+  h: 1185
+# Debug window: scan only 2×3 cells around the center. Remove for full scans.
+grid_limit:
+  cols: 2
+  rows: 3
+game_size: 1200
+timings:
+  post_tap_delay_ms: 300
+  stabilize_interval_ms: 150
+  stabilize_diff_threshold: 2.0
+  stabilize_consecutive: 2
+  stabilize_timeout_ms: 5000

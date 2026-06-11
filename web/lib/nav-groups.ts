@@ -83,11 +83,6 @@ export const NAV_GROUPS: NavGroup[] = [
         description: "Rule match debugger",
       },
       {
-        href: "/map-stitch",
-        label: "Map stitch",
-        description: "Capture + stitch the world map over scrcpy",
-      },
-      {
         href: "/queue",
         label: "Queue",
         description: "Fleet task queue",
