@@ -206,6 +206,17 @@ def _guarded_capture(
     times (covers LOD/icon fade-in), then abort: a knowingly broken map is
     worse than a stopped scan. Returns the measured offset alongside the
     frame — it feeds swipe auto-calibration.
+
+    The prior-gated match can fail on a perfectly valid frame: near the
+    kingdom edge the overlap is thin texture plus a grid of identical sprites,
+    and ORB locks onto an aliased offset the navigation prior (correctly)
+    rejects. That is a stitch-time problem, not a torn view — so before
+    aborting, an UNCONSTRAINED match is tried: if it still fits as a clean pan
+    (same scale, no rotation) the world is intact and only the offset is
+    ambiguous. The frame is kept and the scan continues, but the untrusted
+    offset is withheld from calibration (``measured=None``). Only a frame that
+    will not register as a pan even without the prior — a real zoom/popup —
+    aborts the scan.
     """
     # Local import: stitch imports MANIFEST_NAME from this module at load
     # time, so the reverse import must stay out of module scope.
@@ -228,6 +239,18 @@ def _guarded_capture(
             )
             time.sleep(t.zoom_retry_delay_ms / 1000.0)
             frame, stable = wait_stable(device, cfg)
+    # Prior-gated match exhausted. If the view still registers as a clean pan
+    # without the prior, it is the same world at the same zoom — the offset is
+    # just aliased (repeated sprites / thin border texture). Keep the frame and
+    # carry on; the stitcher re-derives its position from grid neighbours. The
+    # ambiguous offset is withheld from swipe calibration.
+    if expected is not None and frames_consistent(prev_frame, frame, crop, None) is not None:
+        logger.warning(
+            "radar: frame registers as a pan but off the expected swipe offset "
+            "(aliasing/thin texture near the border) — keeping it, offset not "
+            "trusted for calibration",
+        )
+        return frame, stable, None
     if reject_path is not None:
         # Keep the evidence: the rejected frame shows WHAT the camera saw
         # (zoom level, popup, transition) when the scan had to stop.

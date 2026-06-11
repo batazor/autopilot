@@ -100,6 +100,26 @@ def test_zoomed_view_retries_then_aborts(tmp_path) -> None:
     assert reject_path.is_file()
 
 
+def test_aliased_offset_keeps_frame_without_aborting() -> None:
+    """A valid pan whose true offset the prior rejects (the navigation prior is
+    far from where the content actually matched) must NOT abort the scan: the
+    view is intact, only the offset is ambiguous. The frame is kept and the
+    untrusted offset is withheld from calibration (measured is None)."""
+    world = _make_world(27, 700, 1000)
+    prev = world[100 : 100 + FRAME_H, 100 : 100 + FRAME_W]
+    cur = world[100 : 100 + FRAME_H, 300 : 300 + FRAME_W]  # real pan +200 px
+    device = FakeDevice([cur])
+
+    # Prior insists on a wildly different offset → prior-gated match fails, but
+    # the unconstrained match still fits a clean pan → keep the frame, continue.
+    frame, _stable, measured = _guarded_capture(
+        device, _cfg(), prev, expected=(-360.0, -400.0),
+    )
+
+    assert measured is None  # offset not trusted for calibration
+    assert np.array_equal(frame, cur)
+
+
 def test_recovers_when_view_settles_on_retry() -> None:
     world = _make_world(25, 700, 1000)
     prev = world[100 : 100 + FRAME_H, 100 : 100 + FRAME_W]
