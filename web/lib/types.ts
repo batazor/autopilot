@@ -861,3 +861,28 @@ export type AreaRegionProbeResult = {
   } | null;
   overlays: OverlayShape[];
 };
+
+// --- Buildings reference (/buildings) — served from games/<game>/db/buildings ---
+
+export type BuildingCostItem = { item: string; amount: string | number };
+
+export type BuildingLevelReq = {
+  prerequisites: string;
+  construction_time?: string | null;
+  building_power?: number | null;
+  build_cost: BuildingCostItem[];
+};
+
+export type BuildingDef = {
+  id: string;
+  name: string;
+  category: string;
+  max_level: number | null;
+  requirements_by_level: Record<string, BuildingLevelReq>;
+};
+
+export type BuildingsView = {
+  game: string;
+  hub_id: string;
+  buildings: BuildingDef[];
+};

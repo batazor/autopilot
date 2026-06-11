@@ -55,6 +55,7 @@ import type {
   AllianceStatsView,
   CenturySyncResult,
   BuildingLevelRow,
+  BuildingsView,
   HeroStateRow,
   InstanceUnchangedResponse,
   QueueUnchangedResponse,
@@ -294,6 +295,10 @@ export async function fetchOverview(): Promise<OverviewView> {
 
 export async function fetchAttention(): Promise<AttentionView> {
   return apiFetch<AttentionView>("/api/attention");
+}
+
+export async function fetchBuildings(): Promise<BuildingsView> {
+  return apiFetch<BuildingsView>("/api/buildings");
 }
 
 export async function toggleInstancePause(instanceId: string): Promise<{ cmd: string }> {
