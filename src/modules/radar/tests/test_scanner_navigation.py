@@ -10,6 +10,7 @@ import pytest
 
 from modules.radar.config import (
     BorderConfig,
+    CornerRefConfig,
     CornersConfig,
     CropConfig,
     GridLimitConfig,
@@ -29,9 +30,11 @@ from modules.radar.scanner import (
     _patch_is_white,
     _position_origin,
     _swipe_relative,
+    _viewport_rect,
     _viewport_rect_center,
     _wait_touch_clear,
     build_scan_grid,
+    capture_corner_reference,
 )
 
 
@@ -439,6 +442,163 @@ def test_position_origin_climbs_back_out_of_the_gap(monkeypatch) -> None:
         assert y2 > y1
     assert meta["border_apex_px"] is not None
     assert [t["decision"] for t in meta["servo_trail"]] == ["gap_climb", "lock"]
+
+
+def _textured_frame(seed: int, with_rect_at: tuple[int, int] | None = None) -> np.ndarray:
+    """Snow-grey frame with ORB-matchable grey texture: no yellow, no dark.
+
+    Grey-on-grey shapes keep saturation at zero (never trips the yellow mask)
+    and values above the dark threshold (never reads as out-of-bounds), while
+    giving ORB plenty of corners so movement feedback can register frames.
+    """
+    rng = np.random.default_rng(seed)
+    frame = np.full((1280, 720, 3), 200, dtype=np.uint8)
+    for _ in range(400):
+        x, y = int(rng.integers(0, 680)), int(rng.integers(0, 1240))
+        s = int(rng.integers(8, 36))
+        v = int(rng.integers(110, 185))
+        cv2.rectangle(frame, (x, y), (x + s, y + s), (v, v, v), -1)
+    if with_rect_at is not None:
+        rx, ry = with_rect_at
+        cv2.rectangle(frame, (rx - 12, ry - 19), (rx + 12, ry + 19), (255, 255, 255), 2)
+    return frame
+
+
+def test_servo_detects_pan_clamp_and_probes_laterally(monkeypatch) -> None:
+    """Swipes that do not move the camera (game rubber-band/clamp) must be
+    DETECTED by movement feedback — the servo then searches laterally instead
+    of burning its blind budget marching in place (the 202450 failure)."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(
+        grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
+        label_guard=LabelGuardConfig(enabled=False),
+    )
+    target_x = cfg.crop.x + cfg.crop.w / 2
+    target_y = int(cfg.crop.y + cfg.crop.h * cfg.border.target_frac)
+    frozen = _textured_frame(31)  # identical every capture: nothing moves
+    on_target = _x_frame(int(target_x), target_y)
+    # verify(3) + 4 servo measures on the frozen view (3 captures each) + lock.
+    device = FakeDevice(frames=[frozen] * 15 + [on_target] * 3)
+
+    meta = _position_origin(device, cfg, build_scan_grid(cfg)[0])
+
+    decisions = [t["decision"] for t in meta["servo_trail"]]
+    assert decisions == ["blind", "blind", "lateral_probe", "lateral_probe", "lock"]
+    # Feedback measured the marching-in-place: ~0 effectiveness recorded.
+    assert meta["servo_trail"][1]["effectiveness"] is not None
+    assert meta["servo_trail"][1]["effectiveness"] < 0.3
+    # Probes move sideways along the clamp, never further down.
+    lateral = [s for s in device.swipes if s[1] == s[3]]
+    assert lateral  # at least one horizontal probe swipe
+    downward = [s for s in device.swipes if s[3] < s[1]]  # finger up = camera down
+    assert len(downward) == 2  # only the two blind steps before the clamp hit
+
+
+def test_servo_aligns_to_corner_reference_at_the_clamp(monkeypatch) -> None:
+    """With a recorded corner reference, the at-clamp search is guided: the
+    servo aligns the (display-clamped) minimap rect x to the recorded reading
+    instead of probing blind."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(
+        grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
+        label_guard=LabelGuardConfig(enabled=False),
+        border=BorderConfig(),
+    )
+    cfg.corner_ref = CornerRefConfig(
+        cross_px=(310.0, 730.0), rect_px=(120.0, 120.0), rect_size=(24, 39),
+    )
+    target_x = cfg.crop.x + cfg.crop.w / 2
+    target_y = int(cfg.crop.y + cfg.crop.h * cfg.border.target_frac)
+    no_rect = _textured_frame(33)
+    # Camera reads rect x=100; the reference says the corner reads x=120.
+    frozen = _textured_frame(33, with_rect_at=(100, 120))
+    on_target = _x_frame(int(target_x), target_y)
+    device = FakeDevice(frames=[no_rect] * 3 + [frozen] * 12 + [on_target] * 3)
+
+    meta = _position_origin(device, cfg, build_scan_grid(cfg)[0])
+
+    decisions = [t["decision"] for t in meta["servo_trail"]]
+    assert decisions == ["blind", "blind", "ref_align", "ref_align", "lock"]
+    # Alignment moves the camera RIGHT (toward ref x=120): finger drags left.
+    align = [s for s in device.swipes if s[1] == s[3]]
+    assert align
+    for x1, _y1, x2, _y2, _ms in align:
+        assert x2 < x1
+
+
+def test_servo_aborts_at_reference_position_without_a_crossing(monkeypatch) -> None:
+    """Camera at the calibrated corner reading but no X in view: a precise,
+    actionable abort (recalibrate) — not an endless probe."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(
+        grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
+        label_guard=LabelGuardConfig(enabled=False),
+    )
+    cfg.corner_ref = CornerRefConfig(
+        cross_px=(310.0, 730.0), rect_px=(100.0, 120.0), rect_size=(24, 39),
+    )
+    no_rect = _textured_frame(35)
+    frozen = _textured_frame(35, with_rect_at=(100, 120))  # already at ref x
+    device = FakeDevice(frames=[no_rect] * 3 + [frozen] * 9)
+
+    with pytest.raises(ScanAborted, match="calibrated corner position"):
+        _position_origin(device, cfg, build_scan_grid(cfg)[0])
+
+
+def test_capture_corner_reference_records_the_view() -> None:
+    cfg = _cfg()
+    frame = _x_frame(310, 700)
+    cv2.rectangle(frame, (100 - 12, 120 - 19), (100 + 12, 120 + 19), (255, 255, 255), 2)
+
+    ref = capture_corner_reference(frame, cfg)
+
+    assert ref.cross_px[0] == pytest.approx(310, abs=10)
+    assert ref.cross_px[1] == pytest.approx(700, abs=10)
+    assert ref.rect_px is not None
+    assert ref.rect_px[0] == pytest.approx(100, abs=2)
+    assert ref.rect_size is not None
+    # Drawn with 2 px outline: the detected bbox is a hair over 24x39.
+    assert ref.rect_size[0] == pytest.approx(24, abs=4)
+    assert ref.rect_size[1] == pytest.approx(39, abs=4)
+
+    with pytest.raises(ValueError, match="not detectable"):
+        capture_corner_reference(_grey_frame(), cfg)
+
+
+def test_position_origin_aborts_on_zoom_mismatch(monkeypatch) -> None:
+    """The minimap viewport rect reading far off the calibrated size means the
+    zoom is wrong — every px<->tile conversion would be garbage. Fail fast."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(label_guard=LabelGuardConfig(enabled=False))
+    wrong_zoom = _grey_frame()
+    cv2.rectangle(wrong_zoom, (120 - 22, 80 - 35), (120 + 22, 80 + 35), (255, 255, 255), 2)
+
+    with pytest.raises(ScanAborted, match="zoom mismatch"):
+        _position_origin(FakeDevice(frames=[wrong_zoom]), cfg, build_scan_grid(cfg)[0])
+
+
+def test_viewport_rect_reports_clipping() -> None:
+    cfg = _cfg()  # minimap bbox (0, 0, 200, 200)
+    centered = _rect_frame(100.0, 120.0)
+    rect = _viewport_rect(centered, cfg)
+    assert rect is not None
+    assert not rect.clipped
+    assert rect.w == pytest.approx(24, abs=4)  # 2 px outline widens the bbox
+    assert rect.h == pytest.approx(39, abs=4)
+
+    # Rect pressed against the bbox bottom: the drawing is clipped — position lies.
+    at_edge = _rect_frame(100.0, 195.0)
+    rect = _viewport_rect(at_edge, cfg)
+    assert rect is not None
+    assert rect.clipped
 
 
 def test_position_origin_aborts_when_the_crossing_never_appears(monkeypatch) -> None:

@@ -329,6 +329,45 @@ def start_scan(
     return {"run_id": run_id, "instance_id": instance_id, "total_frames": len(grid), "grid": grid}
 
 
+@router.post("/corner-ref")
+def calibrate_corner_ref(body: ScanRequest | None = None) -> dict[str, Any]:
+    """Record the corner reference from the CURRENT screen.
+
+    The operator pans the camera so the bottom-corner X is clearly visible,
+    then triggers this. The reading (crossing position, minimap-rect reading
+    at the corner, dark fraction) is saved to the sidecar next to the radar
+    config and used by the origin servo to verify/align at the pan clamp.
+    """
+    _require_radar()
+    from modules.radar.config import load_config, save_corner_ref
+    from modules.radar.device import RadarDevice, pick_serial
+    from modules.radar.scanner import capture_corner_reference
+
+    settings = load_settings()
+    if not settings.instances:
+        raise HTTPException(status_code=503, detail="no instances configured")
+    instance_id = (body.instance_id if body else "").strip() or settings.instances[0].instance_id
+    serial = next(
+        (
+            inst.bluestacks_window_title
+            for inst in settings.instances
+            if inst.instance_id == instance_id
+        ),
+        None,
+    )
+    cfg = load_config(_radar_config_path())
+    adb_bin = settings.worker.adb_executable or cfg.adb_bin or "adb"
+    device = RadarDevice(serial or cfg.device_serial or pick_serial(adb_bin), adb_bin)
+    frame = device.capture()
+    try:
+        ref = capture_corner_reference(frame, cfg)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    path = save_corner_ref(ref)
+    logger.info("radar corner reference recorded: %s -> %s", ref.model_dump(), path)
+    return {"corner_ref": ref.model_dump(), "path": str(path)}
+
+
 @router.post("/scan/stop")
 def stop_scan(client: RedisDep) -> dict[str, Any]:
     """Ask the running scan to stop after its current frame (partial map kept)."""

@@ -22,6 +22,7 @@ import { ApiError } from "@/lib/api";
 import {
   RADAR_EVENTS_URL,
   buildRadarTiles,
+  calibrateRadarCorner,
   deleteAllRadarRuns,
   deleteRadarRun,
   fetchRadarAccess,
@@ -338,6 +339,13 @@ export default function RadarPage() {
     mutationFn: () => buildRadarTiles(runId as string),
     onSuccess: () => showInfo("Tile build started — the map appears when it finishes"),
   });
+  const calibrateCorner = useMutation({
+    mutationFn: calibrateRadarCorner,
+    onSuccess: (res) => {
+      const [cx, cy] = res.corner_ref.cross_px;
+      showSuccess(`Corner reference recorded — crossing at (${Math.round(cx)}, ${Math.round(cy)})`);
+    },
+  });
   const deleteRun = useMutation({
     mutationFn: deleteRadarRun,
     onSuccess: (res) => {
@@ -510,6 +518,15 @@ export default function RadarPage() {
             Start scan
           </PendingButton>
         )}
+        {!scanActive ? (
+          <PendingButton
+            pending={calibrateCorner.isPending}
+            title="Record the corner reference from the CURRENT screen — pan the camera so the bottom-corner X (dashed yellow lines crossing) is clearly visible first"
+            onClick={() => calibrateCorner.mutate()}
+          >
+            Calibrate corner
+          </PendingButton>
+        ) : null}
         {statusPill}
         <div className="ml-auto" />
       </div>
@@ -541,6 +558,7 @@ export default function RadarPage() {
       </div>
 
       {scan.isError ? <ErrorBanner message={errMsg(scan.error)} /> : null}
+      {calibrateCorner.isError ? <ErrorBanner message={errMsg(calibrateCorner.error)} /> : null}
       {live.phase === "failed" && live.error ? (
         <ErrorBanner message={`Scan failed: ${live.error}`} />
       ) : null}

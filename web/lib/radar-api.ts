@@ -134,6 +134,18 @@ export function stopRadarScan(): Promise<{ run_id: string; status: string }> {
   return rfetch("/api/radar/scan/stop", jsonInit("POST", {}));
 }
 
+export type RadarCornerRef = {
+  cross_px: [number, number];
+  rect_px: [number, number] | null;
+  rect_size: [number, number] | null;
+  outside_lower: number;
+};
+
+/** Record the corner reference from the CURRENT screen (camera manually on the corner X). */
+export function calibrateRadarCorner(): Promise<{ corner_ref: RadarCornerRef; path: string }> {
+  return rfetch("/api/radar/corner-ref", jsonInit("POST", {}));
+}
+
 export function buildRadarTiles(runId: string): Promise<{ run_id: string; status: string }> {
   return rfetch(`/api/radar/runs/${encodeURIComponent(runId)}/tiles`, jsonInit("POST"));
 }

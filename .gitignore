@@ -71,6 +71,7 @@ db/state/
 temporal/
 .tmp_ocr/
 runs/
+captures/
 # Live MCP/AI-Editor captures (per-step dumps); commit only rehearsal/fixtures/ for pytest.
 **/rehearsal/*
 !**/rehearsal/fixtures/
@@ -99,3 +100,4 @@ games/wos/events/dreamscape_memory/scenes.db-shm
 # Plaintext backups left by scripts/encrypt_databases.py. They hold the
 # UNENCRYPTED data the SQLCipher migration just protected — never commit them.
 *.plaintext.bak
+src/modules/radar/radar_corner_ref.yaml

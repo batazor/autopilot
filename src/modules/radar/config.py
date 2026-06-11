@@ -19,6 +19,9 @@ CONFIG_VERSION = 1
 RUNS_DIR_ENV = "RADAR_RUNS_DIR"
 DEFAULT_CONFIG_NAME = "radar_config.yaml"
 MINIMAP_REFERENCE_NAME = "radar_minimap_ref.png"
+# Sidecar for the recorded corner reference: written by the calibration
+# endpoint, so the hand-commented main YAML is never rewritten by code.
+CORNER_REF_NAME = "radar_corner_ref.yaml"
 
 # Everything radar needs lives inside the module: config + calibration assets.
 _MODULE_DIR = Path(__file__).resolve().parent
@@ -32,6 +35,11 @@ def default_config_path() -> Path:
 def minimap_reference_path(name: str = MINIMAP_REFERENCE_NAME) -> Path:
     """Calibration reference image, resolved next to the config."""
     return _MODULE_DIR / name
+
+
+def corner_ref_path() -> Path:
+    """Recorded corner reference (sidecar), resolved next to the config."""
+    return _MODULE_DIR / CORNER_REF_NAME
 
 
 def runs_root() -> Path:
@@ -207,6 +215,26 @@ class BorderConfig(BaseModel):
     cross_corridor_px: int = Field(default=80, ge=10)
 
 
+class CornerRefConfig(BaseModel):
+    """Measured reference of the view AT the bottom corner.
+
+    Captured once from a manually positioned camera with the corner crossing
+    on screen (dashboard "Calibrate corner" / ``POST /api/radar/corner-ref``).
+    Converts "what does the corner look like and where does the minimap rect
+    sit there" from a guess into a recorded fact the servo verifies against —
+    including the rect reading, which near the bottom is display-clamped and
+    only comparable against a reference taken at the same spot.
+    """
+
+    # The dashed-line crossing position in frame px at the reference view.
+    cross_px: tuple[float, float]
+    # Minimap viewport-rect center reading at the corner (display-clamped).
+    rect_px: tuple[float, float] | None = None
+    rect_size: tuple[int, int] | None = None
+    # Lower-band out-of-bounds fraction at the corner view.
+    outside_lower: float = 0.0
+
+
 class LabelGuardConfig(BaseModel):
     """Wait out white UI labels sitting on the next touch point.
 
@@ -268,6 +296,8 @@ class RadarConfig(BaseModel):
     timings: TimingsConfig = TimingsConfig()
     label_guard: LabelGuardConfig = LabelGuardConfig()
     border: BorderConfig = BorderConfig()
+    # Loaded from the sidecar (corner_ref_path()), not from the main YAML.
+    corner_ref: CornerRefConfig | None = None
 
 
 def load_config(path: Path) -> RadarConfig:
@@ -285,7 +315,23 @@ def load_config(path: Path) -> RadarConfig:
             "refresh radar_config.yaml"
         )
         raise ValueError(msg)
+    if cfg.corner_ref is None:
+        sidecar = corner_ref_path()
+        if sidecar.is_file():
+            cfg.corner_ref = CornerRefConfig.model_validate(
+                yaml.safe_load(sidecar.read_text(encoding="utf-8")),
+            )
     return cfg
+
+
+def save_corner_ref(ref: CornerRefConfig, path: Path | None = None) -> Path:
+    """Persist the corner reference to its sidecar (the main YAML stays as-is)."""
+    target = path or corner_ref_path()
+    target.write_text(
+        yaml.safe_dump(ref.model_dump(mode="json"), sort_keys=False),
+        encoding="utf-8",
+    )
+    return target
 
 
 def save_config(cfg: RadarConfig, path: Path) -> None:

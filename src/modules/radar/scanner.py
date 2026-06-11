@@ -28,7 +28,7 @@ from modules.radar.border import (
     find_border_lines,
     top_border_visible,
 )
-from modules.radar.config import load_config
+from modules.radar.config import CornerRefConfig, load_config
 from modules.radar.device import RadarDevice, ScanStopped, pick_serial
 from modules.radar.geometry import (
     Affine,
@@ -594,10 +594,33 @@ SERVO_FAST_MEASURE_MAX_PX = 120.0
 # A fitted line crossing must sit within this of the dark out-of-bounds edge
 # (when one is measured) — disagreement means a phantom Hough lock.
 CROSS_GAP_AGREE_PX = 200.0
+# Minimap rect size may deviate this much from calibration before the zoom is
+# declared wrong (the whole px<->tile geometry hangs off the calibrated zoom).
+ZOOM_SIZE_TOLERANCE = 0.25
+# Movement feedback: a swipe achieving less than this share of its commanded
+# travel is being eaten by the game (rubber-band/pan clamp)...
+SERVO_MIN_MOVE_EFFECT = 0.3
+# ...and this many underperforming downward moves in a row = the descend is
+# clamped: stop marching, switch to lateral search for the corner.
+SERVO_CLAMP_STRIKES = 2
 
 
-def _viewport_rect_center(frame: np.ndarray, cfg: RadarConfig) -> tuple[float, float] | None:
-    """Camera position on the minimap: center of the white viewport rectangle.
+@dataclass(frozen=True, slots=True)
+class MinimapRect:
+    """The white viewport rectangle read off the minimap."""
+
+    cx: float
+    cy: float
+    w: int
+    h: int
+    # Touching the minimap bbox edge: the rect drawing is clipped by the
+    # widget near the kingdom's bottom, so the position reading is a lie
+    # there — only comparable against a reference recorded at the same spot.
+    clipped: bool
+
+
+def _viewport_rect(frame: np.ndarray, cfg: RadarConfig) -> MinimapRect | None:
+    """Camera position on the minimap: the white viewport rectangle.
 
     The white component closest in size to the configured viewport rect wins,
     so white labels overlapping the minimap don't hijack the reading.
@@ -606,19 +629,29 @@ def _viewport_rect_center(frame: np.ndarray, cfg: RadarConfig) -> tuple[float, f
     mm = frame[by : by + bh, bx : bx + bw]
     white = cv2.inRange(mm, (230, 230, 230), (255, 255, 255))
     count, _labels, stats, centroids = cv2.connectedComponentsWithStats(white)
-    best: tuple[float, float] | None = None
+    best: MinimapRect | None = None
     best_err: float | None = None
     for i in range(1, count):
-        _x, _y, w, h, area = stats[i]
+        x, y, w, h, area = stats[i]
         if area < 30 or w > cfg.viewport.rect_w * 2 or h > cfg.viewport.rect_h * 2:
             continue
         err = abs(w - cfg.viewport.rect_w) + abs(h - cfg.viewport.rect_h)
         if best_err is None or err < best_err:
-            best = (float(centroids[i][0]), float(centroids[i][1]))
+            clipped = x <= 0 or y <= 0 or x + w >= bw or y + h >= bh
+            best = MinimapRect(
+                cx=bx + float(centroids[i][0]),
+                cy=by + float(centroids[i][1]),
+                w=int(w),
+                h=int(h),
+                clipped=bool(clipped),
+            )
             best_err = err
-    if best is None:
-        return None
-    return bx + best[0], by + best[1]
+    return best
+
+
+def _viewport_rect_center(frame: np.ndarray, cfg: RadarConfig) -> tuple[float, float] | None:
+    rect = _viewport_rect(frame, cfg)
+    return (rect.cx, rect.cy) if rect is not None else None
 
 
 def _slide_toward_corner(
@@ -666,14 +699,27 @@ def _servo_to_border(
     With ``require_cross`` the scan never starts blind: no crossing after
     ``max_steps`` (or the blind cap) aborts instead of capturing garbage.
 
+    Movement feedback: every swipe's ACHIEVED displacement is measured by
+    ORB-registering consecutive servo frames. The game rubber-bands/clamps
+    panning near the world edge — without feedback the servo burned its blind
+    budget marching in place, convinced it was descending. Two consecutive
+    underperforming downward moves = the descend is clamped: stop pushing and
+    search laterally for the corner (vertical is clamped, lateral is not),
+    guided by the recorded corner reference when one is calibrated.
+
     Every measurement is appended to a ``servo_trail`` (decision + readings +
-    move) returned in the meta, and non-nominal decisions save their frame to
-    ``debug_dir`` — every past crossing was undiagnosable because nothing of
-    what the servo saw survived.
+    moves + effectiveness) returned in the meta, and non-nominal decisions
+    save their frame to ``debug_dir`` — every past crossing was undiagnosable
+    because nothing of what the servo saw survived.
     """
+    # Local import — stitch imports MANIFEST_NAME from this module at load
+    # time, so the reverse import must stay out of module scope.
+    from modules.radar.stitch import frames_consistent
+
     b = cfg.border
     c = cfg.crop
     viewport_h = cfg.stitch_viewport.h if cfg.stitch_viewport is not None else c.h
+    viewport_w = cfg.stitch_viewport.w if cfg.stitch_viewport is not None else c.w
     step_px = b.approach_step_screens * viewport_h
     # Cap one slide so it cannot blow past the corner sideways; re-measurement
     # then catches the crossing within a step or two.
@@ -686,6 +732,12 @@ def _servo_to_border(
     blind_px = 0.0
     last_move_px: float | None = None
     trail: list[dict] = []
+    prev_frame: np.ndarray | None = None
+    # Camera-space move expected from the last swipe (= -finger move).
+    commanded: tuple[float, float] | None = None
+    clamp_strikes = 0
+    descend_clamped = False
+    probe_index = 0
     while True:
         if last_move_px is not None and last_move_px <= SERVO_FAST_MEASURE_MAX_PX:
             # A short trim barely disturbs the view — one settled capture is
@@ -694,6 +746,31 @@ def _servo_to_border(
             frame = device.capture()
         else:
             frame, _stable = wait_stable(device, cfg)
+
+        # Movement feedback for the previous swipe: how much of the commanded
+        # travel actually happened, measured along the commanded direction.
+        effectiveness: float | None = None
+        if prev_frame is not None and commanded is not None:
+            cmd_norm = math.hypot(*commanded)
+            measured = frames_consistent(prev_frame, frame, crop, None)
+            if measured is not None and cmd_norm > 1e-6:
+                along = (measured[0] * commanded[0] + measured[1] * commanded[1]) / cmd_norm
+                effectiveness = along / cmd_norm
+                downward = commanded[1] > abs(commanded[0])
+                if downward and effectiveness < SERVO_MIN_MOVE_EFFECT:
+                    clamp_strikes += 1
+                    if clamp_strikes >= SERVO_CLAMP_STRIKES and not descend_clamped:
+                        descend_clamped = True
+                        logger.warning(
+                            "radar: pan clamp detected — downward gestures move the camera "
+                            "at %.0f%% of the commanded travel; switching to lateral search",
+                            max(0.0, effectiveness) * 100,
+                        )
+                elif downward and effectiveness > 0.5:
+                    clamp_strikes = 0
+                    descend_clamped = False
+        prev_frame = frame
+        commanded = None
 
         outside_lower = border_outside_fraction(frame, crop)
         gap_top = border_outside_top_y(frame, crop)
@@ -772,8 +849,53 @@ def _servo_to_border(
                 decision = "blind"
                 err = None
 
-        trail.append(_servo_trail_entry(decision, outside_lower, gap_top, cross, err))
-        if debug_dir is not None and decision in ("gap_climb", "dark_steer", "blind"):
+        if descend_clamped and decision in ("blind", "dark_steer") and (err is None or err[1] < 0):
+            # The descend is clamped by the game — pushing further down is
+            # marching in place. The corner must be off to the side: search
+            # laterally (vertical is clamped, lateral is not).
+            ref = cfg.corner_ref
+            cur_rect = _viewport_rect(frame, cfg)
+            if ref is not None and ref.rect_px is not None and cur_rect is not None:
+                # Align to the recorded corner reading. Only x is meaningful on
+                # a clipped rect (y is display-clamped) — and the reference was
+                # recorded clipped the same way, so x compares cleanly.
+                dx_minimap = ref.rect_px[0] - cur_rect.cx
+                if abs(dx_minimap) <= ORIGIN_TOLERANCE_PX:
+                    if debug_dir is not None:
+                        cv2.imwrite(str(debug_dir / "servo_at_ref_no_cross.png"), frame)
+                    msg = (
+                        "camera is at the calibrated corner position (minimap rect "
+                        f"x={cur_rect.cx:.0f} vs reference {ref.rect_px[0]:.0f}) but the "
+                        "dashed-line crossing is not visible — recalibrate the corner "
+                        "reference (POST /api/radar/corner-ref) or check the view state"
+                    )
+                    raise ScanAborted(msg)
+                decision = "ref_align"
+                cam_dx = (dx_minimap / cfg.viewport.rect_w) * viewport_w
+                err = (-cam_dx, 0.0)  # content move = -camera move
+                logger.info(
+                    "radar: aligning to the corner reference — %.0f minimap px to the %s",
+                    abs(dx_minimap), "right" if dx_minimap > 0 else "left",
+                )
+            else:
+                # No reference recorded — expanding zigzag along the clamp:
+                # camera offsets +1, -1, +2, -2 … steps from where it stands.
+                decision = "lateral_probe"
+                k = probe_index
+                probe_index += 1
+                cam_dx = (k + 1) * step_px * (1 if k % 2 == 0 else -1)
+                err = (-cam_dx, 0.0)
+                logger.info(
+                    "radar: lateral probe %d — moving %.0f px %s along the clamp",
+                    k + 1, abs(cam_dx), "right" if cam_dx > 0 else "left",
+                )
+
+        trail.append(
+            _servo_trail_entry(decision, outside_lower, gap_top, cross, err, effectiveness),
+        )
+        if debug_dir is not None and decision in (
+            "gap_climb", "dark_steer", "blind", "lateral_probe", "ref_align",
+        ):
             # Non-nominal sightings are the evidence every past crossing lacked.
             cv2.imwrite(str(debug_dir / f"servo_step{steps:02d}_{decision}.png"), frame)
 
@@ -787,17 +909,23 @@ def _servo_to_border(
                 cv2.imwrite(str(evidence), frame)
                 logger.warning("radar: servo give-up frame saved to %s", evidence)
             if cross is None and b.require_cross:
-                reason = (
-                    f"descended {blind_px / viewport_h:.1f} screen(s) without the "
-                    "border ever appearing — the start cell is likely outside the "
-                    "kingdom or the camera crossed the vertex"
-                    if blind_exhausted
-                    else f"never entered the view after {steps} servo step(s)"
-                )
+                if descend_clamped:
+                    reason = (
+                        "the game's pan clamp was reached (gestures verified "
+                        "ineffective) and the lateral search did not reveal it"
+                    )
+                elif blind_exhausted:
+                    reason = (
+                        f"descended {blind_px / viewport_h:.1f} screen(s) without the "
+                        "border ever appearing — the start cell is likely outside the "
+                        "kingdom or the camera crossed the vertex"
+                    )
+                else:
+                    reason = f"never entered the view after {steps} servo step(s)"
                 msg = (
-                    f"kingdom corner (dashed border-line crossing) {reason} — not "
-                    "starting a blind scan; check zoom/calibration or raise "
-                    "border.max_steps/max_blind_screens"
+                    f"kingdom corner (dashed border-line crossing): {reason} — not "
+                    "starting a blind scan; calibrate the corner reference "
+                    "(POST /api/radar/corner-ref) or check zoom/calibration"
                 )
                 raise ScanAborted(msg)
             logger.warning(
@@ -813,9 +941,11 @@ def _servo_to_border(
             _swipe_fingers(device, cfg, 0.0, -step_px)
             blind_px += step_px
             last_move_px = step_px
+            commanded = (0.0, step_px)  # camera down
         else:
             _swipe_fingers(device, cfg, err[0], err[1])
             last_move_px = math.hypot(*err)
+            commanded = (-err[0], -err[1])  # camera move = -content move
     return {
         # Key kept as border_apex_px: the crossing IS the corner the stitcher
         # anchors to game (game_size-1, game_size-1).
@@ -831,6 +961,7 @@ def _servo_trail_entry(
     gap_top: float | None,
     cross: tuple[float, float] | None,
     move: tuple[float, float] | None,
+    effectiveness: float | None = None,
 ) -> dict:
     return {
         "decision": decision,
@@ -838,7 +969,34 @@ def _servo_trail_entry(
         "gap_top_y": round(gap_top, 1) if gap_top is not None else None,
         "cross": [round(cross[0], 1), round(cross[1], 1)] if cross else None,
         "move_px": [round(move[0], 1), round(move[1], 1)] if move else None,
+        "effectiveness": round(effectiveness, 3) if effectiveness is not None else None,
     }
+
+
+def capture_corner_reference(frame: np.ndarray, cfg: RadarConfig) -> CornerRefConfig:
+    """Record the corner reference from a manually positioned screen.
+
+    The operator pans the camera so the bottom-corner X is clearly visible and
+    triggers this once (dashboard / ``POST /api/radar/corner-ref``). What the
+    servo previously had to guess — where the minimap rect reads at the corner
+    (display-clamped!), how dark the lower band is, where the X sits — becomes
+    a recorded fact it can verify against and align to.
+    """
+    crop = cfg.crop.model_dump()
+    cross = find_border_cross(frame, crop)
+    if cross is None:
+        msg = (
+            "the dashed-line crossing is not detectable on this screen — pan the "
+            "camera so the kingdom corner X is clearly visible, then retry"
+        )
+        raise ValueError(msg)
+    rect = _viewport_rect(frame, cfg)
+    return CornerRefConfig(
+        cross_px=(round(cross[0], 1), round(cross[1], 1)),
+        rect_px=(round(rect.cx, 1), round(rect.cy, 1)) if rect is not None else None,
+        rect_size=(rect.w, rect.h) if rect is not None else None,
+        outside_lower=round(border_outside_fraction(frame, crop), 3),
+    )
 
 
 def _servo_safe_tap_point(cfg: RadarConfig) -> tuple[float, float]:
@@ -889,11 +1047,32 @@ def _position_origin(
     for _ in range(ORIGIN_MAX_CORRECTIONS):
         time.sleep(cfg.timings.post_tap_delay_ms / 1000.0)
         frame, _stable = wait_stable(device, cfg)
-        landed = _viewport_rect_center(frame, cfg)
-        if landed is None:
+        rect = _viewport_rect(frame, cfg)
+        if rect is None:
+            landed = None
             logger.warning("radar: origin check — viewport rect not found on the minimap")
             break
-        dx, dy = tap_x - landed[0], tap_y - landed[1]
+        landed = (rect.cx, rect.cy)
+        if not rect.clipped:
+            # The whole px<->tile geometry hangs off the calibrated zoom —
+            # verify it on the first trustworthy reading and fail fast.
+            dev = max(
+                abs(rect.w - cfg.viewport.rect_w) / cfg.viewport.rect_w,
+                abs(rect.h - cfg.viewport.rect_h) / cfg.viewport.rect_h,
+            )
+            if dev > ZOOM_SIZE_TOLERANCE:
+                msg = (
+                    f"zoom mismatch: the minimap viewport rect reads {rect.w}x{rect.h}, "
+                    f"calibration expects {cfg.viewport.rect_w}x{cfg.viewport.rect_h} — "
+                    "reset the camera zoom (or recalibrate) and rescan"
+                )
+                raise ScanAborted(msg)
+        else:
+            # Display-clamped reading: the rect is clipped by the minimap
+            # widget, its position is a lie — do not steer by it.
+            logger.warning("radar: origin check — viewport rect is clipped, reading untrusted")
+            break
+        dx, dy = tap_x - rect.cx, tap_y - rect.cy
         if math.hypot(dx, dy) <= ORIGIN_TOLERANCE_PX:
             break
         corrections += 1
