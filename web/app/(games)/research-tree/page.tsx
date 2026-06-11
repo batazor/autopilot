@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { AppTabs } from "@/components/headless";
+import { RESEARCH_GAMES } from "@/lib/research-games";
 import {
-  RESEARCH_BRANCHES,
   branchTotalLevels,
   type ResearchBranch,
   type ResearchNode,
-} from "@/lib/kingshot-research";
+} from "@/lib/research-types";
 
 const NODE_W = 176;
 const NODE_H = 84;
@@ -127,33 +127,59 @@ function ResearchTreeGraph({ branch }: { branch: ResearchBranch }) {
 }
 
 export default function ResearchTreePage() {
-  const [branchId, setBranchId] = useState(RESEARCH_BRANCHES[0]!.id);
+  const [gameId, setGameId] = useState(RESEARCH_GAMES[0]!.id);
+  const [branchId, setBranchId] = useState<string>(
+    RESEARCH_GAMES[0]!.branches[0]!.id,
+  );
+
+  const game = RESEARCH_GAMES.find((g) => g.id === gameId) ?? RESEARCH_GAMES[0]!;
   const branch =
-    RESEARCH_BRANCHES.find((b) => b.id === branchId) ?? RESEARCH_BRANCHES[0]!;
+    game.branches.find((b) => b.id === branchId) ?? game.branches[0]!;
+
+  // Switching game keeps the same branch when it exists, else falls back to the
+  // first branch of the new game.
+  const onGameChange = (next: string) => {
+    setGameId(next);
+    const nextGame = RESEARCH_GAMES.find((g) => g.id === next);
+    if (nextGame && !nextGame.branches.some((b) => b.id === branchId)) {
+      setBranchId(nextGame.branches[0]!.id);
+    }
+  };
 
   return (
     <>
       <PageHeader title="Research tree">
         <p className="muted m-0">
-          Kingshot Academy research — curated reference, modeled on{" "}
+          Curated research reference per game — sourced from{" "}
           <a
             className="underline"
-            href="https://kingshot.net/research-tree"
+            href={game.sourceUrl}
             target="_blank"
             rel="noreferrer"
           >
-            kingshot.net/research-tree
+            {game.sourceLabel}
           </a>
-          . Edit <code>web/lib/kingshot-research.ts</code> to correct data.
+          . Edit the per-game data file to correct it.
         </p>
       </PageHeader>
 
       <AppTabs
+        renderPanels={false}
+        selectedKey={gameId}
+        onChange={onGameChange}
+        tabs={RESEARCH_GAMES.map((g) => ({
+          key: g.id,
+          label: g.label,
+          title: g.id,
+        }))}
+      />
+
+      <AppTabs
         variant="section"
         renderPanels={false}
-        selectedKey={branchId}
-        onChange={(k) => setBranchId(k as typeof branchId)}
-        tabs={RESEARCH_BRANCHES.map((b) => ({
+        selectedKey={branch.id}
+        onChange={(k) => setBranchId(k)}
+        tabs={game.branches.map((b) => ({
           key: b.id,
           label: `${b.label} (${branchTotalLevels(b)})`,
           title: b.blurb,
