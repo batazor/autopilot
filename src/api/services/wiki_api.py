@@ -2,20 +2,16 @@
 from __future__ import annotations
 
 from pathlib import Path  # noqa: TC003
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import yaml
 
 from config.module_registry import ALL_MODULES_KEY, module_scope_options
 from config.paths import repo_root
 from config.wiki_sources import EntityKey, WikiEntry, find_entry, load_merged_entries
-from wiki.sync_runner import SYNC_SCRIPT_SPECS, aiter_sync_ndjson, get_sync_spec
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
 
 _REPO = repo_root()
-EntitySection = Literal["buildings", "heroes", "items", "gear", "faq"]
+EntitySection = Literal["buildings", "heroes", "items", "gear"]
 
 
 def _request_game() -> str:
@@ -119,47 +115,3 @@ def get_gear_detail(gear_id: str) -> dict[str, Any]:
         msg = f"gear not found: {gear_id}"
         raise FileNotFoundError(msg)
     return {"id": gear_id, "file": path.name, "body": _load_yaml_dict(path)}
-
-
-def _faq_sync_items() -> list[dict[str, Any]]:
-    return [
-        {
-            "key": spec.key,
-            "label": spec.label,
-            "script": spec.script_rel,
-            "args": list(spec.args) or None,
-        }
-        for spec in SYNC_SCRIPT_SPECS.values()
-    ]
-
-
-FAQ_BODY = {
-    "title": "FAQ",
-    "sections": [
-        {
-            "heading": "Where does the data come from?",
-            "text": (
-                "Wiki data is scraped into db/ YAML files from whiteoutsurvival.wiki. "
-                "Modules can contribute under modules/<id>/wiki/."
-            ),
-        },
-        {
-            "heading": "Sync scripts",
-            "text": (
-                "Use the buttons below to run sync scripts with live progress, "
-                "or run from the repo root: `uv run python <script>`."
-            ),
-            "items": _faq_sync_items(),
-        },
-    ],
-}
-
-
-def get_faq() -> dict[str, Any]:
-    return FAQ_BODY
-
-
-async def stream_sync_script(script_key: str) -> AsyncIterator[bytes]:
-    spec = get_sync_spec(script_key)
-    async for chunk in aiter_sync_ndjson(spec, repo=_REPO):
-        yield chunk

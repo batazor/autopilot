@@ -60,14 +60,6 @@
     @apply sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4;
   }
 
-  .wiki-section-block {
-    @apply mb-5;
-  }
-
-  .wiki-section-block:last-child {
-    @apply mb-0;
-  }
-
   .probe-legend {
     @apply flex flex-wrap gap-x-3 gap-y-1 text-xs text-wos-text-secondary;
   }

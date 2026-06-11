@@ -109,7 +109,6 @@ packages = [
     "src/worker",
     "src/api",
     "src/licensing",
-    "src/wiki",
     "src/modules",
 ]
 

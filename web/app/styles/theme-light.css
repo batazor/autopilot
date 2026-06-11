@@ -258,12 +258,4 @@
   html[data-theme="light"] .section-tab.headless-tab[data-selected] {
     @apply border-sky-300 bg-sky-100 text-sky-900;
   }
-
-  html[data-theme="light"] .wiki-faq-sync__panel--error {
-    @apply border-red-300 bg-red-50;
-  }
-
-  html[data-theme="light"] .wiki-faq-sync__log {
-    @apply bg-slate-100;
-  }
 }

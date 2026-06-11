@@ -68,7 +68,7 @@ All routes below are implemented in Next.js.
 | `/labeling` | Assets | **Konva** editor: regions, versions, basename promote, capture, crops |
 | `/edit-dsl` | Assets | Module DSL editor (form + YAML preview) |
 | `/analyze` | Assets | Analyzer / overlay rules viewer |
-| `/wiki` | Assets | Wiki reference (buildings, heroes, items, gear, FAQ); sync scripts with progress on FAQ |
+| `/wiki` | Assets | Wiki reference (heroes, items, gear); buildings moved to `/trees` |
 | `/gift-codes` | Assets | Promo codes: table, scrape, redeem |
 | `/dreamscape-memory` | Games | Item-location guides for the Dreamscape Memory event (free — community data from [wostools.net](https://wostools.net/wiki/events/dreamscape-memory)) |
 | `/modules` | Config | Module catalog + scenario enable/disable |
@@ -76,8 +76,6 @@ All routes below are implemented in Next.js.
 | `/balance` | Config | Resource balance view |
 
 **Labeling** ([Konva](https://konvajs.org/) at `/labeling`): draw/move/resize regions, metadata, save `area.json` (base or `versions[vN].regions[]`), capture/refresh/discard, basename **promote** from `temporal/`, **rename**, version cond/sync/bind.
-
-**Wiki FAQ sync** (`/wiki` → FAQ tab): run sync scripts with live log + progress (`WikiFaqSync`).
 
 **Rehearsal** (queue, click approvals, overlay probe): `/approvals`, `/queue`, `/overlay-test` (requires `uv run api` + a running worker).
 

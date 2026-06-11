@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 
 from api.services import wiki_api as wiki_svc
 from api.services.game_resolver import request_game
@@ -19,23 +19,6 @@ router = APIRouter(
 @router.get("/scopes")
 def get_scopes() -> dict[str, list[dict[str, str]]]:
     return {"scopes": wiki_svc.list_scopes()}
-
-
-@router.get("/faq")
-def get_faq() -> dict[str, Any]:
-    return wiki_svc.get_faq()
-
-
-@router.post("/sync/{script_key}")
-async def post_sync_script(script_key: str) -> StreamingResponse:
-    try:
-        wiki_svc.get_sync_spec(script_key)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return StreamingResponse(
-        wiki_svc.stream_sync_script(script_key),
-        media_type="application/x-ndjson",
-    )
 
 
 @router.get("/gear")

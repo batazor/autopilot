@@ -6,11 +6,9 @@ import { AppListbox, AppTabs } from "@/components/headless";
 import { PageHeader } from "@/components/PageHeader";
 import { PageLoading } from "@/components/ui/Spinner";
 import { WikiDetailPanel } from "@/components/wiki/WikiDetailPanel";
-import { WikiFaqSync } from "@/components/wiki/WikiFaqSync";
 import {
   fetchWikiDetail,
   fetchWikiEntries,
-  fetchWikiFaq,
   fetchWikiGearDetail,
   fetchWikiGearList,
   fetchWikiScopes,
@@ -20,13 +18,12 @@ import type { WikiDetail, WikiEntrySummary, WikiScope } from "@/lib/wiki";
 
 // Buildings moved to the /trees graph (table + click-to-detail); the wiki keeps
 // the remaining reference entity types.
-type EntityTab = "heroes" | "items" | "gear" | "faq";
+type EntityTab = "heroes" | "items" | "gear";
 
 const TABS: { key: EntityTab; label: string }[] = [
   { key: "heroes", label: "Heroes" },
   { key: "gear", label: "Gear" },
   { key: "items", label: "Items" },
-  { key: "faq", label: "FAQ" },
 ];
 
 // Game selector. Wiki content is Whiteout Survival only for now; other games
@@ -62,7 +59,6 @@ function WikiPageInner() {
     null,
   );
   const [gearList, setGearList] = useState<Array<{ id: string; title: string }>>([]);
-  const [faq, setFaq] = useState<Awaited<ReturnType<typeof fetchWikiFaq>> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,14 +71,14 @@ function WikiPageInner() {
     null;
 
   useEffect(() => {
-    if (!deepLinkId || tab === "gear" || tab === "faq") return;
+    if (!deepLinkId || tab === "gear") return;
     if (entries.some((e) => e.id === deepLinkId)) {
       setSelectedId(deepLinkId);
     }
   }, [deepLinkId, tab, entries]);
 
   const loadEntries = useCallback(async () => {
-    if (tab === "gear" || tab === "faq") return;
+    if (tab === "gear") return;
     try {
       const data = await fetchWikiEntries(tab, scope, search);
       setEntries(data.entries);
@@ -103,12 +99,7 @@ function WikiPageInner() {
         .catch((e: Error) => setError(e.message));
       return;
     }
-    if (tab === "faq") {
-      fetchWikiFaq().then(setFaq).catch((e: Error) => setError(e.message));
-      return;
-    }
     setGearList([]);
-    setFaq(null);
   }, [tab]);
 
   useEffect(() => {
@@ -122,7 +113,6 @@ function WikiPageInner() {
         .catch((e: Error) => setError(e.message));
       return;
     }
-    if (tab === "faq") return;
     fetchWikiDetail(tab, selectedId, scope)
       .then(setDetail)
       .catch((e: Error) => setError(e.message));
@@ -137,7 +127,7 @@ function WikiPageInner() {
     window.history.replaceState(null, "", url.pathname + url.search);
   };
 
-  const showSearch = tab !== "gear" && tab !== "faq";
+  const showSearch = tab !== "gear";
   const listCount = tab === "gear" ? gearList.length : entries.length;
   const countNoun = tab === "gear" ? "gear sets" : "entries";
   const activeTabLabel = TABS.find((t) => t.key === tab)?.label ?? "";
@@ -145,7 +135,7 @@ function WikiPageInner() {
   return (
     <>
       <PageHeader title="Wiki reference">
-        Heroes, gear, items and FAQ — reference data from <code>db/</code> and{" "}
+        Heroes, gear and items — reference data from <code>db/</code> and{" "}
         <code>modules/*/wiki/</code>. Buildings moved to the{" "}
         <a className="underline" href="/trees?game=wos&type=buildings">
           Game trees
@@ -178,7 +168,7 @@ function WikiPageInner() {
           />
         </div>
 
-        {tab !== "gear" && tab !== "faq" ? (
+        {tab !== "gear" ? (
           <div className="wiki-filterbar__field">
             <AppListbox
               fullWidth
@@ -216,102 +206,84 @@ function WikiPageInner() {
           </label>
         ) : null}
 
-        {tab !== "faq" ? (
-          <div className="wiki-filterbar__count">
-            <strong>{listCount}</strong> {countNoun}
-          </div>
-        ) : null}
+        <div className="wiki-filterbar__count">
+          <strong>{listCount}</strong> {countNoun}
+        </div>
       </div>
 
-      {tab === "faq" && faq ? (
-        <div className="wiki-faq-grid">
-          {faq.sections.map((sec) => (
-            <section key={sec.heading} className="panel wiki-section-block">
-              <h2>{sec.heading}</h2>
-              {sec.text ? <p className="meta">{sec.text}</p> : null}
-              {sec.items?.length && sec.items[0].key ? (
-                <WikiFaqSync items={sec.items} />
-              ) : null}
-            </section>
-          ))}
-        </div>
-      ) : null}
-
-      {tab !== "faq" ? (
-        <div className="wiki-layout">
-          <section className="panel wiki-list-panel">
-            <div className="wiki-list-panel__head">
-              <h2>{activeTabLabel}</h2>
-              <span className="wiki-count-chip">{listCount}</span>
-            </div>
-            {tab !== "gear" ? (
-              entries.length === 0 ? (
-                <div className="wiki-empty wiki-empty--list">
-                  <span className="wiki-empty__icon">🔍</span>
-                  <p>No entries match the current filters.</p>
-                </div>
-              ) : (
-                <div className="wiki-tiles">
-                  {entries.map((e) => (
-                    <button
-                      key={e.id}
-                      type="button"
-                      className={`wiki-tile${selectedId === e.id ? " active" : ""}`}
-                      onClick={() => setSelectedId(e.id)}
-                      title={e.name || e.id}
-                    >
-                      {e.has_icon ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={wikiIconUrl(tab, e.id)}
-                          alt=""
-                          className="wiki-tile__img"
-                        />
-                      ) : (
-                        <div className="wiki-tile__placeholder">?</div>
-                      )}
-                      <span className="wiki-tile__name">{e.name || e.id}</span>
-                      {e.source !== "core" ? (
-                        <span className="wiki-tile__module">{e.source}</span>
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              )
-            ) : gearList.length === 0 ? (
+      <div className="wiki-layout">
+        <section className="panel wiki-list-panel">
+          <div className="wiki-list-panel__head">
+            <h2>{activeTabLabel}</h2>
+            <span className="wiki-count-chip">{listCount}</span>
+          </div>
+          {tab !== "gear" ? (
+            entries.length === 0 ? (
               <div className="wiki-empty wiki-empty--list">
-                <span className="wiki-empty__icon">🛡️</span>
-                <p>No gear sets available.</p>
+                <span className="wiki-empty__icon">🔍</span>
+                <p>No entries match the current filters.</p>
               </div>
             ) : (
-              <ul className="ref-list wiki-gear-list">
-                {gearList.map((g) => (
-                  <li key={g.id}>
-                    <button
-                      type="button"
-                      className={selectedId === g.id ? "active" : undefined}
-                      onClick={() => setSelectedId(g.id)}
-                    >
-                      {g.title}
-                    </button>
-                  </li>
+              <div className="wiki-tiles">
+                {entries.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    className={`wiki-tile${selectedId === e.id ? " active" : ""}`}
+                    onClick={() => setSelectedId(e.id)}
+                    title={e.name || e.id}
+                  >
+                    {e.has_icon ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={wikiIconUrl(tab, e.id)}
+                        alt=""
+                        className="wiki-tile__img"
+                      />
+                    ) : (
+                      <div className="wiki-tile__placeholder">?</div>
+                    )}
+                    <span className="wiki-tile__name">{e.name || e.id}</span>
+                    {e.source !== "core" ? (
+                      <span className="wiki-tile__module">{e.source}</span>
+                    ) : null}
+                  </button>
                 ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="panel wiki-detail-panel">
-            {detail ? (
-              <WikiDetailPanel detail={detail as WikiDetail | null} />
-            ) : (
-              <div className="wiki-empty">
-                <span className="wiki-empty__icon">📖</span>
-                <p>Select an entry to see its details.</p>
               </div>
-            )}
-          </section>
-        </div>
-      ) : null}
+            )
+          ) : gearList.length === 0 ? (
+            <div className="wiki-empty wiki-empty--list">
+              <span className="wiki-empty__icon">🛡️</span>
+              <p>No gear sets available.</p>
+            </div>
+          ) : (
+            <ul className="ref-list wiki-gear-list">
+              {gearList.map((g) => (
+                <li key={g.id}>
+                  <button
+                    type="button"
+                    className={selectedId === g.id ? "active" : undefined}
+                    onClick={() => setSelectedId(g.id)}
+                  >
+                    {g.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="panel wiki-detail-panel">
+          {detail ? (
+            <WikiDetailPanel detail={detail as WikiDetail | null} />
+          ) : (
+            <div className="wiki-empty">
+              <span className="wiki-empty__icon">📖</span>
+              <p>Select an entry to see its details.</p>
+            </div>
+          )}
+        </section>
+      </div>
     </>
   );
 }
