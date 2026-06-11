@@ -25,6 +25,9 @@ import { useTheme } from "@/components/ThemeProvider";
 /** A prerequisite edge: id of the required node, plus an optional edge label. */
 export type FlowRequire = string | { id: string; label?: string };
 
+/** Edge-flow direction for a node's handles (prerequisite → dependent). */
+export type FlowDir = "TB" | "BT" | "LR" | "RL";
+
 /** A dependency-graph node: `requires` are ids of prerequisite nodes (edges
  *  are drawn prerequisite → this). */
 export type FlowTreeNode = {
@@ -40,6 +43,8 @@ export type FlowTreeNode = {
   done?: boolean;
   /** Explicit canvas position; when set, overrides auto (dagre) layout. */
   position?: { x: number; y: number };
+  /** Per-node edge-flow direction (for fixed multi-direction layouts). */
+  dir?: FlowDir;
   /** Card width in px (default 200). */
   width?: number;
   requires: FlowRequire[];
@@ -48,11 +53,42 @@ export type FlowTreeNode = {
 /** Layout direction: top→bottom (vertical) or left→right (horizontal). */
 type Dir = "TB" | "LR";
 
-const NODE_W = 200;
-const NODE_H = 64;
+export const NODE_W = 200;
+export const NODE_H = 64;
+
+const HANDLE_POS: Record<FlowDir, [Position, Position]> = {
+  TB: [Position.Top, Position.Bottom],
+  BT: [Position.Bottom, Position.Top],
+  LR: [Position.Left, Position.Right],
+  RL: [Position.Right, Position.Left],
+};
 
 function reqId(r: FlowRequire): string {
   return typeof r === "string" ? r : r.id;
+}
+
+/** Dagre layout over plain FlowTreeNodes → top-left position per node id.
+ *  Lets callers compose multi-direction fixed layouts (`position` + `dir`). */
+export function flowLayout(
+  nodes: FlowTreeNode[],
+  rankdir: FlowDir,
+): Map<string, { x: number; y: number }> {
+  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir, nodesep: 40, ranksep: 80 });
+  for (const n of nodes) g.setNode(n.id, { width: n.width ?? NODE_W, height: NODE_H });
+  for (const n of nodes)
+    for (const r of n.requires) {
+      const src = reqId(r);
+      if (g.hasNode(src)) g.setEdge(src, n.id);
+    }
+  Dagre.layout(g);
+  return new Map(
+    nodes.map((n) => {
+      const { x, y } = g.node(n.id);
+      const w = n.width ?? NODE_W;
+      return [n.id, { x: x - w / 2, y: y - NODE_H / 2 }];
+    }),
+  );
 }
 
 type TechNodeData = {
@@ -65,8 +101,7 @@ type TechNodeData = {
 /** Custom React Flow node — icon chip + text, handles oriented by direction. */
 const TechNode = memo(function TechNode({ data }: NodeProps) {
   const { node: n, dir, dim, selected } = data as TechNodeData;
-  const targetPos = dir === "TB" ? Position.Top : Position.Left;
-  const sourcePos = dir === "TB" ? Position.Bottom : Position.Right;
+  const [targetPos, sourcePos] = HANDLE_POS[n.dir ?? dir];
   return (
     <div
       className="flex items-center gap-2 rounded-lg border p-2 shadow-sm transition-opacity"
@@ -340,10 +375,13 @@ export function TechTreeFlow({
   }, [nodes, dir, fixed]);
 
   const activeId = hoverId ?? selectedId;
-  const related = useMemo(
-    () => (activeId ? relatedSet(activeId, edges) : null),
-    [activeId, edges],
-  );
+  const related = useMemo(() => {
+    if (!activeId) return null;
+    const set = relatedSet(activeId, edges);
+    // An isolated node (no edges, e.g. a decorative hub) shouldn't dim the
+    // rest of the graph.
+    return set.size > 1 ? set : null;
+  }, [activeId, edges]);
 
   const rfNodes = useMemo(
     () =>
@@ -452,7 +490,7 @@ export function TechTreeFlow({
               {selectedId ? (
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="text-xs text-wos-text-muted">
-                    Закреплено — клик по фону графа, чтобы снять
+                    Pinned — click the graph background to unpin
                   </span>
                   <button
                     type="button"
@@ -467,8 +505,7 @@ export function TechTreeFlow({
             </div>
           ) : (
             <p className="muted m-0 text-sm">
-              Наведите на узел — здесь появится карточка технологии. Клик по
-              узлу закрепляет её.
+              Hover a node to see its details here. Click a node to pin them.
             </p>
           )}
         </aside>

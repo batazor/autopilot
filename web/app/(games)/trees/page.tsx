@@ -5,7 +5,14 @@ import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { AppListbox, AppSwitch, AppTabs } from "@/components/headless";
-import { TechTreeFlow, type FlowTreeNode } from "@/components/TechTreeFlow";
+import {
+  flowLayout,
+  NODE_H,
+  NODE_W,
+  TechTreeFlow,
+  type FlowDir,
+  type FlowTreeNode,
+} from "@/components/TechTreeFlow";
 import {
   fetchBuildings,
   fetchPlayers,
@@ -110,18 +117,18 @@ function branchTotalLevels(branch: ResearchBranchView): number {
 }
 
 const RESEARCH_RES: { key: ResearchResource; name: string; icon: string }[] = [
-  { key: "meat", name: "Мясо", icon: "🍖" },
-  { key: "wood", name: "Дерево", icon: "🪵" },
-  { key: "coal", name: "Уголь", icon: "⚫" },
-  { key: "iron", name: "Железо", icon: "🔩" },
-  { key: "steel", name: "Сталь", icon: "⚙️" },
-  { key: "fire_crystal", name: "Огн. кристалл", icon: "🔥" },
-  { key: "refined_fc", name: "Очищ. кристалл", icon: "💎" },
-  { key: "fc_shards", name: "Осколки FC", icon: "🔸" },
+  { key: "meat", name: "Meat", icon: "🍖" },
+  { key: "wood", name: "Wood", icon: "🪵" },
+  { key: "coal", name: "Coal", icon: "⚫" },
+  { key: "iron", name: "Iron", icon: "🔩" },
+  { key: "steel", name: "Steel", icon: "⚙️" },
+  { key: "fire_crystal", name: "Fire Crystal", icon: "🔥" },
+  { key: "refined_fc", name: "Refined FC", icon: "💎" },
+  { key: "fc_shards", name: "FC Shards", icon: "🔸" },
 ];
 
 function fmtNum(n: number): string {
-  return n.toLocaleString("ru-RU");
+  return n.toLocaleString("en-US");
 }
 
 // "5.3K" / "1.4M" / "23,000" / 270 → number (0 when unparsable).
@@ -151,7 +158,7 @@ function fmtDuration(sec: number): string {
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  return [d ? `${d}д` : "", h ? `${h}ч` : "", m ? `${m}м` : ""].filter(Boolean).join(" ") || "<1м";
+  return [d ? `${d}d` : "", h ? `${h}h` : "", m ? `${m}m` : ""].filter(Boolean).join(" ") || "<1m";
 }
 
 /** Transitive prerequisite closure (incl. `id` itself) over FlowTreeNodes. */
@@ -194,7 +201,7 @@ function CostSummary({
             {r.icon} {fmtNum(r.amount)}
           </span>
         ))}
-        <span title="Суммарное время">⏱ {fmtDuration(totalTime)}</span>
+        <span title="Total time">⏱ {fmtDuration(totalTime)}</span>
       </div>
       <div className="mt-1 text-wos-text-muted">{note}</div>
     </div>
@@ -226,6 +233,89 @@ function researchFlowNodes(
       requires: n.requires.filter((r) => known.has(r)),
     } satisfies FlowTreeNode;
   });
+}
+
+// ── Fire Age (T11 + T12) combined view ──────────────────────────────────────
+// The six endgame branches (t11_/t12_ × class) merge into one radial graph:
+// each class is laid out with dagre along its own axis (infantry grows up,
+// lancer right, marksman down) and the T12 group is stacked after T11 along
+// the same axis. Node ids are unique across all six branches (verified), and
+// requires are still filtered per source branch, so no fake cross-class edges.
+const FIRE_AGE_ID = "fire_age";
+const FIRE_AGE_HUB = "__fire_age_hub";
+const FIRE_CLASSES: { cls: string; dir: FlowDir }[] = [
+  { cls: "infantry", dir: "BT" },
+  { cls: "lancer", dir: "LR" },
+  { cls: "marksman", dir: "TB" },
+];
+const HUB_GAP = 220; // distance from the center hub to each class strip
+const TIER_GAP = 120; // gap between the T11 and T12 groups within a strip
+
+function isFireBranch(id: string): boolean {
+  return /^t1[12]_/.test(id);
+}
+
+function bboxOf(layout: Map<string, { x: number; y: number }>) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const { x, y } of layout.values()) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + NODE_W);
+    maxY = Math.max(maxY, y + NODE_H);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function fireAgeFlowNodes(
+  branches: ResearchBranchView[],
+  progress?: Record<string, number>,
+): FlowTreeNode[] {
+  const out: FlowTreeNode[] = [];
+  for (const { cls, dir } of FIRE_CLASSES) {
+    let depth = HUB_GAP;
+    for (const tier of ["t11", "t12"]) {
+      const branch = branches.find((b) => b.id === `${tier}_${cls}`);
+      if (!branch) continue;
+      const nodes = researchFlowNodes(branch, progress);
+      const layout = flowLayout(nodes, dir);
+      const bb = bboxOf(layout);
+      let dx = 0;
+      let dy = 0;
+      let extent = 0;
+      if (dir === "TB") {
+        dx = -(bb.minX + bb.maxX) / 2;
+        dy = depth - bb.minY;
+        extent = bb.maxY - bb.minY;
+      } else if (dir === "BT") {
+        dx = -(bb.minX + bb.maxX) / 2;
+        dy = -depth - bb.maxY;
+        extent = bb.maxY - bb.minY;
+      } else {
+        dy = -(bb.minY + bb.maxY) / 2;
+        dx = depth - bb.minX;
+        extent = bb.maxX - bb.minX;
+      }
+      for (const n of nodes) {
+        const p = layout.get(n.id)!;
+        out.push({ ...n, dir, position: { x: p.x + dx, y: p.y + dy } });
+      }
+      depth += extent + TIER_GAP;
+    }
+  }
+  out.push({
+    id: FIRE_AGE_HUB,
+    tier: 0,
+    title: "Fire Age",
+    subtitle: "T11 → T12",
+    icon: "🔥",
+    width: 150,
+    requires: [],
+    position: { x: -75, y: -NODE_H / 2 },
+  });
+  return out;
 }
 
 // In-game resource icon ids (verified vs the wiki: 103=Wood, 104=Coal, 105=Iron;
@@ -317,12 +407,33 @@ function ResearchPanel({
   onBranch: (id: string) => void;
   progress?: TreeProgress;
 }) {
-  const branch =
-    game.branches.find((b) => b.id === branchId) ?? game.branches[0];
-  const nodes = useMemo(
-    () => (branch ? researchFlowNodes(branch, progress?.research) : []),
-    [branch, progress],
-  );
+  // The six t11_/t12_ source branches collapse into one "Fire Age" tab.
+  const { branches, fireSources } = useMemo(() => {
+    const fireSources = game.branches.filter((b) => isFireBranch(b.id));
+    const base = game.branches.filter((b) => !isFireBranch(b.id));
+    const branches: ResearchBranchView[] = fireSources.length
+      ? [
+          ...base,
+          {
+            id: FIRE_AGE_ID,
+            label: "Fire Age",
+            blurb:
+              "T11 (Helios) and T12 (Molten/Exalted) endgame research, all three classes in one graph: infantry grows up, lancer right, marksman down.",
+            nodes: fireSources.flatMap((b) => b.nodes),
+          },
+        ]
+      : base;
+    return { branches, fireSources };
+  }, [game]);
+  const wantId = branchId && isFireBranch(branchId) ? FIRE_AGE_ID : branchId;
+  const branch = branches.find((b) => b.id === wantId) ?? branches[0];
+  const isFire = branch?.id === FIRE_AGE_ID;
+  const nodes = useMemo(() => {
+    if (!branch) return [];
+    return isFire
+      ? fireAgeFlowNodes(fireSources, progress?.research)
+      : researchFlowNodes(branch, progress?.research);
+  }, [branch, isFire, fireSources, progress]);
   const nodeById = useMemo(
     () => new Map((branch?.nodes ?? []).map((n) => [n.id, n])),
     [branch],
@@ -331,6 +442,17 @@ function ResearchPanel({
 
   // Detail for a research node id — full per-level table (cost / time / power).
   const renderDetail = (rid: string) => {
+    if (rid === FIRE_AGE_HUB)
+      return (
+        <div>
+          <div className="font-semibold">Fire Age</div>
+          <div className="mt-1 text-wos-text-muted">
+            T11 (Helios) and T12 (Molten/Exalted) research for all three troop
+            classes. Infantry grows up, lancer right, marksman down; each
+            class chains T11 → T12 outward from this hub.
+          </div>
+        </div>
+      );
     const n = nodeById.get(rid);
     if (!n) return null;
     const reqText = n.requires
@@ -367,21 +489,21 @@ function ResearchPanel({
         <div className="font-semibold">{n.name}</div>
         <div className="text-wos-text-muted">{n.bonus}</div>
         <div className="mt-1 text-xs text-wos-text-secondary">
-          Tier {ROMAN[n.tier] ?? n.tier} · {n.levels.length} ур. · Требует:{" "}
+          Tier {ROMAN[n.tier] ?? n.tier} · {n.levels.length} lvls · Requires:{" "}
           {reqText || "—"}
         </div>
         <CostSummary
-          title={`Весь путь до максимума: ${path.size} тех., ${pathLevels} ур.`}
+          title={`Full path to max: ${path.size} techs, ${pathLevels} levels`}
           rows={costRows}
           totalTime={pathTime}
-          note="Полная прокачка этого теха и всех его пререквизитов (без ускорений)."
+          note="Maxing this tech and every transitive prerequisite (no speedups)."
         />
         {n.levels.length ? (
           <table className="mt-2 w-full border-collapse text-[11px]">
             <thead className="text-wos-text-secondary">
               <tr className="text-left">
-                <th className="pr-2 font-medium">Ур.</th>
-                <th className="pr-2 font-medium">Эффект</th>
+                <th className="pr-2 font-medium">Lv</th>
+                <th className="pr-2 font-medium">Effect</th>
                 {hasRC ? (
                   <th className="pr-2 font-medium" title="Research Center">
                     RC
@@ -389,10 +511,10 @@ function ResearchPanel({
                 ) : null}
                 {hasGate ? (
                   <th className="pr-2 font-medium" title="War Academy Fire Crystal level">
-                    Гейт
+                    Gate
                   </th>
                 ) : null}
-                <th className="pr-2 font-medium">Время</th>
+                <th className="pr-2 font-medium">Time</th>
                 <th className="pr-2 font-medium" title="Power">
                   ⚡
                 </th>
@@ -438,7 +560,7 @@ function ResearchPanel({
         renderPanels={false}
         selectedKey={branch.id}
         onChange={onBranch}
-        tabs={game.branches.map((b) => ({
+        tabs={branches.map((b) => ({
           key: b.id,
           label: `${b.label} (${branchTotalLevels(b)})`,
           title: b.blurb,
@@ -447,6 +569,7 @@ function ResearchPanel({
       <p className="muted mb-3 mt-1 text-sm">{branch.blurb}</p>
       <TechTreeFlow
         nodes={nodes}
+        height={isFire ? 760 : 600}
         defaultDirection="TB"
         renderDetail={renderDetail}
         exportName={`research-${game.id}-${branch.id}`}
@@ -575,10 +698,10 @@ function BuildingsPanel({
           {b.name} — Lv {lvlStr}
         </div>
         <CostSummary
-          title={`Весь путь постройки: ${path.size} шагов`}
+          title={`Full build path: ${path.size} steps`}
           rows={costRows}
           totalTime={pathTime}
-          note="Все уровни всех зданий, требуемых до этой точки (без ускорений)."
+          note="Every building level required up to this point (no speedups)."
         />
         {lvl?.prerequisites ? (
           <div className="mt-1 text-xs text-wos-text-muted">
@@ -618,8 +741,8 @@ function BuildingsPanel({
           inline
           checked={ladder}
           onChange={onLadder}
-          label="Лестница печки"
-          title="Показывать только цепочку Furnace (вкл. FC) и всё, что нужно для её прокачки"
+          label="Furnace ladder"
+          title="Show only the Furnace chain (incl. FC) and everything required to advance it"
         />
         <TechTreeFlow
           key={ladder ? "ladder" : "full"}
@@ -765,13 +888,13 @@ function TreesContent() {
             afterTabs={
               <AppListbox
                 inline
-                label="Игрок"
+                label="Player"
                 value={playerId}
                 onChange={onPlayerChange}
                 loading={players.isLoading}
                 minWidth={160}
                 options={[
-                  { value: "", label: "— без прогресса —" },
+                  { value: "", label: "— no progress —" },
                   ...(players.data ?? []).map((p) => ({ value: p, label: p })),
                 ]}
               />
