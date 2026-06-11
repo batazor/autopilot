@@ -190,6 +190,11 @@ class BorderConfig(BaseModel):
     # toward the kingdom instead of descending. Set above a valid edge frame
     # (~0.85) and below the all-dark gap (~1.0). The robust anti-cross stop.
     gap_back_off_frac: float = Field(default=0.9, gt=0.0, le=1.0)
+    # Origin tap target: fraction of the way from the bottom vertex toward the
+    # diamond center. The game redirects/quantizes minimap taps, and a tap near
+    # the bare vertex can land ACROSS the border before any guard sees a frame
+    # — tap well inside and let the servo close the distance with feedback.
+    safe_tap_frac: float = Field(default=0.25, gt=0.0, le=0.9)
     # End an unbounded bottom-up scan when the top corner enters the view.
     stop_at_top: bool = True
     # Don't carry the camera across the border with inter-cell swipes: before

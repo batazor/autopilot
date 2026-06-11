@@ -8,6 +8,7 @@ from modules.radar.border import (
     border_band_y,
     border_cross_distance,
     border_outside_fraction,
+    border_outside_top_y,
     find_border_cross,
     top_border_visible,
     yellow_boundary_mask,
@@ -104,6 +105,23 @@ def test_border_outside_fraction_separates_inside_from_the_gap() -> None:
     terrain = _frame()
     terrain[260:340, 160:240] = (40, 42, 50)
     assert border_outside_fraction(terrain, None) < 0.1
+
+
+def test_border_outside_top_y_finds_the_dark_edge() -> None:
+    img = _frame()
+    img[300:, :] = (40, 42, 50)
+    top = border_outside_top_y(img, None)
+    assert top is not None
+    assert top == pytest.approx(300, abs=12)
+
+
+def test_border_outside_top_y_ignores_upper_half_and_clean_terrain() -> None:
+    assert border_outside_top_y(_frame(), None) is None
+    # Dark connected to the TOP edge only — not the bottom-corner gap; ignoring
+    # the upper half keeps unrelated dark areas from hijacking the steering.
+    img = _frame()
+    img[:80, :] = (40, 42, 50)
+    assert border_outside_top_y(img, None) is None
 
 
 def test_border_band_y_tracks_the_visible_line() -> None:

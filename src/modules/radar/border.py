@@ -156,24 +156,23 @@ def find_border_cross(frame: np.ndarray, crop: dict | None) -> tuple[float, floa
     return cross
 
 
-def border_outside_fraction(
-    frame: np.ndarray, crop: dict | None, band_frac: float = 0.5,
-) -> float:
-    """Share of the crop's lower band that is out-of-bounds (beyond the border).
+def _outside_mask(
+    frame: np.ndarray, crop: dict | None,
+) -> tuple[np.ndarray, tuple[int, int]] | None:
+    """Boolean mask of out-of-bounds terrain within the crop + crop origin.
 
-    Out-of-bounds is the dark region reachable by flood-fill from the frame
+    Out-of-bounds is the dark region reachable by flood-fill from the crop
     edges — the inter-kingdom gap (a dark road) and the area past the yellow
     line read as one connected dark mass, while interior snow stays bright and
     dark *terrain* (mountains, plots) does not connect to the edge as a large
-    mass. A robust "am I across the border" signal that does not depend on
-    detecting the thin dashed line: empirically ~0.005 well inside the kingdom,
-    ~0.7 along an edge, ~1.0 once the camera sits in the gap between states.
+    mass. This is the robust border signal: it does not depend on detecting
+    the thin dashed line at all. Returns None on a degenerate crop.
     """
     x0, y0, x1, y1 = _crop_bounds(crop, frame.shape)
     sub = frame[y0:y1, x0:x1]
     h, w = sub.shape[:2]
     if h < 2 or w < 2:
-        return 0.0
+        return None
     gray = cv2.cvtColor(sub, cv2.COLOR_BGR2GRAY)
     dark = (gray < 95).astype(np.uint8) * 255
     dark = cv2.morphologyEx(
@@ -191,9 +190,50 @@ def border_outside_fraction(
             cv2.floodFill(flood, ffmask, (0, y), 128)
         if flood[y, w - 1]:
             cv2.floodFill(flood, ffmask, (w - 1, y), 128)
-    outside = flood == 128
-    band = outside[int(h * (1.0 - band_frac)) :, :]
+    return flood == 128, (x0, y0)
+
+
+# Fewer out-of-bounds pixels than this share of the crop is specks, not the gap.
+GAP_MIN_AREA_FRAC = 0.005
+
+
+def border_outside_fraction(
+    frame: np.ndarray, crop: dict | None, band_frac: float = 0.5,
+) -> float:
+    """Share of the crop's lower band that is out-of-bounds (beyond the border).
+
+    Empirically ~0.005 well inside the kingdom, ~0.7 along an edge, ~1.0 once
+    the camera sits in the gap between states.
+    """
+    res = _outside_mask(frame, crop)
+    if res is None:
+        return 0.0
+    outside, _origin = res
+    band = outside[int(outside.shape[0] * (1.0 - band_frac)) :, :]
     return float(np.mean(band)) if band.size else 0.0
+
+
+def border_outside_top_y(frame: np.ndarray, crop: dict | None) -> float | None:
+    """Top edge (frame y) of the out-of-bounds mass in the crop's lower half.
+
+    The dark gap is a huge, reliable signal next to the 4 px dashed line: when
+    the line detector fails (Hough misses, fog, markers on the line), the top
+    of the dark mass still tells the servo where the border is. Only pixels
+    below the crop's vertical center count — during the bottom-corner approach
+    the outside is always below, and ignoring the upper half keeps unrelated
+    dark areas from hijacking the steering. The 5th percentile (not the bare
+    minimum) shrugs off stray specks above the true edge.
+    """
+    res = _outside_mask(frame, crop)
+    if res is None:
+        return None
+    outside, (_x0, y0) = res
+    h = outside.shape[0]
+    lower = outside[h // 2 :, :]
+    ys, _xs = np.nonzero(lower)
+    if len(ys) < outside.size * GAP_MIN_AREA_FRAC:
+        return None
+    return y0 + h // 2 + float(np.percentile(ys, 5))
 
 
 def border_band_y(frame: np.ndarray, crop: dict | None) -> float | None:

@@ -23,6 +23,7 @@ from modules.radar.border import (
     border_band_y,
     border_cross_distance,
     border_outside_fraction,
+    border_outside_top_y,
     find_border_cross,
     find_border_lines,
     top_border_visible,
@@ -31,6 +32,7 @@ from modules.radar.config import load_config
 from modules.radar.device import RadarDevice, ScanStopped, pick_serial
 from modules.radar.geometry import (
     Affine,
+    diamond_center,
     extend_grid_below,
     generate_grid,
     limit_grid_centered,
@@ -463,6 +465,17 @@ def _scan_grid(
             device, cfg, ref_frame, expected,
             reject_path=out_dir / f"rejected_{key}.png",
         )
+        if border_outside_fraction(frame, crop_dict) >= cfg.border.gap_back_off_frac:
+            # The camera crossed the border mid-walk despite the pre-swipe
+            # guards — a scan of the neighbouring state is garbage; stop with
+            # the frame as evidence rather than keep capturing.
+            evidence = out_dir / f"outside_{key}.png"
+            cv2.imwrite(str(evidence), frame)
+            msg = (
+                f"frame {key} is outside the kingdom (camera crossed the border "
+                f"mid-walk) — evidence saved to {evidence.name}"
+            )
+            raise ScanAborted(msg)
         if calib is not None and expected is not None and measured is not None:
             calib.update(expected, measured)
             manifest["swipe_calibration"] = {
@@ -578,6 +591,9 @@ ORIGIN_TOLERANCE_PX = 8.0
 # Servo trims shorter than this re-measure with a single settled capture
 # instead of the full stabilization loop — the view barely changed.
 SERVO_FAST_MEASURE_MAX_PX = 120.0
+# A fitted line crossing must sit within this of the dark out-of-bounds edge
+# (when one is measured) — disagreement means a phantom Hough lock.
+CROSS_GAP_AGREE_PX = 200.0
 
 
 def _viewport_rect_center(frame: np.ndarray, cfg: RadarConfig) -> tuple[float, float] | None:
@@ -633,26 +649,27 @@ def _servo_to_border(
     offset here used to walk the whole first column outside the kingdom).
     The approach length is measured, not guessed; per measurement, in order:
 
-    - crossing in view → 2D correction by the remaining error;
-    - a line in view but vertically off target → vertical correction by the
-      measured band distance (flips upward after an overshoot past the
-      corner, instead of descending deeper into the neighbouring state);
-    - a line in view at the right height but no crossing → the corner is off
-      to the side: slide downhill ALONG the line toward it (both bottom edges
-      descend into the corner), a bounded step per measurement so it cannot
-      overshoot the corner sideways into the next state;
-    - no border yellow at all → blind ``approach_step_screens`` descend, but
-      the TOTAL blind travel is capped at ``max_blind_screens``: a descend
-      that never reveals the border has crossed the vertex, and marching on
-      would only bury the camera deeper in the neighbouring state.
+    - lower band out-of-bounds (in the inter-kingdom gap) → climb back;
+    - crossing in view (and agreeing with the dark edge) → 2D correction;
+    - a yellow line in view → band steering / slide along it to the corner;
+    - NO yellow but the dark out-of-bounds mass visible below → steer its top
+      edge onto the target height. The dashed-line detector failing is exactly
+      how the camera skated across before: the dark mass is the signal that
+      never fails when the border is actually near;
+    - nothing at all → blind ``approach_step_screens`` descend, total blind
+      travel capped at ``max_blind_screens``.
 
     Dragging the finger by ``e`` px moves the content (and the crossing) by
     ``e``, so each correction is simply the remaining error. Exits with a
     *freshly measured* crossing — the last loop action is always a
     measurement, never a swipe, so the reading matches the upcoming frame.
     With ``require_cross`` the scan never starts blind: no crossing after
-    ``max_steps`` (or the blind cap) aborts (saving the last frame as
-    evidence) instead of capturing garbage.
+    ``max_steps`` (or the blind cap) aborts instead of capturing garbage.
+
+    Every measurement is appended to a ``servo_trail`` (decision + readings +
+    move) returned in the meta, and non-nominal decisions save their frame to
+    ``debug_dir`` — every past crossing was undiagnosable because nothing of
+    what the servo saw survived.
     """
     b = cfg.border
     c = cfg.crop
@@ -668,6 +685,7 @@ def _servo_to_border(
     steps = 0
     blind_px = 0.0
     last_move_px: float | None = None
+    trail: list[dict] = []
     while True:
         if last_move_px is not None and last_move_px <= SERVO_FAST_MEASURE_MAX_PX:
             # A short trim barely disturbs the view — one settled capture is
@@ -676,19 +694,34 @@ def _servo_to_border(
             frame = device.capture()
         else:
             frame, _stable = wait_stable(device, cfg)
-        # Robust anti-cross signal: the lower band being out-of-bounds means the
-        # camera is in the inter-kingdom gap (across the border). This does not
-        # rely on the thin dashed line — the line detector failing is exactly
-        # how the camera skated across before. Climb straight back toward the
-        # kingdom and ignore any "crossing" (it would be the next state's) until
-        # the view is inside again.
-        in_gap = border_outside_fraction(frame, crop) >= b.gap_back_off_frac
+
+        outside_lower = border_outside_fraction(frame, crop)
+        gap_top = border_outside_top_y(frame, crop)
+        in_gap = outside_lower >= b.gap_back_off_frac
         cross = None if in_gap else find_border_cross(frame, crop)
+        if (
+            cross is not None
+            and gap_top is not None
+            and abs(cross[1] - gap_top) > CROSS_GAP_AGREE_PX
+        ):
+            # The fitted crossing sits far from the measured dark edge — a
+            # phantom Hough lock (label trail, marker row). The dark mass is
+            # ground truth; distrust the lines this round.
+            logger.info(
+                "radar: fitted crossing y=%.0f disagrees with the dark edge y=%.0f — ignored",
+                cross[1], gap_top,
+            )
+            cross = None
+
+        err: tuple[float, float] | None = None
         if in_gap:
+            # Across the border (robust signal, needs no line): climb straight
+            # back; any "crossing" here would be the next state's.
+            decision = "gap_climb"
             logger.warning(
-                "radar: camera is in the inter-kingdom gap (outside ≥ %.2f) — "
+                "radar: camera is in the inter-kingdom gap (outside %.2f ≥ %.2f) — "
                 "climbing back toward the kingdom",
-                b.gap_back_off_frac,
+                outside_lower, b.gap_back_off_frac,
             )
             err = (0.0, step_px)  # finger down → camera up → back inside
         elif cross is not None:
@@ -698,33 +731,56 @@ def _servo_to_border(
                     "radar: border lines cross at (%.0f, %.0f) (target %.0f, %.0f) — origin locked",
                     cross[0], cross[1], target[0], target[1],
                 )
+                trail.append(_servo_trail_entry("lock", outside_lower, gap_top, cross, None))
                 break
+            decision = "cross"
         else:
             band_y = border_band_y(frame, crop)
-            if band_y is None:
-                err = None
-            elif abs(target[1] - band_y) > b.tolerance_px:
-                # A line is visible but vertically off — measured vertical
-                # correction (upward after an overshoot past the corner).
-                err = (0.0, target[1] - band_y)
-            else:
-                # Line at the right height, crossing not in view — the corner
-                # is off to the side. Slide downhill along the line toward it.
-                lines = find_border_lines(frame, crop)
-                seg = lines[1] or lines[-1]
-                if seg is None:
+            if band_y is not None:
+                if abs(target[1] - band_y) > b.tolerance_px:
+                    # A line is visible but vertically off — measured vertical
+                    # correction (upward after an overshoot past the corner).
+                    decision = "band"
                     err = (0.0, target[1] - band_y)
                 else:
-                    slide = _slide_toward_corner(seg, slide_cap_px)
-                    logger.info(
-                        "radar: line in view but no crossing — sliding %.0f px along it toward the corner",
-                        slide_cap_px,
-                    )
-                    err = (slide[0], slide[1] + (target[1] - band_y))
+                    # Line at the right height, crossing not in view — the
+                    # corner is off to the side. Slide downhill along the line.
+                    lines = find_border_lines(frame, crop)
+                    seg = lines[1] or lines[-1]
+                    if seg is None:
+                        decision = "band"
+                        err = (0.0, target[1] - band_y)
+                    else:
+                        decision = "slide"
+                        slide = _slide_toward_corner(seg, slide_cap_px)
+                        logger.info(
+                            "radar: line in view but no crossing — sliding %.0f px toward the corner",
+                            slide_cap_px,
+                        )
+                        err = (slide[0], slide[1] + (target[1] - band_y))
+            elif gap_top is not None:
+                # The dashed line is undetected but the dark mass below is not
+                # arguable — steer its top edge onto the target height. This
+                # also CLIMBS when the edge is above the target (half-crossed).
+                decision = "dark_steer"
+                err = (0.0, target[1] - gap_top)
+                logger.info(
+                    "radar: line undetected, steering on the dark border edge at y=%.0f",
+                    gap_top,
+                )
+            else:
+                decision = "blind"
+                err = None
+
+        trail.append(_servo_trail_entry(decision, outside_lower, gap_top, cross, err))
+        if debug_dir is not None and decision in ("gap_climb", "dark_steer", "blind"):
+            # Non-nominal sightings are the evidence every past crossing lacked.
+            cv2.imwrite(str(debug_dir / f"servo_step{steps:02d}_{decision}.png"), frame)
+
         # Blind descend that never found the border has crossed the vertex into
         # the next state — stop before marching deeper, same as running out of
-        # steps. (err is None only when no border yellow is visible at all.)
-        blind_exhausted = err is None and blind_px >= max_blind_px
+        # steps. (decision == "blind" means neither yellow nor dark is visible.)
+        blind_exhausted = decision == "blind" and blind_px >= max_blind_px
         if steps >= b.max_steps or blind_exhausted:
             if debug_dir is not None:
                 evidence = debug_dir / "servo_giveup.png"
@@ -752,7 +808,7 @@ def _servo_to_border(
             break
         steps += 1
         if err is None:
-            # No border yellow anywhere — keep descending toward the bottom
+            # Nothing visible anywhere — keep descending toward the bottom
             # corner, counting the blind travel against the cap above.
             _swipe_fingers(device, cfg, 0.0, -step_px)
             blind_px += step_px
@@ -765,7 +821,41 @@ def _servo_to_border(
         # anchors to game (game_size-1, game_size-1).
         "border_apex_px": [round(cross[0], 1), round(cross[1], 1)] if cross else None,
         "servo_steps": steps,
+        "servo_trail": trail,
     }
+
+
+def _servo_trail_entry(
+    decision: str,
+    outside_lower: float,
+    gap_top: float | None,
+    cross: tuple[float, float] | None,
+    move: tuple[float, float] | None,
+) -> dict:
+    return {
+        "decision": decision,
+        "outside_lower": round(outside_lower, 3),
+        "gap_top_y": round(gap_top, 1) if gap_top is not None else None,
+        "cross": [round(cross[0], 1), round(cross[1], 1)] if cross else None,
+        "move_px": [round(move[0], 1), round(move[1], 1)] if move else None,
+    }
+
+
+def _servo_safe_tap_point(cfg: RadarConfig) -> tuple[float, float]:
+    """Origin tap target on the minimap: well INSIDE the diamond, never the vertex.
+
+    The game redirects/quantizes minimap taps (observed teleporting to a
+    corner), and the white-rect verification clamps near the vertex — so a tap
+    next to the bare tip can land across the border before any guard sees a
+    single frame. Tap ``safe_tap_frac`` of the way from the bottom vertex
+    toward the diamond center instead: even a redirected tap stays inside, and
+    the servo closes the remaining distance to the corner with feedback.
+    """
+    corners = cfg.minimap.corners.as_geometry()
+    cx, cy = diamond_center(corners)
+    bx, by = corners.bottom
+    f = cfg.border.safe_tap_frac
+    return bx + (cx - bx) * f, by + (cy - by) * f
 
 
 def _position_origin(
@@ -774,20 +864,26 @@ def _position_origin(
     point: GridPoint,
     debug_dir: Path | None = None,
 ) -> dict:
-    """Tap-teleport to the route start, then verify-and-correct with swipes.
+    """Tap-teleport toward the route start, then verify-and-correct with swipes.
 
-    With the border servo enabled, the approach to the corner is closed-loop
-    from the start cell on: measured steps that stop on the visible line, and
-    the X where the yellow border lines cross is steered onto the frame's
-    target point — so the first capture provably shows the map's bottom
-    corner. Without the servo, ``bottom_descend_screens`` pans a fixed amount
-    further down — by swipes, which cross the kingdom border freely (a tap
-    below the vertex teleports into the neighbouring state). The minimap rect
-    is NOT re-verified after descending — beyond the diamond it clamps and
-    would only mislead the correction loop.
+    With the border servo enabled, the tap goes to a SAFE interior point (see
+    :func:`_servo_safe_tap_point`) and the approach to the corner is
+    closed-loop from there: measured steps that stop on the visible border,
+    with the X where the yellow lines cross steered onto the frame's target
+    point — so the first capture provably shows the map's bottom corner.
+    Without the servo, the tap goes to the start cell itself and
+    ``bottom_descend_screens`` pans a fixed amount further down — by swipes,
+    which cross the kingdom border freely (a tap below the vertex teleports
+    into the neighbouring state). The minimap rect is NOT re-verified after
+    descending — beyond the diamond it clamps and would only mislead the
+    correction loop.
     """
-    _wait_touch_clear(device, cfg, point.x, point.y)
-    device.tap(point.x, point.y)
+    gl = cfg.grid_limit
+    bottom_anchor = gl is not None and gl.anchor == "bottom"
+    servo = bottom_anchor and cfg.border.servo
+    tap_x, tap_y = _servo_safe_tap_point(cfg) if servo else (point.x, point.y)
+    _wait_touch_clear(device, cfg, tap_x, tap_y)
+    device.tap(tap_x, tap_y)
     corrections = 0
     landed: tuple[float, float] | None = None
     for _ in range(ORIGIN_MAX_CORRECTIONS):
@@ -797,7 +893,7 @@ def _position_origin(
         if landed is None:
             logger.warning("radar: origin check — viewport rect not found on the minimap")
             break
-        dx, dy = point.x - landed[0], point.y - landed[1]
+        dx, dy = tap_x - landed[0], tap_y - landed[1]
         if math.hypot(dx, dy) <= ORIGIN_TOLERANCE_PX:
             break
         corrections += 1
@@ -806,13 +902,10 @@ def _position_origin(
             dx, dy,
         )
         _swipe_relative(device, cfg, dx, dy)
-    gl = cfg.grid_limit
-    bottom_anchor = gl is not None and gl.anchor == "bottom"
-    servo = bottom_anchor and cfg.border.servo
     # With the servo on, the approach is closed-loop from the very first step
-    # (measured, stops on the line) — a fixed blind pan would just risk sailing
-    # past the corner into the neighbouring state. It remains the servo-off
-    # fallback for getting the border into the first frame at all.
+    # (measured, stops on the border) — a fixed blind pan would just risk
+    # sailing past the corner into the neighbouring state. It remains the
+    # servo-off fallback for getting the border into the first frame at all.
     descend = gl.bottom_descend_screens if bottom_anchor and not servo else 0.0
     descend_swipes: list[dict[str, int]] = []
     if descend > 0:
@@ -824,7 +917,8 @@ def _position_origin(
     meta = {
         "mode": "tap",
         "origin": True,
-        "target_px": [round(point.x, 2), round(point.y, 2)],
+        "target_px": [round(tap_x, 2), round(tap_y, 2)],
+        "grid_start_px": [round(point.x, 2), round(point.y, 2)],
         "landed_px": [round(landed[0], 2), round(landed[1], 2)] if landed else None,
         "corrections": corrections,
         "descend_screens": descend,

@@ -358,6 +358,59 @@ def test_position_origin_servo_slides_along_the_line_to_the_corner(monkeypatch) 
     assert meta["border_apex_px"] is not None
 
 
+def test_position_origin_taps_a_safe_interior_point(monkeypatch) -> None:
+    """With the servo on, the origin tap goes to a guaranteed-inside point —
+    a quantized/redirected tap near the bare vertex can land across the border
+    before any guard sees a single frame."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(
+        grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
+        label_guard=LabelGuardConfig(enabled=False),
+    )
+    target_x = cfg.crop.x + cfg.crop.w / 2
+    target_y = int(cfg.crop.y + cfg.crop.h * cfg.border.target_frac)
+    device = FakeDevice(frames=[_x_frame(int(target_x), target_y)])
+
+    meta = _position_origin(device, cfg, build_scan_grid(cfg)[0])
+
+    # Corners: top (100,0), right (200,100), bottom (100,200), left (0,100) →
+    # center (100,100); the tap is 25% of the way from the vertex to the center.
+    assert device.taps == [(100.0, 175.0)]
+    assert meta["border_apex_px"] is not None
+    assert meta["grid_start_px"] is not None
+
+
+def test_position_origin_dark_steers_when_the_line_is_undetected(monkeypatch) -> None:
+    """Yellow line undetected but the dark out-of-bounds mass is visible below:
+    the servo must steer on the dark edge — the EXACT case where it used to
+    classify the view as 'no border anywhere' and blind-descend across."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(
+        grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
+        label_guard=LabelGuardConfig(enabled=False),
+    )
+    target_x = cfg.crop.x + cfg.crop.w / 2
+    target_y = int(cfg.crop.y + cfg.crop.h * cfg.border.target_frac)
+    # Dark gap 200 px below the target height, no yellow anywhere.
+    dark_below = _grey_frame()
+    dark_below[target_y + 200 :, :] = (40, 42, 50)
+    on_target = _x_frame(int(target_x), target_y)
+    device = FakeDevice(frames=[dark_below] * 6 + [on_target] * 3)
+
+    meta = _position_origin(device, cfg, build_scan_grid(cfg)[0])
+
+    assert meta["servo_steps"] == 1
+    assert [t["decision"] for t in meta["servo_trail"]] == ["dark_steer", "lock"]
+    # The move is the MEASURED remaining distance (200 px down), not a blind step.
+    x1, y1, x2, y2, _ms = device.swipes[-1]
+    assert x2 == x1
+    assert y1 - y2 == pytest.approx(200, abs=25)
+
+
 def test_position_origin_climbs_back_out_of_the_gap(monkeypatch) -> None:
     """When the camera sits in the inter-kingdom gap (lower band out-of-bounds),
     the servo must climb BACK toward the kingdom — never descend deeper — even
@@ -385,6 +438,7 @@ def test_position_origin_climbs_back_out_of_the_gap(monkeypatch) -> None:
     for _x1, y1, _x2, y2, _ms in device.swipes:
         assert y2 > y1
     assert meta["border_apex_px"] is not None
+    assert [t["decision"] for t in meta["servo_trail"]] == ["gap_climb", "lock"]
 
 
 def test_position_origin_aborts_when_the_crossing_never_appears(monkeypatch) -> None:
@@ -633,6 +687,39 @@ def test_scan_grid_finishes_the_row_then_stops_at_the_top_border(
     assert len(crosses) == 1
     assert crosses[0][0] == pytest.approx(mid_x, abs=10)
     assert crosses[0][1] == pytest.approx(band_y, abs=10)
+
+
+def test_scan_grid_aborts_when_the_camera_lands_outside(monkeypatch, tmp_path) -> None:
+    """A captured frame whose lower band is fully out-of-bounds means the
+    camera crossed the border mid-walk — abort with evidence instead of
+    scanning the neighbouring state."""
+    import modules.radar.scanner as scanner_mod
+    from modules.radar.geometry import Affine
+    from modules.radar.scanner import _scan_grid
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(grid_limit=GridLimitConfig(anchor="bottom", max_frames=15))
+    grid = build_scan_grid(cfg)
+    outside_frame = _grey_frame()
+    outside_frame[cfg.crop.y + cfg.crop.h // 2 :, :] = (40, 42, 50)
+    monkeypatch.setattr(
+        scanner_mod, "_move_to_point",
+        lambda *_a, **_k: {"mode": "swipe", "swipes": []},
+    )
+    monkeypatch.setattr(
+        scanner_mod, "_guarded_capture",
+        lambda *_a, **_k: (outside_frame, True, None),
+    )
+    manifest = {"config": {}, "frames": {}}
+    affine = Affine.from_corners(cfg.minimap.corners.as_geometry(), cfg.game_size)
+
+    with pytest.raises(ScanAborted, match="outside the kingdom"):
+        _scan_grid(
+            scanner_mod.RadarDevice.__new__(scanner_mod.RadarDevice),
+            cfg, grid, affine, manifest, tmp_path, events=None,
+        )
+
+    assert list(tmp_path.glob("outside_*.png"))  # evidence frame saved
 
 
 def test_prior_calibration_seeds_from_latest_sibling_run(tmp_path) -> None:
