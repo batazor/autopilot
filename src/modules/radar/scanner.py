@@ -91,6 +91,7 @@ def _guarded_capture(
     cfg: RadarConfig,
     prev_frame: np.ndarray | None,
     expected: tuple[float, float] | None,
+    reject_path: Path | None = None,
 ) -> tuple[np.ndarray, bool]:
     """Capture a stable frame and verify the view is still the same world.
 
@@ -120,6 +121,11 @@ def _guarded_capture(
             )
             time.sleep(t.zoom_retry_delay_ms / 1000.0)
             frame, stable = wait_stable(device, cfg)
+    if reject_path is not None:
+        # Keep the evidence: the rejected frame shows WHAT the camera saw
+        # (zoom level, popup, transition) when the scan had to stop.
+        cv2.imwrite(str(reject_path), frame)
+        logger.warning("radar: rejected frame saved to %s", reject_path)
     msg = (
         "zoom or view changed mid-scan (frame no longer registers against "
         "the previous one) — reset the camera to the world map and rescan"
@@ -271,6 +277,7 @@ def _scan_grid(
         time.sleep(cfg.timings.post_tap_delay_ms / 1000.0)
         frame, stable = _guarded_capture(
             device, cfg, prev_frame, move_prior({"move": move_meta}),
+            reject_path=out_dir / f"rejected_{key}.png",
         )
         prev_frame = frame
         if not stable:

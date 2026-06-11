@@ -46,16 +46,21 @@ class RadarDevice:
         self._controller._emit_tap(int(round(x)), int(round(y)))
 
     def swipe(self, x1: float, y1: float, x2: float, y2: float, duration_ms: int) -> None:
-        # Same raw path as tap(): no approval UI, no endpoint jitter. Swipe
-        # drift is fine — the stitcher measures real offsets from ORB
-        # features — but the gesture itself must be repeatable and offline.
-        self._controller._emit_swipe_straight(
+        # No-fling drag (hold before lift-off): `input swipe` releases at full
+        # speed and the map flings an unpredictable extra distance, which
+        # breaks the navigation prior and frame overlap. Raw emit path on
+        # purpose: no approval UI, no endpoint jitter.
+        args = (
             int(round(x1)),
             int(round(y1)),
             int(round(x2)),
             int(round(y2)),
             duration_ms,
         )
+        if not self._controller._emit_drag_no_fling(*args):
+            # motionevent unsupported on this device — plain swipe still works,
+            # the stitcher's prior tolerance absorbs the fling drift.
+            self._controller._emit_swipe_straight(*args)
 
     def capture(self) -> np.ndarray:
         """Screenshot as a normalized 720×1280 BGR array."""

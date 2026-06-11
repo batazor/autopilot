@@ -133,6 +133,40 @@ class AdbInputMixin(_Base):
             str(x1), str(y1), str(x2), str(y2), str(ms),
         )
 
+    def _emit_drag_no_fling(
+        self, x1: int, y1: int, x2: int, y2: int, ms: int, *, hold_ms: int = 250,
+    ) -> bool:
+        """Straight drag that ends with a hold before lift-off.
+
+        ``input swipe`` releases at full speed, so scrollable surfaces (the
+        game world map) keep flinging past the target by an unpredictable
+        distance. This motionevent chain pauses at the end point before UP —
+        zero release velocity, the surface moves exactly the finger travel.
+        Returns ``False`` when motionevent is unsupported; the caller picks
+        the fallback.
+        """
+        if not self._detect_motionevent_support():
+            return False
+        steps = max(2, min(24, ms // 40))
+        try:
+            self._shell("input", "motionevent", "DOWN", str(x1), str(y1))
+            seg_sleep = max(0.005, (ms / 1000.0) / steps)
+            for k in range(1, steps + 1):
+                time.sleep(seg_sleep)
+                mx = round(x1 + (x2 - x1) * k / steps)
+                my = round(y1 + (y2 - y1) * k / steps)
+                self._shell("input", "motionevent", "MOVE", str(mx), str(my))
+            time.sleep(max(0.05, hold_ms / 1000.0))
+            self._shell("input", "motionevent", "UP", str(x2), str(y2))
+        except Exception:
+            logger.warning(
+                "no-fling drag failed on %s — caller falls back to plain swipe",
+                self._serial,
+                exc_info=True,
+            )
+            return False
+        return True
+
     def tap(
         self,
         point: Point,

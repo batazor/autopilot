@@ -76,19 +76,24 @@ def test_first_frame_is_unguarded() -> None:
     assert np.array_equal(frame, flat)
 
 
-def test_zoomed_view_retries_then_aborts() -> None:
+def test_zoomed_view_retries_then_aborts(tmp_path) -> None:
     world = _make_world(23, 700, 1000)
     prev = world[100 : 100 + FRAME_H, 100 : 100 + FRAME_W]
     # Accidental double-tap zoom: same area, 1.4x scale — never registers.
     zoom_src = world[150 : 150 + int(FRAME_H / 1.4), 170 : 170 + int(FRAME_W / 1.4)]
     zoomed = cv2.resize(zoom_src, (FRAME_W, FRAME_H))
     device = FakeDevice([zoomed])
+    reject_path = tmp_path / "rejected_01_00.png"
 
     with pytest.raises(ScanAborted, match="zoom or view changed"):
-        _guarded_capture(device, _cfg(), prev, expected=(200.0, 0.0))
+        _guarded_capture(
+            device, _cfg(), prev, expected=(200.0, 0.0), reject_path=reject_path,
+        )
 
     # Initial capture + 2 retries → 3 wait_stable rounds happened.
     assert device.captures >= 3
+    # Evidence on disk: the rejected frame shows what the camera actually saw.
+    assert reject_path.is_file()
 
 
 def test_recovers_when_view_settles_on_retry() -> None:
