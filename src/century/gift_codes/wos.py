@@ -36,7 +36,7 @@ from config.giftcodes_db import (
     set_redemption_bulk,
     upsert_code,
 )
-from licensing.gate import has_feature
+from licensing.gate import external_accounts_limit, has_feature
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -286,12 +286,24 @@ class GiftCodeRedeemer:
         all_player_ids = list(local_player_ids)
         external_nicks: dict[str, str] = {}
         if has_feature(_EXTERNAL_ACCOUNTS_FEATURE):
+            # Cap to the tier's per-game limit (rows are ordered by added_at, so
+            # the oldest accounts win after a downgrade). Defends against stale
+            # rows left over from a higher tier — third feature-gate layer.
+            limit = external_accounts_limit()
+            kept = 0
             for ext in list_external_gamers(game=_GAME_ID, enabled_only=True):
                 pid = str(ext.player_id)
                 if pid in local_player_ids:
                     continue
+                if kept >= limit:
+                    logger.info(
+                        "WOS redeem: external accounts capped at %d by license tier "
+                        "— skipping the rest", limit,
+                    )
+                    break
                 all_player_ids.append(pid)
                 external_nicks[pid] = ext.nickname or pid
+                kept += 1
             if external_nicks:
                 logger.info(
                     "WOS redeem: including %d external account(s)", len(external_nicks)

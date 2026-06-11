@@ -223,12 +223,14 @@ function PanelTitle({ accountsCount }: { accountsCount: number }) {
 function StatusBar({
   total,
   enabled,
+  limit,
 }: {
   total: number;
   enabled: number;
+  limit: number;
 }) {
   const items = [
-    { label: "Accounts", value: total },
+    { label: "Accounts", value: limit > 0 ? `${total} / ${limit}` : total },
     { label: "Enabled", value: enabled },
     { label: "Disabled", value: total - enabled },
   ];
@@ -280,6 +282,7 @@ export function ExternalAccountsPanel({
 
   const [view, setView] = useState<{
     licensed: boolean;
+    limit: number;
     accounts: ExternalAccount[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -301,7 +304,11 @@ export function ExternalAccountsPanel({
   const load = useCallback(async () => {
     try {
       const data = await fetchExternalAccounts(game);
-      setView({ licensed: data.feature_licensed, accounts: data.accounts });
+      setView({
+        licensed: data.feature_licensed,
+        limit: data.limit,
+        accounts: data.accounts,
+      });
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -439,8 +446,10 @@ export function ExternalAccountsPanel({
   }
 
   const licensed = view?.licensed ?? false;
+  const limit = view?.limit ?? 0;
   const accounts = view?.accounts ?? [];
   const enabledCount = accounts.filter((a) => a.enabled).length;
+  const atCap = limit > 0 && accounts.length >= limit;
 
   return (
     <section className="panel panel--spaced">
@@ -466,7 +475,15 @@ export function ExternalAccountsPanel({
         </div>
       ) : null}
 
-      <StatusBar total={accounts.length} enabled={enabledCount} />
+      <StatusBar total={accounts.length} enabled={enabledCount} limit={limit} />
+
+      {licensed && atCap ? (
+        <div className="mb-4 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-wos-text-secondary">
+          You&apos;ve reached your tier&apos;s limit of{" "}
+          <strong className="text-amber-300">{limit}</strong> external account(s)
+          for <code>{game}</code>. Remove one or upgrade your tier to add more.
+        </div>
+      ) : null}
 
       {error ? <div className="error-banner">{error}</div> : null}
       {status ? <p className="muted">{status}</p> : null}
@@ -507,7 +524,12 @@ export function ExternalAccountsPanel({
               className="w-56 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={busy || !newId.trim()}>
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={busy || !newId.trim() || atCap}
+            title={atCap ? `Tier limit of ${limit} reached` : undefined}
+          >
             {busy ? "Working…" : "Add & redeem"}
           </button>
           <button

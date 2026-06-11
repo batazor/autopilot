@@ -154,12 +154,13 @@ def _ext_to_dict(ext: Any) -> dict[str, Any]:
 def list_external_accounts(*, game: str = "wos") -> dict[str, Any]:
     """Read all external accounts for ``game``. Always allowed."""
     from config.giftcodes_db import list_external_gamers
-    from licensing.gate import has_feature
+    from licensing.gate import external_accounts_limit, has_feature
 
     rows = list_external_gamers(game=game)
     return {
         "game": game,
         "feature_licensed": has_feature(_EXTERNAL_FEATURE),
+        "limit": external_accounts_limit(),
         "accounts": [_ext_to_dict(r) for r in rows],
         "count": len(rows),
     }
@@ -183,10 +184,30 @@ async def upsert_external_account(
     """
     from century.api import CenturyAPIError, CenturyClient
     from century.games import get_game
-    from config.giftcodes_db import touch_external_gamer_seen, upsert_external_gamer
-    from licensing.gate import require_feature
+    from config.giftcodes_db import (
+        count_external_gamers,
+        list_external_gamers,
+        touch_external_gamer_seen,
+        upsert_external_gamer,
+    )
+    from licensing.gate import external_accounts_limit, require_feature
+    from licensing.models import LicenseError
 
     require_feature(_EXTERNAL_FEATURE)  # raises LicenseError → 402
+
+    # Tier cap — only gate *new* rows so editing an existing account (label,
+    # toggle) never trips the limit even when already at the cap.
+    existing_ids = {r.player_id for r in list_external_gamers(game=game)}
+    if player_id not in existing_ids:
+        limit = external_accounts_limit()
+        current = count_external_gamers(game=game)
+        if current >= limit:
+            msg = (
+                f"external-account limit reached: your license allows {limit} "
+                f"account(s) per game and you already have {current}. "
+                f"Upgrade your tier or remove an account."
+            )
+            raise LicenseError(msg, code="external_limit")
 
     resolved_nick = nickname or ""
     if validate_fid:

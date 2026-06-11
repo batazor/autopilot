@@ -21,6 +21,8 @@ class IssueRequest(BaseModel):
     features: list[str] = Field(default_factory=list)
     max_devices: int = Field(1, ge=1, le=100)
     max_players_per_device: int = Field(3, ge=1, le=100)
+    # None → resolve the per-game external-account cap from the tier catalog.
+    max_external_accounts: int | None = Field(None, ge=0, le=1000)
 
 
 @router.get("/fingerprint")
@@ -56,6 +58,7 @@ def post_issue(
         features=body.features,
         max_devices=body.max_devices,
         max_players_per_device=body.max_players_per_device,
+        max_external_accounts=body.max_external_accounts,
     )
 
 

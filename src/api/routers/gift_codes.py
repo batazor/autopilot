@@ -82,8 +82,13 @@ async def upsert_external_account(
             validate_fid=payload.validate_fid,
         )
     except LicenseError as exc:
+        reason = (
+            "external_accounts_limit_reached"
+            if exc.code == "external_limit"
+            else "feature_not_licensed"
+        )
         raise HTTPException(
-            status_code=402, detail={"reason": "feature_not_licensed", "msg": str(exc)}
+            status_code=402, detail={"reason": reason, "msg": str(exc)}
         ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

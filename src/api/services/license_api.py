@@ -72,11 +72,13 @@ def issue(
     features: list[str],
     max_devices: int,
     max_players_per_device: int = 3,
+    max_external_accounts: int | None = None,
 ) -> dict[str, Any]:
     """Mint a license and return ``{ token, payload }``.
 
     ``payload`` is the JWT claims for display/inspection; ``token`` is the
-    authoritative signed string the user must keep.
+    authoritative signed string the user must keep. ``max_external_accounts``
+    of ``None`` lets ``issue_license`` resolve the cap from the tier catalog.
     """
     # Resolve the plan's canonical features so a tier always carries what it
     # promises (e.g. R4 always includes radar), unioned with any explicit extras.
@@ -90,6 +92,7 @@ def issue(
             features=resolved_features,
             max_devices=max_devices,
             max_players_per_device=max_players_per_device,
+            max_external_accounts=max_external_accounts,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -107,6 +110,7 @@ def list_plans() -> list[dict[str, Any]]:
             "price_usd": p.price_usd,
             "features": list(p.features),
             "blurb": p.blurb,
+            "max_external_accounts": p.max_external_accounts,
         }
         for p in PLANS
     ]

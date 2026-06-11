@@ -4,6 +4,7 @@ from __future__ import annotations
 from licensing.plans import (
     FEATURE_GIFT_EXTERNAL,
     FEATURE_RADAR,
+    external_accounts_limit_for_tier,
     features_for_tier,
     plan_by_id,
 )
@@ -36,3 +37,12 @@ def test_unknown_tier_has_no_features() -> None:
     assert plan_by_id("nope") is None
     assert features_for_tier("nope") == []
     assert features_for_tier(None) == []
+
+
+def test_external_account_caps_per_tier() -> None:
+    assert external_accounts_limit_for_tier("r2") == 0
+    assert external_accounts_limit_for_tier("r3") == 5
+    assert external_accounts_limit_for_tier("r4") == 50
+    # Unknown / missing tiers fall back to no allowance.
+    assert external_accounts_limit_for_tier("nope") == 0
+    assert external_accounts_limit_for_tier(None) == 0

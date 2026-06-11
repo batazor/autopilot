@@ -8,6 +8,7 @@ import jwt
 
 from licensing.keys import load_public_key
 from licensing.models import LicenseClaims, LicenseError
+from licensing.plans import external_accounts_limit_for_tier
 
 ALGORITHM = "EdDSA"
 ISSUER = "wos-autopilot"
@@ -29,13 +30,21 @@ def _coerce_datetime(value: object) -> datetime | None:
 def _claims_from_payload(payload: dict[str, Any]) -> LicenseClaims:
     features_raw = payload.get("features") or []
     features = [str(f) for f in features_raw] if isinstance(features_raw, list) else []
+    tier = str(payload.get("tier") or "free")
+    # Tokens issued before the cap existed lack the claim — fall back to the
+    # tier's catalog default so existing R3/R4 licenses get the right limit.
+    raw_cap = payload.get("max_external_accounts")
+    max_external_accounts = (
+        int(raw_cap) if raw_cap is not None else external_accounts_limit_for_tier(tier)
+    )
     return LicenseClaims(
         sub=str(payload.get("sub") or ""),
         machine_id=str(payload.get("machine_id") or ""),
-        tier=str(payload.get("tier") or "free"),
+        tier=tier,
         features=features,
         max_devices=int(payload.get("max_devices") or 1),
         max_players_per_device=int(payload.get("max_players_per_device") or 3),
+        max_external_accounts=max_external_accounts,
         issued_at=_coerce_datetime(payload.get("iat")),
         expires_at=_coerce_datetime(payload.get("exp")),
         jti=str(payload["jti"]) if payload.get("jti") else None,

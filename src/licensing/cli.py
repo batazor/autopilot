@@ -78,6 +78,12 @@ def main(argv: list[str] | None = None) -> int:
         help="player cap per device (default: 3 for regular, 3 under --trial)",
     )
     parser.add_argument(
+        "--max-external-accounts",
+        type=int,
+        default=None,
+        help="per-game external gift-code account cap (default: resolved from --tier)",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         default=None,
@@ -124,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             features=_parse_features(args.features),
             max_devices=max_devices,
             max_players_per_device=max_players_per_device,
+            max_external_accounts=args.max_external_accounts,
         )
     except (LicenseError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -148,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  machine_id:          {payload['machine_id']}")
     print(f"  max_devices:         {payload['max_devices']}")
     print(f"  max_players/device:  {payload['max_players_per_device']}")
+    print(f"  max_external_accts:  {payload['max_external_accounts']}")
     print(f"  expires_at (unix):   {payload['exp']}")
     print()
     print("Send this file to the user. They import it via the UI (/license)")

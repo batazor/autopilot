@@ -69,6 +69,7 @@ def license_status() -> LicenseStatus:
         machine_id=machine_id,
         max_devices=claims.max_devices,
         max_players_per_device=claims.max_players_per_device,
+        max_external_accounts=claims.max_external_accounts,
     )
 
 

@@ -28,6 +28,7 @@ class LicenseClaims:
     features: list[str] = field(default_factory=list)
     max_devices: int = 1
     max_players_per_device: int = 3
+    max_external_accounts: int = 0  # per-game cap on external gift-code accounts
     issued_at: datetime | None = None
     expires_at: datetime | None = None
     jti: str | None = None
@@ -58,6 +59,7 @@ class LicenseStatus:
     machine_id: str | None = None  # current host fingerprint (always populated)
     max_devices: int | None = None
     max_players_per_device: int | None = None
+    max_external_accounts: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -72,4 +74,5 @@ class LicenseStatus:
             "machine_id": self.machine_id,
             "max_devices": self.max_devices,
             "max_players_per_device": self.max_players_per_device,
+            "max_external_accounts": self.max_external_accounts,
         }

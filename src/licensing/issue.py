@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 
 from licensing.keys import load_private_key
-from licensing.plans import features_for_tier
+from licensing.plans import external_accounts_limit_for_tier, features_for_tier
 from licensing.verify import ALGORITHM, ISSUER
 
 _MAX_DAYS = 365
@@ -22,6 +22,7 @@ def issue_license(
     features: list[str] | None = None,
     max_devices: int = 1,
     max_players_per_device: int = 3,
+    max_external_accounts: int | None = None,
     issued_at: datetime | None = None,
 ) -> tuple[str, dict[str, object]]:
     """Sign and return ``(token, payload)``.
@@ -30,6 +31,8 @@ def issue_license(
     - ``sub`` and ``machine_id`` must be non-empty
     - ``days`` clamped to ``[1, 365]``
     - ``max_devices`` clamped to ``[1, 100]``
+    - ``max_external_accounts=None`` resolves the per-game cap from the plan
+      catalog for ``tier``; an explicit int is clamped to ``[0, 1000]``
     - ``features=None`` resolves the claim from the plan catalog for ``tier``;
       an explicit list (even empty) is taken as-is
     """
@@ -45,6 +48,11 @@ def issue_license(
     days = max(1, min(int(days), _MAX_DAYS))
     max_devices = max(1, min(int(max_devices), 100))
     max_players_per_device = max(1, min(int(max_players_per_device), 100))
+    resolved_external = (
+        external_accounts_limit_for_tier(tier)
+        if max_external_accounts is None
+        else max(0, min(int(max_external_accounts), 1000))
+    )
 
     now = issued_at or datetime.now(UTC)
     expires = now + timedelta(days=days)
@@ -59,6 +67,7 @@ def issue_license(
         "features": list(features) if features is not None else features_for_tier(tier),
         "max_devices": max_devices,
         "max_players_per_device": max_players_per_device,
+        "max_external_accounts": resolved_external,
     }
 
     private_key = load_private_key()

@@ -24,6 +24,19 @@ def has_feature(name: str) -> bool:
     return bool(status.active and name in (status.features or []))
 
 
+def external_accounts_limit() -> int:
+    """Per-game cap on external gift-code accounts for the active license.
+
+    Returns 0 when no license is active (callers should treat 0 as "blocked").
+    The cap is independent of the feature flag, but in practice a tier without
+    the external-accounts feature also carries a 0 cap.
+    """
+    status = license_status()
+    if not status.active:
+        return 0
+    return int(status.max_external_accounts or 0)
+
+
 def require_feature(name: str) -> None:
     """Raise :class:`LicenseError` if ``name`` is not licensed.
 
