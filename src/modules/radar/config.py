@@ -185,6 +185,11 @@ class BorderConfig(BaseModel):
     # should appear within ~1 screen; descending much further means the camera
     # has crossed the vertex into the next state — stop instead of marching on.
     max_blind_screens: float = Field(default=1.5, gt=0.0, le=4.0)
+    # Lower-band out-of-bounds fraction above which the camera is judged to be
+    # IN the inter-kingdom gap (across the border): the servo then climbs back
+    # toward the kingdom instead of descending. Set above a valid edge frame
+    # (~0.85) and below the all-dark gap (~1.0). The robust anti-cross stop.
+    gap_back_off_frac: float = Field(default=0.9, gt=0.0, le=1.0)
     # End an unbounded bottom-up scan when the top corner enters the view.
     stop_at_top: bool = True
     # Don't carry the camera across the border with inter-cell swipes: before

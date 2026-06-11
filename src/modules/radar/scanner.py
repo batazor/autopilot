@@ -22,6 +22,7 @@ import numpy as np
 from modules.radar.border import (
     border_band_y,
     border_cross_distance,
+    border_outside_fraction,
     find_border_cross,
     find_border_lines,
     top_border_visible,
@@ -675,8 +676,22 @@ def _servo_to_border(
             frame = device.capture()
         else:
             frame, _stable = wait_stable(device, cfg)
-        cross = find_border_cross(frame, crop)
-        if cross is not None:
+        # Robust anti-cross signal: the lower band being out-of-bounds means the
+        # camera is in the inter-kingdom gap (across the border). This does not
+        # rely on the thin dashed line — the line detector failing is exactly
+        # how the camera skated across before. Climb straight back toward the
+        # kingdom and ignore any "crossing" (it would be the next state's) until
+        # the view is inside again.
+        in_gap = border_outside_fraction(frame, crop) >= b.gap_back_off_frac
+        cross = None if in_gap else find_border_cross(frame, crop)
+        if in_gap:
+            logger.warning(
+                "radar: camera is in the inter-kingdom gap (outside ≥ %.2f) — "
+                "climbing back toward the kingdom",
+                b.gap_back_off_frac,
+            )
+            err = (0.0, step_px)  # finger down → camera up → back inside
+        elif cross is not None:
             err = (target[0] - cross[0], target[1] - cross[1])
             if math.hypot(*err) <= b.tolerance_px:
                 logger.info(

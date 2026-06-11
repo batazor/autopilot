@@ -156,6 +156,46 @@ def find_border_cross(frame: np.ndarray, crop: dict | None) -> tuple[float, floa
     return cross
 
 
+def border_outside_fraction(
+    frame: np.ndarray, crop: dict | None, band_frac: float = 0.5,
+) -> float:
+    """Share of the crop's lower band that is out-of-bounds (beyond the border).
+
+    Out-of-bounds is the dark region reachable by flood-fill from the frame
+    edges — the inter-kingdom gap (a dark road) and the area past the yellow
+    line read as one connected dark mass, while interior snow stays bright and
+    dark *terrain* (mountains, plots) does not connect to the edge as a large
+    mass. A robust "am I across the border" signal that does not depend on
+    detecting the thin dashed line: empirically ~0.005 well inside the kingdom,
+    ~0.7 along an edge, ~1.0 once the camera sits in the gap between states.
+    """
+    x0, y0, x1, y1 = _crop_bounds(crop, frame.shape)
+    sub = frame[y0:y1, x0:x1]
+    h, w = sub.shape[:2]
+    if h < 2 or w < 2:
+        return 0.0
+    gray = cv2.cvtColor(sub, cv2.COLOR_BGR2GRAY)
+    dark = (gray < 95).astype(np.uint8) * 255
+    dark = cv2.morphologyEx(
+        dark, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)),
+    )
+    flood = dark.copy()
+    ffmask = np.zeros((h + 2, w + 2), dtype=np.uint8)
+    for x in range(w):
+        if flood[0, x]:
+            cv2.floodFill(flood, ffmask, (x, 0), 128)
+        if flood[h - 1, x]:
+            cv2.floodFill(flood, ffmask, (x, h - 1), 128)
+    for y in range(h):
+        if flood[y, 0]:
+            cv2.floodFill(flood, ffmask, (0, y), 128)
+        if flood[y, w - 1]:
+            cv2.floodFill(flood, ffmask, (w - 1, y), 128)
+    outside = flood == 128
+    band = outside[int(h * (1.0 - band_frac)) :, :]
+    return float(np.mean(band)) if band.size else 0.0
+
+
 def border_band_y(frame: np.ndarray, crop: dict | None) -> float | None:
     """Vertical position (median y, frame coords) of the visible border yellow.
 

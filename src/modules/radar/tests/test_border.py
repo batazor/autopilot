@@ -7,6 +7,7 @@ import pytest
 from modules.radar.border import (
     border_band_y,
     border_cross_distance,
+    border_outside_fraction,
     find_border_cross,
     top_border_visible,
     yellow_boundary_mask,
@@ -87,6 +88,22 @@ def test_find_border_cross_respects_the_crop() -> None:
 
 def test_find_border_cross_none_on_plain_terrain() -> None:
     assert find_border_cross(_frame(), None) is None
+
+
+def test_border_outside_fraction_separates_inside_from_the_gap() -> None:
+    # All bright snow → nothing out-of-bounds.
+    snow = _frame()
+    assert border_outside_fraction(snow, None) < 0.05
+
+    # Lower half dark and connected to the bottom edge → the inter-kingdom gap.
+    gap = _frame()
+    gap[200:, :] = (40, 42, 50)
+    assert border_outside_fraction(gap, None) > 0.9
+
+    # A dark blob NOT touching any frame edge (interior terrain) is not counted.
+    terrain = _frame()
+    terrain[260:340, 160:240] = (40, 42, 50)
+    assert border_outside_fraction(terrain, None) < 0.1
 
 
 def test_border_band_y_tracks_the_visible_line() -> None:

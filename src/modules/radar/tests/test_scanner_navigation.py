@@ -358,6 +358,35 @@ def test_position_origin_servo_slides_along_the_line_to_the_corner(monkeypatch) 
     assert meta["border_apex_px"] is not None
 
 
+def test_position_origin_climbs_back_out_of_the_gap(monkeypatch) -> None:
+    """When the camera sits in the inter-kingdom gap (lower band out-of-bounds),
+    the servo must climb BACK toward the kingdom — never descend deeper — even
+    when the thin dashed line isn't detected. The robust anti-cross recovery."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(
+        grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
+        label_guard=LabelGuardConfig(enabled=False),
+    )
+    target_x = cfg.crop.x + cfg.crop.w / 2
+    target_y = int(cfg.crop.y + cfg.crop.h * cfg.border.target_frac)
+    # In the gap: the crop's whole lower band is dark out-of-bounds (connected
+    # to the edges). No yellow line at all — the line detector is no help here.
+    in_gap = _grey_frame()
+    in_gap[cfg.crop.y + cfg.crop.h // 2 :, :] = (40, 42, 50)
+    on_target = _x_frame(int(target_x), target_y)
+    device = FakeDevice(frames=[in_gap] * 6 + [on_target] * 3)
+
+    meta = _position_origin(device, cfg, build_scan_grid(cfg)[0])
+
+    assert meta["servo_steps"] == 1
+    # Climbing back: camera up → the finger is dragged DOWN (y2 > y1).
+    for _x1, y1, _x2, y2, _ms in device.swipes:
+        assert y2 > y1
+    assert meta["border_apex_px"] is not None
+
+
 def test_position_origin_aborts_when_the_crossing_never_appears(monkeypatch) -> None:
     """No dashed-line X in view after max_steps → the scan must not start
     blind (a single side line or empty terrain cannot fake an origin lock)."""
