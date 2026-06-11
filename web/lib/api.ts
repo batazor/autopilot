@@ -306,6 +306,10 @@ export async function fetchResearch(): Promise<ResearchView> {
   return apiFetch<ResearchView>("/api/research");
 }
 
+export async function fetchAllianceTech(): Promise<ResearchView> {
+  return apiFetch<ResearchView>("/api/alliance-tech");
+}
+
 export async function toggleInstancePause(instanceId: string): Promise<{ cmd: string }> {
   return apiFetch<{ instance_id: string; cmd: string }>(
     `/api/instances/${encodeURIComponent(instanceId)}/pause-toggle`,
@@ -458,6 +462,18 @@ export async function fetchPlayers(instanceId?: string): Promise<string[]> {
     : "";
   const data = await apiFetch<{ players: string[] }>(`/api/players${qs}`);
   return data.players;
+}
+
+export type TreeProgress = {
+  player_id: string;
+  research: Record<string, number>;
+  buildings: Record<string, number>;
+};
+
+export async function fetchTreeProgress(playerId: string): Promise<TreeProgress> {
+  return apiFetch<TreeProgress>(
+    `/api/players/${encodeURIComponent(playerId)}/tree-progress`,
+  );
 }
 
 export async function fetchSuggestedPlayer(

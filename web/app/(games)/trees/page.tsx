@@ -14,6 +14,7 @@ import {
   type FlowTreeNode,
 } from "@/components/TechTreeFlow";
 import {
+  fetchAllianceTech,
   fetchBuildings,
   fetchPlayers,
   fetchResearch,
@@ -36,6 +37,7 @@ const BRANCH_ICON: Record<string, string> = {
   growth: "🌱",
   economy: "💰",
   battle: "⚔️",
+  territory: "🏰",
 };
 
 const BUILDING_ICON: Record<string, string> = {
@@ -474,11 +476,13 @@ function ResearchPanel({
   branchId,
   onBranch,
   progress,
+  exportPrefix = "research",
 }: {
   game: ResearchGameView;
   branchId: string | null;
   onBranch: (id: string) => void;
   progress?: TreeProgress;
+  exportPrefix?: string;
 }) {
   // The six t11_/t12_ source branches collapse into one "Fire Age" tab.
   const { branches, fireSources } = useMemo(() => {
@@ -645,7 +649,7 @@ function ResearchPanel({
         height={isFire ? 760 : 600}
         defaultDirection="TB"
         renderDetail={renderDetail}
-        exportName={`research-${game.id}-${branch.id}`}
+        exportName={`${exportPrefix}-${game.id}-${branch.id}`}
       />
     </>
   );
@@ -831,7 +835,11 @@ function BuildingsPanel({
   );
 }
 
-type DataType = "research" | "buildings";
+type DataType = "research" | "buildings" | "alliance";
+
+function parseDataType(raw: string | null): DataType {
+  return raw === "buildings" || raw === "alliance" ? raw : "research";
+}
 
 function TreesContent() {
   const params = useSearchParams();
@@ -843,6 +851,10 @@ function TreesContent() {
     queryKey: ["buildings"],
     queryFn: fetchBuildings,
   });
+  const allianceTech = useQuery<ResearchView>({
+    queryKey: ["alliance-tech"],
+    queryFn: fetchAllianceTech,
+  });
 
   const games = research.data?.games ?? [];
   const buildingsGameId = buildings.data?.game ?? "wos";
@@ -851,9 +863,7 @@ function TreesContent() {
   // shareable/bookmarkable. We mirror local state to it via the History API
   // (router.replace soft-navigates and would drop the useSearchParams updates).
   const [gameId, setGameId] = useState<string | null>(params.get("game"));
-  const [type, setType] = useState<DataType>(
-    params.get("tab") === "buildings" ? "buildings" : "research",
-  );
+  const [type, setType] = useState<DataType>(parseDataType(params.get("tab")));
   const [branchId, setBranchId] = useState<string | null>(params.get("branch"));
   const [playerId, setPlayerId] = useState<string>(params.get("player") ?? "");
 
@@ -868,6 +878,9 @@ function TreesContent() {
   });
 
   const game = games.find((g) => g.id === gameId) ?? games[0];
+  const allianceGame = (allianceTech.data?.games ?? []).find(
+    (g) => g.id === (game?.id ?? "wos"),
+  );
 
   const syncUrl = useCallback(
     (next: {
@@ -898,7 +911,7 @@ function TreesContent() {
     const t = params.get("tab");
     const b = params.get("branch");
     if (g) setGameId(g);
-    if (t === "research" || t === "buildings") setType(t);
+    if (t) setType(parseDataType(t));
     setBranchId(b);
   }, [params]);
 
@@ -919,8 +932,9 @@ function TreesContent() {
     syncUrl({ player: next || null });
   };
 
-  const isLoading = research.isLoading || buildings.isLoading;
-  const error = research.error ?? buildings.error;
+  const isLoading =
+    research.isLoading || buildings.isLoading || allianceTech.isLoading;
+  const error = research.error ?? buildings.error ?? allianceTech.error;
 
   return (
     <>
@@ -957,6 +971,7 @@ function TreesContent() {
             tabs={[
               { key: "research", label: "Research" },
               { key: "buildings", label: "Buildings" },
+              { key: "alliance", label: "Alliance tech" },
             ]}
             afterTabs={
               <AppListbox
@@ -983,6 +998,19 @@ function TreesContent() {
                 onBranch={onBranchChange}
                 progress={progress.data}
               />
+            ) : type === "alliance" ? (
+              allianceGame ? (
+                <ResearchPanel
+                  key={`alliance-${allianceGame.id}`}
+                  game={allianceGame}
+                  branchId={branchId}
+                  onBranch={onBranchChange}
+                  progress={progress.data}
+                  exportPrefix="alliance-tech"
+                />
+              ) : (
+                <p className="muted">No alliance tech data for {game.label} yet.</p>
+              )
             ) : buildings.data && game.id === buildingsGameId ? (
               <BuildingsPanel view={buildings.data} progress={progress.data} />
             ) : (

@@ -1,17 +1,20 @@
-"""Research tree payload for the Next.js /research-tree page.
+"""Research / alliance tech tree payloads for the Next.js /trees page.
 
-Single source of truth is ``games/<game>/db/research.yaml`` (loaded by
-``config.research``). The page renders straight from this — no data is
-duplicated in the frontend.
+Single source of truth is ``games/<game>/db/research.yaml`` and
+``games/<game>/db/alliance_tech.yaml`` (loaded by ``config.research``). The
+page renders straight from these — no data is duplicated in the frontend.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from config.research import get_research_registry
+from config.research import get_alliance_tech_registry, get_research_registry
+
+if TYPE_CHECKING:
+    from config.research import ResearchGame
 
 
-def get_research_payload() -> dict[str, Any]:
+def serialize_games(registry: tuple[ResearchGame, ...]) -> dict[str, Any]:
     games = [
         {
             "id": g.id,
@@ -27,10 +30,22 @@ def get_research_payload() -> dict[str, Any]:
                         {
                             "id": n.id,
                             "name": n.name,
+                            "line": n.line,
                             "tier": n.tier,
-                            "levels": n.levels,
                             "bonus": n.bonus,
                             "requires": list(n.requires),
+                            "levels": [
+                                {
+                                    "level": lv.level,
+                                    "effect": lv.effect,
+                                    "rc": lv.rc,
+                                    "time": lv.time,
+                                    "power": lv.power,
+                                    "cost": lv.cost,
+                                    "gate": lv.gate,
+                                }
+                                for lv in n.levels
+                            ],
                         }
                         for n in b.nodes
                     ],
@@ -38,6 +53,14 @@ def get_research_payload() -> dict[str, Any]:
                 for b in g.branches
             ],
         }
-        for g in get_research_registry()
+        for g in registry
     ]
     return {"games": games}
+
+
+def get_research_payload() -> dict[str, Any]:
+    return serialize_games(get_research_registry())
+
+
+def get_alliance_tech_payload() -> dict[str, Any]:
+    return serialize_games(get_alliance_tech_registry())
