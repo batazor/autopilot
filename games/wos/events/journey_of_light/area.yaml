@@ -20,6 +20,41 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "journey_of_light.dispatch_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.293508660026474,
+            "y": 90.28004668136191,
+            "width": 31.01123595505616,
+            "height": 5.043072576140814,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/quick_adventure_pack.png",
+      "regions": [
+        {
+          "name": "quick_adventure_pack.free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 60.51509371473429,
+            "y": 19.756084808939573,
+            "width": 21.1095505617977,
+            "height": 3.623747412688502,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

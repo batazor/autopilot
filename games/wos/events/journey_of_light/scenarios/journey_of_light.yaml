@@ -8,10 +8,18 @@ icon: journey_of_light
 steps:
   - while_match: journey_of_light.add
     isRedDot: true
-    max: 1
-    retry:
-      attempts: 1
-      interval: 100ms
     steps:
       - click: journey_of_light.add
       - wait: 1s
+      - click: quick_adventure_pack.free
+      - wait: 1s
+      - while_match: tapanywhereyoexit
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s
+      - click: icon.page.back
+
+  - while_match: journey_of_light.dispatch_all
+    max: 1
+    steps:
+      - click: journey_of_light.dispatch_all
