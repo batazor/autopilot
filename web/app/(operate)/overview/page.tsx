@@ -170,10 +170,6 @@ export default function OverviewPage() {
         </div>
       ) : null}
 
-      {m && m.paused > 0 ? (
-        <p className="meta">{m.paused} instance(s) paused.</p>
-      ) : null}
-
       {data?.has_devices && optimisticFleet.length ? (
         <FleetStatusGrid fleet={optimisticFleet} onOpen={openInstance} />
       ) : null}

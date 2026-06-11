@@ -59,6 +59,11 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Radar",
         description: "Kingdom map viewer & scan control",
       },
+      {
+        href: "/research-tree",
+        label: "Research tree",
+        description: "Kingshot Academy research reference",
+      },
     ],
   },
   {

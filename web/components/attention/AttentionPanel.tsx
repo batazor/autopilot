@@ -16,7 +16,7 @@ export function AttentionPanel() {
   if (items.length === 0) return null;
 
   return (
-    <section className="panel border-red-500/30">
+    <section className="panel my-6 border-red-500/30">
       <div className="fleet-section__head">
         <h2>Needs attention</h2>
         <span className="fleet-count">{items.length}</span>
