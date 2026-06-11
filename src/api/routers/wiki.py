@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import Response
 
 from api.services import wiki_api as wiki_svc
@@ -55,13 +55,22 @@ def get_entry_detail(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+# Icons are static reference assets; cache hard and serve 304s on revisit so
+# list pages (items has ~400 tiles) don't refetch every icon each load.
+_ICON_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
+
+
 @router.get("/{entity}/{entity_id}/icon")
 def get_entry_icon(
     entity: Literal["heroes", "items"],
     entity_id: str,
+    if_none_match: str | None = Header(default=None),
 ) -> Response:
     try:
-        data, mime = wiki_svc.read_icon(entity, entity_id)
+        path, mime, etag = wiki_svc.resolve_icon(entity, entity_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return Response(content=data, media_type=mime)
+    headers = {"ETag": etag, "Cache-Control": _ICON_CACHE_CONTROL}
+    if if_none_match == etag:
+        return Response(status_code=304, headers=headers)
+    return Response(content=path.read_bytes(), media_type=mime, headers=headers)

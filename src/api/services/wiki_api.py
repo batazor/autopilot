@@ -28,6 +28,7 @@ def list_scopes() -> list[dict[str, str]]:
 
 
 def _entry_summary(e: WikiEntry) -> dict[str, Any]:
+    gen = e.entry.get("generation")
     return {
         "id": e.id,
         "name": e.name,
@@ -35,6 +36,15 @@ def _entry_summary(e: WikiEntry) -> dict[str, Any]:
         "wiki_url": str(e.entry.get("wiki_url") or "").strip(),
         "has_icon": e.icon_path is not None and e.icon_path.is_file(),
         "yaml_path": str(e.yaml_path.relative_to(_REPO)) if e.yaml_path else "",
+        # Heroes carry a release generation (1..N) in their index row; other
+        # entities (items) leave it unset. Null = non-generation (Epic/Rare).
+        "generation": gen if isinstance(gen, int) else None,
+        # True when every obtain source is a real-money channel (VIP Packs,
+        # 1st Purchase, Daily Deals) — i.e. the hero can only be bought.
+        "paid_only": bool(e.entry.get("paid_only")),
+        # Troop class for heroes: "infantry" | "lancer" | "marksman" (None for
+        # non-hero entities).
+        "unit_class": e.entry.get("unit_class") or None,
     }
 
 
@@ -73,7 +83,13 @@ def get_entity_detail(entity: EntityKey, entity_id: str, *, scope: str = ALL_MOD
     raise KeyError(msg)
 
 
-def read_icon(entity: EntityKey, entity_id: str) -> tuple[bytes, str]:
+def resolve_icon(entity: EntityKey, entity_id: str) -> tuple[Path, str, str]:
+    """``(path, mime, etag)`` for an entry's icon (raises if missing).
+
+    The ETag is derived from the file's size + mtime so the router can answer
+    conditional requests with a 304 without re-reading the bytes — icons are
+    static reference assets, so this collapses repeat loads to cache hits.
+    """
     entry = find_entry(entity, entity_id, repo_root=_REPO, game=_request_game())
     if entry is None or entry.icon_path is None or not entry.icon_path.is_file():
         msg = "icon not found"
@@ -81,7 +97,9 @@ def read_icon(entity: EntityKey, entity_id: str) -> tuple[bytes, str]:
     path = entry.icon_path
     ext = path.suffix.lower()
     mime = "image/png" if ext == ".png" else ("image/webp" if ext == ".webp" else "image/jpeg")
-    return path.read_bytes(), mime
+    st = path.stat()
+    etag = f'"{st.st_size:x}-{int(st.st_mtime):x}"'
+    return path, mime, etag
 
 
 def _load_yaml_dict(path: Path) -> dict[str, Any]:
