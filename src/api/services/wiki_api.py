@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
 _REPO = repo_root()
-EntitySection = Literal["buildings", "heroes", "items", "gear", "faq"]
+EntitySection = Literal["heroes", "items", "gear", "faq"]
 
 
 def _request_game() -> str:
