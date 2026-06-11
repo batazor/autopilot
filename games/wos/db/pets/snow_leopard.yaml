@@ -1,0 +1,25 @@
+id: snow_leopard
+name: Snow Leopard
+wiki_url: https://www.whiteoutsurvival.wiki/pets/snow-leopard/
+rarity: ''
+unlock: Unlock after 140 days and Giant Elk LV.15
+max_refinement: 29.05%
+skill:
+  name: Lightning Raid
+  cooldown: '20:00:00'
+  effect: Increases March speed by 15.00% / 17.00% / 19.00% / 21.00% / 23.00% / 25.00% / 27.00% / 30.00%
+    and reduces enemy Troops Lethality by 1.50% / 2.00% / 2.50% / 3.00% / 3.50% / 4.00% / 4.50% / 5.00%
+    for 2 hours
+  values:
+  - 15.00%
+  - 17.00%
+  - 19.00%
+  - 21.00%
+  - 23.00%
+  - 25.00%
+  - 27.00%
+  - 30.00%
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 21.78%
+  max_defense: 21.78%

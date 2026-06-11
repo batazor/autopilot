@@ -36,7 +36,7 @@ def get_gear_detail(gear_id: str) -> dict[str, Any]:
 
 @router.get("/{entity}")
 def list_entries(
-    entity: Literal["heroes", "items"],
+    entity: Literal["heroes", "items", "pets"],
     scope: str = Query(default="all"),
     q: str = Query(default=""),
 ) -> dict[str, Any]:
@@ -45,7 +45,7 @@ def list_entries(
 
 @router.get("/{entity}/{entity_id}")
 def get_entry_detail(
-    entity: Literal["heroes", "items"],
+    entity: Literal["heroes", "items", "pets"],
     entity_id: str,
     scope: str = Query(default="all"),
 ) -> dict[str, Any]:
@@ -62,7 +62,7 @@ _ICON_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
 
 @router.get("/{entity}/{entity_id}/icon")
 def get_entry_icon(
-    entity: Literal["heroes", "items"],
+    entity: Literal["heroes", "items", "pets"],
     entity_id: str,
     if_none_match: str | None = Header(default=None),
 ) -> Response:

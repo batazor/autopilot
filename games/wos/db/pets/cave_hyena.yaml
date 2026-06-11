@@ -1,0 +1,21 @@
+id: cave_hyena
+name: Cave Hyena
+wiki_url: https://www.whiteoutsurvival.wiki/pets/cave-hyena/
+rarity: ''
+unlock: Unlock after 54 days and Furnace LV.18
+max_refinement: 6.70%
+skill:
+  name: Builder's Aide
+  cooldown: '23:00:00'
+  effect: Skilled Hyenas adeptly deliver tools to the architect, increasing Construction Speed by 5.00%
+    / 7.00% / 9.00% / 12.00% / 15.00% for 5 minutes
+  values:
+  - 5.00%
+  - 7.00%
+  - 9.00%
+  - 12.00%
+  - 15.00%
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 5.02%
+  max_defense: 5.02%

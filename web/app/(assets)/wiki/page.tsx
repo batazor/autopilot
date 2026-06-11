@@ -17,12 +17,13 @@ import type { WikiDetail, WikiEntrySummary } from "@/lib/wiki";
 
 // Buildings moved to the /trees graph (table + click-to-detail); the wiki keeps
 // the remaining reference entity types.
-type EntityTab = "heroes" | "items" | "gear";
+type EntityTab = "heroes" | "items" | "gear" | "pets";
 
 const TABS: { key: EntityTab; label: string }[] = [
   { key: "heroes", label: "Heroes" },
   { key: "gear", label: "Gear" },
   { key: "items", label: "Items" },
+  { key: "pets", label: "Pets" },
 ];
 
 // Troop classes. Each generation is a trio of one Infantry / Lancer / Marksman.
@@ -236,7 +237,13 @@ function WikiPageInner() {
         ? heroEntries.length
         : entries.length;
   const countNoun =
-    tab === "gear" ? "gear sets" : tab === "heroes" ? "heroes" : "entries";
+    tab === "gear"
+      ? "gear sets"
+      : tab === "heroes"
+        ? "heroes"
+        : tab === "pets"
+          ? "pets"
+          : "entries";
 
   return (
     <>
@@ -378,6 +385,15 @@ function WikiPageInner() {
               <div className="wiki-empty wiki-empty--list">
                 <span className="wiki-empty__icon">🔍</span>
                 <p>No entries match the current filters.</p>
+              </div>
+            ) : (
+              <div className="wiki-tiles">{entries.map(renderTile)}</div>
+            )
+          ) : tab === "pets" ? (
+            entries.length === 0 ? (
+              <div className="wiki-empty wiki-empty--list">
+                <span className="wiki-empty__icon">🐾</span>
+                <p>No pets match the current filters.</p>
               </div>
             ) : (
               <div className="wiki-tiles">{entries.map(renderTile)}</div>

@@ -1,0 +1,26 @@
+id: mammoth
+name: Mammoth
+wiki_url: https://www.whiteoutsurvival.wiki/pets/mammoth/
+rarity: SSR
+unlock: Unlock after 370 Day and Saber-tooth Tiger LV.30
+max_refinement: 49.16%
+skill:
+  name: Hardened Skin
+  cooldown: '20:00:00'
+  effect: The towering Mammoths act as shields, increasing Troops Defense by 2.50% / 3.00% / 3.50% / 4.00%
+    / 5.00% / 6.00% / 7.00% / 8.00% / 9.00% / 10.00% for 2 hours.
+  values:
+  - 2.50%
+  - 3.00%
+  - 3.50%
+  - 4.00%
+  - 5.00%
+  - 6.00%
+  - 7.00%
+  - 8.00%
+  - 9.00%
+  - 10.00%
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 31.46%
+  max_defense: 31.46%

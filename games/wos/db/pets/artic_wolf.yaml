@@ -1,0 +1,22 @@
+id: artic_wolf
+name: Arctic Wolf
+wiki_url: https://www.whiteoutsurvival.wiki/pets/artic-wolf/
+rarity: ''
+unlock: Unlock after 54 days and Furnace LV.18
+max_refinement: 13.41%
+skill:
+  name: Arctic Embrace
+  cooldown: '23:00:00'
+  effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly restoring 35 / 40
+    / 45 / 50 / 55 / 60 Chief Stamina.
+  values:
+  - '35'
+  - '40'
+  - '45'
+  - '50'
+  - '55'
+  - '60'
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 10.06%
+  max_defense: 10.06%

@@ -1,0 +1,23 @@
+id: titan_roc
+name: Titan Roc
+wiki_url: https://www.whiteoutsurvival.wiki/pets/titan-roc/
+rarity: ''
+unlock: Unlock after 90 days and Giant Tapir LV.15
+max_refinement: 20.11%
+skill:
+  name: Razorbeak
+  cooldown: '20:00:00'
+  effect: The formidable Titan Roc's beak is indestructible, reducing enemy Health by 1.50% / 2.00% /
+    2.50% / 3.00% / 3.50% / 4.00% / 5.00% for 2h.
+  values:
+  - 1.50%
+  - 2.00%
+  - 2.50%
+  - 3.00%
+  - 3.50%
+  - 4.00%
+  - 5.00%
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 15.08%
+  max_defense: 15.08%

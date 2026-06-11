@@ -13,9 +13,17 @@ function WikiLink({ url }: { url: string }) {
   );
 }
 
-function KeyValueTable({ data }: { data: Record<string, unknown> }) {
+const DEFAULT_OMIT = ["levels", "stats", "skills"];
+
+function KeyValueTable({
+  data,
+  omit = DEFAULT_OMIT,
+}: {
+  data: Record<string, unknown>;
+  omit?: string[];
+}) {
   const rows = Object.entries(data).filter(
-    ([k]) => !k.startsWith("_") && k !== "levels" && k !== "stats" && k !== "skills",
+    ([k]) => !k.startsWith("_") && !omit.includes(k),
   );
   if (!rows.length) return null;
   return (
@@ -136,6 +144,89 @@ function HeroLevels({ body }: { body: Record<string, unknown> }) {
   );
 }
 
+// Keys PetDetail renders itself, so the generic KeyValueTable skips them.
+const PET_OMIT = ["skill", "troop_bonus", "rarity", "unlock", "max_refinement"];
+
+function PetDetail({ body }: { body: Record<string, unknown> }) {
+  const skill = body.skill as Record<string, unknown> | undefined;
+  const bonus = body.troop_bonus as Record<string, unknown> | undefined;
+  const facts: [string, unknown][] = [
+    ["Rarity", body.rarity],
+    ["Unlock", body.unlock],
+    ["Max refinement", body.max_refinement],
+  ].filter(([, v]) => v != null && v !== "") as [string, unknown][];
+  const skillValues = Array.isArray(skill?.values) ? (skill!.values as unknown[]) : [];
+  return (
+    <>
+      {facts.length ? (
+        <table className="data-table">
+          <tbody>
+            {facts.map(([k, v]) => (
+              <tr key={k}>
+                <td>{k}</td>
+                <td style={{ wordBreak: "break-word" }}>{String(v)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+
+      {skill ? (
+        <>
+          <h3>
+            Skill{skill.name ? <> — {String(skill.name)}</> : null}
+          </h3>
+          {skill.effect ? <p className="meta">{String(skill.effect)}</p> : null}
+          <table className="data-table">
+            <tbody>
+              {skill.cooldown ? (
+                <tr>
+                  <td>Cooldown</td>
+                  <td>{String(skill.cooldown)}</td>
+                </tr>
+              ) : null}
+              {skillValues.length ? (
+                <tr>
+                  <td>Skill levels</td>
+                  <td>{skillValues.map((v) => String(v)).join(" / ")}</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </>
+      ) : null}
+
+      {bonus && (bonus.stat || bonus.max_attack || bonus.max_defense) ? (
+        <>
+          <h3>Troop bonus</h3>
+          <table className="data-table">
+            <tbody>
+              {bonus.stat ? (
+                <tr>
+                  <td>Boosts</td>
+                  <td>{String(bonus.stat)}</td>
+                </tr>
+              ) : null}
+              {bonus.max_attack ? (
+                <tr>
+                  <td>Attack (max)</td>
+                  <td>{String(bonus.max_attack)}</td>
+                </tr>
+              ) : null}
+              {bonus.max_defense ? (
+                <tr>
+                  <td>Defense (max)</td>
+                  <td>{String(bonus.max_defense)}</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 export function WikiDetailPanel({ detail }: { detail: WikiDetail | null }) {
   if (!detail) {
     return <p className="meta">Select an entry from the list or tiles.</p>;
@@ -153,8 +244,9 @@ export function WikiDetailPanel({ detail }: { detail: WikiDetail | null }) {
       <WikiLink url={summary.wiki_url} />
       {entity === "buildings" ? <BuildingRequirements body={body} /> : null}
       {entity === "heroes" ? <HeroLevels body={body} /> : null}
+      {entity === "pets" ? <PetDetail body={body} /> : null}
       <h3>Fields</h3>
-      <KeyValueTable data={body} />
+      <KeyValueTable data={body} omit={entity === "pets" ? PET_OMIT : DEFAULT_OMIT} />
       <details style={{ marginTop: "1rem" }}>
         <summary className="meta">Raw YAML (JSON)</summary>
         <pre

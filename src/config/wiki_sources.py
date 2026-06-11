@@ -28,13 +28,15 @@ if TYPE_CHECKING:
 
 CORE_SOURCE = "core"
 # Buildings reference moved to the /trees graph (config.buildings + /api/buildings);
-# the wiki stack only serves heroes and items now.
-EntityKey = Literal["heroes", "items"]
+# the wiki stack serves heroes, items and pets. Pets ship as a per-game core
+# catalog under games/<game>/db/pets/ (same index + per-entity YAML layout).
+EntityKey = Literal["heroes", "items", "pets"]
 
 # index.yaml has ``{<entity_key>: [...]}`` with the same plural key as the entity.
 _INDEX_LIST_KEY: dict[str, str] = {
     "heroes": "heroes",
     "items": "items",
+    "pets": "pets",
 }
 
 _ICON_EXTS = (".png", ".webp", ".jpg", ".jpeg", ".gif")

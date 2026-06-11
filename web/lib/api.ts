@@ -1412,7 +1412,7 @@ export async function fetchWikiScopes(game?: string): Promise<WikiScope[]> {
 }
 
 export async function fetchWikiEntries(
-  entity: "buildings" | "heroes" | "items",
+  entity: "buildings" | "heroes" | "items" | "pets",
   scope = "all",
   q = "",
 ): Promise<{ entries: WikiEntrySummary[]; count: number }> {
@@ -1426,7 +1426,7 @@ export function wikiIconUrl(entity: string, id: string): string {
 }
 
 export async function fetchWikiDetail(
-  entity: "buildings" | "heroes" | "items",
+  entity: "buildings" | "heroes" | "items" | "pets",
   id: string,
   scope = "all",
 ): Promise<WikiDetail> {

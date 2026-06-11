@@ -1,0 +1,23 @@
+id: giant_tapir
+name: Giant Tapir
+wiki_url: https://www.whiteoutsurvival.wiki/pets/giant-tapir/
+rarity: ''
+unlock: Unlock after 90 days and Musk Ox LV.15
+max_refinement: 20.11%
+skill:
+  name: Natural Intuition
+  cooldown: '23:00:00'
+  effect: The Giant Tapir's keen senses allow it to instantly locate 200 / 250 / 300 / 350 / 400 / 450
+    / 500 Pet Food
+  values:
+  - '200'
+  - '250'
+  - '300'
+  - '350'
+  - '400'
+  - '450'
+  - '500'
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 15.08%
+  max_defense: 15.08%
