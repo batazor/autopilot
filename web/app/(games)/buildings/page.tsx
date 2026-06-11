@@ -10,6 +10,38 @@ import type { BuildingDef, BuildingsView } from "@/lib/types";
 const SOURCE_URL = "https://www.whiteoutsurvival.wiki/buildings/";
 const SOURCE_LABEL = "whiteoutsurvival.wiki/buildings";
 
+const BUILDING_ICON: Record<string, string> = {
+  furnace: "🔥",
+  embassy: "🏛️",
+  storehouse: "📦",
+  clinic: "🏥",
+  infirmary: "🏥",
+  shelter: "🏠",
+  cookhouse: "🍲",
+  hero_hall: "🦸",
+  infantry_camp: "🛡️",
+  marksman_camp: "🏹",
+  lancer_camp: "🐎",
+  research_center: "🔬",
+  command_center: "🎖️",
+  iron_mine: "⛏️",
+  sawmill: "🪵",
+  coal_mine: "🪨",
+  hunters_hut: "🥩",
+  enlistment_office: "📜",
+  barricade: "🧱",
+  dawn_academy: "📚",
+  beast_cage: "🐾",
+  lighthouse: "🗼",
+  arena: "🏟️",
+  chiefs_house: "👑",
+  war_academy: "⚔️",
+};
+
+function buildingIcon(id: string): string {
+  return BUILDING_ICON[id] ?? BUILDING_ICON[id.replace(/^fire_crystal_/, "")] ?? "🏗️";
+}
+
 function toFlowNodes(view: BuildingsView): FlowTreeNode[] {
   const hubId = view.hub_id;
 
@@ -35,6 +67,7 @@ function toFlowNodes(view: BuildingsView): FlowTreeNode[] {
         id: b.id,
         tier,
         title: b.name,
+        icon: buildingIcon(b.id),
         subtitle:
           b.id === hubId ? "Gates & caps every building" : undefined,
         footer: b.max_level ? `max Lv ${b.max_level}` : undefined,
