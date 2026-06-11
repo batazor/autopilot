@@ -1,6 +1,9 @@
 id: infirmary
 name: Infirmary
 category: unknown
+requires:
+- building: furnace
+  level: 8
 requirements_by_level:
   '1':
     prerequisites: Furnace Lv. 8

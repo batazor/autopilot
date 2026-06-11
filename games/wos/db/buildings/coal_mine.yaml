@@ -1,6 +1,9 @@
 id: coal_mine
 name: Coal Mine
 category: unknown
+requires:
+- building: furnace
+  level: 3
 requirements_by_level:
   '1':
     prerequisites: Furnace Lv. 3

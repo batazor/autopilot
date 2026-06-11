@@ -1,6 +1,9 @@
 id: storehouse
 name: Storehouse
 category: unknown
+requires:
+- building: furnace
+  level: 9
 requirements_by_level:
   '1':
     prerequisites: Furnace Lv. 9

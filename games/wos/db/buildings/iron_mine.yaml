@@ -1,6 +1,9 @@
 id: iron_mine
 name: Iron Mine
 category: unknown
+requires:
+- building: furnace
+  level: 5
 requirements_by_level:
   '1':
     prerequisites: Furnace Lv. 5
