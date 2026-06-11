@@ -65,7 +65,8 @@ border:
   target_frac: 0.66       # the line crossing is steered to (crop center x, this fraction of crop h)
   tolerance_px: 80
   max_steps: 12
-  approach_step_screens: 0.5
+  approach_step_screens: 0.3   # gentle blind descend — a big leap can jump past the vertex into the next state
+  max_blind_screens: 1.5       # stop after this much blind descend if the border never appears (crossed the vertex)
   stop_at_top: true
   require_cross: true      # don't start capturing until the dashed-line X (kingdom corner) is in view
   block_crossing: true     # never swipe across the yellow line mid-scan

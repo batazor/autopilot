@@ -1,6 +1,7 @@
 """Scan navigation: swipe math + route building (swipe default, tap optional)."""
 
 import json
+import math
 from itertools import pairwise
 
 import cv2
@@ -380,7 +381,8 @@ def test_position_origin_servo_gives_up_when_cross_not_required(monkeypatch) -> 
     cfg = _cfg(
         grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
         label_guard=LabelGuardConfig(enabled=False),
-        border=BorderConfig(require_cross=False),
+        # Loose blind cap so max_steps is the binding limit here.
+        border=BorderConfig(require_cross=False, max_blind_screens=4.0),
     )
     device = FakeDevice()  # plain grey screens: no border anywhere
 
@@ -388,6 +390,36 @@ def test_position_origin_servo_gives_up_when_cross_not_required(monkeypatch) -> 
 
     assert meta["border_apex_px"] is None
     assert meta["servo_steps"] == cfg.border.max_steps  # kept descending, then gave up
+
+
+def test_position_origin_stops_blind_descend_before_crossing_the_vertex(monkeypatch) -> None:
+    """A blind descend that never reveals the border has crossed the kingdom
+    vertex into the next state. It must stop at the blind cap — NOT keep
+    marching deeper — well before max_steps would be reached."""
+    import modules.radar.scanner as scanner_mod
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg(
+        grid_limit=GridLimitConfig(anchor="bottom", max_frames=15),
+        label_guard=LabelGuardConfig(enabled=False),
+        border=BorderConfig(
+            require_cross=False, max_steps=50,
+            approach_step_screens=0.3, max_blind_screens=1.5,
+        ),
+    )
+    device = FakeDevice()  # grey: border never appears → pure blind descend
+
+    meta = _position_origin(device, cfg, build_scan_grid(cfg)[0])
+
+    viewport_h = cfg.stitch_viewport.h
+    expected_steps = math.ceil(
+        cfg.border.max_blind_screens / cfg.border.approach_step_screens,
+    )
+    assert meta["servo_steps"] == expected_steps  # blind cap, not max_steps=50
+    # Total blind travel never exceeds the cap by more than one step.
+    # FakeDevice records swipes as (x1, y1, x2, y2, duration_ms) tuples.
+    descended = sum(abs(y1 - y2) for _x1, y1, _x2, y2, _ms in device.swipes)
+    assert descended <= (cfg.border.max_blind_screens + cfg.border.approach_step_screens) * viewport_h
 
 
 def test_position_origin_corrects_a_redirected_teleport(monkeypatch) -> None:

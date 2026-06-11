@@ -177,7 +177,14 @@ class BorderConfig(BaseModel):
     # a single side line sweeping the frame must not fake an origin lock.
     require_cross: bool = True
     # Blind descend step (screen-heights) while the border is not visible yet.
-    approach_step_screens: float = Field(default=0.5, gt=0.0, le=2.0)
+    # Kept gentle: a big leap can jump past the kingdom's bottom vertex (the
+    # corner) straight into the neighbouring state before any border shows.
+    approach_step_screens: float = Field(default=0.3, gt=0.0, le=2.0)
+    # Hard cap on the TOTAL blind descend (screen-heights) before the border
+    # is ever seen. The start cell sits just above the corner, so the border
+    # should appear within ~1 screen; descending much further means the camera
+    # has crossed the vertex into the next state — stop instead of marching on.
+    max_blind_screens: float = Field(default=1.5, gt=0.0, le=4.0)
     # End an unbounded bottom-up scan when the top corner enters the view.
     stop_at_top: bool = True
     # Don't carry the camera across the border with inter-cell swipes: before

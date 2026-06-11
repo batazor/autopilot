@@ -638,25 +638,34 @@ def _servo_to_border(
       corner, instead of descending deeper into the neighbouring state);
     - a line in view at the right height but no crossing → the corner is off
       to the side: slide downhill ALONG the line toward it (both bottom edges
-      descend into the corner), one ``approach_step_screens`` per step;
-    - no border yellow at all → blind ``approach_step_screens`` descend.
+      descend into the corner), a bounded step per measurement so it cannot
+      overshoot the corner sideways into the next state;
+    - no border yellow at all → blind ``approach_step_screens`` descend, but
+      the TOTAL blind travel is capped at ``max_blind_screens``: a descend
+      that never reveals the border has crossed the vertex, and marching on
+      would only bury the camera deeper in the neighbouring state.
 
     Dragging the finger by ``e`` px moves the content (and the crossing) by
     ``e``, so each correction is simply the remaining error. Exits with a
     *freshly measured* crossing — the last loop action is always a
     measurement, never a swipe, so the reading matches the upcoming frame.
     With ``require_cross`` the scan never starts blind: no crossing after
-    ``max_steps`` aborts (saving the last frame as evidence) instead of
-    capturing garbage.
+    ``max_steps`` (or the blind cap) aborts (saving the last frame as
+    evidence) instead of capturing garbage.
     """
     b = cfg.border
     c = cfg.crop
     viewport_h = cfg.stitch_viewport.h if cfg.stitch_viewport is not None else c.h
     step_px = b.approach_step_screens * viewport_h
+    # Cap one slide so it cannot blow past the corner sideways; re-measurement
+    # then catches the crossing within a step or two.
+    slide_cap_px = min(step_px, float(b.cross_margin_px))
+    max_blind_px = b.max_blind_screens * viewport_h
     crop = c.model_dump()
     target = (c.x + c.w / 2.0, c.y + c.h * b.target_frac)
     cross: tuple[float, float] | None = None
     steps = 0
+    blind_px = 0.0
     last_move_px: float | None = None
     while True:
         if last_move_px is not None and last_move_px <= SERVO_FAST_MEASURE_MAX_PX:
@@ -691,22 +700,33 @@ def _servo_to_border(
                 if seg is None:
                     err = (0.0, target[1] - band_y)
                 else:
-                    slide = _slide_toward_corner(seg, step_px)
+                    slide = _slide_toward_corner(seg, slide_cap_px)
                     logger.info(
                         "radar: line in view but no crossing — sliding %.0f px along it toward the corner",
-                        step_px,
+                        slide_cap_px,
                     )
                     err = (slide[0], slide[1] + (target[1] - band_y))
-        if steps >= b.max_steps:
+        # Blind descend that never found the border has crossed the vertex into
+        # the next state — stop before marching deeper, same as running out of
+        # steps. (err is None only when no border yellow is visible at all.)
+        blind_exhausted = err is None and blind_px >= max_blind_px
+        if steps >= b.max_steps or blind_exhausted:
             if debug_dir is not None:
                 evidence = debug_dir / "servo_giveup.png"
                 cv2.imwrite(str(evidence), frame)
                 logger.warning("radar: servo give-up frame saved to %s", evidence)
             if cross is None and b.require_cross:
+                reason = (
+                    f"descended {blind_px / viewport_h:.1f} screen(s) without the "
+                    "border ever appearing — the start cell is likely outside the "
+                    "kingdom or the camera crossed the vertex"
+                    if blind_exhausted
+                    else f"never entered the view after {steps} servo step(s)"
+                )
                 msg = (
-                    f"kingdom corner (dashed border-line crossing) never entered the "
-                    f"view after {steps} servo step(s) — not starting a blind scan; "
-                    "check zoom/calibration or raise border.max_steps"
+                    f"kingdom corner (dashed border-line crossing) {reason} — not "
+                    "starting a blind scan; check zoom/calibration or raise "
+                    "border.max_steps/max_blind_screens"
                 )
                 raise ScanAborted(msg)
             logger.warning(
@@ -717,8 +737,10 @@ def _servo_to_border(
             break
         steps += 1
         if err is None:
-            # No border yellow anywhere — keep descending toward the bottom corner.
+            # No border yellow anywhere — keep descending toward the bottom
+            # corner, counting the blind travel against the cap above.
             _swipe_fingers(device, cfg, 0.0, -step_px)
+            blind_px += step_px
             last_move_px = step_px
         else:
             _swipe_fingers(device, cfg, err[0], err[1])
