@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import Dagre from "@dagrejs/dagre";
 import {
   Background,
@@ -47,20 +47,27 @@ function reqId(r: FlowRequire): string {
   return typeof r === "string" ? r : r.id;
 }
 
-type TechNodeData = { node: FlowTreeNode; dir: Dir };
+type TechNodeData = {
+  node: FlowTreeNode;
+  dir: Dir;
+  dim: boolean;
+  selected: boolean;
+};
 
 /** Custom React Flow node — icon chip + text, handles oriented by direction. */
 const TechNode = memo(function TechNode({ data }: NodeProps) {
-  const { node: n, dir } = data as TechNodeData;
+  const { node: n, dir, dim, selected } = data as TechNodeData;
   const targetPos = dir === "TB" ? Position.Top : Position.Left;
   const sourcePos = dir === "TB" ? Position.Bottom : Position.Right;
   return (
     <div
-      className="flex items-center gap-2 rounded-lg border p-2 shadow-sm"
+      className="flex items-center gap-2 rounded-lg border p-2 shadow-sm transition-opacity"
       style={{
         width: n.width ?? NODE_W,
         background: "var(--wos-panel-raised)",
-        borderColor: "var(--wos-border)",
+        borderColor: selected ? "var(--wos-accent)" : "var(--wos-border)",
+        boxShadow: selected ? "0 0 0 2px var(--wos-accent)" : undefined,
+        opacity: dim ? 0.2 : 1,
       }}
     >
       <Handle type="target" position={targetPos} style={{ opacity: 0 }} />
@@ -142,40 +149,107 @@ function dagreLayout(rfNodes: Node[], edges: Edge[], dir: Dir): Node[] {
   });
 }
 
+/** Transitive prerequisites + dependents of `id` (and `id` itself). */
+function relatedSet(id: string, edges: Edge[]): Set<string> {
+  const prereqs = new Map<string, string[]>();
+  const dependents = new Map<string, string[]>();
+  for (const e of edges) {
+    (prereqs.get(e.target) ?? prereqs.set(e.target, []).get(e.target)!).push(e.source);
+    (dependents.get(e.source) ?? dependents.set(e.source, []).get(e.source)!).push(
+      e.target,
+    );
+  }
+  const out = new Set<string>([id]);
+  const walk = (start: string, adj: Map<string, string[]>) => {
+    const stack = [start];
+    while (stack.length) {
+      const cur = stack.pop()!;
+      for (const next of adj.get(cur) ?? []) {
+        if (!out.has(next)) {
+          out.add(next);
+          stack.push(next);
+        }
+      }
+    }
+  };
+  walk(id, prereqs);
+  walk(id, dependents);
+  return out;
+}
+
 export function TechTreeFlow({
   nodes,
   height = 600,
   defaultDirection = "LR",
+  renderDetail,
 }: {
   nodes: FlowTreeNode[];
   height?: number;
   defaultDirection?: Dir;
+  /** Detail content for the selected node id; shown in a side panel. */
+  renderDetail?: (id: string) => ReactNode;
 }) {
-  // Nodes carrying explicit positions (e.g. building swimlanes) opt out of
-  // dagre and the direction toggle.
   const fixed = nodes.some((n) => n.position);
   const [dir, setDir] = useState<Dir>(defaultDirection);
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const effectiveDir: Dir = fixed ? "LR" : dir;
 
-  const { rfNodes, rfEdges } = useMemo(() => {
+  // Layout (dagre) is recomputed only when the graph or direction changes —
+  // hover/selection just restyle, so they never re-run the layout.
+  const { layoutNodes, edges } = useMemo(() => {
     const base: Node[] = nodes.map((n) => ({
       id: n.id,
       type: "tech",
       position: n.position ?? { x: 0, y: 0 },
-      data: { node: n, dir: effectiveDir },
+      data: { node: n },
       style: { width: n.width ?? NODE_W },
     }));
-    const edges = buildEdges(nodes);
-    return {
-      rfNodes: fixed ? base : dagreLayout(base, edges, dir),
-      rfEdges: edges,
-    };
-  }, [nodes, dir, fixed, effectiveDir]);
+    const e = buildEdges(nodes);
+    return { layoutNodes: fixed ? base : dagreLayout(base, e, dir), edges: e };
+  }, [nodes, dir, fixed]);
+
+  const activeId = hoverId ?? selectedId;
+  const related = useMemo(
+    () => (activeId ? relatedSet(activeId, edges) : null),
+    [activeId, edges],
+  );
+
+  const rfNodes = useMemo(
+    () =>
+      layoutNodes.map((n) => ({
+        ...n,
+        data: {
+          node: (n.data as { node: FlowTreeNode }).node,
+          dir: effectiveDir,
+          dim: related ? !related.has(n.id) : false,
+          selected: n.id === selectedId,
+        },
+      })),
+    [layoutNodes, effectiveDir, related, selectedId],
+  );
+
+  const rfEdges = useMemo(
+    () =>
+      edges.map((e) => {
+        const on = related ? related.has(e.source) && related.has(e.target) : true;
+        return {
+          ...e,
+          animated: Boolean(related) && on,
+          style: related
+            ? {
+                opacity: on ? 1 : 0.1,
+                stroke: on ? "var(--wos-accent)" : undefined,
+              }
+            : undefined,
+        };
+      }),
+    [edges, related],
+  );
 
   return (
     <div className="panel" style={{ height, padding: 0, overflow: "hidden" }}>
       <ReactFlow
-        // Remount on direction change so fitView re-frames the new layout.
         key={fixed ? "fixed" : dir}
         nodes={rfNodes}
         edges={rfEdges}
@@ -185,6 +259,10 @@ export function TechTreeFlow({
         minZoom={0.2}
         nodesConnectable={false}
         edgesFocusable={false}
+        onNodeMouseEnter={(_, node) => setHoverId(node.id)}
+        onNodeMouseLeave={() => setHoverId(null)}
+        onNodeClick={(_, node) => setSelectedId(node.id)}
+        onPaneClick={() => setSelectedId(null)}
       >
         <Background />
         <Controls showInteractive={false} />
@@ -205,6 +283,28 @@ export function TechTreeFlow({
               >
                 Horizontal
               </button>
+            </div>
+          </Panel>
+        ) : null}
+        {renderDetail && selectedId ? (
+          <Panel position="top-left">
+            <div
+              className="max-w-xs rounded-lg border p-3 text-sm shadow-lg"
+              style={{
+                background: "var(--wos-panel-raised)",
+                borderColor: "var(--wos-border)",
+              }}
+            >
+              <div className="mb-2 flex justify-end">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setSelectedId(null)}
+                >
+                  Close
+                </button>
+              </div>
+              {renderDetail(selectedId)}
             </div>
           </Panel>
         ) : null}
