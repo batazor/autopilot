@@ -108,18 +108,36 @@ function buildingFlowNodes(view: BuildingsView): FlowTreeNode[] {
     for (const r of reqOf.get(key) ?? []) stack.push(r);
   }
 
+  // Previous included level of the same building, so each building forms a
+  // sequential chain (Furnace Lv2 → Lv3 → …) in addition to cross-building deps.
+  const byBuilding = new Map<string, number[]>();
+  for (const key of seen) {
+    const [bid, lvl] = key.split("@");
+    byBuilding.set(bid, [...(byBuilding.get(bid) ?? []), Number(lvl)]);
+  }
+  const prevLevel = new Map<string, number>();
+  for (const [bid, levels] of byBuilding) {
+    levels.sort((a, b) => a - b);
+    for (let i = 1; i < levels.length; i++) {
+      prevLevel.set(levelKey(bid, levels[i]), levels[i - 1]);
+    }
+  }
+
   return [...seen].map((key) => {
     const [bid, lvlStr] = key.split("@");
     const level = Number(lvlStr);
+    const crossReqs = (reqOf.get(key) ?? [])
+      .map((r) => levelKey(r.building, r.level))
+      .filter((k) => seen.has(k));
+    const prev = prevLevel.get(key);
+    const requires = prev !== undefined ? [levelKey(bid, prev), ...crossReqs] : crossReqs;
     return {
       id: key,
       tier: 0,
       title: nameOf.get(bid) ?? bid,
       badge: `Lv ${level}`,
       icon: buildingIcon(bid),
-      requires: (reqOf.get(key) ?? [])
-        .map((r) => levelKey(r.building, r.level))
-        .filter((k) => seen.has(k)),
+      requires,
     };
   });
 }
