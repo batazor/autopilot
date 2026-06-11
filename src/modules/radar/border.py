@@ -237,19 +237,32 @@ def border_outside_top_y(frame: np.ndarray, crop: dict | None) -> float | None:
 
 
 def border_band_y(frame: np.ndarray, crop: dict | None) -> float | None:
-    """Vertical position (median y, frame coords) of the visible border yellow.
+    """Vertical position (frame y) of the visible border LINE.
 
     Used while the crossing itself is not in view: the measured band position
     sizes the next approach step — and flips it upward when the camera has
     overshot past the corner (the line then sits high in the frame), instead
     of descending blindly deeper into the neighbouring state.
+
+    Only a Hough-fitted line counts: golden event/resource icons leave plenty
+    of scattered yellow-ish pixels, and a bare median over the raw mask once
+    steered the servo for 12 straight steps on pure icon noise. No structured
+    segment → no band reading; the caller falls through to the dark-mass or
+    blind branches, which have their own protections.
     """
     x0, y0, x1, y1 = _crop_bounds(crop, frame.shape)
     mask = yellow_boundary_mask(frame[y0:y1, x0:x1])
-    ys, _xs = np.nonzero(mask)
-    if len(ys) < BORDER_MIN_PIXELS:
+    if int(np.count_nonzero(mask)) < BORDER_MIN_PIXELS:
         return None
-    return y0 + float(np.median(ys))
+    segments = _longest_segments_by_slope_sign(mask)
+    best = max(
+        (seg for seg in segments.values() if seg is not None),
+        key=lambda s: (s[2] - s[0]) ** 2 + (s[3] - s[1]) ** 2,
+        default=None,
+    )
+    if best is None:
+        return None
+    return y0 + (best[1] + best[3]) / 2.0
 
 
 def border_cross_distance(

@@ -125,13 +125,26 @@ def test_border_outside_top_y_ignores_upper_half_and_clean_terrain() -> None:
 
 
 def test_border_band_y_tracks_the_visible_line() -> None:
+    # Proper border-slope (~0.5) dashed line from (60, 60) to (360, 210).
     img = _frame()
-    _dash_line(img, (10, 90), (390, 130))
+    _dash_line(img, (60, 60), (360, 210))
     band = border_band_y(img, None)
     assert band is not None
-    assert band == pytest.approx(110, abs=15)
+    assert band == pytest.approx(135, abs=20)
 
     assert border_band_y(_frame(), None) is None
+
+
+def test_border_band_y_rejects_scattered_icon_noise() -> None:
+    """Golden icons leave plenty of yellow-ish pixels with no line structure —
+    a bare median over them once steered the servo for 12 steps on garbage.
+    Without a Hough-fittable segment there must be NO band reading."""
+    img = _frame()
+    rng = np.random.default_rng(7)
+    for _ in range(60):  # ~icon-edge specks, way past BORDER_MIN_PIXELS total
+        x, y = int(rng.integers(10, 390)), int(rng.integers(10, 390))
+        cv2.line(img, (x, y), (x + 3, y), YELLOW_BGR, 2)
+    assert border_band_y(img, None) is None
 
 
 def test_border_cross_distance_measures_the_line_ahead() -> None:
