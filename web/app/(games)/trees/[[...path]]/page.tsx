@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { AppTabs } from "@/components/headless";
@@ -86,17 +86,37 @@ function branchTotalLevels(branch: ResearchBranchView): number {
   return branch.nodes.reduce((sum, n) => sum + n.levels, 0);
 }
 
+function researchLevelKey(nodeId: string, level: number): string {
+  return `${nodeId}@${level}`;
+}
+
+// One node per (research, level). Edges follow the game's unlock rules:
+//   • Level L of a research requires its own Level L-1 (sequential chain).
+//   • Level 1 requires the FINAL level of each prerequisite research — in WoS a
+//     research column only unlocks once the prior research is fully maxed.
 function researchFlowNodes(branch: ResearchBranchView): FlowTreeNode[] {
-  return branch.nodes.map((n) => ({
-    id: n.id,
-    tier: n.tier,
-    title: n.name,
-    subtitle: n.bonus,
-    footer: `0 / ${n.levels} levels`,
-    badge: ROMAN[n.tier] ?? String(n.tier),
-    icon: researchIcon(n, branch.id),
-    requires: n.requires,
-  }));
+  const maxLevel = new Map(branch.nodes.map((n) => [n.id, n.levels]));
+  return branch.nodes.flatMap((n) =>
+    Array.from({ length: n.levels }, (_, i) => {
+      const level = i + 1;
+      const requires =
+        level > 1
+          ? [researchLevelKey(n.id, level - 1)]
+          : n.requires
+              .filter((r) => maxLevel.has(r))
+              .map((r) => researchLevelKey(r, maxLevel.get(r)!));
+      return {
+        id: researchLevelKey(n.id, level),
+        tier: n.tier,
+        title: n.name,
+        subtitle: n.bonus,
+        footer: `Tier ${ROMAN[n.tier] ?? n.tier}`,
+        badge: `Lv ${level}`,
+        icon: researchIcon(n, branch.id),
+        requires,
+      } satisfies FlowTreeNode;
+    }),
+  );
 }
 
 // In-game resource icon ids (verified vs the wiki: 103=Wood, 104=Coal, 105=Iron).
@@ -220,22 +240,33 @@ function ResearchPanel({
   );
   if (!branch) return <p className="muted">No research data.</p>;
 
-  const renderDetail = (id: string) => {
-    const n = nodeById.get(id);
+  // Detail for a (research@level) node id.
+  const renderDetail = (key: string) => {
+    const [rid, lvlStr] = key.split("@");
+    const n = nodeById.get(rid);
     if (!n) return null;
-    const reqNames = n.requires
-      .map((r) => nodeById.get(r)?.name)
-      .filter(Boolean)
-      .join(", ");
+    const level = Number(lvlStr);
+    const reqText =
+      level > 1
+        ? `${n.name} Lv ${level - 1}`
+        : n.requires
+            .map((r) => {
+              const dep = nodeById.get(r);
+              return dep ? `${dep.name} Lv ${dep.levels}` : null;
+            })
+            .filter(Boolean)
+            .join(", ");
     return (
       <div>
-        <div className="font-semibold">{n.name}</div>
+        <div className="font-semibold">
+          {n.name} — Lv {level} / {n.levels}
+        </div>
         <div className="text-wos-text-muted">{n.bonus}</div>
         <div className="mt-2 text-xs text-wos-text-secondary">
-          Tier {ROMAN[n.tier] ?? n.tier} · {n.levels} levels
+          Tier {ROMAN[n.tier] ?? n.tier}
         </div>
         <div className="mt-1 text-xs text-wos-text-secondary">
-          Requires: {reqNames || "—"}
+          Requires: {reqText || "—"}
         </div>
       </div>
     );
@@ -367,7 +398,7 @@ function BuildingsPanel({ view }: { view: BuildingsView }) {
 type DataType = "research" | "buildings";
 
 function TreesContent() {
-  const params = useSearchParams();
+  const routeParams = useParams<{ path?: string[] }>();
   const research = useQuery<ResearchView>({
     queryKey: ["research"],
     queryFn: fetchResearch,
@@ -380,40 +411,44 @@ function TreesContent() {
   const games = research.data?.games ?? [];
   const buildingsGameId = buildings.data?.game ?? "wos";
 
-  // Navigation state lives in the URL (?game=&type=&branch=) so views are
-  // shareable/bookmarkable. We mirror local state to it via the History API
-  // (router.replace soft-navigates and would drop useSearchParams updates).
-  const [gameId, setGameId] = useState<string | null>(params.get("game"));
+  // Navigation state lives in the URL path (/trees/<game>/<type>/<branch?>) so
+  // views are shareable/bookmarkable. We mirror local state to it via the
+  // History API (router.replace soft-navigates and would drop the route params).
+  const seg = routeParams.path ?? [];
+  const [gameId, setGameId] = useState<string | null>(seg[0] ?? null);
   const [type, setType] = useState<DataType>(
-    params.get("type") === "buildings" ? "buildings" : "research",
+    seg[1] === "buildings" ? "buildings" : "research",
   );
-  const [branchId, setBranchId] = useState<string | null>(params.get("branch"));
+  const [branchId, setBranchId] = useState<string | null>(seg[2] ?? null);
 
   const game = games.find((g) => g.id === gameId) ?? games[0];
 
   const syncUrl = useCallback(
     (next: { game?: string; type?: DataType; branch?: string | null }) => {
-      const url = new URL(window.location.href);
-      if (next.game !== undefined) url.searchParams.set("game", next.game);
-      if (next.type !== undefined) url.searchParams.set("type", next.type);
-      if (next.branch !== undefined) {
-        if (next.branch) url.searchParams.set("branch", next.branch);
-        else url.searchParams.delete("branch");
-      }
-      window.history.replaceState(null, "", url.pathname + url.search);
+      const g = next.game ?? gameId ?? game?.id;
+      if (!g) return;
+      const t = next.type ?? type;
+      const b = next.branch !== undefined ? next.branch : branchId;
+      const parts = ["trees", g, t];
+      if (b) parts.push(b);
+      window.history.replaceState(null, "", "/" + parts.join("/"));
     },
-    [],
+    [gameId, type, branchId, game?.id],
   );
 
-  // Adopt the URL on external navigation (back/forward, a shared link).
+  // Once the games load, normalize a bare /trees URL to the canonical path.
   useEffect(() => {
-    const g = params.get("game");
-    const t = params.get("type");
-    const b = params.get("branch");
-    if (g) setGameId(g);
-    if (t === "research" || t === "buildings") setType(t);
-    setBranchId(b);
-  }, [params]);
+    if (game && seg.length < 2) syncUrl({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.id]);
+
+  // Adopt the URL on external navigation (a shared link, in-app <Link>).
+  useEffect(() => {
+    const s = routeParams.path ?? [];
+    if (s[0]) setGameId(s[0]);
+    if (s[1] === "research" || s[1] === "buildings") setType(s[1]);
+    setBranchId(s[2] ?? null);
+  }, [routeParams]);
 
   const onGameChange = (next: string) => {
     setGameId(next);
