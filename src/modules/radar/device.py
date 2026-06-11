@@ -45,17 +45,6 @@ class RadarDevice:
         # precomputed constant — taps must be deterministic and offline.
         self._controller._emit_tap(int(round(x)), int(round(y)))
 
-    def swipe(self, x1: float, y1: float, x2: float, y2: float, duration_ms: int) -> None:
-        # Same raw path as tap(): no approval UI, no endpoint jitter. Radar
-        # stitch quality depends on repeatable, calibrated relative motion.
-        self._controller._emit_swipe_straight(
-            int(round(x1)),
-            int(round(y1)),
-            int(round(x2)),
-            int(round(y2)),
-            duration_ms,
-        )
-
     def capture(self) -> np.ndarray:
         """Screenshot as a normalized 720×1280 BGR array."""
         img, err = adb_screencap_bgr(self._adb_bin, self._serial)

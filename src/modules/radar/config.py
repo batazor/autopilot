@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -19,6 +18,19 @@ CONFIG_VERSION = 1
 RUNS_DIR_ENV = "RADAR_RUNS_DIR"
 DEFAULT_CONFIG_NAME = "radar_config.yaml"
 MINIMAP_REFERENCE_NAME = "radar_minimap_ref.png"
+
+# Everything radar needs lives inside the module: config + calibration assets.
+_MODULE_DIR = Path(__file__).resolve().parent
+
+
+def default_config_path() -> Path:
+    """``src/modules/radar/radar_config.yaml`` — the single config location."""
+    return _MODULE_DIR / DEFAULT_CONFIG_NAME
+
+
+def minimap_reference_path(name: str = MINIMAP_REFERENCE_NAME) -> Path:
+    """Calibration reference image, resolved next to the config."""
+    return _MODULE_DIR / name
 
 
 def runs_root() -> Path:
@@ -59,7 +71,11 @@ class ViewportConfig(BaseModel):
 
 
 class CropConfig(BaseModel):
-    """Useful game area on the main screen (HUD/chat/nav excluded)."""
+    """Game area on the main screen (HUD/chat/nav excluded).
+
+    Used only as the stabilization region (where map content moves) — saved
+    frames are full screenshots, not cropped to this rect.
+    """
 
     x: int = Field(ge=0)
     y: int = Field(ge=0)
@@ -74,6 +90,13 @@ class StitchViewportConfig(BaseModel):
     h: int = Field(gt=0)
 
 
+class GridLimitConfig(BaseModel):
+    """Debug window: scan only ``cols×rows`` cells around the diamond center."""
+
+    cols: int = Field(gt=0)
+    rows: int = Field(gt=0)
+
+
 class TimingsConfig(BaseModel):
     """Waits and stabilization thresholds used by the scan loop."""
 
@@ -82,15 +105,6 @@ class TimingsConfig(BaseModel):
     stabilize_diff_threshold: float = Field(default=2.0, gt=0)
     stabilize_consecutive: int = Field(default=2, ge=1)
     stabilize_timeout_ms: int = Field(default=5000, ge=100)
-
-
-class NavigationConfig(BaseModel):
-    """How the scanner moves the map between frames."""
-
-    mode: Literal["swipe", "tap"] = "swipe"
-    swipe_duration_ms: int = Field(default=450, ge=100, le=2000)
-    swipe_margin_px: int = Field(default=48, ge=0)
-    swipe_scale: float = Field(default=1.0, gt=0.0, le=2.0)
 
 
 class RadarConfig(BaseModel):
@@ -108,14 +122,15 @@ class RadarConfig(BaseModel):
     edge_margin_px: float | None = Field(default=None, ge=0.0)
     crop: CropConfig
     stitch_viewport: StitchViewportConfig | None = None
+    # When set, scan only this many grid cells around the center (debug runs).
+    grid_limit: GridLimitConfig | None = None
     game_size: int = Field(default=1200, gt=1)
-    navigation: NavigationConfig = NavigationConfig()
     timings: TimingsConfig = TimingsConfig()
 
 
 def load_config(path: Path) -> RadarConfig:
     if not path.is_file():
-        msg = f"radar config not found: {path} — create radar_config.yaml first"
+        msg = f"radar config not found: {path} — create src/modules/radar/radar_config.yaml first"
         raise FileNotFoundError(msg)
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):

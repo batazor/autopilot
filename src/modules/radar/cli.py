@@ -11,7 +11,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from modules.radar.config import DEFAULT_CONFIG_NAME
+from modules.radar.config import default_config_path
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -23,7 +23,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     scan = sub.add_parser("scan", help="run the full grid scan")
-    scan.add_argument("--config", type=Path, default=Path(DEFAULT_CONFIG_NAME))
+    scan.add_argument("--config", type=Path, default=default_config_path())
     scan.add_argument("--out", type=Path, help="run directory (default runs/<YYYY-MM-DD>/)")
     scan.add_argument("--serial", help="override the configured ADB serial")
     scan.add_argument("--adb-bin", help="override the configured adb executable")

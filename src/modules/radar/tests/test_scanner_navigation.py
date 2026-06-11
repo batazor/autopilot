@@ -1,26 +1,18 @@
-"""Swipe navigation math for radar scans."""
+"""Tap-only navigation: the scan route is a deterministic minimap tap grid."""
 
 from modules.radar.config import (
     CornersConfig,
     CropConfig,
+    GridLimitConfig,
     MinimapConfig,
-    NavigationConfig,
     RadarConfig,
     StitchViewportConfig,
     ViewportConfig,
 )
-from modules.radar.scanner import _swipe_relative
+from modules.radar.scanner import build_scan_grid
 
 
-class FakeDevice:
-    def __init__(self) -> None:
-        self.swipes: list[tuple[float, float, float, float, int]] = []
-
-    def swipe(self, x1: float, y1: float, x2: float, y2: float, duration_ms: int) -> None:
-        self.swipes.append((x1, y1, x2, y2, duration_ms))
-
-
-def _cfg() -> RadarConfig:
+def _cfg(grid_limit: GridLimitConfig | None = None) -> RadarConfig:
     return RadarConfig(
         minimap=MinimapConfig(
             bbox=(0, 0, 200, 200),
@@ -34,21 +26,26 @@ def _cfg() -> RadarConfig:
         viewport=ViewportConfig(rect_w=24, rect_h=39),
         crop=CropConfig(x=0, y=156, w=620, h=940),
         stitch_viewport=StitchViewportConfig(w=720, h=1185),
-        navigation=NavigationConfig(
-            mode="swipe",
-            swipe_duration_ms=450,
-            swipe_margin_px=48,
-            swipe_scale=1.0,
-        ),
+        grid_limit=grid_limit,
     )
 
 
-def test_swipe_relative_inverts_camera_delta_and_stays_inside_crop() -> None:
-    device = FakeDevice()
+def test_build_scan_grid_is_deterministic_serpentine() -> None:
+    grid = build_scan_grid(_cfg())
 
-    emitted = _swipe_relative(device, _cfg(), minimap_dx=15.6, minimap_dy=25.35)
+    assert grid == build_scan_grid(_cfg())  # same config → identical tap targets
+    rows: dict[int, list[int]] = {}
+    for p in grid:
+        rows.setdefault(p.iy, []).append(p.ix)
+    for iy, ixs in rows.items():
+        assert ixs == sorted(ixs, reverse=iy % 2 == 1)  # serpentine raster
 
-    assert emitted == [
-        {"x1": 572, "y1": 1048, "x2": 104, "y2": 278, "ms": 450},
-    ]
-    assert device.swipes == [(572, 1048, 104, 278, 450)]
+
+def test_build_scan_grid_applies_debug_window() -> None:
+    full = build_scan_grid(_cfg())
+    limited = build_scan_grid(_cfg(grid_limit=GridLimitConfig(cols=2, rows=3)))
+
+    assert len(limited) == 6
+    assert len(limited) < len(full)
+    kept = {(p.ix, p.iy) for p in limited}
+    assert kept <= {(p.ix, p.iy) for p in full}

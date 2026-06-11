@@ -7,7 +7,7 @@ from modules.radar.geometry import (
     Corners,
     diamond_center,
     generate_grid,
-    order_grid_center_first,
+    limit_grid_centered,
     point_in_diamond,
 )
 
@@ -126,15 +126,29 @@ class TestGenerateGrid:
             generate_grid(DIAMOND, 10, 10, edge_margin_px=-1)
 
 
-class TestSwipeRoute:
-    def test_order_grid_center_first_starts_at_center_and_keeps_all_points(self):
+class TestGridLimit:
+    def test_keeps_centered_window(self):
         grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
-        route = order_grid_center_first(grid, DIAMOND)
+        limited = limit_grid_centered(grid, DIAMOND, cols=2, rows=3)
 
-        assert route[0].x == pytest.approx(100.0)
-        assert route[0].y == pytest.approx(100.0)
-        assert {(p.ix, p.iy) for p in route} == {(p.ix, p.iy) for p in grid}
-        assert len(route) == len(grid)
+        assert len(limited) == 6
+        ixs = sorted({p.ix for p in limited})
+        iys = sorted({p.iy for p in limited})
+        assert len(ixs) == 2
+        assert len(iys) == 3
+        # The window contains the cell closest to the diamond center.
+        cx, cy = diamond_center(DIAMOND)
+        anchor = min(grid, key=lambda p: (p.x - cx) ** 2 + (p.y - cy) ** 2)
+        assert anchor.ix in ixs
+        assert anchor.iy in iys
+        # Contiguous index ranges — one rectangular block, no holes.
+        assert ixs == list(range(ixs[0], ixs[0] + 2))
+        assert iys == list(range(iys[0], iys[0] + 3))
+
+    def test_window_larger_than_grid_keeps_everything(self):
+        grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
+        limited = limit_grid_centered(grid, DIAMOND, cols=99, rows=99)
+        assert limited == grid
 
 
 class TestAffine:

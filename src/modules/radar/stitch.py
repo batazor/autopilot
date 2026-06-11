@@ -24,6 +24,7 @@ MATCH_SEARCH_PX = 140
 MATCH_MAX_TEMPLATE_PX = 420
 MATCH_MIN_TEMPLATE_PX = 72
 MATCH_MIN_SCORE = 0.08
+WIDE_MATCH_MIN_SCORE = 0.2
 NOMINAL_REGULARIZATION_WEIGHT = 0.04
 YELLOW_BOUNDARY_MIN_PIXELS = 80
 OUTSIDE_DARK_MIN_AREA = 1200
@@ -191,17 +192,87 @@ def _estimate_pair_offset(
     return float(actual_dx), float(actual_dy), float(score)
 
 
-def _find_match_edges(
+def _prepare_all(
     images: list[np.ndarray | None],
     masks: list[np.ndarray | None],
-    nominal_positions: list[tuple[float, float]],
-) -> list[MatchEdge]:
-    prepared = [
+) -> list[np.ndarray | None]:
+    return [
         _match_image(_prepare_for_matching(img, mask))
         if img is not None and mask is not None
         else None
         for img, mask in zip(images, masks, strict=True)
     ]
+
+
+def _wide_pair_offset(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float] | None:
+    """Offset of frame ``b``'s origin in ``a``'s coords, searched frame-wide.
+
+    Unlike :func:`_estimate_pair_offset` this needs no position prior: a
+    central template of ``b`` is matched across the whole of ``a``. Used to
+    measure the true screen-space grid basis — the isometric world view moves
+    diagonally for a vertical minimap step, so axis-aligned guesses are far
+    off and the prior-window matcher would never see the real overlap.
+    """
+    h, w = b.shape[:2]
+    tw = min(MATCH_MAX_TEMPLATE_PX, w // 2)
+    th = min(MATCH_MAX_TEMPLATE_PX, h // 2)
+    if tw < MATCH_MIN_TEMPLATE_PX or th < MATCH_MIN_TEMPLATE_PX:
+        return None
+    tx = (w - tw) // 2
+    ty = (h - th) // 2
+    template = b[ty : ty + th, tx : tx + tw]
+    if float(template.std()) < 0.01:
+        return None
+    result = cv2.matchTemplate(a, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, loc = cv2.minMaxLoc(result)
+    if score < WIDE_MATCH_MIN_SCORE:
+        return None
+    return float(loc[0] - tx), float(loc[1] - ty), float(score)
+
+
+def _grid_basis(
+    entries: list[dict],
+    prepared: list[np.ndarray | None],
+    fallback_right: tuple[float, float],
+    fallback_down: tuple[float, float],
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Screen-space vectors for one grid step right / down, measured from frames."""
+    by_idx = {(int(e["ix"]), int(e["iy"])): i for i, e in enumerate(entries)}
+    right_offsets: list[tuple[float, float, float]] = []
+    down_offsets: list[tuple[float, float, float]] = []
+    for (ix, iy), i in by_idx.items():
+        if prepared[i] is None:
+            continue
+        for (dix, diy), bucket in (((1, 0), right_offsets), ((0, 1), down_offsets)):
+            j = by_idx.get((ix + dix, iy + diy))
+            if j is None or prepared[j] is None:
+                continue
+            estimate = _wide_pair_offset(prepared[i], prepared[j])
+            if estimate is not None:
+                bucket.append(estimate)
+
+    def median_offset(
+        bucket: list[tuple[float, float, float]], fallback: tuple[float, float],
+    ) -> tuple[float, float]:
+        if not bucket:
+            return fallback
+        xs = sorted(e[0] for e in bucket)
+        ys = sorted(e[1] for e in bucket)
+        return xs[len(xs) // 2], ys[len(ys) // 2]
+
+    right = median_offset(right_offsets, fallback_right)
+    down = median_offset(down_offsets, fallback_down)
+    logger.info(
+        "grid basis: right=(%.1f, %.1f) from %d pair(s), down=(%.1f, %.1f) from %d pair(s)",
+        right[0], right[1], len(right_offsets), down[0], down[1], len(down_offsets),
+    )
+    return right, down
+
+
+def _find_match_edges(
+    prepared: list[np.ndarray | None],
+    nominal_positions: list[tuple[float, float]],
+) -> list[MatchEdge]:
     edges: list[MatchEdge] = []
     for i, img_a in enumerate(prepared):
         if img_a is None:
@@ -298,8 +369,6 @@ def run_stitch(run_dir: Path) -> Path:
         raise FileNotFoundError(msg)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     cfg = manifest["config"]
-    crop_w = int(cfg["crop"]["w"])
-    crop_h = int(cfg["crop"]["h"])
     overlap = float(cfg["overlap"])
     capture_w, capture_h = _capture_size(manifest, cfg)
     step_x = capture_w * (1.0 - overlap)
@@ -310,43 +379,64 @@ def run_stitch(run_dir: Path) -> Path:
         msg = f"{manifest_path} contains no frames"
         raise ValueError(msg)
 
-    nominal_positions: list[tuple[float, float]] = []
     images: list[np.ndarray | None] = []
     masks: list[np.ndarray | None] = []
     missing = 0
     for entry in entries:
-        nominal = (entry["ix"] * step_x, entry["iy"] * step_y)
         img = cv2.imread(str(run_dir / entry["file"]))
         if img is None:
             missing += 1
             images.append(None)
             masks.append(None)
-            nominal_positions.append(nominal)
             continue
         images.append(img)
         masks.append(_valid_content_mask(img))
-        nominal_positions.append(nominal)
     if missing:
         logger.warning("%d frame file(s) listed in the manifest are missing on disk", missing)
+    if all(img is None for img in images):
+        msg = f"none of the {len(entries)} manifest frames could be read from {run_dir}"
+        raise ValueError(msg)
+
+    # The world view is isometric: one minimap grid step maps to a *diagonal*
+    # screen shift. Measure the actual right/down screen vectors from adjacent
+    # frame pairs instead of assuming axis-aligned steps; the axis-aligned
+    # geometry only remains as the fallback when nothing matches.
+    prepared = _prepare_all(images, masks)
+    right, down = _grid_basis(
+        entries, prepared, fallback_right=(step_x, 0.0), fallback_down=(0.0, step_y),
+    )
+    nominal_positions = [
+        (
+            entry["ix"] * right[0] + entry["iy"] * down[0],
+            entry["ix"] * right[1] + entry["iy"] * down[1],
+        )
+        for entry in entries
+    ]
     positions = _solve_matched_positions(
         nominal_positions,
         images,
-        _find_match_edges(images, masks, nominal_positions),
+        _find_match_edges(prepared, nominal_positions),
     )
 
-    xs = [p[0] for p in positions]
-    ys = [p[1] for p in positions]
-    off_x, off_y = min(xs), min(ys)
-    canvas_w = int(round(max(xs) - off_x)) + crop_w
-    canvas_h = int(round(max(ys) - off_y)) + crop_h
-    logger.info("canvas %d×%d from %d frames", canvas_w, canvas_h, len(entries) - missing)
+    # Frames are saved as-is (full screenshots, no UI crop), so the tile size
+    # comes from each image instead of config geometry — capture and stitch
+    # share one coordinate system.
+    placed = [
+        (img, mask, pos)
+        for img, mask, pos in zip(images, masks, positions, strict=True)
+        if img is not None and mask is not None
+    ]
+    off_x = min(px for _, _, (px, _) in placed)
+    off_y = min(py for _, _, (_, py) in placed)
+    canvas_w = max(int(round(px - off_x)) + img.shape[1] for img, _, (px, _) in placed)
+    canvas_h = max(int(round(py - off_y)) + img.shape[0] for img, _, (_, py) in placed)
+    logger.info("canvas %d×%d from %d frames", canvas_w, canvas_h, len(placed))
     canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
-    for img, mask, (px, py) in zip(images, masks, positions, strict=True):
-        if img is None or mask is None:
-            continue
+    for img, mask, (px, py) in placed:
         x = int(round(px - off_x))
         y = int(round(py - off_y))
-        roi = canvas[y : y + crop_h, x : x + crop_w]
+        h, w = img.shape[:2]
+        roi = canvas[y : y + h, x : x + w]
         valid = mask > 0
         roi[valid] = img[valid]
 

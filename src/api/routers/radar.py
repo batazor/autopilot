@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from api.deps import get_redis
 from config.loader import load_settings
-from modules.radar.config import DEFAULT_CONFIG_NAME, runs_root
+from modules.radar.config import default_config_path, runs_root
 from modules.radar.events import (
     STREAM,
     RadarEventPublisher,
@@ -165,26 +165,15 @@ class ScanRequest(BaseModel):
 
 def _scan_grid_preview(config_path: Path) -> list[dict[str, int]]:
     from modules.radar.config import load_config
-    from modules.radar.geometry import generate_grid, order_grid_center_first
+    from modules.radar.scanner import build_scan_grid
 
     cfg = load_config(config_path)
-    corners = cfg.minimap.corners.as_geometry()
-    grid = generate_grid(
-        corners,
-        cfg.viewport.rect_w,
-        cfg.viewport.rect_h,
-        overlap=cfg.overlap,
-        edge_margin_px=cfg.edge_margin_px,
-    )
-    if cfg.navigation.mode == "swipe":
-        grid = order_grid_center_first(grid, corners)
+    grid = build_scan_grid(cfg)
     return [{"ix": p.ix, "iy": p.iy} for p in grid]
 
 
 def _radar_config_path() -> Path:
-    from config.paths import repo_root
-
-    return repo_root() / DEFAULT_CONFIG_NAME
+    return default_config_path()
 
 
 def _run_scan_now_blocking(run_id: str, instance_id: str, client: redis.Redis) -> None:
@@ -249,7 +238,7 @@ def start_scan(
             status_code=409,
             detail=(
                 f"radar config not found: {config_path} — "
-                "create radar_config.yaml in the repo root first"
+                "create src/modules/radar/radar_config.yaml first"
             ),
         )
     try:
