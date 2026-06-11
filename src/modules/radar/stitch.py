@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
+from modules.radar.border import yellow_boundary_mask
+from modules.radar.geometry import Affine, Corners
 from modules.radar.scanner import MANIFEST_NAME
 
 if TYPE_CHECKING:
@@ -28,19 +30,29 @@ logger = logging.getLogger(__name__)
 PREVIEW_LONG_SIDE = 4096
 MAP_FULL_NAME = "map_full.png"
 MAP_PREVIEW_NAME = "map_preview.jpg"
+MAP_META_NAME = "map_meta.json"
 DEFAULT_STITCH_VIEWPORT_W = 720
 DEFAULT_STITCH_VIEWPORT_H = 1185
 MATCH_MIN_SCORE = 0.08
 NOMINAL_REGULARIZATION_WEIGHT = 0.04
 YELLOW_BOUNDARY_MIN_PIXELS = 80
 OUTSIDE_DARK_MIN_AREA = 1200
-# Opening kernel for _yellow_boundary_mask: wider than the dashed border line
-# (a few px) but narrower than the gold castle / event-marker blobs, so opening
-# removes the line and leaves only the blobs to subtract away.
-YELLOW_BLOB_KERNEL = (11, 11)
+# A frame whose valid (inside-kingdom) share of the crop is below this is
+# dropped entirely: almost-all-dark frames contribute no reliable features
+# and only destabilize the position solve and the paste.
+OUTSIDE_FRAME_MIN_VALID_FRAC = 0.25
+# Solved positions vs measured pair offsets: residuals above this (px) mean a
+# visible seam — reported in map meta and the log.
+SEAM_WARN_PX = 8.0
 ORB_FEATURES = 3000
 ORB_MIN_INLIERS = 12
 ORB_RANSAC_THRESH = 4.0
+# Phase-correlation refinement of ORB edges: ORB keypoints are quantized to
+# pixels and RANSAC averages them, leaving 1-3 px residuals that show up as
+# visible seams. Phase correlation on the overlapping strip is sub-pixel.
+PHASE_REFINE_MAX_PX = 12.0       # bigger residual = correlation locked elsewhere
+PHASE_REFINE_MIN_RESPONSE = 0.05 # peak sharpness below this = untrustworthy
+PHASE_REFINE_MIN_OVERLAP_PX = 96 # need a real strip to correlate on
 ORB_MAX_SCALE_DRIFT = 0.03   # camera only pans — reject zoom-looking fits
 ORB_MAX_ROTATION_DEG = 2.5   # ... and rotation-looking fits
 # Navigation prior gate: the map is full of identical sprites and a diagonal
@@ -82,22 +94,9 @@ def _capture_size(manifest: dict, cfg: dict) -> tuple[int, int]:
     return DEFAULT_STITCH_VIEWPORT_W, DEFAULT_STITCH_VIEWPORT_H
 
 
-def _yellow_boundary_mask(img: np.ndarray) -> np.ndarray:
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    # The kingdom edge marker is a pale yellow dashed line. Keep the range a
-    # little broad because screenshots can be darkened by fog/edge overlays.
-    yellow = cv2.inRange(hsv, np.array((18, 35, 105)), np.array((42, 255, 255)))
-    # The player's own gold castle (and golden event markers) share this hue
-    # but are thick solid blobs, not a thin line — and they would otherwise
-    # trip the border trigger and black out the dark plot underneath. Opening
-    # with a kernel wider than the dashed line erases the line and keeps the
-    # blobs; subtract those back out so only the thin border survives.
-    blobs = cv2.morphologyEx(
-        yellow,
-        cv2.MORPH_OPEN,
-        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, YELLOW_BLOB_KERNEL),
-    )
-    return cv2.subtract(yellow, blobs)
+# Border detection (yellow dashed line) lives in modules.radar.border — the
+# scanner positions against it too, so it is shared, not stitch-private.
+_yellow_boundary_mask = yellow_boundary_mask
 
 
 def _valid_content_mask(img: np.ndarray) -> np.ndarray:
@@ -192,6 +191,48 @@ def _useful_area_mask(
     return mask
 
 
+def _frame_mostly_outside(
+    img: np.ndarray,
+    content_mask: np.ndarray,
+    crop: dict | None,
+) -> bool:
+    """True when the valid (inside-kingdom) share of the crop is negligible.
+
+    Such frames carry almost no matchable content — keeping them in the graph
+    only destabilizes the position solve, and pasting them adds nothing.
+    """
+    in_crop = _useful_area_mask(img, None, crop)
+    crop_area = int(np.count_nonzero(in_crop))
+    in_crop[content_mask == 0] = 0
+    return bool(
+        crop_area
+        and np.count_nonzero(in_crop) / crop_area < OUTSIDE_FRAME_MIN_VALID_FRAC,
+    )
+
+
+def _feature_mask(
+    img: np.ndarray,
+    content_mask: np.ndarray | None,
+    crop: dict | None,
+) -> np.ndarray:
+    """Where ORB keypoints may live: the useful area MINUS the dashed border.
+
+    The border dashes are identical and evenly spaced, so keypoints on them
+    match one dash off and can drag the whole RANSAC consensus a full dash
+    period along the line — visible as the yellow border misaligning between
+    neighbouring frames. Excluded from feature detection only; the paste mask
+    keeps the line on the stitched map.
+    """
+    mask = _useful_area_mask(img, content_mask, crop)
+    yellow = _yellow_boundary_mask(img)
+    if int(np.count_nonzero(yellow)) >= YELLOW_BOUNDARY_MIN_PIXELS:
+        zone = cv2.dilate(
+            yellow, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13)),
+        )
+        mask[zone > 0] = 0
+    return mask
+
+
 def _orb_features(
     img: np.ndarray, mask: np.ndarray,
 ) -> tuple[list[cv2.KeyPoint], np.ndarray | None]:
@@ -261,18 +302,186 @@ def _orb_pair_offset(
     return tx, ty, float(score)
 
 
+def _seam_residuals(
+    entries: list[dict],
+    positions: list[tuple[float, float]],
+    edges: list[MatchEdge],
+) -> dict | None:
+    """Solved positions vs measured pair offsets — the visible-seam report.
+
+    The least-squares solve distributes inconsistencies between edges; a large
+    residual on a pair means its frames are placed differently than the match
+    measured — exactly what shows up as a stepped seam on the canvas. Goes
+    into map meta so misalignments are visible in the report, not only by
+    eyeballing tiles.
+    """
+    if not edges:
+        return None
+    scored = []
+    for e in edges:
+        pi, pj = positions[e.i], positions[e.j]
+        residual = math.hypot(pj[0] - pi[0] - e.dx, pj[1] - pi[1] - e.dy)
+        scored.append((residual, e))
+    residuals = [r for r, _ in scored]
+    cell = lambda k: f"{entries[k]['ix']:02d}_{entries[k]['iy']:02d}"  # noqa: E731
+    worst = [
+        {"cells": [cell(e.i), cell(e.j)], "residual_px": round(r, 2)}
+        for r, e in sorted(scored, key=lambda t: t[0], reverse=True)[:5]
+        if r > SEAM_WARN_PX
+    ]
+    report = {
+        "edges": len(scored),
+        "mean_px": round(float(np.mean(residuals)), 2),
+        "max_px": round(float(np.max(residuals)), 2),
+        "worst": worst,
+    }
+    if worst:
+        logger.warning(
+            "stitch: %d seam(s) exceed %.0f px (worst %.1f px at %s) — see map meta",
+            len(worst), SEAM_WARN_PX, worst[0]["residual_px"], "-".join(worst[0]["cells"]),
+        )
+    return report
+
+
+def _write_map_meta(
+    run_dir: Path,
+    cfg: dict,
+    entries: list[dict],
+    positions: list[tuple[float, float]],
+    origin: tuple[float, float],
+    right: tuple[float, float],
+    down: tuple[float, float],
+    seam: dict | None = None,
+) -> None:
+    """Georeference the stitched map: canvas px ↔ absolute game coordinates.
+
+    Ingredients pinning the full linear map:
+    - the measured right/down basis (canvas px per grid step) combined with the
+      minimap affine (grid step → game tiles) gives the 2×2 linear part;
+    - the border crossing the origin servo measured in the first frame is the
+      map's bottom corner — game ``(G-1, G-1)`` — and fixes the translation;
+    - when the scan also recorded the TOP corner crossing (game ``(0, 0)``),
+      the 2×2 part is corrected by the similarity that takes the predicted
+      diagonal onto the measured one — accumulated row-by-row drift in the
+      solved positions then cancels instead of scaling the whole map.
+    Written best-effort: without minimap calibration or an anchored origin the
+    file simply carries less (or no) information.
+    """
+    mm = cfg.get("minimap") or {}
+    corners_raw = mm.get("corners") or {}
+    viewport = cfg.get("viewport") or {}
+    if not corners_raw or not viewport:
+        return
+    corners = Corners(
+        top=tuple(corners_raw["top"]),
+        right=tuple(corners_raw["right"]),
+        bottom=tuple(corners_raw["bottom"]),
+        left=tuple(corners_raw["left"]),
+    )
+    game_size = int(cfg.get("game_size") or 1200)
+    affine = Affine.from_corners(corners, game_size)
+    overlap = float(cfg.get("overlap") or 0.5)
+    step_x = float(viewport["rect_w"]) * (1.0 - overlap)
+    step_y = float(viewport["rect_h"]) * (1.0 - overlap)
+    # Game-tile delta of one grid step: the linear part of the minimap→game
+    # affine applied to the step vectors (any base point cancels out).
+    base = affine.to_game(corners.top)
+    g_right = np.array(affine.to_game((corners.top[0] + step_x, corners.top[1]))) - base
+    g_down = np.array(affine.to_game((corners.top[0], corners.top[1] + step_y))) - base
+    game_basis = np.column_stack([g_right, g_down])
+    if abs(float(np.linalg.det(game_basis))) < 1e-9:
+        return
+    screen_basis = np.column_stack([np.array(right), np.array(down)])
+    linear = screen_basis @ np.linalg.inv(game_basis)  # game Δ → canvas Δ
+
+    meta: dict = {"game_size": game_size}
+    if seam is not None:
+        meta["seam_check"] = seam
+    bottom_canvas: np.ndarray | None = None
+    bottom_entry: dict | None = None
+    top_canvas: np.ndarray | None = None
+    top_entry: dict | None = None
+    for entry, pos in zip(entries, positions, strict=True):
+        move = entry.get("move") or {}
+        apex = move.get("border_apex_px")
+        if bottom_canvas is None and move.get("origin") and apex:
+            bottom_canvas = np.array([pos[0] - origin[0] + apex[0], pos[1] - origin[1] + apex[1]])
+            bottom_entry = entry
+        cross = entry.get("top_cross_px")
+        if top_canvas is None and cross:
+            top_canvas = np.array([pos[0] - origin[0] + cross[0], pos[1] - origin[1] + cross[1]])
+            top_entry = entry
+
+    if bottom_canvas is not None:
+        corner_game = np.array([game_size - 1.0, game_size - 1.0])
+        if top_canvas is not None:
+            # Both kingdom corners measured: the game diagonal (0,0)→(G-1,G-1)
+            # must land exactly on the canvas segment top→bottom crossing.
+            # Fit the similarity (a, b) taking the predicted diagonal onto the
+            # measured one and fold it into the linear part — sanity-gated:
+            # a wildly off correction means a mis-detected corner, not drift.
+            pred = linear @ corner_game
+            meas = bottom_canvas - top_canvas
+            denom = float(pred @ pred)
+            if denom > 1e-9:
+                a = float(pred @ meas) / denom
+                b = float(pred[0] * meas[1] - pred[1] * meas[0]) / denom
+                scale = math.hypot(a, b)
+                rotation_deg = math.degrees(math.atan2(b, a))
+                if abs(scale - 1.0) <= 0.15 and abs(rotation_deg) <= 5.0:
+                    linear = np.array([[a, -b], [b, a]]) @ linear
+                    meta["anchor_correction"] = {
+                        "scale": round(scale, 5),
+                        "rotation_deg": round(rotation_deg, 3),
+                    }
+                    logger.info(
+                        "map meta: two-corner correction applied (scale %.4f, rot %.2f°)",
+                        scale, rotation_deg,
+                    )
+                else:
+                    logger.warning(
+                        "map meta: two-corner correction rejected (scale %.3f, rot %.1f°) "
+                        "— one of the corners is likely mis-detected",
+                        scale, rotation_deg,
+                    )
+            meta["top_anchor"] = {
+                "frame": top_entry.get("file"),
+                "cross_frame_px": top_entry["top_cross_px"],
+                "canvas_px": [round(float(v), 1) for v in top_canvas],
+                "game_xy": [0, 0],
+            }
+        apex = (bottom_entry.get("move") or {}).get("border_apex_px")
+        offset = bottom_canvas - linear @ corner_game
+        meta["anchor"] = {
+            "frame": bottom_entry.get("file"),
+            "apex_frame_px": [round(float(apex[0]), 1), round(float(apex[1]), 1)],
+            "canvas_px": [round(float(v), 1) for v in bottom_canvas],
+            "game_xy": [game_size - 1, game_size - 1],
+        }
+        meta["game_to_canvas_offset"] = [round(float(v), 2) for v in offset]
+    meta["game_to_canvas_linear"] = [[round(float(v), 6) for v in row] for row in linear]
+
+    path = run_dir / MAP_META_NAME
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    tmp.replace(path)
+    logger.info("map meta saved: %s (anchor: %s)", path, "yes" if "anchor" in meta else "no")
+
+
 def frames_consistent(
     prev: np.ndarray,
     cur: np.ndarray,
     crop: dict | None,
     expected: tuple[float, float] | None,
-) -> bool:
-    """Scanner-side view guard: True when two consecutive captures register
-    as a pure pan near the expected offset — i.e. same zoom, same screen,
-    camera only moved. Used to catch accidental zoom gestures mid-scan."""
-    feat_prev = _orb_features(prev, _useful_area_mask(prev, None, crop))
-    feat_cur = _orb_features(cur, _useful_area_mask(cur, None, crop))
-    return _orb_pair_offset(feat_prev, feat_cur, expected=expected) is not None
+) -> tuple[float, float] | None:
+    """Scanner-side view guard: the measured ``(dx, dy)`` when two consecutive
+    captures register as a pure pan near the expected offset — i.e. same zoom,
+    same screen, camera only moved — else None. Catches accidental zoom
+    gestures mid-scan, and the measured offset feeds swipe auto-calibration."""
+    feat_prev = _orb_features(prev, _feature_mask(prev, None, crop))
+    feat_cur = _orb_features(cur, _feature_mask(cur, None, crop))
+    estimate = _orb_pair_offset(feat_prev, feat_cur, expected=expected)
+    return (estimate[0], estimate[1]) if estimate is not None else None
 
 
 def move_prior(entry: dict) -> tuple[float, float] | None:
@@ -315,9 +524,53 @@ def _candidate_pairs(entries: list[dict]) -> list[tuple[int, int]]:
     return sorted(pairs)
 
 
+def _refine_offset_phase(
+    img_a: np.ndarray,
+    img_b: np.ndarray,
+    dx: float,
+    dy: float,
+    crop: dict | None,
+) -> tuple[float, float] | None:
+    """Sub-pixel refinement of an ORB edge via phase correlation.
+
+    The two frames are aligned by the ORB estimate and the overlapping strip is
+    phase-correlated: the residual shift is the estimate's error. ORB keypoints
+    are pixel-quantized, so its translations carry 1-3 px residuals that
+    accumulate into visible seams; phase correlation is sub-pixel and uses the
+    whole strip, not sparse corners. Returns the refined ``(dx, dy)`` or None
+    when the strip is too small or the correlation peak is not trustworthy
+    (then the ORB estimate stands).
+    """
+    if isinstance(crop, dict):
+        cx, cy = max(0, int(crop.get("x") or 0)), max(0, int(crop.get("y") or 0))
+        cw = int(crop.get("w") or img_a.shape[1])
+        ch = int(crop.get("h") or img_a.shape[0])
+        img_a = img_a[cy : cy + ch, cx : cx + cw]
+        img_b = img_b[cy : cy + ch, cx : cx + cw]
+    h, w = img_a.shape[:2]
+    rdx, rdy = int(round(dx)), int(round(dy))
+    x0, y0 = max(0, rdx), max(0, rdy)
+    x1, y1 = min(w, w + rdx), min(h, h + rdy)
+    if x1 - x0 < PHASE_REFINE_MIN_OVERLAP_PX or y1 - y0 < PHASE_REFINE_MIN_OVERLAP_PX:
+        return None
+    strip_a = cv2.cvtColor(img_a[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY).astype(np.float32)
+    strip_b = cv2.cvtColor(
+        img_b[y0 - rdy : y1 - rdy, x0 - rdx : x1 - rdx], cv2.COLOR_BGR2GRAY,
+    ).astype(np.float32)
+    window = cv2.createHanningWindow((strip_a.shape[1], strip_a.shape[0]), cv2.CV_32F)
+    (sx, sy), response = cv2.phaseCorrelate(strip_a, strip_b, window)
+    if response < PHASE_REFINE_MIN_RESPONSE or math.hypot(sx, sy) > PHASE_REFINE_MAX_PX:
+        return None
+    # strip_b is strip_a's content displaced by the estimate error e, and
+    # phaseCorrelate(a, b) reports b's displacement as -e — subtract it.
+    return rdx - sx, rdy - sy
+
+
 def _match_pair(
     entries: list[dict],
     features: list[tuple[list[cv2.KeyPoint], np.ndarray | None] | None],
+    images: list[np.ndarray | None],
+    crop: dict | None,
     i: int,
     j: int,
     expected: tuple[float, float] | None,
@@ -336,9 +589,16 @@ def _match_pair(
         logger.info("stitch edge %s->%s: NO MATCH%s", cell_a, cell_b, prior_label)
         return None
     dx, dy, score = estimate
+    refined_label = ""
+    img_a, img_b = images[i], images[j]
+    if img_a is not None and img_b is not None:
+        refined = _refine_offset_phase(img_a, img_b, dx, dy, crop)
+        if refined is not None:
+            refined_label = f" (orb {dx:.1f},{dy:.1f})"
+            dx, dy = refined
     logger.info(
-        "stitch edge %s->%s: dx=%.1f dy=%.1f score=%.2f%s",
-        cell_a, cell_b, dx, dy, score, prior_label,
+        "stitch edge %s->%s: dx=%.1f dy=%.1f score=%.2f%s%s",
+        cell_a, cell_b, dx, dy, score, refined_label, prior_label,
     )
     return MatchEdge(i=i, j=j, dx=dx, dy=dy, score=score)
 
@@ -346,6 +606,8 @@ def _match_pair(
 def _find_match_edges(
     entries: list[dict],
     features: list[tuple[list[cv2.KeyPoint], np.ndarray | None] | None],
+    images: list[np.ndarray | None],
+    crop: dict | None,
     fallback_right: tuple[float, float],
     fallback_down: tuple[float, float],
 ) -> tuple[list[MatchEdge], tuple[float, float], tuple[float, float]]:
@@ -356,7 +618,7 @@ def _find_match_edges(
     matched: set[tuple[int, int]] = set()
     for j in range(1, len(entries)):
         i = j - 1
-        edge = _match_pair(entries, features, i, j, move_prior(entries[j]))
+        edge = _match_pair(entries, features, images, crop, i, j, move_prior(entries[j]))
         if edge is not None:
             edges.append(edge)
         matched.add((i, j))
@@ -373,7 +635,7 @@ def _find_match_edges(
             dix * right[0] + diy * down[0],
             dix * right[1] + diy * down[1],
         )
-        edge = _match_pair(entries, features, i, j, expected)
+        edge = _match_pair(entries, features, images, crop, i, j, expected)
         if edge is not None:
             edges.append(edge)
     # Final basis over ALL measured edges (stage 2 usually adds the first
@@ -522,6 +784,21 @@ def run_stitch(run_dir: Path) -> Path:
         masks.append(_valid_content_mask(img) if mask_outside else None)
     if missing:
         logger.warning("%d frame file(s) listed in the manifest are missing on disk", missing)
+    if mask_outside:
+        dropped = []
+        for k, (img, mask) in enumerate(zip(images, masks, strict=True)):
+            if img is None or mask is None:
+                continue
+            if _frame_mostly_outside(img, mask, cfg.get("crop")):
+                images[k] = None
+                masks[k] = None
+                dropped.append(f"{entries[k]['ix']:02d}_{entries[k]['iy']:02d}")
+        if dropped:
+            logger.warning(
+                "%d frame(s) are mostly outside the kingdom and were dropped "
+                "from registration and paste: %s",
+                len(dropped), ", ".join(dropped),
+            )
     if all(img is None for img in images):
         msg = f"none of the {len(entries)} manifest frames could be read from {run_dir}"
         raise ValueError(msg)
@@ -532,13 +809,18 @@ def run_stitch(run_dir: Path) -> Path:
     # screen diagonally), so even the nominal layout uses the *measured*
     # right/down vectors; axis-aligned geometry is only the no-match fallback.
     features = [
-        _orb_features(img, _useful_area_mask(img, mask, cfg.get("crop")))
+        _orb_features(img, _feature_mask(img, mask, cfg.get("crop")))
         if img is not None
         else None
         for img, mask in zip(images, masks, strict=True)
     ]
     edges, right, down = _find_match_edges(
-        entries, features, fallback_right=(step_x, 0.0), fallback_down=(0.0, step_y),
+        entries,
+        features,
+        images,
+        cfg.get("crop"),
+        fallback_right=(step_x, 0.0),
+        fallback_down=(0.0, step_y),
     )
     nominal_positions = [
         (
@@ -548,6 +830,7 @@ def run_stitch(run_dir: Path) -> Path:
         for entry in entries
     ]
     positions = _solve_matched_positions(nominal_positions, images, edges)
+    seam_report = _seam_residuals(entries, positions, edges)
 
     # Frames are saved as-is (full screenshots) so coordinates stay in one
     # system, but only the crop region — game world without the HUD (top bar,
@@ -577,9 +860,19 @@ def run_stitch(run_dir: Path) -> Path:
         painted[y : y + h, x : x + w] |= valid
 
     ys, xs = np.where(painted)
+    trim_x, trim_y = (int(xs.min()), int(ys.min())) if len(xs) else (0, 0)
     if len(xs):
         canvas = canvas[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
     canvas_h, canvas_w = canvas.shape[:2]
+
+    try:
+        _write_map_meta(
+            run_dir, cfg, entries, positions,
+            origin=(off_x + trim_x, off_y + trim_y), right=right, down=down,
+            seam=seam_report,
+        )
+    except Exception:
+        logger.exception("radar: map_meta.json not written (georeference failed)")
 
     # Atomic writes: during a scan the live stitcher rewrites these every few
     # seconds while the API serves the preview — readers must never see a

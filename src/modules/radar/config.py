@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from modules.radar.geometry import Corners
 
@@ -94,10 +94,44 @@ class StitchViewportConfig(BaseModel):
 
 
 class GridLimitConfig(BaseModel):
-    """Debug window: scan only ``cols×rows`` cells around the diamond center."""
+    """Debug window: scan a subset of cells instead of the whole kingdom.
 
-    cols: int = Field(gt=0)
-    rows: int = Field(gt=0)
+    - ``anchor: center`` (default) — a ``cols×rows`` block around the diamond
+      center; scans where the camera already is.
+    - ``anchor: bottom`` — start at the bottom corner and walk upward, keeping
+      the first ``max_frames`` cells (``cols``/``rows`` ignored). Used to grow
+      the scan window gradually from the bottom of the map. With ``max_frames``
+      omitted the route covers every row — the scan then ends on its own when
+      the top border enters the view (``border.stop_at_top``).
+    """
+
+    cols: int | None = Field(default=None, gt=0)
+    rows: int | None = Field(default=None, gt=0)
+    anchor: Literal["center", "bottom"] = "center"
+    max_frames: int | None = Field(default=None, gt=0)
+    # anchor=bottom only: drop this many of the lowest rows so the wedge starts
+    # higher than the bare vertex (which sits on the kingdom edge).
+    bottom_skip_rows: int = Field(default=0, ge=0)
+    # anchor=bottom only: add this many capture rows BELOW the diamond-fitted
+    # raster, clamped near the minimap's bottom vertex — the fitted raster is
+    # centered on the diamond, so its lowest row can sit well above the tip.
+    bottom_overscan_rows: int = Field(default=0, ge=0)
+    # How far above the bare vertex the overscan rows stop (minimap px). A tap
+    # on the tip itself teleports into the neighbouring state — stay inside.
+    bottom_overscan_inset_px: float = Field(default=5.0, ge=0.0)
+    # anchor=bottom + border.servo OFF only: after the origin tap converges on
+    # the start cell, pan the camera this many screen-heights further down —
+    # with swipes, which cross the kingdom border freely (a tap below the
+    # vertex cannot). With the servo on this blind pan is skipped: the servo
+    # approaches the corner in measured steps that stop on the visible line.
+    bottom_descend_screens: float = Field(default=0.0, ge=0.0, le=3.0)
+
+    @model_validator(mode="after")
+    def _check_anchor_fields(self) -> GridLimitConfig:
+        if self.anchor == "center" and (self.cols is None or self.rows is None):
+            msg = "grid_limit anchor 'center' requires cols and rows"
+            raise ValueError(msg)
+        return self
 
 
 class NavigationConfig(BaseModel):
@@ -112,9 +146,70 @@ class NavigationConfig(BaseModel):
     swipe_duration_ms: int = Field(default=450, ge=100, le=2000)
     swipe_margin_px: int = Field(default=48, ge=0)
     swipe_scale: float = Field(default=1.0, gt=0.0, le=2.0)
+    # Learn the real px-moved-per-px-swiped ratio from measured ORB offsets and
+    # auto-correct subsequent swipes (chronic over/undershoot between rows).
+    swipe_autoscale: bool = True
     # Pause between chunked swipes of one long move. Two quick touches read
     # as the double-tap-drag ZOOM gesture in-game — this gap prevents it.
     chunk_pause_ms: int = Field(default=500, ge=0, le=5000)
+
+
+class BorderConfig(BaseModel):
+    """Steering and stopping against the visible yellow kingdom border.
+
+    The minimap teleport is quantized and untrusted, so the origin closes the
+    loop on what the camera actually sees: the V where the two border lines
+    converge (the map's bottom corner). The same detector ends an unbounded
+    scan when the *top* corner enters the view.
+    """
+
+    servo: bool = True
+    # Where the line crossing should sit in the frame: fraction of the crop
+    # height (horizontally it is steered to the crop center).
+    target_frac: float = Field(default=0.66, gt=0.0, lt=1.0)
+    tolerance_px: int = Field(default=80, ge=10)
+    # Generous: the approach may need blind descend steps AND a few slides
+    # along a single visible line before the crossing enters the view.
+    max_steps: int = Field(default=12, ge=1)
+    # Capture starts only once the X where the two dashed lines cross (the
+    # kingdom corner) is actually in view: if the servo exhausts max_steps
+    # without ever seeing it, the scan aborts instead of shooting blind —
+    # a single side line sweeping the frame must not fake an origin lock.
+    require_cross: bool = True
+    # Blind descend step (screen-heights) while the border is not visible yet.
+    approach_step_screens: float = Field(default=0.5, gt=0.0, le=2.0)
+    # End an unbounded bottom-up scan when the top corner enters the view.
+    stop_at_top: bool = True
+    # Don't carry the camera across the border with inter-cell swipes: before
+    # each move the last captured frame is probed for the yellow line along
+    # the motion path, and a move reaching past it is shortened to stop
+    # ``cross_margin_px`` short of the line.
+    block_crossing: bool = True
+    cross_margin_px: int = Field(default=140, ge=0)
+    # Half-width of the look-ahead corridor around the motion axis (px).
+    cross_corridor_px: int = Field(default=80, ge=10)
+
+
+class LabelGuardConfig(BaseModel):
+    """Wait out white UI labels sitting on the next touch point.
+
+    Player/marker labels and minimap overlays are near-white; a touch landing
+    on one selects the label instead of panning/teleporting. Before each move
+    the scanner samples the touch point and, if it is mostly white, waits for
+    the label to clear (they are transient) before touching down.
+    """
+
+    enabled: bool = True
+    # A pixel counts as "label" when every BGR channel is at least this bright.
+    # Snow is blue-grey (min channel ~200), well under this; label white is ~250.
+    white_threshold: int = Field(default=235, ge=0, le=255)
+    # Patch counts as covered when at least this fraction of it is label-white.
+    white_fraction: float = Field(default=0.5, gt=0.0, le=1.0)
+    # Half-size of the square sampled around the touch point.
+    sample_radius_px: int = Field(default=6, ge=1)
+    # Give up waiting after this long and touch anyway (a clear is not guaranteed).
+    timeout_ms: int = Field(default=4000, ge=0)
+    poll_interval_ms: int = Field(default=250, ge=20)
 
 
 class TimingsConfig(BaseModel):
@@ -154,6 +249,8 @@ class RadarConfig(BaseModel):
     game_size: int = Field(default=1200, gt=1)
     navigation: NavigationConfig = NavigationConfig()
     timings: TimingsConfig = TimingsConfig()
+    label_guard: LabelGuardConfig = LabelGuardConfig()
+    border: BorderConfig = BorderConfig()
 
 
 def load_config(path: Path) -> RadarConfig:

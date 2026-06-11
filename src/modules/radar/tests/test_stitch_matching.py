@@ -6,12 +6,18 @@ import cv2
 import numpy as np
 import pytest
 
+from modules.radar.geometry import Affine, Corners
 from modules.radar.scanner import MANIFEST_NAME
 from modules.radar.stitch import (
+    MatchEdge,
+    _frame_mostly_outside,
     _orb_features,
     _orb_pair_offset,
+    _refine_offset_phase,
+    _seam_residuals,
     _useful_area_mask,
     _valid_content_mask,
+    _write_map_meta,
     move_prior,
     run_stitch,
 )
@@ -165,6 +171,29 @@ def test_valid_content_mask_keeps_dark_plot_under_gold_castle() -> None:
     assert mask[60, 100] == 255   # dark plot around the castle stays too
 
 
+def test_phase_refinement_recovers_the_true_offset() -> None:
+    """ORB offsets carry pixel-level error (quantized keypoints) that shows up
+    as seams. The phase-correlation pass must pull a perturbed estimate back
+    onto the true offset using the overlapping strip."""
+    world = _make_world(11, 700, 900)
+    frame_a = world[0:400, 0:500]
+    true_dx, true_dy = 137.0, 84.0
+    frame_b = world[84 : 84 + 400, 137 : 137 + 500]
+
+    refined = _refine_offset_phase(frame_a, frame_b, true_dx + 3, true_dy - 2, None)
+
+    assert refined is not None
+    assert refined[0] == pytest.approx(true_dx, abs=0.6)
+    assert refined[1] == pytest.approx(true_dy, abs=0.6)
+
+
+def test_phase_refinement_skips_tiny_overlap() -> None:
+    world = _make_world(12, 400, 600)
+    frame_a = world[0:300, 0:400]
+    frame_b = world[0:300, 350:550]  # ~50px overlap — below the minimum strip
+    assert _refine_offset_phase(frame_a, frame_b, 350.0, 0.0, None) is None
+
+
 def test_run_stitch_places_uncropped_frames(tmp_path) -> None:
     """Frames are placed as-is: tile size comes from the image, not config."""
     world = _make_world(3, 600, 800)
@@ -248,6 +277,54 @@ def test_run_stitch_pastes_only_the_crop_region(tmp_path) -> None:
     assert canvas.shape[0] == pytest.approx(crop["h"], abs=8)
 
 
+def test_run_stitch_writes_anchored_map_meta(tmp_path) -> None:
+    """With minimap calibration in the config and a border-anchored origin in
+    the manifest, the stitch georeferences the canvas: map_meta.json carries
+    the game→canvas linear map and the absolute anchor (the border V = the
+    game's bottom corner)."""
+    world = _make_world(31, 600, 900)
+    frame_w, frame_h = 400, 300
+    step_x = 200
+    frames = {}
+    for ix in (0, 1):
+        name = f"frame_{ix:02d}_00.png"
+        cv2.imwrite(str(tmp_path / name), world[0:frame_h, ix * step_x : ix * step_x + frame_w])
+        frames[f"{ix:02d}_00"] = {"ix": ix, "iy": 0, "file": name}
+    frames["00_00"]["move"] = {
+        "mode": "tap", "origin": True, "border_apex_px": [210.0, 250.0],
+    }
+    manifest = {
+        "config": {
+            "overlap": 0.5,
+            "stitch_viewport": {"w": frame_w, "h": frame_h},
+            "crop": {"x": 0, "y": 0, "w": frame_w, "h": frame_h},
+            "game_size": 1200,
+            "viewport": {"rect_w": 24, "rect_h": 39},
+            "minimap": {
+                "bbox": [0, 0, 200, 200],
+                "corners": {
+                    "top": [100.0, 0.0], "right": [200.0, 100.0],
+                    "bottom": [100.0, 200.0], "left": [0.0, 100.0],
+                },
+            },
+        },
+        "frames": frames,
+    }
+    (tmp_path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
+
+    run_stitch(tmp_path)
+
+    meta = json.loads((tmp_path / "map_meta.json").read_text(encoding="utf-8"))
+    assert meta["game_size"] == 1200
+    assert len(meta["game_to_canvas_linear"]) == 2
+    anchor = meta["anchor"]
+    assert anchor["game_xy"] == [1199, 1199]
+    # Frame 0 sits at the canvas origin; the apex lands at its frame coords.
+    assert anchor["canvas_px"][0] == pytest.approx(210.0, abs=2)
+    assert anchor["canvas_px"][1] == pytest.approx(250.0, abs=2)
+    assert "game_to_canvas_offset" in meta
+
+
 def test_run_stitch_measures_isometric_grid_basis(tmp_path) -> None:
     """A minimap grid step moves the screen diagonally — the stitcher must
     measure the real right/down screen vectors instead of assuming axis-aligned
@@ -308,3 +385,118 @@ def test_run_stitch_measures_isometric_grid_basis(tmp_path) -> None:
     for cell, (px, py) in offsets.items():
         assert located[cell][0] - origin[0] == pytest.approx(px, abs=2), cell
         assert located[cell][1] - origin[1] == pytest.approx(py, abs=2), cell
+
+
+def test_write_map_meta_two_corner_correction(tmp_path) -> None:
+    """With both kingdom corners measured, the game→canvas map is corrected so
+    the diagonal (0,0)→(G-1,G-1) lands exactly on the measured segment."""
+    cfg = {
+        "overlap": 0.5,
+        "game_size": 1200,
+        "viewport": {"rect_w": 24, "rect_h": 39},
+        "minimap": {
+            "bbox": [0, 0, 200, 200],
+            "corners": {
+                "top": [100.0, 0.0], "right": [200.0, 100.0],
+                "bottom": [100.0, 200.0], "left": [0.0, 100.0],
+            },
+        },
+    }
+    right, down = (400.0, 0.0), (0.0, 300.0)
+    # Replicate the uncorrected linear map to build a 5%-off measurement.
+    corners = Corners(top=(100.0, 0.0), right=(200.0, 100.0), bottom=(100.0, 200.0), left=(0.0, 100.0))
+    affine = Affine.from_corners(corners, 1200)
+    base = np.array(affine.to_game((100.0, 0.0)))
+    g_right = np.array(affine.to_game((112.0, 0.0))) - base
+    g_down = np.array(affine.to_game((100.0, 19.5))) - base
+    linear = np.column_stack([right, down]) @ np.linalg.inv(np.column_stack([g_right, g_down]))
+    pred = linear @ np.array([1199.0, 1199.0])
+
+    apex = [210.0, 250.0]
+    cross = [200.0, 40.0]
+    top_canvas = np.array([50.0, 60.0])
+    bottom_canvas = top_canvas + pred * 1.05  # 5% accumulated drift
+    entries = [
+        {
+            "ix": 0, "iy": 5, "file": "bottom.png",
+            "move": {"mode": "tap", "origin": True, "border_apex_px": apex},
+        },
+        {"ix": 0, "iy": 0, "file": "top.png", "top_cross_px": cross},
+    ]
+    positions = [
+        (bottom_canvas[0] - apex[0], bottom_canvas[1] - apex[1]),
+        (top_canvas[0] - cross[0], top_canvas[1] - cross[1]),
+    ]
+
+    _write_map_meta(tmp_path, cfg, entries, positions, origin=(0.0, 0.0), right=right, down=down)
+
+    meta = json.loads((tmp_path / "map_meta.json").read_text(encoding="utf-8"))
+    assert meta["anchor_correction"]["scale"] == pytest.approx(1.05, abs=0.001)
+    corrected = np.array(meta["game_to_canvas_linear"])
+    offset = np.array(meta["game_to_canvas_offset"])
+    # Both anchors must now be consistent with the corrected map.
+    assert corrected @ np.array([1199.0, 1199.0]) + offset == pytest.approx(bottom_canvas, abs=0.5)
+    assert corrected @ np.array([0.0, 0.0]) + offset == pytest.approx(top_canvas, abs=0.5)
+    assert meta["top_anchor"]["game_xy"] == [0, 0]
+
+
+def test_write_map_meta_rejects_a_wild_corner_correction(tmp_path) -> None:
+    """A mis-detected corner produces a wildly off measurement — the map must
+    keep the uncorrected linear part instead of warping to it."""
+    cfg = {
+        "overlap": 0.5,
+        "game_size": 1200,
+        "viewport": {"rect_w": 24, "rect_h": 39},
+        "minimap": {
+            "bbox": [0, 0, 200, 200],
+            "corners": {
+                "top": [100.0, 0.0], "right": [200.0, 100.0],
+                "bottom": [100.0, 200.0], "left": [0.0, 100.0],
+            },
+        },
+    }
+    entries = [
+        {
+            "ix": 0, "iy": 5, "file": "bottom.png",
+            "move": {"mode": "tap", "origin": True, "border_apex_px": [210.0, 250.0]},
+        },
+        # Implausible: the "top" corner sits a few px from the bottom one.
+        {"ix": 0, "iy": 0, "file": "top.png", "top_cross_px": [212.0, 251.0]},
+    ]
+    positions = [(0.0, 0.0), (0.0, 0.0)]
+
+    _write_map_meta(
+        tmp_path, cfg, entries, positions,
+        origin=(0.0, 0.0), right=(400.0, 0.0), down=(0.0, 300.0),
+    )
+
+    meta = json.loads((tmp_path / "map_meta.json").read_text(encoding="utf-8"))
+    assert "anchor_correction" not in meta
+    assert "anchor" in meta  # bottom anchor still written
+
+
+def test_seam_residuals_reports_inconsistent_pairs() -> None:
+    entries = [{"ix": 0, "iy": 0}, {"ix": 1, "iy": 0}, {"ix": 2, "iy": 0}]
+    positions = [(0.0, 0.0), (100.0, 0.0), (200.0, 0.0)]
+    edges = [
+        MatchEdge(i=0, j=1, dx=100.0, dy=0.0, score=1.0),   # consistent
+        MatchEdge(i=1, j=2, dx=120.0, dy=0.0, score=1.0),   # 20 px seam
+    ]
+
+    report = _seam_residuals(entries, positions, edges)
+
+    assert report["edges"] == 2
+    assert report["max_px"] == pytest.approx(20.0)
+    assert report["mean_px"] == pytest.approx(10.0)
+    assert report["worst"] == [{"cells": ["01_00", "02_00"], "residual_px": 20.0}]
+    assert _seam_residuals(entries, positions, []) is None
+
+
+def test_frame_mostly_outside_thresholds_on_valid_fraction() -> None:
+    img = np.zeros((300, 400, 3), dtype=np.uint8)
+    crop = {"x": 0, "y": 0, "w": 400, "h": 300}
+    content = np.zeros((300, 400), dtype=np.uint8)
+    content[:60, :] = 255  # 20% valid — mostly outside
+    assert _frame_mostly_outside(img, content, crop) is True
+    content[:] = 255
+    assert _frame_mostly_outside(img, content, crop) is False

@@ -1,14 +1,19 @@
 """Pure-math tests for the radar grid geometry (no device, no I/O)."""
 
+import itertools
+
 import pytest
 
 from modules.radar.geometry import (
     Affine,
     Corners,
     diamond_center,
+    extend_grid_below,
     generate_grid,
     limit_grid_centered,
+    limit_grid_from_bottom,
     point_in_diamond,
+    scan_walk_from_bottom,
 )
 
 # Unit-ish diamond: 200×200 bounding box centered at (100, 100).
@@ -149,6 +154,116 @@ class TestGridLimit:
         grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
         limited = limit_grid_centered(grid, DIAMOND, cols=99, rows=99)
         assert limited == grid
+
+    def test_from_bottom_takes_whole_rows_upward(self):
+        grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
+        max_iy = max(p.iy for p in grid)
+        full_bottom = sorted(p.ix for p in grid if p.iy == max_iy)
+        # A budget for the whole bottom row plus part of the next.
+        wedge = limit_grid_from_bottom(grid, max_frames=len(full_bottom) + 3)
+
+        full_by_row = {iy: sorted(p.ix for p in grid if p.iy == iy)
+                       for iy in {p.iy for p in wedge}}
+        kept_by_row: dict[int, list[int]] = {}
+        for p in wedge:
+            kept_by_row.setdefault(p.iy, []).append(p.ix)
+        # Bottom row taken in full; every row but the topmost kept one is full.
+        assert sorted(kept_by_row[max_iy]) == full_bottom
+        top_iy = min(kept_by_row)
+        for iy, ixs in kept_by_row.items():
+            if iy != top_iy:
+                assert sorted(ixs) == full_by_row[iy]  # complete row
+        # Rows are contiguous from the bottom — no skipped row in between.
+        assert set(kept_by_row) == set(range(top_iy, max_iy + 1))
+        # Connected: every cell touches another kept cell.
+        kept = {(p.ix, p.iy) for p in wedge}
+        for ix, iy in kept:
+            assert any((ix + dx, iy + dy) in kept for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)))
+
+    def test_from_bottom_caps_at_max_frames(self):
+        grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
+        assert len(limit_grid_from_bottom(grid, max_frames=3)) == 3
+        assert limit_grid_from_bottom([], max_frames=5) == []
+
+    def test_extend_grid_below_adds_a_clamped_vertex_row(self):
+        grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
+        max_iy = max(p.iy for p in grid)
+        base_row = sorted((p for p in grid if p.iy == max_iy), key=lambda p: p.ix)
+        step_y = 30 * 0.75
+
+        extended = extend_grid_below(grid, DIAMOND, step_y=step_y, rows=2)
+
+        added = [p for p in extended if p.iy > max_iy]
+        # First extra row steps down by step_y (or clamps at the vertex y=200).
+        ys = sorted({p.y for p in added})
+        assert ys[0] == pytest.approx(min(base_row[0].y + step_y, 200.0))
+        assert max(ys) <= 200.0  # never below the minimap's bottom vertex
+        # Extra rows reuse the lowest row's x positions and continue iy.
+        assert {p.ix for p in added} <= {p.ix for p in base_row}
+        # Tapers with the diamond: an added row never out-counts the row above,
+        # and the bare tip keeps exactly one cell (nearest the vertex x).
+        for iy in sorted({p.iy for p in added}):
+            row = [p for p in added if p.iy == iy]
+            assert len(row) <= len(base_row)
+            if all(p.y == pytest.approx(200.0) for p in row):
+                assert len(row) == 1
+        # Clamping stops duplicates: rows that would land on the same y are cut.
+        assert len({(p.ix, p.iy) for p in extended}) == len(extended)
+
+    def test_extend_grid_below_inset_keeps_off_the_bare_tip(self):
+        """A tap on the vertex itself teleports into the neighbouring state —
+        the overscan floor must stay inset_px above it."""
+        grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
+        extended = extend_grid_below(grid, DIAMOND, step_y=22.5, rows=3, inset_px=6.0)
+        assert max(p.y for p in extended) <= 200.0 - 6.0
+
+    def test_extend_grid_below_noop_for_zero_rows(self):
+        grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
+        assert extend_grid_below(grid, DIAMOND, step_y=22.5, rows=0) == grid
+
+    def test_from_bottom_skip_rows_starts_higher(self):
+        grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
+        bottom_iy = max(p.iy for p in grid)
+
+        base = limit_grid_from_bottom(grid, max_frames=6)
+        skipped = limit_grid_from_bottom(grid, max_frames=6, skip_rows=1)
+
+        assert max(p.iy for p in base) == bottom_iy            # tip included
+        assert max(p.iy for p in skipped) == bottom_iy - 1     # lowest row dropped
+        assert skipped[0].iy == bottom_iy - 1                  # wedge re-anchored
+
+    def test_scan_walk_is_row_by_row_single_steps(self):
+        grid = generate_grid(DIAMOND, 40, 30, overlap=0.25, edge_margin_px=4)
+        wedge = limit_grid_from_bottom(grid, max_frames=10)
+        walk = scan_walk_from_bottom(wedge)
+
+        # Starts on the bottom-most row and captures every wedge cell once.
+        assert walk[0][0].iy == max(p.iy for p in wedge)
+        captured = [p for p, cap in walk if cap]
+        assert len(captured) == len(wedge)
+        assert {(p.ix, p.iy) for p in captured} == {(p.ix, p.iy) for p in wedge}
+        # Row-major: a row is finished before the next is touched, bottom → top
+        # (iy strictly decreasing as new rows are entered — never back down).
+        first_capture_iy = [p.iy for p, cap in walk if cap]
+        row_starts = [iy for i, iy in enumerate(first_capture_iy)
+                      if i == 0 or iy != first_capture_iy[i - 1]]
+        assert row_starts == sorted(row_starts, reverse=True)
+        assert len(row_starts) == len(set(row_starts))  # each row entered once
+        # Every camera move is a single grid step — no no-overlap jump.
+        for (a, _), (b, _) in itertools.pairwise(walk):
+            assert abs(a.ix - b.ix) + abs(a.iy - b.iy) == 1
+        # Backtrack steps only revisit already-captured cells.
+        seen: set[tuple[int, int]] = set()
+        for p, cap in walk:
+            if cap:
+                seen.add((p.ix, p.iy))
+            else:
+                assert (p.ix, p.iy) in seen
+        # No wasted trailing backtracks.
+        assert walk[-1][1] is True
+
+    def test_scan_walk_empty(self):
+        assert scan_walk_from_bottom([]) == []
 
 
 class TestAffine:

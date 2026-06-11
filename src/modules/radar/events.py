@@ -20,8 +20,35 @@ logger = logging.getLogger(__name__)
 CHANNEL = "radar:events"
 STREAM = "radar:events_stream"
 ACTIVE_KEY = "radar:scan_active"
+# Stop request: holds the run_id the operator asked to stop. The scanner polls
+# it each frame and ends the run gracefully (partial frames still get stitched).
+STOP_KEY = "radar:scan_stop"
 ACTIVE_TTL_S = 900
 STREAM_MAXLEN = 2048
+
+
+def request_stop(client: Any, run_id: str) -> None:
+    """Ask the scanner to stop ``run_id`` after the current frame."""
+    try:
+        client.set(STOP_KEY, run_id, ex=ACTIVE_TTL_S)
+    except Exception:
+        logger.warning("radar: stop-key write failed", exc_info=True)
+
+
+def stop_requested(client: Any, run_id: str) -> bool:
+    """True once a stop has been requested for ``run_id``."""
+    try:
+        return client.get(STOP_KEY) == run_id
+    except Exception:
+        logger.warning("radar: stop-key read failed", exc_info=True)
+        return False
+
+
+def clear_stop(client: Any) -> None:
+    try:
+        client.delete(STOP_KEY)
+    except Exception:
+        logger.warning("radar: stop-key clear failed", exc_info=True)
 
 
 def read_active(client: Any) -> dict | None:
@@ -87,6 +114,10 @@ class RadarEventPublisher:
         self._client = client
         self.run_id = run_id
 
+    def stop_requested(self) -> bool:
+        """True when the operator has asked to stop this run."""
+        return stop_requested(self._client, self.run_id)
+
     def _publish(self, payload: dict[str, Any]) -> None:
         event = {"run_id": self.run_id, **payload}
         try:
@@ -104,6 +135,7 @@ class RadarEventPublisher:
             logger.warning("radar: event publish failed (%s)", payload.get("type"), exc_info=True)
 
     def scan_started(self, total: int, grid: Iterable[tuple[int, int]]) -> None:
+        clear_stop(self._client)  # drop any stale stop flag from a prior run
         cells = [{"ix": ix, "iy": iy} for ix, iy in grid]
         set_active(self._client, self.run_id, "scanning", done=0, total=total, grid=cells)
         self._publish({"type": "scan_started", "total_frames": total, "grid": cells})
@@ -121,12 +153,16 @@ class RadarEventPublisher:
             }
         )
 
-    def scan_finished(self, duration_s: float) -> None:
+    def scan_finished(self, duration_s: float, *, stopped: bool = False) -> None:
         clear_active(self._client)
-        self._publish({"type": "scan_finished", "duration_s": round(duration_s, 1)})
+        clear_stop(self._client)
+        self._publish(
+            {"type": "scan_finished", "duration_s": round(duration_s, 1), "stopped": stopped}
+        )
 
     def scan_failed(self, error: str) -> None:
         clear_active(self._client)
+        clear_stop(self._client)
         self._publish({"type": "scan_failed", "error": error})
 
     def map_updated(self, frames: int) -> None:

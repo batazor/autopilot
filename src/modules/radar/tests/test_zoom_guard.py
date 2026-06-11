@@ -64,7 +64,10 @@ def test_consistent_pan_passes() -> None:
     cur = world[100 : 100 + FRAME_H, 300 : 300 + FRAME_W]  # pan +200 px
     device = FakeDevice([cur])
 
-    frame, _stable = _guarded_capture(device, _cfg(), prev, expected=(200.0, 0.0))
+    frame, _stable, measured = _guarded_capture(device, _cfg(), prev, expected=(200.0, 0.0))
+
+    assert measured is not None
+    assert abs(measured[0] - 200.0) < 12
 
     assert np.array_equal(frame, cur)
 
@@ -72,7 +75,8 @@ def test_consistent_pan_passes() -> None:
 def test_first_frame_is_unguarded() -> None:
     flat = np.full((FRAME_H, FRAME_W, 3), 128, np.uint8)
     device = FakeDevice([flat])
-    frame, _stable = _guarded_capture(device, _cfg(), None, expected=None)
+    frame, _stable, measured = _guarded_capture(device, _cfg(), None, expected=None)
+    assert measured is None
     assert np.array_equal(frame, flat)
 
 
@@ -104,6 +108,9 @@ def test_recovers_when_view_settles_on_retry() -> None:
     # First wait_stable sees the transition frame, the retry sees the world.
     device = FakeDevice([transition, good])
 
-    frame, _stable = _guarded_capture(device, _cfg(), prev, expected=(200.0, 0.0))
+    frame, _stable, measured = _guarded_capture(device, _cfg(), prev, expected=(200.0, 0.0))
+
+    assert measured is not None
+    assert abs(measured[0] - 200.0) < 12
 
     assert np.array_equal(frame, good)

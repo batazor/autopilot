@@ -151,6 +151,145 @@ def limit_grid_centered(
     ]
 
 
+def limit_grid_from_bottom(
+    grid: list[GridPoint], max_frames: int | None, skip_rows: int = 0,
+) -> list[GridPoint]:
+    """Select ``max_frames`` cells as whole rows from the bottom up.
+
+    ``skip_rows`` drops that many of the lowest rows first, so scanning starts
+    higher than the bare vertex (which sits on the kingdom edge — dark
+    out-of-bounds in frame). Then take full rows bottom→top until the frame
+    budget runs out; the last row is partial, centered over the row below it so
+    it stays connected. ``max_frames=None`` keeps every row — the scan is then
+    expected to end on its own at the top border. Plain row coverage, no fan
+    into the middle — the capture route (a row-by-row serpentine) is built by
+    :func:`scan_walk_from_bottom`.
+    """
+    if not grid:
+        return grid
+    if skip_rows > 0:
+        cutoff = max(p.iy for p in grid) - skip_rows
+        grid = [p for p in grid if p.iy <= cutoff]
+        if not grid:
+            return grid
+    budget = max_frames if max_frames is not None else len(grid)
+    by_cell = {(p.ix, p.iy): p for p in grid}
+    rows: dict[int, list[int]] = {}
+    for p in grid:
+        rows.setdefault(p.iy, []).append(p.ix)
+    selected: list[GridPoint] = []
+    prev_ixs: list[int] | None = None
+    for iy in sorted(rows, reverse=True):  # bottom row first, climbing up
+        if len(selected) >= budget:
+            break
+        ixs = sorted(rows[iy])
+        remaining = budget - len(selected)
+        if len(ixs) > remaining:
+            # Partial top row: keep the cells nearest the row below's center so
+            # they sit on already-scanned ground (a contiguous, supported block).
+            span = prev_ixs or ixs
+            center = (span[0] + span[-1]) / 2
+            ixs = sorted(sorted(ixs, key=lambda x: abs(x - center))[:remaining])
+        selected.extend(by_cell[(ix, iy)] for ix in ixs)
+        prev_ixs = ixs
+    return selected
+
+
+def extend_grid_below(
+    grid: list[GridPoint],
+    corners: Corners,
+    step_y: float,
+    rows: int,
+    inset_px: float = 0.0,
+) -> list[GridPoint]:
+    """Add capture rows *below* the diamond-fitted raster, near the vertex.
+
+    The fitted raster is centered on the diamond, so its lowest row can sit a
+    sizable fraction of a step above the bottom corner — the scan then never
+    quite reaches the kingdom's bottom tip. Each extra row steps down by
+    ``step_y``, clamped to ``inset_px`` above the bottom vertex: a tap on the
+    bare tip teleports into the *neighbouring* state, so the start must stay a
+    little inside our own. Rows taper with the diamond: only the lowest row's
+    x positions still inside it are kept, and when none fit the single cell
+    nearest the vertex x survives — cells past the taper would point the camera
+    outside the kingdom, where the game clamps the pan and the view guard kills
+    the scan.
+    """
+    if not grid or rows <= 0:
+        return grid
+    vertex_x, bottom_y = corners.bottom
+    floor_y = bottom_y - inset_px
+    max_iy = max(p.iy for p in grid)
+    base = sorted((p for p in grid if p.iy == max_iy), key=lambda p: p.ix)
+    out = list(grid)
+    prev_y = base[0].y
+    for k in range(1, rows + 1):
+        y = min(base[0].y + k * step_y, floor_y)
+        if y <= prev_y + 1e-6:
+            break  # already clamped at the floor — no lower row exists
+        keep = [p for p in base if point_in_diamond((p.x, y), corners)]
+        if not keep:
+            keep = [min(base, key=lambda p: abs(p.x - vertex_x))]
+        out.extend(GridPoint(ix=p.ix, iy=max_iy + k, x=p.x, y=y) for p in keep)
+        prev_y = y
+    return out
+
+
+def scan_walk_from_bottom(cells: list[GridPoint]) -> list[tuple[GridPoint, bool]]:
+    """Row-by-row serpentine over ``cells``, bottom row up — line by line.
+
+    Each row is swept fully before climbing to the next; no detour through the
+    middle. A row is entered directly above where the previous one ended (a
+    one-step overlapping climb), swept to the near end, then back across to the
+    far end. Returns ``(point, capture)`` steps where every consecutive pair is
+    grid adjacent (one swipe); the back-across pass re-walks captured cells with
+    ``capture=False``, so the camera never makes a no-overlap jump and each new
+    frame registers against the adjacent cell it was reached from.
+    """
+    if not cells:
+        return []
+    by_cell = {(p.ix, p.iy): p for p in cells}
+
+    # Capture order: full row sweeps, bottom→top, each row entered over the
+    # previous row's end so the climb always overlaps.
+    rows: dict[int, list[int]] = {}
+    for p in cells:
+        rows.setdefault(p.iy, []).append(p.ix)
+    order: list[GridPoint] = []
+    prev_end_ix: int | None = None
+    for iy in sorted(rows, reverse=True):
+        ixs = sorted(rows[iy])
+        if prev_end_ix is None:
+            seq = ixs  # first row: straight sweep, left to right
+        else:
+            entry = min(max(prev_end_ix, ixs[0]), ixs[-1])
+            right = [ix for ix in ixs if ix >= entry]
+            left = [ix for ix in ixs if ix < entry][::-1]
+            seq = right + left
+        order.extend(by_cell[(ix, iy)] for ix in seq)
+        prev_end_ix = seq[-1]
+
+    # Expand to single steps: between non-adjacent captures, re-walk the cells
+    # in between (all already captured) so every move is one overlapping step.
+    walk: list[tuple[GridPoint, bool]] = [(order[0], True)]
+    visited = {(order[0].ix, order[0].iy)}
+    for nxt in order[1:]:
+        cur = walk[-1][0]
+        ix, iy = cur.ix, cur.iy
+        path: list[tuple[int, int]] = []
+        while ix != nxt.ix:
+            ix += 1 if nxt.ix > ix else -1
+            path.append((ix, iy))
+        while iy != nxt.iy:
+            iy += 1 if nxt.iy > iy else -1
+            path.append((ix, iy))
+        for key in path:
+            capture = key not in visited
+            walk.append((by_cell[key], capture))
+            visited.add(key)
+    return walk
+
+
 def _centered_axis_positions(
     min_pos: float,
     max_pos: float,

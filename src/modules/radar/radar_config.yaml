@@ -37,10 +37,15 @@ crop:
 stitch_viewport:
   w: 720
   h: 1185
-# Debug window: 5×2 to exercise vertical stitching. Remove for full scans.
+# Debug window: start at the bottom corner of the kingdom and grow the scan
+# upward — first 15 frames, to check vertical stitching. Remove for full scans.
 grid_limit:
-  cols: 5
-  rows: 2
+  anchor: bottom
+  max_frames: 15                # drop this line for a full scan — it then ends itself at the top border
+  bottom_skip_rows: 0           # don't skip any fitted rows
+  bottom_overscan_rows: 1       # extra row near the vertex — start at the center-bottom
+  bottom_overscan_inset_px: 5   # stay this far above the tip: a vertex tap falls into the next state
+  bottom_descend_screens: 1.25  # servo OFF only: blind pan toward the corner; with the servo on the approach is measured
 game_size: 1200
 navigation:
   mode: swipe
@@ -53,3 +58,26 @@ timings:
   stabilize_diff_threshold: 2.0
   stabilize_consecutive: 2
   stabilize_timeout_ms: 5000
+# Yellow kingdom border: origin servo on the bottom V, top-corner stop, and a
+# crossing guard that shortens any inter-cell swipe about to leave the kingdom.
+border:
+  servo: true
+  target_frac: 0.66       # the line crossing is steered to (crop center x, this fraction of crop h)
+  tolerance_px: 80
+  max_steps: 12
+  approach_step_screens: 0.5
+  stop_at_top: true
+  require_cross: true      # don't start capturing until the dashed-line X (kingdom corner) is in view
+  block_crossing: true     # never swipe across the yellow line mid-scan
+  cross_margin_px: 140     # stop this far short of the line (screen px)
+  cross_corridor_px: 80    # half-width of the look-ahead corridor around the move axis
+
+# Wait out white UI labels (city/marker names, minimap overlays) sitting on the
+# next touch point — touching one selects it instead of panning/teleporting.
+label_guard:
+  enabled: true
+  white_threshold: 235   # min BGR channel to count a pixel as label-white
+  white_fraction: 0.5    # share of the patch that must be white to wait
+  sample_radius_px: 6
+  timeout_ms: 4000       # then touch anyway
+  poll_interval_ms: 250
