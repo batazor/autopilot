@@ -315,13 +315,15 @@ export default function ApprovalsPage() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const original = document.title;
-    document.title = view?.has_pending
+    // Only flag "you have work" when a worker is actually alive to act on the
+    // decision — a stale pending request from a stopped bot is not actionable.
+    document.title = view?.has_pending && view?.worker_alive
       ? `● ${DOCUMENT_TITLE_BASE}`
       : DOCUMENT_TITLE_BASE;
     return () => {
       document.title = original;
     };
-  }, [view?.has_pending]);
+  }, [view?.has_pending, view?.worker_alive]);
 
   const dismissToast = (id: string) =>
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -484,7 +486,9 @@ export default function ApprovalsPage() {
           return;
         }
       }
-      if (!view?.has_pending || busyAction !== null) return;
+      // Don't let approve/reject/skip shortcuts fire against a stale request
+      // when the bot is stopped — the decision would have no worker to consume it.
+      if (!view?.has_pending || !view?.worker_alive || busyAction !== null) return;
       const k = e.key.toLowerCase();
       if (k === "a" || k === "y") {
         e.preventDefault();
@@ -499,7 +503,7 @@ export default function ApprovalsPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [view?.has_pending, busyAction, onDecision]);
+  }, [view?.has_pending, view?.worker_alive, busyAction, onDecision]);
 
   const imageUrl =
     view?.preview.available && instanceId
@@ -541,7 +545,12 @@ export default function ApprovalsPage() {
   const inGameId = view?.active_player_in_game_id || "";
   const playerAccountKey =
     activePlayer && inGameId && activePlayer !== inGameId ? activePlayer : "";
-  const hasPending = !!view?.has_pending;
+  const workerAlive = !!view?.worker_alive;
+  // A pending request only counts as actionable while a worker is alive to
+  // consume the decision. When the bot is stopped we surface the leftover
+  // request as an explanatory idle state instead of prompting the operator.
+  const hasPending = !!view?.has_pending && workerAlive;
+  const stalePending = !!view?.has_pending && !workerAlive;
   const scenarioProgress = view?.scenario_progress ?? null;
   const approvalEnabled = !!view?.approval_enabled;
   const heartbeatActive = !!view?.heartbeat_active;
@@ -783,6 +792,9 @@ export default function ApprovalsPage() {
               resetting={busyAction === "reset-screen"}
               onResetScreen={onResetScreen}
               instanceId={instanceId}
+              stalePending={stalePending}
+              clearingPending={busyAction === "clear-pending"}
+              onClearPending={onClearPending}
             />
           )}
         </section>
@@ -1343,12 +1355,43 @@ function IdleApprovalsCard({
   resetting,
   onResetScreen,
   instanceId,
+  stalePending,
+  clearingPending,
+  onClearPending,
 }: {
   busy: boolean;
   resetting: boolean;
   onResetScreen: () => void;
   instanceId: string;
+  stalePending: boolean;
+  clearingPending: boolean;
+  onClearPending: () => void;
 }) {
+  // A leftover request from a stopped bot: there's no worker to consume an
+  // approve/reject, so we don't prompt for a decision. Explain that instead of
+  // claiming "All clear", and offer to clear the orphaned request.
+  if (stalePending) {
+    return (
+      <div className="idle-card">
+        <div className="idle-card__icon" aria-hidden>⏸</div>
+        <p className="idle-card__title">Bot not running</p>
+        <p className="meta">
+          A click request is parked for this instance, but the worker isn&apos;t
+          alive to act on a decision — so there&apos;s nothing to approve right
+          now. Start the bot and it will re-issue any request it still needs.
+        </p>
+        <button
+          type="button"
+          className="btn-secondary mt-3"
+          disabled={busy || !instanceId}
+          onClick={onClearPending}
+          title="Drop the orphaned pending approval from Redis (treated as reject)"
+        >
+          {clearingPending ? "Clearing…" : "Clear parked request"}
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="idle-card">
       <div className="idle-card__icon" aria-hidden>✓</div>
