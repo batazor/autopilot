@@ -873,11 +873,14 @@ export type BuildingLevelReq = {
   build_cost: BuildingCostItem[];
 };
 
+export type BuildingRequire = { building: string; level: number };
+
 export type BuildingDef = {
   id: string;
   name: string;
   category: string;
   max_level: number | null;
+  requires: BuildingRequire[];
   requirements_by_level: Record<string, BuildingLevelReq>;
 };
 
