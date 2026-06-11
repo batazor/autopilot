@@ -21,9 +21,10 @@ from licensing.issue import issue_license
 from licensing.models import LicenseError
 
 
-def _parse_features(raw: str | None) -> list[str]:
+def _parse_features(raw: str | None) -> list[str] | None:
+    """``None`` when not given — issue_license then resolves features from the tier."""
     if not raw:
-        return []
+        return None
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
@@ -59,7 +60,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="tier label (default: 'pro' for regular, 'trial' under --trial)",
     )
-    parser.add_argument("--features", default="", help="comma-separated feature flags")
+    parser.add_argument(
+        "--features",
+        default="",
+        help="comma-separated feature flags (default: resolved from --tier per licensing.plans)",
+    )
     parser.add_argument(
         "--max-devices",
         type=int,
