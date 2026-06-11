@@ -1,5 +1,7 @@
 """Scan navigation: swipe math + route building (swipe default, tap optional)."""
 
+from itertools import pairwise
+
 from modules.radar.config import (
     CornersConfig,
     CropConfig,
@@ -10,16 +12,19 @@ from modules.radar.config import (
     StitchViewportConfig,
     ViewportConfig,
 )
-from modules.radar.geometry import diamond_center
-from modules.radar.scanner import _swipe_relative, build_scan_grid
+from modules.radar.scanner import _move_to_point, _swipe_relative, build_scan_grid
 
 
 class FakeDevice:
     def __init__(self) -> None:
         self.swipes: list[tuple[float, float, float, float, int]] = []
+        self.taps: list[tuple[float, float]] = []
 
     def swipe(self, x1: float, y1: float, x2: float, y2: float, duration_ms: int) -> None:
         self.swipes.append((x1, y1, x2, y2, duration_ms))
+
+    def tap(self, x: float, y: float) -> None:
+        self.taps.append((x, y))
 
 
 def _cfg(
@@ -70,28 +75,38 @@ def test_swipe_relative_chunks_long_moves() -> None:
             assert c.y <= y <= c.y + c.h
 
 
-def test_build_scan_grid_swipe_route_starts_near_center() -> None:
+def test_build_scan_grid_is_serpentine_single_steps() -> None:
     cfg = _cfg()  # swipe is the default mode
     grid = build_scan_grid(cfg)
 
     assert grid == build_scan_grid(cfg)  # deterministic
-    cx, cy = diamond_center(cfg.minimap.corners.as_geometry())
-    start = grid[0]
-    # The route begins at the cell closest to the minimap center (where the
-    # camera already is), so the first relative move is short.
-    assert min(
-        ((p.x - cx) ** 2 + (p.y - cy) ** 2) for p in grid
-    ) == (start.x - cx) ** 2 + (start.y - cy) ** 2
-
-
-def test_build_scan_grid_tap_mode_is_serpentine() -> None:
-    grid = build_scan_grid(_cfg(navigation=NavigationConfig(mode="tap")))
-
     rows: dict[int, list[int]] = {}
     for p in grid:
         rows.setdefault(p.iy, []).append(p.ix)
     for iy, ixs in rows.items():
         assert ixs == sorted(ixs, reverse=iy % 2 == 1)  # serpentine raster
+    # Within a row every capture-to-capture move is exactly one grid step —
+    # that is what keeps neighbouring frames overlapping for registration.
+    for a, b in pairwise(grid):
+        if a.iy == b.iy:
+            assert abs(b.ix - a.ix) == 1
+
+
+def test_first_swipe_move_positions_from_minimap_center() -> None:
+    device = FakeDevice()
+    cfg = _cfg()
+    grid = build_scan_grid(cfg)
+
+    meta = _move_to_point(device, cfg, None, grid[0])
+
+    # The pre-capture positioning move runs from the diamond center (100,100)
+    # to the first raster cell — long is fine, no frame exists yet.
+    assert meta["mode"] == "swipe"
+    assert meta["origin"] is True
+    assert meta["from_center_px"] == [100.0, 100.0]
+    expected_moves = (grid[0].x != 100.0) or (grid[0].y != 100.0)
+    assert bool(device.swipes) is expected_moves
+    assert bool(meta["swipes"]) is expected_moves
 
 
 def test_build_scan_grid_applies_debug_window() -> None:

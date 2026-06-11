@@ -22,9 +22,9 @@ from modules.radar.config import load_config
 from modules.radar.device import RadarDevice, pick_serial
 from modules.radar.geometry import (
     Affine,
+    diamond_center,
     generate_grid,
     limit_grid_centered,
-    order_grid_center_first,
 )
 
 if TYPE_CHECKING:
@@ -46,9 +46,11 @@ class ScanAborted(RuntimeError):
 def build_scan_grid(cfg: RadarConfig) -> list[GridPoint]:
     """Scan route — single source of truth for scanner + API.
 
-    Swipe mode starts at the cell nearest the minimap center (where the
-    camera already is) and walks nearest-neighbor so every relative move is
-    short; tap mode keeps the plain serpentine raster.
+    Plain serpentine raster for both modes: every move *between captures* is
+    a single grid step, which is what keeps neighbouring frames overlapping
+    for ORB registration. The camera starts at the minimap center, and the
+    (possibly long) positioning move to the first cell happens *before* the
+    first capture, so its accuracy never matters for stitching.
     """
     corners = cfg.minimap.corners.as_geometry()
     grid = generate_grid(
@@ -60,8 +62,6 @@ def build_scan_grid(cfg: RadarConfig) -> list[GridPoint]:
     )
     if cfg.grid_limit is not None:
         grid = limit_grid_centered(grid, corners, cfg.grid_limit.cols, cfg.grid_limit.rows)
-    if cfg.navigation.mode == "swipe":
-        grid = order_grid_center_first(grid, corners)
     return grid
 
 
@@ -274,7 +274,17 @@ def _move_to_point(
         device.tap(point.x, point.y)
         return {"mode": "tap", "target_px": [round(point.x, 2), round(point.y, 2)]}
     if previous is None:
-        return {"mode": "swipe", "origin": True}
+        # Position for the first capture: the camera sits at the minimap
+        # center (scan precondition), the route starts at a raster corner.
+        # This move's drift is harmless — no frame has been captured yet.
+        cx, cy = diamond_center(cfg.minimap.corners.as_geometry())
+        swipes = _swipe_relative(device, cfg, point.x - cx, point.y - cy)
+        return {
+            "mode": "swipe",
+            "origin": True,
+            "from_center_px": [round(cx, 2), round(cy, 2)],
+            "swipes": swipes,
+        }
     dx = point.x - previous.x
     dy = point.y - previous.y
     swipes = _swipe_relative(device, cfg, dx, dy)

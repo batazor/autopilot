@@ -35,10 +35,10 @@ crop:
 stitch_viewport:
   w: 720
   h: 1185
-# Debug window: scan only 2×3 cells around the center. Remove for full scans.
+# Debug window: a single 5-frame horizontal strip. Remove for full scans.
 grid_limit:
-  cols: 2
-  rows: 3
+  cols: 5
+  rows: 1
 game_size: 1200
 navigation:
   mode: swipe

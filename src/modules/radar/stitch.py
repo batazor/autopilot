@@ -230,10 +230,16 @@ def _find_match_edges(
         feat_b = features[j]
         if feat_a is None or feat_b is None:
             continue
+        cell_a = (entries[i].get("ix"), entries[i].get("iy"))
+        cell_b = (entries[j].get("ix"), entries[j].get("iy"))
         estimate = _orb_pair_offset(feat_a, feat_b)
         if estimate is None:
+            logger.info("stitch edge %s->%s: NO MATCH", cell_a, cell_b)
             continue
         dx, dy, score = estimate
+        logger.info(
+            "stitch edge %s->%s: dx=%.1f dy=%.1f score=%.2f", cell_a, cell_b, dx, dy, score,
+        )
         edges.append(MatchEdge(i=i, j=j, dx=dx, dy=dy, score=score))
     logger.info("stitch edge matching: %d frame-pair matches", len(edges))
     return edges
