@@ -274,7 +274,7 @@ def test_get_adb_status_probes_default_emulator_tcp_port(
     monkeypatch.setattr(
         adb_api,
         "_port_open",
-        lambda port, _timeout=0.3: port == 5555,
+        lambda _host, port, _timeout=0.3: port == 5555,
     )
 
     status = adb_api.get_adb_status()
@@ -339,7 +339,11 @@ def test_get_adb_status_marks_wos_beta_package(
         return Completed(returncode=1)
 
     monkeypatch.setattr(adb_api.subprocess, "run", fake_run)
-    monkeypatch.setattr(adb_api, "_probe_default_tcp_adb_targets", lambda *_args: False)
+    monkeypatch.setattr(
+        adb_api,
+        "_probe_default_tcp_adb_targets",
+        lambda *_args, **_kwargs: False,
+    )
 
     status = adb_api.get_adb_status()
 
@@ -380,7 +384,7 @@ def test_get_adb_status_uses_custom_port_range(
 ) -> None:
     probed: list[list[int]] = []
 
-    def fake_probe(adb_exe, live, ports=None):
+    def fake_probe(adb_exe, live, ports=None, probe_host="127.0.0.1"):
         probed.append(list(ports or []))
         return False
 
@@ -401,3 +405,39 @@ def test_get_adb_status_uses_custom_port_range(
         "step": 5,
         "count": 3,
     }
+
+
+def test_get_adb_status_probes_configured_host(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WOS_ADB_PROBE_HOST flows from settings to the TCP probe (the api
+    container probes the docker host, not its own loopback), while the
+    ``adb connect`` serial stays 127.0.0.1:<port> — it is resolved by the
+    adb server on the host and must match the bot's view."""
+    monkeypatch.setenv("WOS_ADB_PROBE_HOST", "host.docker.internal")
+
+    calls: list[list[str]] = []
+    probed_hosts: list[str] = []
+
+    class Completed:
+        returncode = 0
+        stdout = "List of devices attached\n"
+        stderr = ""
+
+    def fake_run(args, **_kwargs):
+        calls.append(list(args))
+        return Completed()
+
+    def fake_port_open(host, port, _timeout=0.3):
+        probed_hosts.append(host)
+        return port == 5555
+
+    monkeypatch.setattr(adb_api.subprocess, "run", fake_run)
+    monkeypatch.setattr(adb_api, "_port_open", fake_port_open)
+
+    status = adb_api.get_adb_status()
+
+    assert set(probed_hosts) == {"host.docker.internal"}
+    assert any(call[1:3] == ["connect", "127.0.0.1:5555"] for call in calls)
+    assert status["scan_probe_host"] == "host.docker.internal"

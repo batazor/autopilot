@@ -246,6 +246,7 @@ worker:
 - `WOS_REDIS_URL` → `redis.url`
 - `WOS_TESSERACT_CMD` → `ocr.tesseract_cmd`
 - `TESSDATA_PREFIX` → Tesseract traineddata path
+- `WOS_ADB_PROBE_HOST` → `worker.adb_probe_host` — host the `/adb` emulator-port scan probes (default `127.0.0.1`; set to `host.docker.internal` when the API runs in a bridge-network container, paired with `ADB_SERVER_SOCKET=tcp:host.docker.internal:5037` so all `adb` calls go through the host's adb server)
 
 **Devices + accounts in SQLite** (`db/state/state.db`):
 
