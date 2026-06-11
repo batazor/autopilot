@@ -1,2 +1,63 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "deals.journey_treasures",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "journey_treasures.claimable",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 7.7991757028604995,
+            "y": 24.62310341835728,
+            "width": 15.842696629213481,
+            "height": 7.64516870913689,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "journey_treasures.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.07720874469311,
+            "y": 16.07385674081169,
+            "width": 22.37833360231683,
+            "height": 3.7420245096428935,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/unlock_claiming_permissions.png",
+      "regions": [
+        {
+          "name": "journey_treasures.close",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.29373558706624,
+            "y": 10.301476828147997,
+            "width": 6.78370786516844,
+            "height": 3.7420245096428717,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    }
+  ]
+}

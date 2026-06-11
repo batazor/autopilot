@@ -1,0 +1,12 @@
+overlay:
+  - name: journey_treasures.claimable.has_red_dot
+    region: journey_treasures.claimable
+    isRedDot: true
+    ttl: 5s
+    screens:
+      - deals
+      - deals.journey_treasures
+    steps:
+      - push_scenario:
+          name: deals.journey_treasures
+          ttl: 1m

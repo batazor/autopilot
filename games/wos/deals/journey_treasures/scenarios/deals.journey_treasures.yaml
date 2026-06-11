@@ -3,14 +3,19 @@ name: Journey Treasures
 node: deals.journey_treasures
 icon: journey_treasures
 steps:
-  - while_match: button.claim
+  - while_match: journey_treasures.claimable
+    isRedDot: true
     max: 3
+    retry:
+      attempts: 1
+      interval: 100ms
     steps:
-      - click: button.claim
+      - click: journey_treasures.claimable
       - wait: 1s
-  - while_match: button.claim.big
-    max: 3
+
+  - wait: 2s
+  - while_match: journey_treasures.close
+    max: 1
     steps:
-      - click: button.claim.big
+      - click: journey_treasures.close
       - wait: 1s
-      - click: tapanywhereyoexit
