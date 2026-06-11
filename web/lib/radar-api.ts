@@ -97,6 +97,12 @@ export function fetchRadarActive(): Promise<{ active: RadarActiveScan | null }> 
   return rfetch("/api/radar/active");
 }
 
+/** Whether the current license unlocks Radar (R4 feature). */
+export function fetchRadarAccess(): Promise<{ licensed: boolean; tier: string }> {
+  return rfetch("/api/radar/access");
+}
+// (imported by the radar page to gate the UI)
+
 export function fetchRadarManifest(runId: string): Promise<RadarManifest> {
   return rfetch(`/api/radar/runs/${encodeURIComponent(runId)}/manifest`);
 }

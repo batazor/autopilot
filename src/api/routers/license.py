@@ -17,7 +17,7 @@ class IssueRequest(BaseModel):
     sub: str = Field(..., description="user email / stable id", min_length=1)
     machine_id: str = Field(..., description="fingerprint from the user's UI", min_length=1)
     days: int = Field(30, ge=1, le=365)
-    tier: str = Field("pro", min_length=1)
+    tier: str = Field("r3", min_length=1)
     features: list[str] = Field(default_factory=list)
     max_devices: int = Field(1, ge=1, le=100)
     max_players_per_device: int = Field(3, ge=1, le=100)
@@ -33,6 +33,12 @@ def get_fingerprint() -> dict[str, Any]:
 def get_status() -> dict[str, Any]:
     """Current license state + admin flag + resolved license file path."""
     return svc.get_status()
+
+
+@router.get("/plans")
+def get_plans() -> list[dict[str, Any]]:
+    """Public plan catalog (R2/R3/R4 tiers, prices, features)."""
+    return svc.list_plans()
 
 
 @router.post("/issue")

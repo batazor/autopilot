@@ -23,6 +23,7 @@ import {
   RADAR_EVENTS_URL,
   buildRadarTiles,
   deleteRadarRun,
+  fetchRadarAccess,
   fetchRadarActive,
   fetchRadarManifest,
   fetchRadarRuns,
@@ -202,8 +203,18 @@ export default function RadarPage() {
   const [deleteConfirmRunId, setDeleteConfirmRunId] = useState<string | null>(null);
   const [live, dispatch] = useReducer(liveReducer, LIVE_IDLE);
 
-  const runs = useQuery({ queryKey: ["radar", "runs"], queryFn: fetchRadarRuns });
+  const access = useQuery({
+    queryKey: ["radar", "access"],
+    queryFn: fetchRadarAccess,
+  });
+  const locked = access.data ? !access.data.licensed : false;
   const scanActiveNow = live.phase === "queued" || live.phase === "scanning";
+
+  const runs = useQuery({
+    queryKey: ["radar", "runs"],
+    queryFn: fetchRadarRuns,
+    enabled: !locked,
+  });
   const activeScan = useQuery({
     queryKey: ["radar", "active"],
     queryFn: fetchRadarActive,
@@ -211,6 +222,7 @@ export default function RadarPage() {
     // Safety net: SSE is the live channel, but if a proxy buffers or drops
     // it, this poll keeps progress + the live map moving during a scan.
     refetchInterval: scanActiveNow ? 2000 : false,
+    enabled: !locked,
   });
   const runId = selectedRunId ?? runs.data?.[0]?.run_id ?? null;
 
@@ -418,6 +430,23 @@ export default function RadarPage() {
       : tiles.isError
         ? errMsg(tiles.error)
         : null;
+
+  if (locked) {
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        <div className="panel flex flex-col items-start gap-2 p-4">
+          <h1 className="text-lg font-semibold">Radar 🔒</h1>
+          <p className="muted m-0">
+            The Radar kingdom-map scanner is an <strong>R4 ($30)</strong> feature.
+            Upgrade your license to unlock it.
+          </p>
+          <a className="btn-primary" href="/license">
+            View license
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 p-4">
