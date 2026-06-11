@@ -1,52 +1,44 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { AppTabs } from "@/components/headless";
-import { BUILDING_GAMES } from "@/lib/buildings-games";
-import {
-  CATEGORY_LABEL,
-  type Building,
-  type BuildingCategory,
-  type BuildingGame,
-} from "@/lib/buildings-types";
+import { fetchBuildings } from "@/lib/api";
+import type { BuildingDef, BuildingsView } from "@/lib/types";
 
-const CATEGORY_ORDER: BuildingCategory[] = [
-  "inner",
-  "military",
-  "resource",
-  "other",
-];
+const SOURCE_URL = "https://www.whiteoutsurvival.wiki/buildings/";
+const SOURCE_LABEL = "whiteoutsurvival.wiki/buildings";
 
-/** Furnace upgrade dependency spine: each hub level + the buildings it needs. */
-function HubSpine({ game }: { game: BuildingGame }) {
-  const nameOf = useMemo(() => {
-    const map = new Map(game.buildings.map((b) => [b.id, b.name]));
-    return (id: string) => map.get(id) ?? id;
-  }, [game]);
-
-  const hubName = nameOf(game.hubId);
+/** Hub (Furnace) upgrade dependency spine — one row per level with a prereq. */
+function HubSpine({ hub }: { hub: BuildingDef }) {
+  const rows = useMemo(
+    () =>
+      Object.entries(hub.requirements_by_level)
+        .map(([level, req]) => ({ level: Number(level), prereq: req.prerequisites }))
+        .filter((r) => r.prereq)
+        .sort((a, b) => a.level - b.level),
+    [hub],
+  );
 
   return (
     <section className="panel">
       <div className="fleet-section__head">
-        <h2>{hubName} upgrade requirements</h2>
-        <span className="fleet-count">max Lv {game.hubMaxLevel}</span>
+        <h2>{hub.name} upgrade requirements</h2>
+        {hub.max_level ? (
+          <span className="fleet-count">max Lv {hub.max_level}</span>
+        ) : null}
       </div>
       <p className="muted mb-3 text-sm">
-        {hubName} level gates and caps every other building. To advance it, the
-        listed buildings must first reach the shown level.
+        {hub.name} level gates and caps every other building. To advance it, the
+        listed building(s) must first reach the shown level.
       </p>
 
       <ol className="relative ml-3 border-l-2 border-[color:var(--wos-border-hover)] pl-5">
-        {game.hubRequirements.map((req) => (
-          <li key={req.hubLevel} className="relative mb-4 last:mb-0">
+        {rows.map((r) => (
+          <li key={r.level} className="relative mb-3 last:mb-0">
             <span
               className="absolute -left-[1.65rem] top-1 h-3 w-3 rounded-full border-2"
-              style={{
-                background: "var(--wos-accent)",
-                borderColor: "var(--wos-bg)",
-              }}
+              style={{ background: "var(--wos-accent)", borderColor: "var(--wos-bg)" }}
             />
             <div className="flex flex-wrap items-center gap-2">
               <span
@@ -56,119 +48,94 @@ function HubSpine({ game }: { game: BuildingGame }) {
                   color: "var(--wos-status-info-fg)",
                 }}
               >
-                {hubName} Lv {req.hubLevel}
+                {hub.name} Lv {r.level}
               </span>
               <span className="text-xs text-wos-text-muted">needs</span>
-              {req.requires.map((r) => (
-                <span
-                  key={`${r.building}-${r.level}`}
-                  className="rounded-lg border px-2 py-0.5 text-sm"
-                  style={{
-                    background: "var(--wos-panel-raised)",
-                    borderColor: "var(--wos-border)",
-                  }}
-                >
-                  {nameOf(r.building)}{" "}
-                  <span className="font-semibold">Lv {r.level}</span>
-                </span>
-              ))}
+              <span className="text-sm">{r.prereq}</span>
             </div>
           </li>
         ))}
       </ol>
-
-      {game.note ? (
-        <p className="muted mt-4 text-xs">{game.note}</p>
-      ) : null}
     </section>
   );
 }
 
-function BuildingCard({ b }: { b: Building }) {
-  return (
-    <div
-      className="flex items-center justify-between gap-2 rounded-lg border p-2 text-sm"
-      style={{
-        background: "var(--wos-panel-raised)",
-        borderColor: "var(--wos-border)",
-      }}
-    >
-      <span className="truncate font-medium" title={b.name}>
-        {b.name}
-      </span>
-      {b.maxLevel ? (
-        <span className="shrink-0 text-xs text-wos-text-muted">
-          max Lv {b.maxLevel}
-        </span>
-      ) : null}
-    </div>
+function BuildingCatalog({ buildings }: { buildings: BuildingDef[] }) {
+  const rows = useMemo(
+    () => [...buildings].sort((a, b) => a.name.localeCompare(b.name)),
+    [buildings],
   );
-}
 
-function BuildingCatalog({ game }: { game: BuildingGame }) {
   return (
-    <section className="panel">
-      <h2>Buildings ({game.buildings.length})</h2>
-      <div className="mt-3 flex flex-col gap-4">
-        {CATEGORY_ORDER.map((cat) => {
-          const items = game.buildings.filter((b) => b.category === cat);
-          if (!items.length) return null;
-          return (
-            <div key={cat}>
-              <h3 className="mb-2 text-sm font-semibold text-wos-text-secondary">
-                {CATEGORY_LABEL[cat]} ({items.length})
-              </h3>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {items.map((b) => (
-                  <BuildingCard key={b.id} b={b} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+    <section className="panel panel--spaced">
+      <h2>Buildings ({rows.length})</h2>
+      <div className="data-table-wrap mt-3">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Building</th>
+              <th>Max level</th>
+              <th>Unlocks at</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((b) => {
+              const unlock = b.requirements_by_level["1"]?.prerequisites;
+              return (
+                <tr key={b.id}>
+                  <td className="font-medium">{b.name}</td>
+                  <td>{b.max_level ?? "—"}</td>
+                  <td className="text-wos-text-muted">{unlock || "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </section>
   );
 }
 
 export default function BuildingsPage() {
-  const [gameId, setGameId] = useState(BUILDING_GAMES[0]!.id);
-  const game = BUILDING_GAMES.find((g) => g.id === gameId) ?? BUILDING_GAMES[0]!;
+  const { data, error, isLoading } = useQuery<BuildingsView>({
+    queryKey: ["buildings"],
+    queryFn: fetchBuildings,
+  });
+
+  const hub = data?.buildings.find((b) => b.id === data.hub_id);
 
   return (
     <>
       <PageHeader title="Buildings">
         <p className="muted m-0">
-          Building level dependencies per game — sourced from{" "}
+          Building level dependencies — served from{" "}
+          <code>games/&lt;game&gt;/db/buildings/*.yaml</code> (single source of
+          truth), sourced from{" "}
           <a
             className="underline"
-            href={game.sourceUrl}
+            href={SOURCE_URL}
             target="_blank"
             rel="noreferrer"
           >
-            {game.sourceLabel}
+            {SOURCE_LABEL}
           </a>
-          . Edit the per-game data file to correct it.
+          .
         </p>
       </PageHeader>
 
-      {BUILDING_GAMES.length > 1 ? (
-        <AppTabs
-          renderPanels={false}
-          selectedKey={gameId}
-          onChange={setGameId}
-          tabs={BUILDING_GAMES.map((g) => ({
-            key: g.id,
-            label: g.label,
-            title: g.id,
-          }))}
-        />
+      {error ? (
+        <div className="error-banner">
+          {error instanceof Error ? error.message : String(error)}
+        </div>
       ) : null}
+      {isLoading ? <p className="muted">Loading…</p> : null}
 
-      <div className="flex flex-col gap-4">
-        <HubSpine game={game} />
-        <BuildingCatalog game={game} />
-      </div>
+      {data ? (
+        <div className="flex flex-col gap-4">
+          {hub ? <HubSpine hub={hub} /> : null}
+          <BuildingCatalog buildings={data.buildings} />
+        </div>
+      ) : null}
     </>
   );
 }

@@ -87,6 +87,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     adb,
     alliances,
     balance,
+    buildings,
     click_approvals,
     config_reload,
     dev_bot,
@@ -159,6 +160,7 @@ app.include_router(labeling.router)
 app.include_router(routes.router)
 app.include_router(gift_codes.router)
 app.include_router(wiki.router)
+app.include_router(buildings.router)
 app.include_router(click_approvals.router)
 app.include_router(overlay_test.router)
 app.include_router(dreamscape_onboarding.router)
