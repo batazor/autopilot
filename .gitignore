@@ -101,3 +101,6 @@ games/wos/events/dreamscape_memory/scenes.db-shm
 # UNENCRYPTED data the SQLCipher migration just protected — never commit them.
 *.plaintext.bak
 src/modules/radar/radar_corner_ref.yaml
+
+# Astro-generated type stubs (recreated by `astro sync` / dev server).
+.astro/
