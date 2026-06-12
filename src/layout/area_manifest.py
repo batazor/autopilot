@@ -145,6 +145,10 @@ def _load_area_doc_cached(
     screens: list[Any] = merged["screens"]
 
     for module_area in iter_module_area_manifests(repo_root, game=game):
+        # The discovery list is process-cached; a module deleted while the
+        # process runs still appears here. Skip it like the fingerprint does.
+        if not module_area.is_file():
+            continue
         module_root = module_area.parent
         module_doc = _load_area_mapping(module_area)
         module_doc = _normalize_module_area_doc(

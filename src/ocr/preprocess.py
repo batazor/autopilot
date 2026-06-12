@@ -57,6 +57,32 @@ def digits_for_ocr(image: np.ndarray) -> np.ndarray:
     return binary_tile_for_ocr(image)
 
 
+# White-text threshold for ``bar_timer`` (timer glyphs are pure white; the
+# progress-bar fill behind them is saturated green/blue). Otsu picks a split
+# inside the busy bar gradient and mangles glyph edges ("4d" → "Ad"), so a
+# fixed cut works better here.
+_BAR_TIMER_WHITE_THRESHOLD = 160
+
+
+def bar_timer_for_ocr(image: np.ndarray) -> np.ndarray:
+    """Timer text drawn over a colored progress bar ("4d 11:59:43").
+
+    Keep only the white glyphs (fixed threshold), render them black-on-white,
+    and upscale — CLAHE/Otsu pipelines misread the day prefix on the busy
+    bar background.
+    """
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    mask = (gray > _BAR_TIMER_WHITE_THRESHOLD).astype("uint8") * 255
+    inverted = 255 - mask
+    return cv2.resize(
+        inverted,
+        None,
+        fx=_OCR_BINARY_UPSCALE,
+        fy=_OCR_BINARY_UPSCALE,
+        interpolation=cv2.INTER_CUBIC,
+    )
+
+
 # Timers: Tesseract single-line (PSM 7), no whitelist — colons must survive.
 _FAST_LINE_TYPE_HINTS: frozenset[str] = frozenset({"time"})
 # Integer stat cells (player id, power, server id): PSM 7 + digit whitelist so

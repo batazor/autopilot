@@ -1,0 +1,12 @@
+enabled: true
+name: "Chapter: Daily Review"
+priority: 80_000
+
+# Thin trampoline queued by chapter.claim_missions for reset+5m. Its only job
+# is to kick off the real claim pass in the new game day. A distinct scenario
+# key (instead of a delayed self-push) keeps queue dedup from swallowing
+# badge-triggered chapter.claim_missions pushes while the delayed item waits.
+cond: "active_player != null"
+
+steps:
+  - push_scenario: chapter.claim_missions

@@ -285,3 +285,432 @@ async def test_exec_sync_main_menu_marching_status_updates_player_state(
     assert slot3["status"] == "idle"
     assert slot3["remaining_s"] == 0
     assert slot1["ends_at"] > slot1["checked_at"]
+
+
+def test_area_declares_research_regions() -> None:
+    area = _load_yaml("area.yaml")
+    main = area["screens"][0]
+    regions = {r["name"]: r for r in main["regions"]}
+    status = regions["main_menu.research.slot.status"]
+    assert status["action"] == "text"
+    assert status["type"] == "string"
+    timer = regions["main_menu.research.slot.time"]
+    assert timer["action"] == "text"
+    assert timer["type"] == "time"
+    # White-on-progress-bar glyphs need the dedicated preprocess: the default
+    # pipeline misreads the day prefix ("4d" → "Ad") and silently loses 4 days.
+    assert timer["preprocess"] == "bar_timer"
+    assert timer["threshold"] <= 0.75
+    assert regions["main_menu.to.research"]["action"] == "click"
+
+
+def test_sync_research_status_scenario_reads_known_regions() -> None:
+    scenario = _load_yaml("scenarios/sync_research_status.yaml")
+    assert scenario["node"] == "main_menu"
+    used = [step["ocr"] for step in scenario["steps"] if "ocr" in step]
+    assert used == [
+        "main_menu.research.slot.status",
+        "main_menu.research.slot.time",
+    ]
+    assert scenario["steps"][-1] == {"exec": "sync_main_menu_research_status"}
+
+
+def test_analyze_pushes_research_sync_when_menu_visible() -> None:
+    analyze = _load_yaml("analyze/analyze.yaml")
+    rules = {rule["name"]: rule for rule in analyze["overlay"]}
+    rule = rules["main_menu.research.visible"]
+    assert rule["region"] == "main_menu.research.slot.status"
+    assert rule["action"] == "text"
+    assert rule["screens"] == ["main_menu"]
+    assert rule["ttl"] == "5m"
+    assert rule["steps"] == [{"push_scenario": "sync_research_status"}]
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_main_menu_research_status_updates_player_state(
+    redis_async: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = _load_exec_module()
+    updates: dict[str, object] = {}
+
+    class _PlayerStore:
+        def update_from_flat(self, flat: dict[str, object]) -> None:
+            updates.update(flat)
+
+    class _StateStore:
+        def get_or_create(self, player_id: str) -> _PlayerStore:
+            assert player_id == "p1"
+            return _PlayerStore()
+
+    async def _publish(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
+    monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:p1:state",
+        mapping={
+            "main_menu.research.slot.remaining_s": "388783",
+            "main_menu.research.slot.remaining_s_text": "4d 11:59:43",
+            "main_menu.research.slot.status": "Tool Enhancement VII",
+        },
+    )
+
+    ctx = DslExecContext(
+        redis_client=redis_async,
+        player_id="p1",
+        instance_id="bs1",
+        args={},
+        result={},
+    )
+    await mod.DSL_EXEC_HANDLERS["sync_main_menu_research_status"](ctx)
+
+    assert ctx.result["action"] == "stored"
+    assert updates["research.center.state.isAvailable"] is False
+    assert updates["research.center.state.current"] == "Tool Enhancement VII"
+    assert updates["research.center.state.TextStatus"] == "4d 11:59:43"
+    assert updates["research.center.state.research_remaining_s"] == 388783
+    assert updates["research.center.state.research_ends_at"] > updates[
+        "research.center.state.research_checked_at"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_main_menu_research_status_idle_slot(
+    redis_async: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = _load_exec_module()
+    updates: dict[str, object] = {}
+
+    class _PlayerStore:
+        def update_from_flat(self, flat: dict[str, object]) -> None:
+            updates.update(flat)
+
+    class _StateStore:
+        def get_or_create(self, player_id: str) -> _PlayerStore:
+            return _PlayerStore()
+
+    async def _publish(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
+    monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
+    # No timer OCR'd — only a residual row label: slot counts as available.
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:p1:state",
+        mapping={"main_menu.research.slot.status": "Tech Research"},
+    )
+
+    ctx = DslExecContext(
+        redis_client=redis_async,
+        player_id="p1",
+        instance_id="bs1",
+        args={},
+        result={},
+    )
+    await mod.DSL_EXEC_HANDLERS["sync_main_menu_research_status"](ctx)
+
+    assert ctx.result["action"] == "stored"
+    assert updates["research.center.state.isAvailable"] is True
+    assert updates["research.center.state.current"] == ""
+    assert updates["research.center.state.research_remaining_s"] == 0
+    assert updates["research.center.state.research_ends_at"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_research_regions_ocr_from_reference() -> None:
+    """The labeled bboxes must read the research row off the real screenshot —
+    including the day prefix, which only survives the ``bar_timer`` preprocess."""
+    import cv2
+
+    from layout.types import Region
+    from services import get_ocr_client
+    from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
+
+    frame = cv2.imread(str(MODULE_DIR / "references" / "training.png"))
+    assert frame is not None
+    h, w = frame.shape[:2]
+    area = _load_yaml("area.yaml")
+    regions = {r["name"]: r for r in area["screens"][0]["regions"]}
+
+    def _region(name: str) -> Region:
+        b = regions[name]["bbox"]
+        return Region(
+            int(b["x"] / 100 * w),
+            int(b["y"] / 100 * h),
+            int(b["width"] / 100 * w),
+            int(b["height"] / 100 * h),
+        )
+
+    ocr = get_ocr_client()
+    status = await ocr.ocr_region(
+        frame, _region("main_menu.research.slot.status")
+    )
+    assert "Tool Enhancement" in status.text
+
+    timer = await ocr.ocr_region(
+        frame, _region("main_menu.research.slot.time"), preprocess="bar_timer"
+    )
+    assert _parse_hms_to_seconds(timer.text) == 4 * 86400 + 11 * 3600 + 59 * 60 + 43
+
+
+# --- City-panel scanner ------------------------------------------------------
+
+_SCAN_EXPECTATIONS = {
+    "building.png": [
+        ("building_queue", "queue_1", "idle"),
+        ("building_queue", "queue_2", "idle"),
+        ("training", "infantry", "completed"),
+        ("training", "lancer", "completed"),
+        ("training", "marksman", "completed"),
+        ("tech_research", "center", "idle"),
+    ],
+    "research.png": [
+        ("tech_research", "center", "idle"),
+        ("tech_research", "war_academy", "locked"),
+        ("expert", "learn_skills", "idle"),
+        ("alliance_contribution", "alliance_contribution", "claimable"),
+        ("recruit_heroes", "advanced", "free"),
+    ],
+    "my_rewards.png": [
+        ("my_rewards", "online_rewards", "completed"),
+        ("pet_adventure", "pet_adventure", "completed"),
+        ("life_essence", "tree_of_life", "claimable"),
+        ("labyrinth", "gear_forge", "claimable"),
+        ("trek", "tundra_trek", "claimable"),
+    ],
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reference", sorted(_SCAN_EXPECTATIONS))
+async def test_scan_panel_rows_classifies_reference(reference: str) -> None:
+    import cv2
+
+    from services import get_ocr_client
+
+    mod = _load_exec_module()
+    frame = cv2.imread(str(MODULE_DIR / "references" / reference))
+    assert frame is not None
+    rows = await mod._scan_panel_rows(frame, ocr=get_ocr_client())
+    got = [(r["section"], r["row"], r["kind"]) for r in rows]
+    assert got == _SCAN_EXPECTATIONS[reference]
+
+
+@pytest.mark.asyncio
+async def test_scan_panel_rows_training_reads_day_prefixed_research_timer() -> None:
+    """training.png: in-progress research maps to the center slot and the
+    ``bar_timer`` retry must keep the "4d" day prefix (388783s, not 43183s)."""
+    import cv2
+
+    from services import get_ocr_client
+
+    mod = _load_exec_module()
+    frame = cv2.imread(str(MODULE_DIR / "references" / "training.png"))
+    rows = await mod._scan_panel_rows(frame, ocr=get_ocr_client())
+    research = next(r for r in rows if r["section"] == "tech_research")
+    assert research["row"] == "center"
+    assert research["kind"] == "in_progress"
+    assert research["remaining_s"] == 4 * 86400 + 11 * 3600 + 59 * 60 + 43
+    troops = [(r["row"], r["kind"]) for r in rows if r["section"] == "training"]
+    assert troops == [
+        ("infantry", "in_progress"),
+        ("lancer", "in_progress"),
+        ("marksman", "in_progress"),
+    ]
+
+
+def test_panel_state_updates_canonical_paths() -> None:
+    mod = _load_exec_module()
+    now = 1_000.0
+    rows = [
+        {
+            "section": "building_queue",
+            "row": "queue_2",
+            "title": "Building Queue 2",
+            "status_text": "01:00:00",
+            "kind": "in_progress",
+            "remaining_s": 3600,
+            "button": "blue",
+            "red_dot": False,
+            "cy": 400,
+        },
+        {
+            "section": "training",
+            "row": "infantry",
+            "title": "Infantry",
+            "status_text": "Completed",
+            "kind": "completed",
+            "remaining_s": 0,
+            "button": "green",
+            "red_dot": True,
+            "cy": 470,
+        },
+        {
+            "section": "tech_research",
+            "row": "war_academy",
+            "title": "War Academy Research",
+            "status_text": "Not yet built",
+            "kind": "locked",
+            "remaining_s": 0,
+            "button": "",
+            "red_dot": False,
+            "cy": 540,
+        },
+    ]
+    updates = mod._panel_state_updates(rows, now)
+    assert updates["buildings.queue.2.state.remaining_s"] == 3600
+    assert updates["buildings.queue.2.state.isIdle"] is False
+    assert updates["buildings.queue.2.state.ends_at"] == now + 3600
+    assert updates["troops.infantry.state.isReady"] is True
+    assert updates["troops.infantry.state.isAvailable"] is True
+    assert updates["research.war_academy.state.isLocked"] is True
+    assert updates["research.war_academy.state.isAvailable"] is False
+    assert updates["main_menu.panel.training.infantry.isClaimable"] is True
+    assert updates["main_menu.panel.training.infantry.has_red_dot"] is True
+
+
+@pytest.mark.asyncio
+async def test_exec_scan_panel_pushes_accept_for_completed_troops(
+    redis_async: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """building.png shows all three troops Completed → three accept pushes."""
+    import json
+
+    import cv2
+
+    mod = _load_exec_module()
+    frame = cv2.imread(str(MODULE_DIR / "references" / "building.png"))
+
+    class _FakeActions:
+        def capture_screen_bgr(self, _instance_id: str):
+            return frame
+
+    updates: dict[str, object] = {}
+
+    class _PlayerStore:
+        def update_from_flat(self, flat: dict[str, object]) -> None:
+            updates.update(flat)
+
+    class _StateStore:
+        def get_or_create(self, player_id: str) -> _PlayerStore:
+            return _PlayerStore()
+
+    async def _publish(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(mod.dsl_runtime, "bot_actions", lambda: _FakeActions())
+    monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
+    monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
+
+    ctx = DslExecContext(
+        redis_client=redis_async,
+        player_id="p1",
+        instance_id="bs1",
+        args={},
+        result={},
+    )
+    await mod.DSL_EXEC_HANDLERS["scan_main_menu_panel"](ctx)
+
+    assert ctx.result["action"] == "stored"
+    assert sorted(ctx.result["pushed"]) == [
+        "accept_troops_infantry",
+        "accept_troops_lancer",
+        "accept_troops_marksman",
+    ]
+    assert updates["troops.infantry.state.isReady"] is True
+    assert updates["buildings.queue.1.state.isIdle"] is True
+    assert updates["buildings.queue.2.state.isIdle"] is True
+
+    queued = [
+        json.loads(raw)["task_type"]
+        for raw in await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    ]
+    assert sorted(queued) == [
+        "accept_troops_infantry",
+        "accept_troops_lancer",
+        "accept_troops_marksman",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_exec_tap_main_menu_panel_row_taps_matching_row_button(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import numpy as np
+
+    mod = _load_exec_module()
+    taps: list[tuple[str, object, str]] = []
+
+    class _FakeActions:
+        def __init__(self) -> None:
+            self.swipes: list[str] = []
+
+        def swipe_direction(
+            self,
+            _instance_id: str,
+            *,
+            direction: str,
+            delta: int,
+            duration_ms: int,
+        ) -> bool:
+            self.swipes.append(f"{direction}:{delta}:{duration_ms}")
+            return True
+
+        def capture_screen_bgr(self, _instance_id: str):
+            return np.zeros((1280, 720, 3), dtype=np.uint8)
+
+        def tap(self, instance_id: str, point: object, *, approval_region: str) -> bool:
+            taps.append((instance_id, point, approval_region))
+            return True
+
+    async def _fake_scan_panel_rows(
+        _image_bgr: object,
+        *,
+        ocr: object,
+        with_status: bool = True,
+    ) -> list[dict[str, object]]:
+        _ = (ocr, with_status)
+        return [
+            {
+                "section": "trek",
+                "row": "tundra_trek",
+                "button": "green",
+                "cy": 620,
+            }
+        ]
+
+    fake_actions = _FakeActions()
+    monkeypatch.setattr(mod.dsl_runtime, "bot_actions", lambda: fake_actions)
+    monkeypatch.setattr(mod.dsl_runtime, "ocr_client", lambda: object())
+    monkeypatch.setattr(mod, "_scan_panel_rows", _fake_scan_panel_rows)
+    monkeypatch.setattr(mod.asyncio, "sleep", lambda _delay: _noop_async())
+
+    ctx = DslExecContext(
+        redis_client=None,
+        player_id="p1",
+        instance_id="bs1",
+        args={
+            "section": "trek",
+            "row": "tundra_trek",
+            "approval_region": "main_menu.panel.trek.tundra_trek",
+        },
+        result={},
+    )
+    await mod.DSL_EXEC_HANDLERS["tap_main_menu_panel_row"](ctx)
+
+    assert ctx.result == {
+        "action": "tapped",
+        "section": "trek",
+        "row": "tundra_trek",
+        "sweep": 0,
+    }
+    assert taps[0][0] == "bs1"
+    assert taps[0][2] == "main_menu.panel.trek.tundra_trek"
+
+
+async def _noop_async() -> None:
+    return None

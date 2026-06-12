@@ -35,6 +35,7 @@ from tasks.dsl_scenario_helpers import (
     _parse_wait_seconds,
     _read_active_player,
     _resolve_push_delay_seconds,
+    _resolve_push_expires_at,
     _trace_exec_result_kwargs,
 )
 
@@ -178,16 +179,27 @@ class DslScenarioStepActionsMixin(_Base):
                 player_id=self.player_id,
             )
             skip_dup = bool(spec.get("skip_if_duplicate", True))
+            expires_at, expires_skip = await _resolve_push_expires_at(
+                spec.get("expires"),
+                instance_id=instance_id,
+                redis_async=self.redis_client,
+                player_id=self.player_id,
+            )
         else:
             name = str(spec or "").strip()
             pr = self.priority
             delay_s = 0.0
             skip_dup = True
+            expires_at, expires_skip = None, ""
         if delay_s is None:
             await _mark_top_level_step_done()
             _trace_row(
                 _resumable_step, step, "skipped", reason="delay_unresolved"
             )
+            return None
+        if expires_skip:
+            await _mark_top_level_step_done()
+            _trace_row(_resumable_step, step, "skipped", reason=expires_skip)
             return None
         if name:
             await _enqueue_scenario(
@@ -198,6 +210,7 @@ class DslScenarioStepActionsMixin(_Base):
                 priority=pr,
                 run_at=time.time() + max(0.0, delay_s),
                 skip_if_duplicate=skip_dup,
+                expires_at=expires_at,
             )
         await _mark_top_level_step_done()
         _trace_row(_resumable_step, step, "ok")

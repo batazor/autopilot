@@ -22,21 +22,6 @@
           "type": "string"
         },
         {
-          "name": "chapter.new",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 0.7316602316602316,
-            "y": 84.34782608695652,
-            "width": 10.548262548262548,
-            "height": 4.681521739130435,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
           "name": "to_chief_profile",
           "action": "text",
           "threshold": 0.9,
@@ -142,21 +127,6 @@
                 "y": 80.97826086956522,
                 "width": 73.26061776061776,
                 "height": 2.5391304347826087,
-                "rotation": 0.0,
-                "original_width": 720,
-                "original_height": 1280
-              },
-              "has_red_dot": true
-            },
-            {
-              "name": "chapter.new",
-              "action": "exist",
-              "threshold": 0.9,
-              "bbox": {
-                "x": 0.5386100386100386,
-                "y": 78.91956521739131,
-                "width": 11.075289575289576,
-                "height": 4.681521739130435,
                 "rotation": 0.0,
                 "original_width": 720,
                 "original_height": 1280

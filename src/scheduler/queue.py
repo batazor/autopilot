@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from collections.abc import AsyncIterator  # noqa: TC003
@@ -211,10 +212,15 @@ class RedisQueue:
         start_step_index: int = 0,
         skip_if_duplicate: bool = False,
         dedup_ignore_region: bool = False,
+        expires_at: float | None = None,
     ) -> bool:
         """Enqueue a task.
 
         Returns False if ``skip_if_duplicate`` and a matching item is already queued.
+
+        ``expires_at`` (unix ts) marks the item stale: once the deadline passes,
+        ``pop_due`` / ``peek_top_due`` drop it from the ZSET instead of running
+        it (e.g. daily-mission tasks that lose relevance at the game-day reset).
 
         By default, the duplicate signature includes ``region``.
         Set ``dedup_ignore_region=True`` to deduplicate by (instance_id, player_id, task_type)
@@ -269,6 +275,8 @@ class RedisQueue:
             body["tap_match_y_pct"] = float(tap_match_y_pct)
         if start_step_index:
             body["start_step_index"] = int(start_step_index)
+        if expires_at is not None and float(expires_at) > 0.0:
+            body["expires_at"] = float(expires_at)
         body["created_at"] = time.time()
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
@@ -632,6 +640,23 @@ class RedisQueue:
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
+                continue
+            try:
+                exp_at = float(data.get("expires_at") or 0.0)
+            except (TypeError, ValueError):
+                exp_at = 0.0
+            if 0.0 < exp_at <= now:
+                # Stale item (e.g. a daily-mission push past the game-day
+                # reset) — drop instead of running. Losing the ZREM race to a
+                # sibling worker is fine; the item is gone either way.
+                with contextlib.suppress(Exception):
+                    await self._redis.zrem(key, raw)
+                logger.info(
+                    "queue: dropped expired task instance=%s type=%s expired %.0fs ago",
+                    instance_id,
+                    str(data.get("task_type", "")),
+                    now - exp_at,
+                )
                 continue
             pid = str(data.get("player_id", ""))
             if str(data.get("instance_id", "")) == instance_id and (

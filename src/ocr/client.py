@@ -21,6 +21,7 @@ from ocr.digit_markers import DigitMarker, detect_digit_markers
 from ocr.preprocess import (
     DIGITS_CHAR_WHITELIST,
     WORD_CHAR_WHITELIST,
+    bar_timer_for_ocr,
     digits_for_ocr,
     enhance_for_ocr,
 )
@@ -175,6 +176,8 @@ class OcrClient:
             return enhance_for_ocr(crop)
         if pre_tag == "digits":
             return digits_for_ocr(crop)
+        if pre_tag == "bar_timer":
+            return bar_timer_for_ocr(crop)
         return crop
 
     @staticmethod
@@ -190,7 +193,7 @@ class OcrClient:
             return "7", None
         if pre_tag == "word_line":
             return "7", WORD_CHAR_WHITELIST
-        if pre_tag in ("enhance_line", "title_line"):
+        if pre_tag in ("enhance_line", "title_line", "bar_timer"):
             return "7", None
         if pre_tag in ("enhance", "digits"):
             return "8", DIGITS_CHAR_WHITELIST if pre_tag == "digits" else None

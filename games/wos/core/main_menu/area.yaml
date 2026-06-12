@@ -165,6 +165,65 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "main_menu.research.slot.status",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 11.11111111111111,
+            "y": 47.265625,
+            "width": 40.27777777777778,
+            "height": 2.109375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.research.slot.time",
+          "action": "text",
+          "type": "time",
+          "preprocess": "bar_timer",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 11.11111111111111,
+            "y": 49.375,
+            "width": 40.27777777777778,
+            "height": 2.03125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.to.research",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.77777777777778,
+            "y": 47.265625,
+            "width": 7.083333333333333,
+            "height": 4.609375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.panel",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.0,
+            "y": 24.0,
+            "width": 56.0,
+            "height": 42.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
@@ -309,6 +368,39 @@
           }
         }
       ]
+    },
+    {
+      "id": 3,
+      "screen_id": "main_city",
+      "ocr": "references/building.png",
+      "regions": [
+        {
+          "name": "main_city.center_building",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.0,
+            "y": 41.0,
+            "width": 12.0,
+            "height": 9.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "main_city",
+      "ocr": "references/research.png",
+      "regions": []
+    },
+    {
+      "id": 5,
+      "screen_id": "main_city",
+      "ocr": "references/my_rewards.png",
+      "regions": []
     }
   ]
 }

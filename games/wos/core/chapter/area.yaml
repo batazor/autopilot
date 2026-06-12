@@ -1,0 +1,134 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "chapter",
+      "ocr": "references/daily.png",
+      "regions": [
+        {
+          "name": "chapter.daily.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.05555555555556,
+            "y": 7.96875,
+            "width": 13.88888888888889,
+            "height": 3.90625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chapter.daily.refreshes_in",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.166666666666668,
+            "y": 13.75,
+            "width": 14.444444444444445,
+            "height": 2.34375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chapter.daily.tasks",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.3333333333333335,
+            "y": 38.671875,
+            "width": 67.5,
+            "height": 28.90625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chapter.close",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 92.22222222222223,
+            "y": 8.125,
+            "width": 5.833333333333333,
+            "height": 3.59375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chapter.tab.growth_missions",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 19.444444444444443,
+            "y": 86.5625,
+            "width": 29.166666666666668,
+            "height": 2.96875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chapter.tab.daily_missions",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.77777777777778,
+            "y": 85.9375,
+            "width": 24.305555555555557,
+            "height": 3.4375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chapter.button.claim_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.05555555555556,
+            "y": 77.734375,
+            "width": 33.888888888888886,
+            "height": 5.46875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "main_city",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "chapter.new",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.3888888888888888,
+            "y": 81.40625,
+            "width": 9.861111111111112,
+            "height": 2.96875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    }
+  ]
+}

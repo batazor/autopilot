@@ -53,7 +53,14 @@ def iter_module_dirs(
     """
 
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    return _module_dirs_cached(_resolve_game(game), str(root))
+    g = _resolve_game(game)
+    dirs = _module_dirs_cached(g, str(root))
+    if any(not (d / MODULE_MANIFEST).is_file() for d in dirs):
+        # A module was deleted (or renamed) on disk while the process-lifetime
+        # cache was warm — re-glob so consumers stop reading vanished paths.
+        _clear_module_discovery_caches()
+        dirs = _module_dirs_cached(g, str(root))
+    return dirs
 
 
 @lru_cache(maxsize=16)
@@ -229,9 +236,15 @@ def iter_module_area_manifests(
     game: str | None = None,
 ) -> list[Path]:
     """Module-local area manifests in deterministic order (process-cached)."""
-    return list(
-        _iter_module_area_manifests_cached(_resolve_game(game), str(repo_root.resolve()))
-    )
+    g = _resolve_game(game)
+    root_s = str(repo_root.resolve())
+    manifests = _iter_module_area_manifests_cached(g, root_s)
+    if any(not m.is_file() for m in manifests):
+        # Same self-heal as iter_module_dirs: a manifest vanished from disk
+        # while the cache was warm — rediscover instead of serving dead paths.
+        _clear_module_discovery_caches()
+        manifests = _iter_module_area_manifests_cached(g, root_s)
+    return list(manifests)
 
 
 @lru_cache(maxsize=8)

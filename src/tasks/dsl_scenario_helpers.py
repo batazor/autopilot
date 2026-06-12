@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import random
 import re
+import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, SupportsFloat, cast
@@ -718,6 +719,39 @@ async def _resolve_push_delay_seconds(
     )
 
 
+async def _resolve_push_expires_at(
+    expires: object,
+    *,
+    instance_id: str,
+    redis_async: Any | None,
+    player_id: str | None = None,
+) -> tuple[float | None, str]:
+    """Resolve a ``push_scenario.expires`` spec into an absolute unix deadline.
+
+    Same spec grammar as ``delay`` (suffix literal / ``hh:mm:ss`` / event timer
+    key / state field, with arithmetic) — but interpreted as "drop the queued
+    item once this much time has passed".
+
+    Returns ``(None, "")`` when no expiry was requested, ``(deadline, "")`` on
+    success, and ``(None, <reason>)`` when the push must be skipped: an
+    unresolvable spec (missed OCR) or a deadline that has already passed both
+    mean the task would be stale, so enqueueing it is pointless.
+    """
+    if expires is None or not str(expires).strip():
+        return None, ""
+    secs = await _resolve_push_delay_seconds(
+        expires,
+        instance_id=instance_id,
+        redis_async=redis_async,
+        player_id=player_id,
+    )
+    if secs is None:
+        return None, "expires_unresolved"
+    if secs <= 0.0:
+        return None, "expires_already_passed"
+    return time.time() + secs, ""
+
+
 async def _enqueue_scenario(
     *,
     redis_async: Any | None,
@@ -727,6 +761,7 @@ async def _enqueue_scenario(
     priority: int,
     run_at: float,
     skip_if_duplicate: bool,
+    expires_at: float | None = None,
 ) -> bool:
     """Enqueue a DSL scenario as a queue item (task_type = scenario key).
 
@@ -780,6 +815,7 @@ async def _enqueue_scenario(
         # Existing helper dedups by (instance_id, player_id, task_type) only;
         # preserve that — there's no region context on a DSL ``push_scenario``.
         dedup_ignore_region=True,
+        expires_at=expires_at,
     )
     logger.info(
         "push_scenario enqueue instance=%s current_screen=%r scenario=%s "

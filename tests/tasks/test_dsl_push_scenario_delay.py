@@ -213,3 +213,80 @@ async def test_delay_expression_malformed_skips() -> None:
 async def test_delay_expression_clamps_negative_to_zero() -> None:
     # A negative result clamps to 0.0 (enqueue immediately) rather than going back in time.
     assert await _resolve("10s - 30s") == 0.0
+
+
+# --- ``_resolve_push_expires_at`` (push_scenario.expires) -------------------
+
+
+async def _resolve_expires(
+    expires: object,
+    *,
+    store: dict[str, dict[str, Any]] | None = None,
+) -> tuple[float | None, str]:
+    from tasks.dsl_scenario_helpers import _resolve_push_expires_at
+
+    return await _resolve_push_expires_at(
+        expires,
+        instance_id="inst-1",
+        redis_async=_FakeRedis(store),
+        player_id=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_expires_missing_means_no_expiry() -> None:
+    assert await _resolve_expires(None) == (None, "")
+    assert await _resolve_expires("") == (None, "")
+
+
+@pytest.mark.asyncio
+async def test_expires_literal_becomes_absolute_deadline() -> None:
+    import time
+
+    before = time.time()
+    deadline, reason = await _resolve_expires("00:05:00")
+    after = time.time()
+    assert reason == ""
+    assert deadline is not None
+    assert before + 300.0 <= deadline <= after + 300.0
+
+
+@pytest.mark.asyncio
+async def test_expires_state_field_expression() -> None:
+    # Daily reset clock OCR'd into player state; tasks expire 10m before it.
+    import time
+
+    store = {
+        "wos:instance:inst-1:state": {"active_player": "p42"},
+        "wos:player:p42:state": {"chapter.daily.refresh": "09:29:03"},
+    }
+    before = time.time()
+    deadline, reason = await _resolve_expires(
+        "chapter.daily.refresh - 10m", store=store
+    )
+    assert reason == ""
+    assert deadline is not None
+    expected = 9 * 3600 + 29 * 60 + 3 - 600
+    assert abs(deadline - (before + expected)) < 5.0
+
+
+@pytest.mark.asyncio
+async def test_expires_unresolved_field_skips_push() -> None:
+    assert await _resolve_expires("missing_field - 10m") == (
+        None,
+        "expires_unresolved",
+    )
+
+
+@pytest.mark.asyncio
+async def test_expires_already_passed_skips_push() -> None:
+    # Less than the safety margin left before the reset → the clamped 0.0
+    # means "already stale", so the push is skipped entirely.
+    store = {
+        "wos:instance:inst-1:state": {"active_player": "p42"},
+        "wos:player:p42:state": {"chapter.daily.refresh": "00:03:00"},
+    }
+    assert await _resolve_expires("chapter.daily.refresh - 10m", store=store) == (
+        None,
+        "expires_already_passed",
+    )

@@ -1,0 +1,86 @@
+enabled: true
+name: "Chapter: Claim Missions"
+priority: 80_000
+
+# Pushed by the chapter.new red-dot overlay rule on main_city and re-pushed
+# via chapter.daily.review right after the game-day reset; the node hop
+# (main_city/main_world → chapter) is handled by navigation via edge_taps.
+node: chapter
+cond: "active_player != null"
+
+steps:
+  # The panel opens on the Daily Missions tab, but tap it explicitly so a
+  # remembered Growth tab cannot skew the pass (tapping the active tab is a
+  # no-op).
+  - click: chapter.tab.daily_missions
+  - wait: 1s
+
+  # Snapshot the daily reset clock ("Refreshes In: hh:mm:ss") as a durable
+  # event timer — it drives the expiry of the mission pushes below and the
+  # next-day review delay.
+  - ocr: chapter.daily.refreshes_in
+    event_timer: chapter.daily.refresh
+
+  # Read the visible mission list while the screen is pristine (before claim
+  # popups) — the substring guards below route missions to their automations.
+  - ocr: chapter.daily.tasks
+    store: chapter.daily.tasks
+
+  # Claim All first when it is lit (green template only matches the lit state).
+  - while_match: chapter.button.claim_all
+    max: 1
+    steps:
+      - click: chapter.button.claim_all
+      - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 0.3s
+
+  # Then sweep any per-row Claim buttons left over.
+  - while_match: button.claim
+    max: 6
+    steps:
+      - click: button.claim
+      - wait: 0.8s
+
+  # Same pass on the Growth Missions tab.
+  - click: chapter.tab.growth_missions
+  - wait: 1s
+
+  - while_match: chapter.button.claim_all
+    max: 1
+    steps:
+      - click: chapter.button.claim_all
+      - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 0.3s
+
+  - while_match: button.claim
+    max: 6
+    steps:
+      - click: button.claim
+      - wait: 0.8s
+
+  # --- Mission → automation routing -------------------------------------
+  # Push the automations for missions seen in the daily list. Each push
+  # expires 10 minutes before the game-day reset: a stale mission task is
+  # pointless once the list rolls over, so the queue drops it instead of
+  # running it. Extend this block as more missions get automated.
+  - cond: chapter.daily.tasks ~= "Alliance Contribution"
+    steps:
+      - push_scenario:
+          name: alliance.tech.contribute
+          expires: "chapter.daily.refresh - 10m"
+
+  # --- Next-day review ---------------------------------------------------
+  # Schedule a list review for 5 minutes after the reset so the new day's
+  # missions are picked up immediately. A separate thin scenario key keeps
+  # queue dedup from swallowing badge-triggered claim pushes during the day.
+  - push_scenario:
+      name: chapter.daily.review
+      delay: "chapter.daily.refresh + 5m"

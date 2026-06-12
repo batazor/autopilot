@@ -27,7 +27,7 @@ W, H = 720, 1280
 
 PORTED_MODULES = (
     "games/wos/core/heal",
-    "games/wos/core/daily_missions",
+    "games/wos/core/chapter",
     "games/wos/alliance/chest",
     "games/wos/core/chief_orders",
 )

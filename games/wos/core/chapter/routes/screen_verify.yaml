@@ -1,0 +1,16 @@
+screens:
+  chapter:
+    priority: 30
+    rules:
+      # Tab strip at the bottom of the chapter panel. Crops are captured with
+      # the Daily Missions tab active (cream daily tab, blue growth tab) — the
+      # state the panel opens in. With the Growth tab active both templates
+      # shift appearance; add an inactive-daily crop from a growth-tab capture
+      # if detection there ever matters.
+      - match: chapter.tab.growth_missions
+        threshold: 0.9
+      - match: chapter.tab.daily_missions
+        threshold: 0.9
+      # Panel header ("Daily" title) as a fallback landmark.
+      - match: chapter.daily.title
+        threshold: 0.9

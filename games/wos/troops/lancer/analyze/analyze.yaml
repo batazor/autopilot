@@ -1,13 +1,6 @@
-overlay:
-  - name: lancer.complete.visible
-    region: lancer.complete
-    action: findIcon
-    threshold: 0.9
-    screens:
-      - lancer
-      - main_city
-    ttl: 1m
-    steps:
-      - push_scenario:
-          name: troops.lancer.train
-          ttl: 1m
+# No overlay rule for the lancer ready-bubble: the collect hint (white speech
+# bubble + animated hand) pulses, so a findIcon template is unreliable. The
+# main_menu panel scanner is the trigger instead — a Training/lancer row in the
+# "Completed" state pushes accept_troops_lancer, which collects and then chains
+# into troops.lancer.train.
+overlay: []

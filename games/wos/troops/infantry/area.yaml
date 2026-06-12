@@ -33,7 +33,7 @@
       "ocr": "references/options.png",
       "regions": [
         {
-          "name": "infantry.details",
+          "name": "troops.options.details",
           "action": "click",
           "threshold": 0.9,
           "bbox": {
@@ -47,7 +47,7 @@
           }
         },
         {
-          "name": "infantry.upgrade",
+          "name": "troops.options.upgrade",
           "action": "click",
           "threshold": 0.9,
           "bbox": {
@@ -61,14 +61,14 @@
           }
         },
         {
-          "name": "infantry.train",
+          "name": "troops.options.train",
           "action": "click",
           "threshold": 0.9,
           "bbox": {
-            "x": 61.111111111111114,
-            "y": 63.203125,
-            "width": 13.61111111111111,
-            "height": 9.296875,
+            "x": 62.91666666666667,
+            "y": 64.609375,
+            "width": 8.611111111111112,
+            "height": 4.21875,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -82,7 +82,7 @@
       "ocr": "references/tap_anywhere.png",
       "regions": [
         {
-          "name": "infantry.tap_anywhere",
+          "name": "troops.tap_anywhere",
           "action": "click",
           "threshold": 0.9,
           "bbox": {
@@ -167,6 +167,21 @@
             "y": 92.734375,
             "width": 30.97222222222222,
             "height": 7.265625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops.train.timer",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 63.19444444444444,
+            "y": 71.25,
+            "width": 26.38888888888889,
+            "height": 4.375,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

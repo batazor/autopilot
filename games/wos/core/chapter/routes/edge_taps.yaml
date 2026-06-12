@@ -1,0 +1,13 @@
+# Chapter is reachable from BOTH hubs: the chapter banner (`chapter.new`)
+# sits in the same bottom-left corner on the city view and the world map.
+# The panel closes via its own X button (`chapter.close`), not the shared
+# back arrow.
+edges:
+  main_city:
+    chapter: [chapter.new]
+
+  main_world:
+    chapter: [chapter.new]
+
+  chapter:
+    main_city: [chapter.close]
