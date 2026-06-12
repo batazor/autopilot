@@ -42,9 +42,9 @@ def _load_reference_bgr(name: str):
 def test_badge_overlay_rule_matches_with_red_dot(area_doc: dict) -> None:
     cfg = load_merged_analyze_yaml(REPO_ROOT)
     rule = next(
-        r for r in cfg["overlay"] if r.get("name") == "chapter.main_city.badge.visible"
+        r for r in cfg["overlay"] if r.get("name") == "chapter.badge.visible"
     )
-    assert rule["screens"] == ["main_city"]
+    assert rule["screens"] == ["main_city", "main_world"]
     assert rule["steps"] == [{"push_scenario": "chapter.claim_missions"}]
 
     probe = {**rule, "action": "findIcon", "threshold": 0.9}

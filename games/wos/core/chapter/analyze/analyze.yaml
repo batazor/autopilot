@@ -1,16 +1,18 @@
 overlay:
-  # The chapter banner on main_city shows a red counter badge when missions
-  # are claimable — push the claim scenario (it navigates to the chapter node).
-  - name: chapter.main_city.badge.visible
+  # The chapter banner sits in the same bottom-left corner on both hubs and
+  # shows a red counter badge when missions are claimable — push the claim
+  # scenario (it navigates to the chapter node).
+  - name: chapter.badge.visible
     region: chapter.new
     isRedDot: true
-    # The counter badge hangs over the banner's top-right, above the labeled
-    # bbox (which is cropped low to keep the badge out of the template).
-    # Probe a wider slot relative to the matched template than the default.
-    red_dot_bbox: { x: 45.0, y: -90.0, width: 110.0, height: 110.0 }
+    # The labeled bbox is tall enough to include the counter badge slot in its
+    # top-right corner — probe that corner of the matched template (offsets are
+    # % of template size; slight overshoot above covers badge jitter).
+    red_dot_bbox: { x: 55.0, y: -15.0, width: 55.0, height: 55.0 }
     device_level: true
     priority: 90_000
     screens:
       - main_city
+      - main_world
     steps:
       - push_scenario: chapter.claim_missions
