@@ -128,3 +128,23 @@ def test_chapter_node_routes_from_both_hubs() -> None:
     assert route_taps("main_city", "chapter", game="wos") == [["chapter.new"]]
     assert route_taps("main_world", "chapter", game="wos") == [["chapter.new"]]
     assert route_taps("chapter", "main_city", game="wos") == [["chapter.close"]]
+
+
+def test_daily_review_cron_spec_discovered() -> None:
+    """The 12h cron trampoline must be picked up by the scheduler's cron
+    discovery and push the claim pass at above-average priority (the bare
+    push_scenario inherits the trampoline's own priority)."""
+    import yaml
+
+    from dsl.cron_specs import iter_cron_yaml_files_for_repo
+
+    path = next(
+        p
+        for p in iter_cron_yaml_files_for_repo(REPO_ROOT)
+        if p.name == "chapter.daily.review.cron.yaml"
+    )
+    raw = yaml.safe_load(path.read_text())
+    assert raw["enabled"] is True
+    assert raw["cron"] == "0 */12 * * *"
+    assert raw["priority"] == 90_000
+    assert raw["steps"] == [{"push_scenario": "chapter.claim_missions"}]
