@@ -17,6 +17,7 @@ from adb.approvals import (
 )
 from adb.controller_types import (
     _clamp,
+    _gauss_between,
     _jittered_point,
     _tap_offset_spread,
 )
@@ -91,18 +92,18 @@ class AdbInputMixin(_Base):
         if sc is not None:
             sc.tap(x, y)
             return
-        hold_ms = random.randint(_TAP_HOLD_MS_MIN, _TAP_HOLD_MS_MAX)
+        hold_ms = int(round(_gauss_between(_TAP_HOLD_MS_MIN, _TAP_HOLD_MS_MAX)))
         if self._detect_motionevent_support():
             self._shell("input", "motionevent", "DOWN", str(x), str(y))
             if random.random() < _TAP_MICRO_MOVE_PROBABILITY:
-                time.sleep(hold_ms / 1000.0 * random.uniform(0.35, 0.7))
+                time.sleep(hold_ms / 1000.0 * _gauss_between(0.35, 0.7))
                 mx = x + random.choice((-1, 1)) * random.randint(1, 2)
                 my = y + random.choice((-1, 1)) * random.randint(1, 2)
                 w, h = self.get_screen_resolution()
                 mx = _clamp(mx, 0, max(0, w - 1))
                 my = _clamp(my, 0, max(0, h - 1))
                 self._shell("input", "motionevent", "MOVE", str(mx), str(my))
-                time.sleep(hold_ms / 1000.0 * random.uniform(0.2, 0.45))
+                time.sleep(hold_ms / 1000.0 * _gauss_between(0.2, 0.45))
             else:
                 time.sleep(hold_ms / 1000.0)
             self._shell("input", "motionevent", "UP", str(x), str(y))
@@ -314,7 +315,7 @@ class AdbInputMixin(_Base):
         perp_x = -dy / length
         perp_y = dx / length
         offset_amount = (
-            random.uniform(_SWIPE_CURVE_OFFSET_PCT_MIN, _SWIPE_CURVE_OFFSET_PCT_MAX)
+            _gauss_between(_SWIPE_CURVE_OFFSET_PCT_MIN, _SWIPE_CURVE_OFFSET_PCT_MAX)
             * length
             * random.choice([-1.0, 1.0])
         )
@@ -324,7 +325,7 @@ class AdbInputMixin(_Base):
         n = _SWIPE_CURVE_SEGMENTS
         overshoot: tuple[float, float] | None = None
         if length >= _LONG_SWIPE_OVERSHOOT_MIN_PX and random.random() < 0.35:
-            overshoot_px = min(42.0, max(8.0, length * random.uniform(0.025, 0.07)))
+            overshoot_px = min(42.0, max(8.0, length * _gauss_between(0.025, 0.07)))
             overshoot = (
                 x2 + dx / length * overshoot_px,
                 y2 + dy / length * overshoot_px,
@@ -431,7 +432,7 @@ class AdbInputMixin(_Base):
             # the upper edge.
             ms = max(
                 _SWIPE_MIN_DURATION_MS,
-                int(round(ms * random.uniform(
+                int(round(ms * _gauss_between(
                     1.0 - _SWIPE_DURATION_JITTER_PCT,
                     1.0 + _SWIPE_DURATION_JITTER_PCT,
                 ))),

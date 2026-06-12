@@ -75,12 +75,28 @@ def _clamp(val: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, val))
 
 
+def _gauss_between(lo: float, hi: float) -> float:
+    """Gaussian sample centred on the band midpoint, clamped to ``[lo, hi]``.
+
+    σ is a quarter of the band, so ~95% of draws land inside before clamping.
+    Replaces uniform draws in input timing/aim: human values cluster around a
+    typical point instead of spreading flat across the band.
+    """
+
+    if hi <= lo:
+        return float(lo)
+    mid = (lo + hi) / 2.0
+    sigma = (hi - lo) / 4.0
+    return min(float(hi), max(float(lo), random.gauss(mid, sigma)))
+
+
 def _jitter(value: int, spread: int) -> int:
-    """Apply ±spread pixel random jitter."""
+    """Apply ±spread pixel jitter, gaussian around the aim point (σ = spread/2)."""
 
     if spread <= 0:
         return value
-    return value + random.randint(-spread, spread)
+    offset = int(round(random.gauss(0.0, spread / 2.0)))
+    return value + max(-spread, min(spread, offset))
 
 
 def _jittered_point(

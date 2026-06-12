@@ -43,6 +43,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from adb.controller_types import _gauss_between
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -291,13 +293,13 @@ def _human_swipe_points(
 
     perp_x = -dy / length
     perp_y = dx / length
-    offset = random.uniform(0.015, 0.055) * length * random.choice((-1.0, 1.0))
+    offset = _gauss_between(0.015, 0.055) * length * random.choice((-1.0, 1.0))
     cx = (x1 + x2) / 2.0 + perp_x * offset
     cy = (y1 + y2) / 2.0 + perp_y * offset
     out: list[tuple[int, int]] = []
     overshoot: tuple[float, float] | None = None
     if length >= _LONG_SWIPE_OVERSHOOT_MIN_PX and random.random() < 0.35:
-        overshoot_px = min(42.0, max(8.0, length * random.uniform(0.025, 0.07)))
+        overshoot_px = min(42.0, max(8.0, length * _gauss_between(0.025, 0.07)))
         overshoot = (x2 + dx / length * overshoot_px, y2 + dy / length * overshoot_px)
     for i in range(1, n + 1):
         linear_t = i / n
@@ -310,8 +312,9 @@ def _human_swipe_points(
         bx = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t * t * target_x
         by = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t * t * target_y
         if i < n:
-            bx += random.uniform(-1.5, 1.5)
-            by += random.uniform(-1.5, 1.5)
+            # Gaussian finger tremor on intermediate points (σ = 0.75 px).
+            bx += _gauss_between(-1.5, 1.5)
+            by += _gauss_between(-1.5, 1.5)
         out.append((int(round(bx)), int(round(by))))
     if overshoot is not None:
         settle_steps = random.randint(1, 2)
@@ -329,7 +332,7 @@ def _human_step_sleeps(duration_ms: int, *, steps: int) -> list[float]:
     """Distribute ``duration_ms`` over ``steps`` uneven intervals."""
     n = max(1, int(steps))
     total_s = max(0.001, duration_ms / 1000.0)
-    weights = [random.uniform(0.75, 1.25) for _ in range(n)]
+    weights = [_gauss_between(0.75, 1.25) for _ in range(n)]
     total_weight = sum(weights) or 1.0
     return [max(0.001, total_s * weight / total_weight) for weight in weights]
 
@@ -779,9 +782,9 @@ class ScrcpyClient:
     def tap(self, x: int, y: int) -> None:
         """Single-finger tap at device-physical pixel (x, y)."""
         self._send_touch(_ACTION_DOWN, x, y, pressure=_PRESSURE_DOWN, buttons=_BUTTON_PRIMARY)
-        hold_s = random.randint(_TAP_HOLD_MS_MIN, _TAP_HOLD_MS_MAX) / 1000.0
+        hold_s = _gauss_between(_TAP_HOLD_MS_MIN, _TAP_HOLD_MS_MAX) / 1000.0
         if random.random() < _TAP_MICRO_MOVE_PROBABILITY:
-            time.sleep(hold_s * random.uniform(0.35, 0.7))
+            time.sleep(hold_s * _gauss_between(0.35, 0.7))
             mx = x + random.choice((-1, 1)) * random.randint(1, 2)
             my = y + random.choice((-1, 1)) * random.randint(1, 2)
             self._send_touch(
@@ -791,7 +794,7 @@ class ScrcpyClient:
                 pressure=random.randint(_PRESSURE_MOVE_MIN, _PRESSURE_DOWN),
                 buttons=_BUTTON_PRIMARY,
             )
-            time.sleep(hold_s * random.uniform(0.2, 0.45))
+            time.sleep(hold_s * _gauss_between(0.2, 0.45))
         else:
             time.sleep(hold_s)
         self._send_touch(_ACTION_UP, x, y, pressure=_PRESSURE_UP, buttons=0)
