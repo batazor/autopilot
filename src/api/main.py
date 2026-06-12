@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
 
 import uvicorn
@@ -115,14 +115,23 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     wiki,
 )
 from api.routers import license as license_routes  # noqa: E402 — ``license`` is a builtin, alias to avoid shadowing
+from api.services.gift_codes_api import run_startup_gift_code_scrape  # noqa: E402
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _install_asyncio_shutdown_exception_handler()
+    gift_codes_task = asyncio.create_task(
+        run_startup_gift_code_scrape(),
+        name="api-gift-codes-startup-scrape",
+    )
     try:
         yield
     finally:
+        if not gift_codes_task.done():
+            gift_codes_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await gift_codes_task
         try:
             from worker import local_bot
 

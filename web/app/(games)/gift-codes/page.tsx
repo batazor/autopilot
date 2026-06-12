@@ -173,15 +173,15 @@ function GiftCodesContent() {
     setMessage(null);
     try {
       if (action === "scrape") {
-        const res = await scrapeGiftCodes();
+        const res = await scrapeGiftCodes(game);
         setMessage(
           res.count
             ? `Found ${res.count} new code(s): ${res.new_codes.join(", ")}`
             : "No new codes.",
         );
       } else {
-        await redeemGiftCodes();
-        setMessage("Redeem finished.");
+        const res = await redeemGiftCodes(game);
+        setMessage(res.already_running ? "Redeem is already running." : "Redeem finished.");
       }
       await load();
     } catch (e) {

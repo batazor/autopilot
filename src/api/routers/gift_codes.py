@@ -22,17 +22,22 @@ def get_gift_codes(
 
 
 @router.post("/scrape")
-async def post_scrape() -> dict[str, Any]:
+async def post_scrape(game: str = Query(default="wos")) -> dict[str, Any]:
     try:
-        return await svc.scrape_gift_codes()
+        new = await svc.scrape_gift_codes_for_game(game)
+        return {"ok": True, "game": game, "new_codes": new, "count": len(new)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/redeem")
-async def post_redeem() -> dict[str, Any]:
+async def post_redeem(game: str = Query(default="wos")) -> dict[str, Any]:
     try:
-        return await svc.redeem_gift_codes()
+        return await svc.redeem_gift_codes(game=game)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:

@@ -344,8 +344,12 @@ export function ExternalAccountsPanel({
       // succeeded, so a redeem failure is surfaced without losing the row.
       setStatus(`Added ${id} — running redeem…`);
       try {
-        await redeemGiftCodes();
-        setStatus(`Added ${id} and ran redeem.`);
+        const redeem = await redeemGiftCodes(game);
+        setStatus(
+          redeem.already_running
+            ? `Added ${id}; redeem is already running.`
+            : `Added ${id} and ran redeem.`,
+        );
       } catch (err) {
         setStatus(
           `Added ${id}, but redeem failed: ${err instanceof Error ? err.message : String(err)}`,

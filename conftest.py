@@ -35,6 +35,12 @@ def _session_settings(settings: Settings) -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _disable_api_startup_gift_code_scrape(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep API TestClient lifespans from scraping public gift-code sources."""
+    monkeypatch.setenv("WOS_GIFT_CODES_STARTUP_SCRAPE", "0")
+
+
+@pytest.fixture(autouse=True)
 def _isolate_state_db(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
     """Point the SQLite state DB at a throwaway file for every test.
 

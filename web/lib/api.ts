@@ -1263,12 +1263,18 @@ export async function fetchGiftCodes(
   return apiFetch<GiftCodesView>(`/api/gift-codes${params ? `?${params}` : ""}`);
 }
 
-export async function scrapeGiftCodes(): Promise<{ ok: boolean; new_codes: string[]; count: number }> {
-  return apiFetch("/api/gift-codes/scrape", { method: "POST" });
+export async function scrapeGiftCodes(
+  game = "wos",
+): Promise<{ ok: boolean; game: string; new_codes: string[]; count: number }> {
+  const q = new URLSearchParams({ game }).toString();
+  return apiFetch(`/api/gift-codes/scrape?${q}`, { method: "POST" });
 }
 
-export async function redeemGiftCodes(): Promise<{ ok: boolean }> {
-  return apiFetch("/api/gift-codes/redeem", { method: "POST" });
+export async function redeemGiftCodes(
+  game = "wos",
+): Promise<{ ok: boolean; game: string; already_running?: boolean; total?: number }> {
+  const q = new URLSearchParams({ game }).toString();
+  return apiFetch(`/api/gift-codes/redeem?${q}`, { method: "POST" });
 }
 
 // ---------------------------------------------------------------------------
