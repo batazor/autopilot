@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import redis.asyncio as aioredis
 
+from century.gift_codes import discord_source
 from century.gift_codes import kingshot as kingshot_gift_codes
 from century.gift_codes import kingshot_beta as kingshot_beta_gift_codes
 from century.gift_codes import wos as wos_gift_codes
@@ -21,7 +22,11 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable
 
 from config.devices import load_devices
-from config.giftcodes_db import list_codes
+from config.giftcodes_db import (
+    delete_gift_code_setting,
+    list_codes,
+    set_gift_code_setting,
+)
 from config.loader import load_settings
 from config.paths import repo_root
 from config.redis_metrics import instrument_redis_client
@@ -34,6 +39,8 @@ _REDEEMED = frozenset({RedeemStatus.SUCCESS.value, RedeemStatus.ALREADY_RECEIVED
 _GIFT_CODE_POLL_INTERVAL_SECONDS = 6 * 60 * 60
 _GIFT_CODE_LOCK_TTL_SECONDS = 2 * 60 * 60
 _STARTUP_SCRAPE_ENV = "WOS_GIFT_CODES_STARTUP_SCRAPE"
+_DISCORD_WOS_BETA_CHANNEL_ENV = "WOS_BETA_GIFT_CODES_DISCORD_CHANNEL_ID"
+_DISCORD_KINGSHOT_BETA_CHANNEL_ENV = "KINGSHOT_BETA_GIFT_CODES_DISCORD_CHANNEL_ID"
 _RELEASE_LOCK_LUA = """
 if redis.call('get', KEYS[1]) == ARGV[1] then
     return redis.call('del', KEYS[1])
@@ -49,6 +56,8 @@ class _GiftCodeGame:
     poll_once: Callable[[], Awaitable[list[str]]]
     run_redeemer: Callable[..., Awaitable[Any]]
     run_redeemer_for_player: Callable[..., Awaitable[Any]] | None = None
+    redeem_supported: bool = True
+    apply_mode: str = "api_all_accounts"
 
 
 _GIFT_CODE_GAMES: dict[str, _GiftCodeGame] = {
@@ -73,12 +82,16 @@ _GIFT_CODE_GAMES: dict[str, _GiftCodeGame] = {
         redeem_lock_key="wos:gift_code_redeem:lock:wos_beta",
         poll_once=wos_beta_gift_codes.poll_once,
         run_redeemer=wos_beta_gift_codes.run_gift_code_redeemer,
+        redeem_supported=False,
+        apply_mode="in_game_player",
     ),
     "kingshot_beta": _GiftCodeGame(
         game="kingshot_beta",
         redeem_lock_key="wos:gift_code_redeem:lock:kingshot_beta",
         poll_once=kingshot_beta_gift_codes.poll_once,
         run_redeemer=kingshot_beta_gift_codes.run_gift_code_redeemer,
+        redeem_supported=False,
+        apply_mode="in_game_player",
     ),
 }
 
@@ -139,6 +152,14 @@ def _status_token(cell: str) -> str:
     return raw.split(" ", 1)[0].strip()
 
 
+def _display_state_db_path() -> str:
+    path = state_db_path()
+    try:
+        return str(path.relative_to(_REPO))
+    except ValueError:
+        return str(path)
+
+
 def _build_row(code: Any, player_ids: list[str], registry: Any) -> dict[str, Any]:
     api_err = str(code.last_api_err_code) if code.last_api_err_code is not None else "—"
     row: dict[str, Any] = {
@@ -166,9 +187,11 @@ def _build_row(code: Any, player_ids: list[str], registry: Any) -> dict[str, Any
 
 
 def build_gift_codes_view(*, query: str = "", game: str = "wos") -> dict[str, Any]:
+    spec = _gift_code_game(game)
     codes = list_codes(game=game)
     registry = load_devices()
     player_ids = list(dict.fromkeys(registry.all_player_ids(game=game)))
+    codes_path = _display_state_db_path()
     for c in codes:
         for pid in c.user_for:
             if pid not in player_ids:
@@ -209,8 +232,11 @@ def build_gift_codes_view(*, query: str = "", game: str = "wos") -> dict[str, An
 
     return {
         "game": game,
-        "codes_db": str(state_db_path().relative_to(_REPO)),
-        "devices_path": str(state_db_path().relative_to(_REPO)),
+        "redeem_supported": spec.redeem_supported,
+        "apply_mode": spec.apply_mode,
+        "codes_db": codes_path,
+        "codes_path": codes_path,
+        "devices_path": codes_path,
         "parse_error": None,
         "missing_codes_file": False,
         "player_ids": player_ids,
@@ -227,6 +253,39 @@ def build_gift_codes_view(*, query: str = "", game: str = "wos") -> dict[str, An
     }
 
 
+def build_discord_config_view() -> dict[str, Any]:
+    token_source = discord_source.discord_token_source()
+    return {
+        "token_configured": token_source != "none",
+        "token_source": token_source,
+        "wos_beta_channel_id": discord_source.discord_channel_id(
+            _DISCORD_WOS_BETA_CHANNEL_ENV
+        ),
+        "wos_beta_channel_source": discord_source.discord_channel_source(
+            _DISCORD_WOS_BETA_CHANNEL_ENV
+        ),
+        "kingshot_beta_channel_id": discord_source.discord_channel_id(
+            _DISCORD_KINGSHOT_BETA_CHANNEL_ENV
+        ),
+        "kingshot_beta_channel_source": discord_source.discord_channel_source(
+            _DISCORD_KINGSHOT_BETA_CHANNEL_ENV
+        ),
+    }
+
+
+def update_discord_config(
+    *,
+    bot_token: str | None = None,
+    clear_token: bool = False,
+) -> dict[str, Any]:
+    if clear_token:
+        delete_gift_code_setting(discord_source.DISCORD_TOKEN_SETTING_KEY)
+    elif bot_token is not None and bot_token.strip():
+        set_gift_code_setting(discord_source.DISCORD_TOKEN_SETTING_KEY, bot_token.strip())
+
+    return build_discord_config_view()
+
+
 async def scrape_gift_codes() -> dict[str, Any]:
     new = await scrape_gift_codes_for_game("wos")
     return {"ok": True, "game": "wos", "new_codes": new, "count": len(new)}
@@ -239,6 +298,13 @@ async def scrape_gift_codes_for_game(game: str = "wos") -> list[str]:
 
 async def redeem_gift_codes(game: str = "wos") -> dict[str, Any]:
     spec = _gift_code_game(game)
+    if not spec.redeem_supported:
+        return {
+            "ok": False,
+            "game": spec.game,
+            "redeem_supported": False,
+            "reason": "beta_codes_apply_in_game_for_current_player",
+        }
     async with _api_gift_code_redis() as client:
         token = f"api:manual:{spec.game}:{int(time.time())}"
         acquired = await client.set(
@@ -288,6 +354,29 @@ async def startup_scrape_gift_codes_once(
         acquired = await redis_client.set(key, "1", nx=True, ex=ttl_s)
         if not acquired:
             out[game_id] = {"status": "skipped", "reason": "ttl"}
+            continue
+        if not spec.redeem_supported:
+            try:
+                new = await spec.poll_once()
+            except Exception as exc:
+                logger.exception("gift-code startup scrape failed for %s", game_id)
+                out[game_id] = {
+                    "status": "failed",
+                    "error": f"{type(exc).__name__}: {exc!s}",
+                }
+                continue
+            out[game_id] = {
+                "status": "done",
+                "new_codes": new,
+                "count": len(new),
+                "redeem_skipped": True,
+                "reason": "beta_codes_apply_in_game_for_current_player",
+            }
+            logger.info(
+                "gift-code startup cycle[%s]: %d new code(s), redeem skipped",
+                game_id,
+                len(new),
+            )
             continue
         token = f"api:startup:{game_id}:{int(time.time())}"
         redeem_acquired = await redis_client.set(

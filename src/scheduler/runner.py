@@ -38,15 +38,16 @@ _CRON_KEY = "wos:scheduler:cron:last_run"
 
 # Gift codes — global poller, see SchedulerRunner._run_gift_codes_polling.
 # (game_id, module path with poll_once + run_gift_code_redeemer, redeem-coordination
-# lock key shared with games/<game>/gift_codes/exec.py manual UI path)
-_GIFT_CODE_GAMES: list[tuple[str, str, str]] = [
-    ("wos", "century.gift_codes.wos", "wos:gift_code_redeem:lock"),
-    ("kingshot", "century.gift_codes.kingshot", "wos:gift_code_redeem:lock:kingshot"),
-    ("wos_beta", "century.gift_codes.wos_beta", "wos:gift_code_redeem:lock:wos_beta"),
+# lock key shared with games/<game>/gift_codes/exec.py manual UI path, redeem_supported)
+_GIFT_CODE_GAMES: list[tuple[str, str, str, bool]] = [
+    ("wos", "century.gift_codes.wos", "wos:gift_code_redeem:lock", True),
+    ("kingshot", "century.gift_codes.kingshot", "wos:gift_code_redeem:lock:kingshot", True),
+    ("wos_beta", "century.gift_codes.wos_beta", "wos:gift_code_redeem:lock:wos_beta", False),
     (
         "kingshot_beta",
         "century.gift_codes.kingshot_beta",
         "wos:gift_code_redeem:lock:kingshot_beta",
+        False,
     ),
 ]
 _GIFT_CODE_POLL_INTERVAL_S = 6 * 60 * 60
@@ -565,7 +566,7 @@ class SchedulerRunner:
             logger.exception("Daily snapshot routine failed")
 
     async def _run_gift_codes_polling(self) -> None:
-        """Scrape + redeem gift codes once globally per game, every 6 hours.
+        """Scrape gift codes once globally per game, every 6 hours.
 
         Replaces the per-account cron fan-out previously driven by
         ``games/<game>/gift_codes/scenarios/by_cron/redeem_gift_codes.yaml``.
@@ -575,14 +576,17 @@ class SchedulerRunner:
         no per-account or per-device state — driving it from the scheduler
         runs each step exactly once and keeps the bot queue free.
 
-        Coordination with the UI manual-trigger path is via the same
+        Live-game redeem coordination with the UI manual-trigger path is via the same
         ``wos:gift_code_redeem:lock[:game]`` key the exec handler uses, so a
         user clicking *Redeem now* while the scheduler is mid-cycle (or
         vice-versa) sees *already running* instead of racing.
+
+        Beta games are scrape-only here because codes apply inside the beta
+        game client for the currently logged-in player.
         """
         assert self._redis is not None
 
-        for game_id, module_path, redeem_lock_key in _GIFT_CODE_GAMES:
+        for game_id, module_path, redeem_lock_key, redeem_supported in _GIFT_CODE_GAMES:
             # 30s scheduler ticks must not re-fire inside the 6-hour cron
             # window. Atomic SET NX EX; first boot acquires immediately
             # (no key) so cold start runs once right away.
@@ -591,6 +595,15 @@ class SchedulerRunner:
                 cadence_key, "1", nx=True, ex=_GIFT_CODE_POLL_INTERVAL_S,
             )
             if not acquired:
+                continue
+
+            if not redeem_supported:
+                task = asyncio.create_task(
+                    self._gift_codes_scrape_once(game_id, module_path),
+                    name=f"gift-codes-poll-{game_id}",
+                )
+                _BACKGROUND_GIFT_CODE_TASKS.add(task)
+                task.add_done_callback(_BACKGROUND_GIFT_CODE_TASKS.discard)
                 continue
 
             token = f"scheduler:{game_id}:{int(time.time())}"
@@ -612,6 +625,19 @@ class SchedulerRunner:
             )
             _BACKGROUND_GIFT_CODE_TASKS.add(task)
             task.add_done_callback(_BACKGROUND_GIFT_CODE_TASKS.discard)
+
+    async def _gift_codes_scrape_once(self, game_id: str, module_path: str) -> None:
+        """One scrape-only cycle for beta codes that are applied in the game UI."""
+        try:
+            mod = importlib.import_module(module_path)
+            new_codes = await mod.poll_once()
+            logger.info(
+                "gift_codes_poll[%s]: scrape found %d new code(s), redeem skipped",
+                game_id,
+                len(new_codes),
+            )
+        except Exception:
+            logger.exception("gift_codes_poll[%s]: scrape failed", game_id)
 
     async def _gift_codes_run_once(
         self,

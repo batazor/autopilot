@@ -1272,9 +1272,44 @@ export async function scrapeGiftCodes(
 
 export async function redeemGiftCodes(
   game = "wos",
-): Promise<{ ok: boolean; game: string; already_running?: boolean; total?: number }> {
+): Promise<{
+  ok: boolean;
+  game: string;
+  already_running?: boolean;
+  total?: number;
+  redeem_supported?: boolean;
+  reason?: string;
+}> {
   const q = new URLSearchParams({ game }).toString();
   return apiFetch(`/api/gift-codes/redeem?${q}`, { method: "POST" });
+}
+
+export type GiftCodeDiscordConfig = {
+  token_configured: boolean;
+  token_source: "ui" | "none";
+  wos_beta_channel_id: string;
+  wos_beta_channel_source: "built_in" | "none";
+  kingshot_beta_channel_id: string;
+  kingshot_beta_channel_source: "built_in" | "none";
+};
+
+export type GiftCodeDiscordConfigUpdate = {
+  bot_token?: string | null;
+  clear_token?: boolean;
+};
+
+export async function fetchGiftCodeDiscordConfig(): Promise<GiftCodeDiscordConfig> {
+  return apiFetch<GiftCodeDiscordConfig>("/api/gift-codes/discord-config");
+}
+
+export async function updateGiftCodeDiscordConfig(
+  body: GiftCodeDiscordConfigUpdate,
+): Promise<GiftCodeDiscordConfig> {
+  return apiFetch<GiftCodeDiscordConfig>("/api/gift-codes/discord-config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -64,8 +64,29 @@ class ExternalAccountIn(BaseModel):
     validate_fid: bool = True
 
 
+class DiscordConfigIn(BaseModel):
+    bot_token: str | None = None
+    clear_token: bool = False
+
+
 class ExternalAccountToggleIn(BaseModel):
     enabled: bool
+
+
+@router.get("/discord-config")
+def get_discord_config() -> dict[str, Any]:
+    return svc.build_discord_config_view()
+
+
+@router.put("/discord-config")
+def put_discord_config(payload: DiscordConfigIn) -> dict[str, Any]:
+    try:
+        return svc.update_discord_config(
+            bot_token=payload.bot_token,
+            clear_token=payload.clear_token,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/external-accounts")

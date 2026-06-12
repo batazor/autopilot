@@ -9,9 +9,12 @@ import {
 import { AppTabs } from "@/components/headless";
 import { PageHeader } from "@/components/PageHeader";
 import {
+  fetchGiftCodeDiscordConfig,
   fetchGiftCodes,
   redeemGiftCodes,
   scrapeGiftCodes,
+  updateGiftCodeDiscordConfig,
+  type GiftCodeDiscordConfig,
 } from "@/lib/api";
 import type { GiftCodeRow } from "@/lib/wiki";
 
@@ -24,9 +27,13 @@ const KNOWN_GAMES: ExternalAccountsGame[] = [
 
 const DEFAULT_GAME = KNOWN_GAMES[0]?.id ?? "wos";
 const EXTERNAL_ACCOUNT_GAME_IDS = new Set(["wos", "kingshot"]);
+const BETA_GIFT_CODE_GAME_IDS = new Set(["wos_beta", "kingshot_beta"]);
 const EXTERNAL_ACCOUNT_GAMES = KNOWN_GAMES.filter((g) =>
   EXTERNAL_ACCOUNT_GAME_IDS.has(g.id),
 );
+const INPUT_CLASS =
+  "rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25";
+const LABEL_CLASS = "text-xs font-medium uppercase tracking-wide text-wos-text-muted";
 
 const STATUS_CLASS: Record<string, string> = {
   PENDING: "pill-paused",
@@ -116,6 +123,99 @@ function GiftCodesTable({
   );
 }
 
+function DiscordConfigPanel({
+  config,
+  token,
+  busy,
+  error,
+  onTokenChange,
+  onSave,
+  onClearToken,
+}: {
+  config: GiftCodeDiscordConfig | null;
+  token: string;
+  busy: boolean;
+  error: string | null;
+  onTokenChange: (value: string) => void;
+  onSave: () => void;
+  onClearToken: () => void;
+}) {
+  return (
+    <section className="panel panel--spaced">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="m-0">Discord beta source</h2>
+          <p className="muted m-0">
+            <span
+              className={`status-pill ${
+                config?.token_configured ? "pill-live" : "pill-paused"
+              }`}
+            >
+              {config?.token_configured ? "Token configured" : "Token missing"}
+            </span>
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={busy || !config?.token_configured}
+            onClick={onClearToken}
+          >
+            Clear token
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            onClick={onSave}
+          >
+            Save Discord
+          </button>
+        </div>
+      </div>
+
+      {error ? <div className="error-banner">{error}</div> : null}
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <label className="form-field">
+          <span className={LABEL_CLASS}>Bot token</span>
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder={config?.token_configured ? "saved" : "required"}
+            value={token}
+            onChange={(e) => onTokenChange(e.target.value)}
+            className={INPUT_CLASS}
+          />
+          <span className="text-xs leading-snug text-wos-text-muted">
+            Use a bot token from Discord Developer Portal. Do not paste a
+            browser Authorization/user token from DevTools.
+          </span>
+        </label>
+        <label className="form-field">
+          <span className={LABEL_CLASS}>WOS Beta channel ID · built-in</span>
+          <input
+            inputMode="numeric"
+            readOnly
+            value={config?.wos_beta_channel_id ?? ""}
+            className={INPUT_CLASS}
+          />
+        </label>
+        <label className="form-field">
+          <span className={LABEL_CLASS}>Kingshot Beta channel ID · built-in</span>
+          <input
+            inputMode="numeric"
+            readOnly
+            value={config?.kingshot_beta_channel_id ?? ""}
+            className={INPUT_CLASS}
+          />
+        </label>
+      </div>
+    </section>
+  );
+}
+
 function GiftCodesContent() {
   const params = useSearchParams();
   // Game lives in the URL (?game=…) so the selection is a shareable/bookmarkable
@@ -160,6 +260,12 @@ function GiftCodesContent() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [view, setView] = useState<"active" | "expired">("active");
+  const [discordConfig, setDiscordConfig] = useState<GiftCodeDiscordConfig | null>(
+    null,
+  );
+  const [discordToken, setDiscordToken] = useState("");
+  const [discordBusy, setDiscordBusy] = useState(false);
+  const [discordError, setDiscordError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -173,6 +279,55 @@ function GiftCodesContent() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadDiscordConfig = useCallback(async () => {
+    try {
+      const next = await fetchGiftCodeDiscordConfig();
+      setDiscordConfig(next);
+      setDiscordToken("");
+      setDiscordError(null);
+    } catch (e) {
+      setDiscordError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDiscordConfig();
+  }, [loadDiscordConfig]);
+
+  const saveDiscordConfig = async () => {
+    setDiscordBusy(true);
+    setDiscordError(null);
+    setMessage(null);
+    try {
+      const next = await updateGiftCodeDiscordConfig({
+        bot_token: discordToken || null,
+      });
+      setDiscordConfig(next);
+      setDiscordToken("");
+      setMessage("Discord settings saved.");
+    } catch (e) {
+      setDiscordError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDiscordBusy(false);
+    }
+  };
+
+  const clearDiscordToken = async () => {
+    setDiscordBusy(true);
+    setDiscordError(null);
+    setMessage(null);
+    try {
+      const next = await updateGiftCodeDiscordConfig({ clear_token: true });
+      setDiscordConfig(next);
+      setDiscordToken("");
+      setMessage("Discord token cleared.");
+    } catch (e) {
+      setDiscordError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDiscordBusy(false);
+    }
+  };
 
   const runAction = async (action: "scrape" | "redeem") => {
     setBusy(true);
@@ -198,6 +353,7 @@ function GiftCodesContent() {
   };
 
   const m = data?.metrics;
+  const redeemSupported = data?.redeem_supported ?? !BETA_GIFT_CODE_GAME_IDS.has(game);
 
   return (
     <>
@@ -218,6 +374,18 @@ function GiftCodesContent() {
             label: g.label,
             title: g.id,
           }))}
+        />
+      ) : null}
+
+      {BETA_GIFT_CODE_GAME_IDS.has(game) ? (
+        <DiscordConfigPanel
+          config={discordConfig}
+          token={discordToken}
+          busy={discordBusy}
+          error={discordError}
+          onTokenChange={setDiscordToken}
+          onSave={saveDiscordConfig}
+          onClearToken={clearDiscordToken}
         />
       ) : null}
 
@@ -251,6 +419,16 @@ function GiftCodesContent() {
         <p className="muted">Codes file missing — run Scrape.</p>
       ) : null}
 
+      {!redeemSupported ? (
+        <section className="panel panel--spaced">
+          <h2 className="m-0">Manual beta apply</h2>
+          <p className="muted m-0">
+            Beta gift codes are applied inside the beta game client for the
+            currently logged-in player.
+          </p>
+        </section>
+      ) : null}
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -260,20 +438,22 @@ function GiftCodesContent() {
         >
           Scrape now
         </button>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={busy}
-          onClick={() => runAction("redeem")}
-        >
-          Redeem now
-        </button>
+        {redeemSupported ? (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            onClick={() => runAction("redeem")}
+          >
+            Redeem now
+          </button>
+        ) : null}
         <input
           type="search"
           placeholder="Filter…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
+          className={INPUT_CLASS}
         />
         <button
           type="button"
@@ -288,7 +468,10 @@ function GiftCodesContent() {
         <div className="mb-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(8rem,1fr))]">
           {[
             { label: "Active", value: m.active },
-            { label: "Needs run", value: m.needs_run },
+            {
+              label: redeemSupported ? "Needs run" : "Manual apply",
+              value: redeemSupported ? m.needs_run : m.active,
+            },
             { label: "Pending slots", value: m.pending_slots },
             { label: "Expired", value: m.expired },
           ].map((item) => (

@@ -1,5 +1,10 @@
 @layer components {
   /* —— Sidebar navigation —— */
+  .app-nav {
+    max-height: 100dvh;
+    min-height: 0;
+  }
+
   .nav-brand {
     @apply flex items-center gap-2 border-b border-wos-border-subtle/80 px-4 py-4;
   }
@@ -33,7 +38,9 @@
   }
 
   .nav-scroll {
-    @apply scroll-smooth;
+    @apply min-h-0 scroll-smooth;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .nav-block-label {

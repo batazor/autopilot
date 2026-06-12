@@ -34,6 +34,8 @@ export type GiftCodeRow = {
 
 export type GiftCodesView = {
   game: string;
+  redeem_supported: boolean;
+  apply_mode: "api_all_accounts" | "in_game_player";
   codes_path: string;
   devices_path: string;
   parse_error: string | null;

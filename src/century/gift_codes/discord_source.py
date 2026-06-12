@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from config.giftcodes_db import code_exists, upsert_code
+from config.giftcodes_db import code_exists, get_gift_code_setting, upsert_code
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -27,10 +27,15 @@ logger = logging.getLogger(__name__)
 _DISCORD_API_BASE = "https://discord.com/api/v10"
 _DEFAULT_LIMIT = 50
 _MAX_LIMIT = 100
-_TOKEN_ENV = "GIFT_CODES_DISCORD_BOT_TOKEN"
-_FALLBACK_TOKEN_ENV = "DISCORD_BOT_TOKEN"
 _LIMIT_ENV = "GIFT_CODES_DISCORD_FETCH_LIMIT"
 _CODE_RE_ENV = "GIFT_CODES_DISCORD_CODE_RE"
+DISCORD_TOKEN_SETTING_KEY = "discord.bot_token"
+DISCORD_WOS_BETA_CHANNEL_ID = "1511081143083077652"
+DISCORD_KINGSHOT_BETA_CHANNEL_ID = "1513031288695558285"
+DISCORD_BUILT_IN_CHANNEL_IDS = {
+    "WOS_BETA_GIFT_CODES_DISCORD_CHANNEL_ID": DISCORD_WOS_BETA_CHANNEL_ID,
+    "KINGSHOT_BETA_GIFT_CODES_DISCORD_CHANNEL_ID": DISCORD_KINGSHOT_BETA_CHANNEL_ID,
+}
 
 _BACKTICK_CODE_RE = re.compile(
     r"`{1,3}\s*([A-Za-z0-9][A-Za-z0-9_-]{3,47})\s*`{1,3}"
@@ -39,6 +44,10 @@ _LABELED_CODE_RE = re.compile(
     r"(?i)\b(?:gift\s*code|promo\s*code|redeem\s*code|code|код)\b"
     r"\s*[:：#-]?\s*`?([A-Za-z0-9][A-Za-z0-9_-]{3,47})`?"
 )
+_CODE_LIST_HEADING_RE = re.compile(
+    r"(?i)\b(?:new\s+cdk\s+gift\s+code|gift\s*codes?|promo\s*codes?|redeem\s*codes?|codes?|код(?:ы|ов)?)\b"
+)
+_LINE_CODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{3,47}$")
 
 
 @dataclass
@@ -71,6 +80,34 @@ def _ordered_unique(values: Iterable[str]) -> list[str]:
         seen.add(key)
         out.append(code)
     return out
+
+
+def _is_likely_code(value: str) -> bool:
+    code = _clean_code(value)
+    return bool(_LINE_CODE_RE.fullmatch(code) and re.search(r"[A-Za-z]", code))
+
+
+def _extract_codes_from_labeled_lines(text: str) -> list[str]:
+    found: list[str] = []
+    in_code_block = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _CODE_LIST_HEADING_RE.search(line):
+            for match in _LABELED_CODE_RE.finditer(line):
+                candidate = match.group(1)
+                if _is_likely_code(candidate):
+                    found.append(candidate)
+            in_code_block = True
+            continue
+        if in_code_block:
+            candidate = _clean_code(line)
+            if _is_likely_code(candidate):
+                found.append(candidate)
+                continue
+            in_code_block = False
+    return _ordered_unique(found)
 
 
 def _message_blobs(message: dict[str, Any]) -> list[str]:
@@ -113,6 +150,7 @@ def extract_codes_from_text(text: str, *, code_re: re.Pattern[str] | None = None
         )
     for regex in (_LABELED_CODE_RE, _BACKTICK_CODE_RE):
         found.extend(match.group(1) for match in regex.finditer(text))
+    found.extend(_extract_codes_from_labeled_lines(text))
     return _ordered_unique(found)
 
 
@@ -149,8 +187,26 @@ def _compile_env_regex() -> re.Pattern[str] | None:
         return None
 
 
-def discord_token(*, token_env: str = _TOKEN_ENV) -> str:
-    return (os.environ.get(token_env) or os.environ.get(_FALLBACK_TOKEN_ENV) or "").strip()
+def discord_token() -> str:
+    return get_gift_code_setting(DISCORD_TOKEN_SETTING_KEY).strip()
+
+
+def discord_token_source() -> str:
+    if get_gift_code_setting(DISCORD_TOKEN_SETTING_KEY):
+        return "ui"
+    return "none"
+
+
+def discord_channel_id(channel_env: str) -> str:
+    if channel_env in DISCORD_BUILT_IN_CHANNEL_IDS:
+        return DISCORD_BUILT_IN_CHANNEL_IDS[channel_env]
+    return ""
+
+
+def discord_channel_source(channel_env: str) -> str:
+    if channel_env in DISCORD_BUILT_IN_CHANNEL_IDS:
+        return "built_in"
+    return "none"
 
 
 class DiscordMessageClient:
@@ -210,12 +266,11 @@ async def poll_discord_channel_once(
     *,
     game: str,
     channel_env: str,
-    token_env: str = _TOKEN_ENV,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> list[str]:
     """Fetch recent Discord messages and upsert newly discovered codes."""
-    token = discord_token(token_env=token_env)
-    channel_id = os.environ.get(channel_env, "").strip()
+    token = discord_token()
+    channel_id = discord_channel_id(channel_env)
     if not token or not channel_id:
         logger.debug(
             "Discord gift-code source disabled for %s: missing token or %s",

@@ -7,6 +7,7 @@ Schema (one row per (game, code) and (game, code, player)):
     gift_code_redemptions(game, code_name, player_id, status, attempted_at,
                           PRIMARY KEY(game, code_name, player_id),
                           FK (game, code_name) → gift_codes(game, name))
+    gift_code_settings(key, value, updated_at, PRIMARY KEY(key))
 
 ``game`` is ``'wos'`` or ``'kingshot'``; legacy rows (single-game era) are
 migrated to ``'wos'`` on first connect.
@@ -93,6 +94,14 @@ class GiftCodeExternalGamer(SQLModel, table=True):
     last_seen_at: float | None = Field(default=None)
 
 
+class GiftCodeSetting(SQLModel, table=True):
+    __tablename__ = "gift_code_settings"
+
+    key: str = Field(primary_key=True)
+    value: str = Field(default="")
+    updated_at: float
+
+
 # ---------------------------------------------------------------------------
 # schema setup + legacy migration
 # ---------------------------------------------------------------------------
@@ -159,6 +168,7 @@ def _ensure_schema(engine: Engine) -> None:
             GiftCodeRow.__table__,
             GiftCodeRedemption.__table__,
             GiftCodeExternalGamer.__table__,
+            GiftCodeSetting.__table__,
         ],
     )
     orm.apply_migrations(engine, "giftcodes", [
@@ -427,6 +437,52 @@ def upsert_external_gamer(
         s.commit()
         s.refresh(row)
         return _row_to_external(row)
+
+
+# ---------------------------------------------------------------------------
+# Gift-code runtime settings (stored in encrypted state.db)
+# ---------------------------------------------------------------------------
+
+
+def get_gift_code_setting(key: str, default: str = "") -> str:
+    clean = str(key or "").strip()
+    if not clean:
+        return default
+    with Session(_engine()) as s:
+        row = s.get(GiftCodeSetting, clean)
+        if row is None:
+            return default
+        return row.value or ""
+
+
+def set_gift_code_setting(key: str, value: str | None) -> None:
+    clean = str(key or "").strip()
+    if not clean:
+        msg = "gift-code setting key is required"
+        raise ValueError(msg)
+    raw = "" if value is None else str(value)
+    now = time.time()
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeSetting, clean)
+        if row is None:
+            row = GiftCodeSetting(key=clean, value=raw, updated_at=now)
+        else:
+            row.value = raw
+            row.updated_at = now
+        s.add(row)
+        s.commit()
+
+
+def delete_gift_code_setting(key: str) -> None:
+    clean = str(key or "").strip()
+    if not clean:
+        return
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeSetting, clean)
+        if row is None:
+            return
+        s.delete(row)
+        s.commit()
 
 
 def delete_external_gamer(player_id: int | str, *, game: str = _DEFAULT_GAME) -> bool:

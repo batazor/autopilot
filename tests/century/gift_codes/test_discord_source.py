@@ -6,10 +6,11 @@ import httpx
 import pytest
 
 from century.gift_codes.discord_source import (
+    DISCORD_TOKEN_SETTING_KEY,
     extract_codes_from_message,
     poll_discord_channel_once,
 )
-from config.giftcodes_db import code_exists
+from config.giftcodes_db import code_exists, set_gift_code_setting
 
 
 def test_extract_codes_from_message_content_and_embeds() -> None:
@@ -32,15 +33,58 @@ def test_extract_codes_from_message_content_and_embeds() -> None:
     ]
 
 
+def test_extract_codes_from_multiline_discord_announcement() -> None:
+    message = {
+        "content": """🎁 New CDK Gift Code
+gongce198cny100Kstars
+
+
+Gift codes：
+1000keys
+368gearbox
+dragoncastle
+cloudbeast
+dragonframe
+fireworksplate
+6480stars""",
+    }
+
+    assert extract_codes_from_message(message) == [
+        "gongce198cny100Kstars",
+        "1000keys",
+        "368gearbox",
+        "dragoncastle",
+        "cloudbeast",
+        "dragonframe",
+        "fireworksplate",
+        "6480stars",
+    ]
+
+
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("game", "channel_env", "expected_channel_id"),
+    [
+        ("wos_beta", "WOS_BETA_GIFT_CODES_DISCORD_CHANNEL_ID", "1511081143083077652"),
+        (
+            "kingshot_beta",
+            "KINGSHOT_BETA_GIFT_CODES_DISCORD_CHANNEL_ID",
+            "1513031288695558285",
+        ),
+    ],
+)
 async def test_poll_discord_channel_once_upserts_new_codes(
     monkeypatch: pytest.MonkeyPatch,
+    game: str,
+    channel_env: str,
+    expected_channel_id: str,
 ) -> None:
-    monkeypatch.setenv("GIFT_CODES_DISCORD_BOT_TOKEN", "token-1")
-    monkeypatch.setenv("WOS_BETA_GIFT_CODES_DISCORD_CHANNEL_ID", "123456789")
+    monkeypatch.setenv("GIFT_CODES_DISCORD_BOT_TOKEN", "ignored-env-token")
+    monkeypatch.setenv(channel_env, "999999999")
+    set_gift_code_setting(DISCORD_TOKEN_SETTING_KEY, "token-1")
 
     def _handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v10/channels/123456789/messages"
+        assert request.url.path == f"/api/v10/channels/{expected_channel_id}/messages"
         assert request.url.params["limit"] == "50"
         assert request.headers["Authorization"] == "Bot token-1"
         return httpx.Response(
@@ -52,24 +96,24 @@ async def test_poll_discord_channel_once_upserts_new_codes(
         )
 
     added = await poll_discord_channel_once(
-        game="wos_beta",
-        channel_env="WOS_BETA_GIFT_CODES_DISCORD_CHANNEL_ID",
+        game=game,
+        channel_env=channel_env,
         transport=httpx.MockTransport(_handler),
     )
     again = await poll_discord_channel_once(
-        game="wos_beta",
-        channel_env="WOS_BETA_GIFT_CODES_DISCORD_CHANNEL_ID",
+        game=game,
+        channel_env=channel_env,
         transport=httpx.MockTransport(_handler),
     )
 
     assert added == ["BETA123", "BETA456"]
     assert again == []
-    assert code_exists("BETA123", game="wos_beta")
-    assert code_exists("BETA456", game="wos_beta")
+    assert code_exists("BETA123", game=game)
+    assert code_exists("BETA456", game=game)
 
 
 @pytest.mark.asyncio
-async def test_poll_discord_channel_once_disabled_without_env(
+async def test_poll_discord_channel_once_disabled_without_ui_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("GIFT_CODES_DISCORD_BOT_TOKEN", raising=False)

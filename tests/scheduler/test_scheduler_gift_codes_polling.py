@@ -96,7 +96,7 @@ async def test_gift_codes_polling_runs_once_per_game(
 
     # Cadence keys are set with the long TTL — so the next tick within
     # the 6h window will see them and skip.
-    for game_id, _path, _lock in _GIFT_CODE_GAMES:
+    for game_id, _path, _lock, _redeem_supported in _GIFT_CODE_GAMES:
         ttl = await redis_async.ttl(f"wos:scheduler:gift_codes_poll:{game_id}")
         assert ttl > 0
         assert ttl <= _GIFT_CODE_POLL_INTERVAL_S
@@ -157,6 +157,30 @@ async def test_gift_codes_polling_skips_when_redeem_lock_is_held(
     # 6h window before another attempt. Verify that's the case.
     ttl = await redis_async.ttl("wos:scheduler:gift_codes_poll:wos")
     assert ttl > 0
+
+
+@pytest.mark.asyncio
+async def test_gift_codes_polling_beta_scrapes_without_redeem_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    redis_async: aioredis.Redis,
+    settings: Settings,
+) -> None:
+    """Beta code discovery is Discord scrape-only; beta redeem is manual in game."""
+    runner = _make_runner(settings)
+    runner._redis = redis_async  # type: ignore[assignment]
+
+    fake = _fake_importlib(scrape_codes=["BETA"], total=0)
+    monkeypatch.setattr("scheduler.runner.importlib", fake)
+
+    await runner._run_gift_codes_polling()
+    await _wait_for_background_tasks()
+
+    for game_id, _path, lock_key, redeem_supported in _GIFT_CODE_GAMES:
+        held = await redis_async.get(lock_key)
+        if redeem_supported:
+            continue
+        assert game_id.endswith("_beta")
+        assert held is None
 
 
 @pytest.mark.asyncio

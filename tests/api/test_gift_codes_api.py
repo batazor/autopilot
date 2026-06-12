@@ -79,6 +79,50 @@ def test_kingshot_view_does_not_expire_codes_from_calendar_date(
     assert view["active"][0]["needs_run"] is True
 
 
+def test_beta_view_marks_codes_as_manual_in_game(sqlite_db: Path) -> None:
+    upsert_code("BETA123", game="wos_beta")
+
+    view = gift_codes_api.build_gift_codes_view(game="wos_beta")
+
+    assert view["redeem_supported"] is False
+    assert view["apply_mode"] == "in_game_player"
+    assert view["active"][0]["needs_run"] is False
+
+
+def test_discord_config_is_saved_without_exposing_token(sqlite_db: Path) -> None:
+    view = gift_codes_api.update_discord_config(
+        bot_token="discord-token",
+    )
+
+    assert view == {
+        "token_configured": True,
+        "token_source": "ui",
+        "wos_beta_channel_id": "1511081143083077652",
+        "wos_beta_channel_source": "built_in",
+        "kingshot_beta_channel_id": "1513031288695558285",
+        "kingshot_beta_channel_source": "built_in",
+    }
+    assert "discord-token" not in str(view)
+
+    cleared = gift_codes_api.update_discord_config(clear_token=True)
+
+    assert cleared["token_configured"] is False
+    assert cleared["token_source"] == "none"
+    assert cleared["wos_beta_channel_id"] == "1511081143083077652"
+
+
+@pytest.mark.asyncio
+async def test_beta_redeem_is_not_supported() -> None:
+    result = await gift_codes_api.redeem_gift_codes(game="wos_beta")
+
+    assert result == {
+        "ok": False,
+        "game": "wos_beta",
+        "redeem_supported": False,
+        "reason": "beta_codes_apply_in_game_for_current_player",
+    }
+
+
 @pytest.mark.asyncio
 async def test_startup_cycle_uses_scheduler_ttl_gate(
     mocker: MockerFixture,

@@ -1,8 +1,8 @@
 """WOS beta gift-code source.
 
 Beta codes are discovered from a Discord channel and stored under
-``game="wos_beta"``. Redemption is intentionally a no-op until the beta redeem
-endpoint/protocol is known.
+``game="wos_beta"``. Application happens manually inside the beta game client
+for the currently logged-in player.
 """
 
 from __future__ import annotations
@@ -31,5 +31,5 @@ async def run_gift_code_redeemer(
 ) -> NullGiftRedeemSummary:
     del bot_instance_map
     if progress_cb is not None:
-        progress_cb(0, 0, "beta redeem not configured")
+        progress_cb(0, 0, "beta codes apply in game for the current player")
     return NullGiftRedeemSummary()
