@@ -35,6 +35,21 @@
           }
         },
         {
+          "name": "mail.tabs_strip",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 0.0,
+            "y": 5.0,
+            "width": 100.0,
+            "height": 10.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
           "name": "mail.tab.wars",
           "action": "text",
           "type": "string",

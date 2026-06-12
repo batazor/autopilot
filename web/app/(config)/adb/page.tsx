@@ -7,9 +7,17 @@ import {
   useMemo,
   useRef,
   useState,
+  type FormEvent,
 } from "react";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogPanel,
+  DialogTitle,
+} from "@headlessui/react";
 import { PageHeader } from "@/components/PageHeader";
 import {
+  AppConfirmDialog,
   AppMenu,
   AppPopover,
   AppRadioGroup,
@@ -17,6 +25,8 @@ import {
 } from "@/components/headless";
 import { Icon } from "@/components/ui";
 import {
+  createAdbDevice,
+  deleteAdbDevice,
   fetchAdbStatus,
   fetchScrcpyStatus,
   installScrcpy,
@@ -31,6 +41,7 @@ import {
   loadScanPortRange,
   saveScanPortRange,
 } from "@/lib/adb-scan-prefs";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type {
   AdbDetectedGame,
   ScrcpyInstallResult,
@@ -42,6 +53,14 @@ const INPUT_BACKEND_OPTIONS = [
   { value: "adb", label: "adb" },
   { value: "scrcpy", label: "scrcpy" },
 ];
+
+const MANUAL_DEVICE_DEFAULT = {
+  name: "",
+  adb_serial: "",
+  screenshot_backend: "",
+  input_backend: "",
+  replace_existing: false,
+};
 
 const PORT_INPUT_CLASS =
   "rounded-md border border-wos-border-subtle bg-wos-input px-2 py-1 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25";
@@ -138,6 +157,11 @@ export default function AdbPage() {
   const [scrcpy, setScrcpy] = useState<Record<string, CellEntry<ScrcpyStatus>>>({});
   const [installingScrcpy, setInstallingScrcpy] = useState<string | null>(null);
   const [registeringSerial, setRegisteringSerial] = useState<string | null>(null);
+  const [manualDeviceOpen, setManualDeviceOpen] = useState(false);
+  const [manualDevice, setManualDevice] = useState(MANUAL_DEVICE_DEFAULT);
+  const [creatingManualDevice, setCreatingManualDevice] = useState(false);
+  const [deleteDeviceName, setDeleteDeviceName] = useState<string | null>(null);
+  const [deletingDevice, setDeletingDevice] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [filter, setFilter] = useState("");
   const [registrationFilter, setRegistrationFilter] =
@@ -301,6 +325,84 @@ export default function AdbPage() {
     }
   };
 
+  const onCreateManualDevice = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setCreatingManualDevice(true);
+    try {
+      const out = await createAdbDevice({
+        name: manualDevice.name.trim(),
+        adb_serial: manualDevice.adb_serial.trim(),
+        screenshot_backend: manualDevice.screenshot_backend,
+        input_backend: manualDevice.input_backend,
+        replace_existing: manualDevice.replace_existing,
+      });
+      await reconcileAdbDevices();
+      const installNote = scrcpyInstallNote(out.scrcpy_install);
+      const removedNote = out.removed?.length
+        ? ` Removed ${out.removed.join(", ")}.`
+        : "";
+      setSuccess(
+        out.created
+          ? `Added ${out.adb_serial} as ${out.name}.${removedNote}${installNote} Its worker starts automatically while the bot is running.`
+          : `${out.adb_serial} is already registered as ${out.name}.${removedNote}${installNote}`,
+      );
+      setManualDevice(MANUAL_DEVICE_DEFAULT);
+      setManualDeviceOpen(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreatingManualDevice(false);
+    }
+  };
+
+  const onUseOnlyDevice = async (serial: string) => {
+    setError(null);
+    setSuccess(null);
+    setRegisteringSerial(serial);
+    try {
+      const out = await createAdbDevice({
+        adb_serial: serial,
+        replace_existing: true,
+      });
+      await reconcileAdbDevices();
+      const removedNote = out.removed?.length
+        ? ` Removed ${out.removed.join(", ")}.`
+        : "";
+      const installNote = scrcpyInstallNote(out.scrcpy_install);
+      setSuccess(
+        out.created
+          ? `Using ${out.adb_serial} as ${out.name}.${removedNote}${installNote}`
+          : `${out.adb_serial} is registered as ${out.name}.${removedNote}${installNote}`,
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRegisteringSerial(null);
+    }
+  };
+
+  const onDeleteDevice = async () => {
+    if (!deleteDeviceName) return;
+    setError(null);
+    setSuccess(null);
+    setDeletingDevice(true);
+    try {
+      const out = await deleteAdbDevice(deleteDeviceName);
+      await reconcileAdbDevices();
+      setSuccess(`Removed ${out.name}. Its worker stops automatically while the bot is running.`);
+      setDeleteDeviceName(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingDevice(false);
+    }
+  };
+
   const onInstallScrcpy = async (serial: string) => {
     setError(null);
     setSuccess(null);
@@ -351,6 +453,8 @@ export default function AdbPage() {
   const busy =
     installingScrcpy !== null ||
     registeringSerial !== null ||
+    creatingManualDevice ||
+    deletingDevice ||
     resettingSerial !== null ||
     savingBackend !== null;
 
@@ -414,6 +518,113 @@ export default function AdbPage() {
   const sectionCount = (shown: number, total: number) =>
     filtersActive ? `${shown}/${total}` : `${total}`;
 
+  const renderPortRangeControls = (close: () => void) => (
+    <div className="flex flex-col gap-3 text-xs text-wos-text-muted">
+      <span className="font-semibold uppercase tracking-wide">
+        TCP scan port range
+      </span>
+      <div className="flex items-end gap-2">
+        <label className="flex flex-col gap-1">
+          <span>From</span>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            className={`${PORT_INPUT_CLASS} w-20`}
+            value={portRange.start}
+            onChange={(e) =>
+              updatePortRange({ ...portRangeRef.current, start: e.target.value })
+            }
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span>To</span>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            className={`${PORT_INPUT_CLASS} w-20`}
+            value={portRange.end}
+            onChange={(e) =>
+              updatePortRange({ ...portRangeRef.current, end: e.target.value })
+            }
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span>Step</span>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            className={`${PORT_INPUT_CLASS} w-16`}
+            value={portRange.step}
+            onChange={(e) =>
+              updatePortRange({ ...portRangeRef.current, step: e.target.value })
+            }
+          />
+        </label>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => updatePortRange(DEFAULT_PORT_RANGE)}
+          disabled={
+            portRange.start === DEFAULT_PORT_RANGE.start &&
+            portRange.end === DEFAULT_PORT_RANGE.end &&
+            portRange.step === DEFAULT_PORT_RANGE.step
+          }
+        >
+          Reset
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={scanning}
+          onClick={() => {
+            close();
+            void refreshScanAndRegister();
+          }}
+        >
+          Rescan now
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderNoLiveDevicesRow = () => (
+    <tr>
+      <td colSpan={5}>
+        <EmptyState
+          icon="adb"
+          title="No live ADB devices found"
+          description={`The scan checked ports ${portRange.start}-${portRange.end} with step ${portRange.step}. If your emulator uses another port, adjust the range and rescan, or add the ADB serial manually from adb devices.`}
+          action={
+            <div className="adb-empty-actions">
+              <AppPopover
+                ariaLabel="Configure TCP scan port range"
+                buttonTitle="Configure TCP scan port range"
+                panelClassName="headless-popover__panel w-72 p-3"
+                trigger="Configure scan"
+              >
+                {({ close }) => renderPortRangeControls(close)}
+              </AppPopover>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setManualDeviceOpen(true)}
+                disabled={busy}
+              >
+                <Icon name="plus" size="sm" />
+                Add manually
+              </button>
+            </div>
+          }
+        />
+      </td>
+    </tr>
+  );
+
   return (
     <>
       <PageHeader title="ADB">
@@ -434,6 +645,16 @@ export default function AdbPage() {
           disabled={scanning}
         >
           {scanning ? "Scanning…" : "Refresh scan"}
+        </button>
+        <button
+          type="button"
+          className="btn-icon"
+          title="Add device manually"
+          aria-label="Add device manually"
+          onClick={() => setManualDeviceOpen(true)}
+          disabled={busy}
+        >
+          <Icon name="plus" size="sm" />
         </button>
         <label className="module-search adb-filterbar__search">
           <Icon name="search" size="sm" />
@@ -472,77 +693,7 @@ export default function AdbPage() {
           }
         >
           {({ close }) => (
-            <div className="flex flex-col gap-3 text-xs text-wos-text-muted">
-              <span className="font-semibold uppercase tracking-wide">
-                TCP scan port range
-              </span>
-              <div className="flex items-end gap-2">
-                <label className="flex flex-col gap-1">
-                  <span>From</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={65535}
-                    className={`${PORT_INPUT_CLASS} w-20`}
-                    value={portRange.start}
-                    onChange={(e) =>
-                      updatePortRange({ ...portRangeRef.current, start: e.target.value })
-                    }
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span>To</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={65535}
-                    className={`${PORT_INPUT_CLASS} w-20`}
-                    value={portRange.end}
-                    onChange={(e) =>
-                      updatePortRange({ ...portRangeRef.current, end: e.target.value })
-                    }
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span>Step</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={65535}
-                    className={`${PORT_INPUT_CLASS} w-16`}
-                    value={portRange.step}
-                    onChange={(e) =>
-                      updatePortRange({ ...portRangeRef.current, step: e.target.value })
-                    }
-                  />
-                </label>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => updatePortRange(DEFAULT_PORT_RANGE)}
-                  disabled={
-                    portRange.start === DEFAULT_PORT_RANGE.start &&
-                    portRange.end === DEFAULT_PORT_RANGE.end &&
-                    portRange.step === DEFAULT_PORT_RANGE.step
-                  }
-                >
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={scanning}
-                  onClick={() => {
-                    close();
-                    void refreshScanAndRegister();
-                  }}
-                >
-                  Rescan now
-                </button>
-              </div>
-            </div>
+            renderPortRangeControls(close)
           )}
         </AppPopover>
         {status?.scan_port_range && (
@@ -554,6 +705,130 @@ export default function AdbPage() {
           </span>
         )}
       </div>
+      <Dialog
+        open={manualDeviceOpen}
+        onClose={() => {
+          if (!creatingManualDevice) setManualDeviceOpen(false);
+        }}
+        className="headless-dialog-root"
+      >
+        <DialogBackdrop transition className="headless-dialog__backdrop" />
+        <div className="headless-dialog__container">
+          <DialogPanel transition className="headless-dialog__panel adb-manual-dialog">
+            <DialogTitle className="headless-dialog__title">
+              Add ADB Device
+            </DialogTitle>
+            <form onSubmit={onCreateManualDevice}>
+              <div className="headless-dialog__body">
+                <div className="adb-manual-dialog__fields">
+                  <label className="adb-manual-dialog__field">
+                    <span>Name</span>
+                    <input
+                      className="adb-manual-dialog__input"
+                      value={manualDevice.name}
+                      onChange={(e) =>
+                        setManualDevice((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      placeholder="bs1"
+                      disabled={creatingManualDevice}
+                    />
+                  </label>
+                  <label className="adb-manual-dialog__field">
+                    <span>ADB serial</span>
+                    <input
+                      className="adb-manual-dialog__input"
+                      value={manualDevice.adb_serial}
+                      onChange={(e) =>
+                        setManualDevice((prev) => ({
+                          ...prev,
+                          adb_serial: e.target.value,
+                        }))
+                      }
+                      placeholder="127.0.0.1:5615"
+                      required
+                      disabled={creatingManualDevice}
+                    />
+                  </label>
+                  <label className="adb-manual-dialog__field">
+                    <span>Capture</span>
+                    <select
+                      className="adb-manual-dialog__input"
+                      value={manualDevice.screenshot_backend}
+                      onChange={(e) =>
+                        setManualDevice((prev) => ({
+                          ...prev,
+                          screenshot_backend: e.target.value,
+                        }))
+                      }
+                      disabled={creatingManualDevice}
+                    >
+                      <option value="">auto (scrcpy)</option>
+                      <option value="adb">adb</option>
+                      <option value="scrcpy">scrcpy</option>
+                    </select>
+                  </label>
+                  <label className="adb-manual-dialog__field">
+                    <span>Input</span>
+                    <select
+                      className="adb-manual-dialog__input"
+                      value={manualDevice.input_backend}
+                      onChange={(e) =>
+                        setManualDevice((prev) => ({
+                          ...prev,
+                          input_backend: e.target.value,
+                        }))
+                      }
+                      disabled={creatingManualDevice}
+                    >
+                      {INPUT_BACKEND_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="adb-manual-dialog__switch">
+                    <input
+                      type="checkbox"
+                      checked={manualDevice.replace_existing}
+                      onChange={(e) =>
+                        setManualDevice((prev) => ({
+                          ...prev,
+                          replace_existing: e.target.checked,
+                        }))
+                      }
+                      disabled={creatingManualDevice}
+                    />
+                    <span>
+                      Replace existing configured devices
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div className="headless-dialog__actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setManualDeviceOpen(false)}
+                  disabled={creatingManualDevice}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={creatingManualDevice || !manualDevice.adb_serial.trim()}
+                >
+                  {creatingManualDevice ? "Adding…" : "Add device"}
+                </button>
+              </div>
+            </form>
+          </DialogPanel>
+        </div>
+      </Dialog>
       {error && <p className="error-banner mb-4">{error}</p>}
       {success && <p className="success-banner mb-4">{success}</p>}
       {status && (
@@ -619,12 +894,13 @@ export default function AdbPage() {
                     <th>Window title</th>
                     <th>Capture</th>
                     <th>Input</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {configuredFiltered.length === 0 &&
                     status.configured.length > 0 &&
-                    renderNoMatchesRow(6)}
+                    renderNoMatchesRow(7)}
                   {configuredFiltered.map((d) => (
                     <tr key={`${d.name}-${d.adb_serial}`}>
                       <td>{d.name || "—"}</td>
@@ -662,6 +938,20 @@ export default function AdbPage() {
                           options={INPUT_BACKEND_OPTIONS}
                         />
                       </td>
+                      <td>
+                        <AppMenu
+                          items={[
+                            {
+                              label: "Remove",
+                              disabled: busy || !d.name,
+                              title: "Remove this configured device from the fleet registry",
+                              onClick: () => setDeleteDeviceName(d.name),
+                            },
+                          ]}
+                          ariaLabel={`Open actions for ${d.name || d.adb_serial}`}
+                          buttonTitle="Actions"
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -687,6 +977,7 @@ export default function AdbPage() {
                   {liveFiltered.length === 0 &&
                     status.live_devices.length > 0 &&
                     renderNoMatchesRow(5)}
+                  {status.live_devices.length === 0 && renderNoLiveDevicesRow()}
                   {liveFiltered.map((d) => {
                     const sc = scrcpy[d.serial];
                     const scInstalled = sc && !("error" in sc) && sc.installed;
@@ -705,6 +996,15 @@ export default function AdbPage() {
                           ? "Already registered in the fleet"
                           : "Add this live ADB device to the fleet registry",
                         onClick: () => onRegisterDevice(d.serial),
+                      },
+                      {
+                        label:
+                          registeringSerial === d.serial
+                            ? "Updating..."
+                            : "Use only this device",
+                        disabled: busy,
+                        title: "Remove other configured devices and keep this ADB serial",
+                        onClick: () => onUseOnlyDevice(d.serial),
                       },
                       {
                         label:
@@ -760,6 +1060,21 @@ export default function AdbPage() {
           </section>
         </>
       )}
+      <AppConfirmDialog
+        open={deleteDeviceName !== null}
+        title="Remove Device"
+        confirmLabel={deletingDevice ? "Removing…" : "Remove"}
+        variant="danger"
+        busy={deletingDevice}
+        onClose={() => {
+          if (!deletingDevice) setDeleteDeviceName(null);
+        }}
+        onConfirm={onDeleteDevice}
+      >
+        <p className="m-0 text-sm text-wos-text-muted">
+          Remove <code>{deleteDeviceName}</code> from the fleet registry.
+        </p>
+      </AppConfirmDialog>
     </>
   );
 }

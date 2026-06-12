@@ -205,6 +205,9 @@ class Events(BaseModel):
 class TroopState(BaseModel):
     isAvailable: bool = False
     TextStatus: str = ""
+    training_remaining_s: int = 0
+    training_ends_at: float = 0.0
+    training_checked_at: float = 0.0
 
 
 class TroopEntry(BaseModel):
@@ -215,6 +218,13 @@ class Troops(BaseModel):
     infantry: TroopEntry = Field(default_factory=TroopEntry)
     lancer: TroopEntry = Field(default_factory=TroopEntry)
     marksman: TroopEntry = Field(default_factory=TroopEntry)
+
+
+class Marches(BaseModel):
+    active_count: int = 0
+    capacity: int = 0
+    checked_at: float = 0.0
+    slots: dict[str, object] = Field(default_factory=dict)
 
 
 class TechState(BaseModel):
@@ -348,6 +358,7 @@ class GamerState(BaseModel):
     researches: Researches = Field(default_factory=Researches)
     events: Events = Field(default_factory=Events)
     troops: Troops = Field(default_factory=Troops)
+    marches: Marches = Field(default_factory=Marches)
     tech: Tech = Field(default_factory=Tech)
     mail: Mail = Field(default_factory=Mail)
     shop: dict[str, object] = Field(default_factory=_gamer_shop_default)

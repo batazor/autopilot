@@ -6,7 +6,7 @@ export type AdbPortRangeForm = { start: string; end: string; step: string };
 export const DEFAULT_PORT_RANGE: AdbPortRangeForm = {
   start: "5555",
   end: "5625",
-  step: "10",
+  step: "5",
 };
 
 function isValidField(v: unknown): v is string {

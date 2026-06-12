@@ -1,8 +1,8 @@
 name: ci
 
 on:
-  push:
-    branches: [main]
+  release:
+    types: [published]
 
 # Cancel in-flight runs for the same ref when a new commit lands.
 concurrency:

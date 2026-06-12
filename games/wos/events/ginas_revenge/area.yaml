@@ -6,6 +6,12 @@
       "screen_id": "",
       "ocr": "references/wait.png",
       "regions": []
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/main.png",
+      "regions": []
     }
   ]
 }

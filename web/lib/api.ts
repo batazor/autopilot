@@ -3,6 +3,7 @@ import type {
   AdbStatus,
   ScrcpyStatus,
   ScrcpyInstallResult,
+  DeviceCreateBody,
   DeviceBackendUpdate,
   DeviceRegisterResult,
   BalanceFileMeta,
@@ -1578,6 +1579,21 @@ export async function registerAdbDevice(serial: string): Promise<DeviceRegisterR
   return apiFetch<DeviceRegisterResult>(
     `/api/adb/devices/${encodeURIComponent(serial)}/register`,
     { method: "POST" },
+  );
+}
+
+export async function createAdbDevice(body: DeviceCreateBody): Promise<DeviceRegisterResult> {
+  return apiFetch<DeviceRegisterResult>("/api/adb/devices", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteAdbDevice(name: string): Promise<{ ok: boolean; name: string }> {
+  return apiFetch<{ ok: boolean; name: string }>(
+    `/api/adb/devices/${encodeURIComponent(name)}`,
+    { method: "DELETE" },
   );
 }
 

@@ -71,6 +71,7 @@ def test_mail_module_overlay_rules_present_in_merged_manifest() -> None:
 
     for expected in (
         "mail.new.has_red_dot",
+        "mail.tabs.visible_red_dot",
         "mail.wars.active",
         "mail.alliance.active",
         "mail.system.active",

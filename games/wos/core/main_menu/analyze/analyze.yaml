@@ -1,1 +1,21 @@
-overlay: []
+overlay:
+  - name: main_menu.training.visible
+    region: main_menu.training.infantry.status
+    action: text
+    expected:
+      - Infantry
+    threshold: 0.7
+    screens:
+      - main_menu
+    ttl: 5m
+    steps:
+      - push_scenario: sync_training_status
+  - name: main_menu.marching.visible
+    region: main_menu.marching.count
+    action: text
+    threshold: 0.7
+    screens:
+      - main_menu
+    ttl: 1m
+    steps:
+      - push_scenario: sync_marching_status

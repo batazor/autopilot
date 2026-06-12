@@ -113,7 +113,16 @@ export type DeviceRegisterResult = {
   name: string;
   adb_serial: string;
   restart_required: boolean;
+  removed?: string[];
   scrcpy_install?: ScrcpyInstallResult | null;
+};
+
+export type DeviceCreateBody = {
+  name?: string;
+  adb_serial: string;
+  screenshot_backend?: string;
+  input_backend?: string;
+  replace_existing?: boolean;
 };
 
 export type BalanceFileMeta = { id: string; filename: string };

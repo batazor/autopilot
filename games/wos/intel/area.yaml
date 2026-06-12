@@ -1,2 +1,120 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "intel",
+      "ocr": "references/main.png",
+      "screen_region": "intel.title",
+      "regions": [
+        {
+          "name": "intel.money",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 82.49866371548251,
+            "y": 1.9091016769569111,
+            "width": 9.905396304443267,
+            "height": 2.2858822491990294,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "intel.refresh",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 53.26760260446194,
+            "y": 8.161417353003653,
+            "width": 19.14572864321601,
+            "height": 3.1324182122806428,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "intel.title",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.730148798467015,
+            "y": 0.847312920824715,
+            "width": 13.11557788944723,
+            "height": 4.190588166132682,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "intel.fight",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 36.915934484451874,
+            "y": 54.460194368563535,
+            "width": 7.101983171173937,
+            "height": 3.7741637920558637,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "intel.fight",
+      "ocr": "references/fight.png",
+      "screen_region": "intel.fight.view",
+      "regions": [
+        {
+          "name": "intel.fight.view",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.805555555555554,
+            "y": 70.390625,
+            "width": 36.388888888888886,
+            "height": 5.078125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "intel.explore",
+      "ocr": "references/explore.png",
+      "screen_region": "intel.explore",
+      "regions": [
+        {
+          "name": "intel.explore",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 36.52777777777778,
+            "y": 46.953125,
+            "width": 27.22222222222222,
+            "height": 4.375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "squad_settings",
+      "ocr": "references/squad_settings.png",
+      "regions": []
+    }
+  ]
+}

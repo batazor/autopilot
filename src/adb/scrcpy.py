@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import random
 import secrets
 import socket
@@ -95,6 +96,29 @@ _LONG_SWIPE_OVERSHOOT_MIN_PX = 260
 # (the video socket) so the host knows ``adb forward`` actually reached the
 # device-side socket (forward succeeds even before the server binds).
 _DUMMY_BYTE = b"\x00"
+
+
+def _adb_forward_host() -> str:
+    """Return the host where ``adb forward tcp:<port>`` listens.
+
+    ``adb forward`` opens the TCP listener in the adb *server* network
+    namespace. In local runs that is this process and 127.0.0.1 is correct.
+    In Docker Desktop deployments we often talk to the host adb server via
+    ``ADB_SERVER_SOCKET=tcp:host.docker.internal:5037``, so the forwarded port
+    is reachable on ``host.docker.internal`` rather than container loopback.
+    """
+    explicit = os.environ.get("WOS_ADB_FORWARD_HOST", "").strip()
+    if explicit:
+        return explicit
+    server_socket = os.environ.get("ADB_SERVER_SOCKET", "").strip()
+    if not server_socket.startswith("tcp:"):
+        return "127.0.0.1"
+    target = server_socket[4:]
+    if target.startswith("["):
+        host, sep, _rest = target[1:].partition("]:")
+        return host if sep else "127.0.0.1"
+    host, sep, _port = target.rpartition(":")
+    return host if sep and host else "127.0.0.1"
 
 
 # ---------------------------------------------------------------------------
@@ -534,6 +558,8 @@ class ScrcpyClient:
         expected sockets are connected, so connect control after the dummy
         byte and before reading the video metadata.
         """
+        forward_host = _adb_forward_host()
+
         # Video socket — first accepted connection. `adb forward` may accept
         # the host TCP connection before the device-side LocalServerSocket is
         # actually listening, then immediately close it. Retry until the server
@@ -544,7 +570,7 @@ class ScrcpyClient:
             candidate = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             candidate.settimeout(3.0)
             try:
-                candidate.connect(("127.0.0.1", self.port))
+                candidate.connect((forward_host, self.port))
                 dummy = _recv_exact(candidate, 1)
                 if dummy == _DUMMY_BYTE:
                     video = candidate
@@ -564,7 +590,7 @@ class ScrcpyClient:
         # Control socket — same forwarded port, second accept.
         control = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         control.settimeout(5.0)
-        control.connect(("127.0.0.1", self.port))
+        control.connect((forward_host, self.port))
         control.settimeout(None)
         self._control_sock = control
 

@@ -127,6 +127,42 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
     ]
 
 
+def test_child_sigterm_cancels_running_asyncio_tasks(monkeypatch) -> None:
+    installed_handlers: dict[int, object] = {}
+    cancelled: list[str] = []
+
+    class FakeTask:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def done(self) -> bool:
+            return False
+
+        def cancel(self) -> None:
+            cancelled.append(self.name)
+
+    tasks = [FakeTask("worker-main"), FakeTask("rolling-analyze")]
+    loop = object()
+
+    monkeypatch.setattr(
+        supervisor.signal,
+        "signal",
+        lambda sig, handler: installed_handlers.setdefault(sig, handler),
+    )
+    monkeypatch.setattr(supervisor.asyncio, "get_running_loop", lambda: loop)
+    monkeypatch.setattr(supervisor.asyncio, "all_tasks", lambda _active_loop: tasks)
+
+    supervisor._install_child_signal_handlers()
+
+    term_handler = installed_handlers[supervisor.signal.SIGTERM]
+    term_handler(supervisor.signal.SIGTERM, None)
+
+    assert cancelled == ["worker-main", "rolling-analyze"]
+
+    with pytest.raises(KeyboardInterrupt):
+        term_handler(supervisor.signal.SIGTERM, None)
+
+
 def test_license_gate_waits_until_license_appears(monkeypatch) -> None:
     events: list[str] = []
 

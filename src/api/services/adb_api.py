@@ -16,6 +16,7 @@ from config.devices import invalidate_device_registry
 from config.devices_db import (
     VALID_INPUT_BACKENDS,
     VALID_SCREENSHOT_BACKENDS,
+    delete_device,
     load_registry,
     upsert_device,
 )
@@ -30,17 +31,19 @@ _REPO = repo_root()
 # the *historical* file lived (the dashboard's ADB page renders this as info).
 _SETTINGS_DISPLAY = "src/config/_settings_data.py"
 _DEVICES_DB_REL = "db/state/state.db"
-# Emulator ADB ports are allocated in steps of 10 starting at 5555
-# (5555, 5565, ... 5625). Probe the whole range so newly-added instances are
+# Emulator ADB ports are usually allocated on odd ports, but different host
+# tools can start ranges at either x555 or x600. A step of 5 covers both grids
+# (5555, 5560, 5565, ... 5625) without probing every port.
 # auto-discovered without hardcoding each port. The /adb page can override the
 # bounds per scan; these stay the default when it doesn't.
-_ADB_TCP_PORT_RANGE = range(5555, 5626, 10)
+_ADB_TCP_PORT_RANGE = range(5555, 5626, 5)
 _ADB_TCP_PORT_DEFAULT_START = 5555
 _ADB_TCP_PORT_DEFAULT_END = 5625
-_ADB_TCP_PORT_DEFAULT_STEP = 10
+_ADB_TCP_PORT_DEFAULT_STEP = 5
 # Guard rails so a user-supplied range can't spawn thousands of sockets/threads.
 _ADB_TCP_PORT_SCAN_CAP = 256
 _ADB_TCP_PROBE_MAX_WORKERS = 64
+_DEVICE_OFFLINE_ERROR = "device offline (ADB)"
 
 
 def build_tcp_port_range(
@@ -51,7 +54,7 @@ def build_tcp_port_range(
     """Resolve the list of TCP ports to probe for emulator ADB endpoints.
 
     Unset bounds fall back to the default emulator allocation
-    (``5555..5625`` step ``10``). Values are clamped to valid TCP ports, the
+    (``5555..5625`` step ``5``). Values are clamped to valid TCP ports, the
     bounds are reordered if inverted, and the result is capped at
     ``_ADB_TCP_PORT_SCAN_CAP`` so a pathological range can't tie up the scan.
     """
@@ -321,6 +324,29 @@ def _notify_supervisor_reconcile(reason: str) -> None:
         pass
 
 
+def _clear_runtime_device_state(*, keep: str = "", removed: list[str] | None = None) -> None:
+    """Best-effort cleanup for stale Redis state after registry mutations."""
+    try:
+        from dashboard.redis_client import get_redis
+
+        r = get_redis()
+        for name in removed or []:
+            clean = str(name or "").strip()
+            if clean:
+                r.delete(f"wos:instance:{clean}:state")
+
+        keep_clean = str(keep or "").strip()
+        if keep_clean:
+            key = f"wos:instance:{keep_clean}:state"
+            state = r.hgetall(key)
+            last_error = str(state.get("last_error") or "").strip()
+            auto_paused = str(state.get("auto_paused") or "").strip()
+            if _DEVICE_OFFLINE_ERROR in last_error or auto_paused == "1":
+                r.hdel(key, "last_error", "queue_blocked_reason", "auto_paused", "paused")
+    except Exception:  # pragma: no cover - cleanup is best-effort
+        pass
+
+
 def request_device_reconcile(reason: str = "manual") -> dict[str, Any]:
     """Explicit UI/API command: ask the running supervisor to reconcile devices."""
     clean = (reason or "manual").strip() or "manual"
@@ -392,6 +418,7 @@ def register_device(serial: str) -> dict[str, Any]:
                 input_backend=device.input_backend,
             )
             _notify_supervisor_reconcile(f"register:{device.name}")
+            _clear_runtime_device_state(keep=device.name)
             return {
                 "ok": True,
                 "created": False,
@@ -410,6 +437,7 @@ def register_device(serial: str) -> dict[str, Any]:
     # Nudge a running supervisor to spawn this device's worker right away; no
     # bot restart needed.
     _notify_supervisor_reconcile(f"register:{name}")
+    _clear_runtime_device_state(keep=name)
     scrcpy_install = _auto_install_scrcpy_if_required(
         adb_serial,
         screenshot_backend="",
@@ -423,6 +451,113 @@ def register_device(serial: str) -> dict[str, Any]:
         "restart_required": False,
         "scrcpy_install": scrcpy_install,
     }
+
+
+def create_device(
+    *,
+    adb_serial: str,
+    name: str = "",
+    screenshot_backend: str = "",
+    input_backend: str = "",
+    replace_existing: bool = False,
+) -> dict[str, Any]:
+    """Persist an explicitly configured ADB device without requiring a live scan."""
+    raw = (adb_serial or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="adb_serial is required")
+
+    serial = canonical_adb_serial(raw)
+    explicit_name = (name or "").strip()
+    registry = load_registry()
+    matched_existing = next(
+        (
+            device
+            for device in registry.devices
+            if _serial_matches(device.effective_serial, serial)
+        ),
+        None,
+    )
+    removed: list[str] = []
+
+    if replace_existing:
+        for device in registry.devices:
+            should_remove = matched_existing is None or device.name != matched_existing.name
+            if should_remove and delete_device(device.name):
+                removed.append(device.name)
+        registry = load_registry()
+
+    desired_name = explicit_name or (
+        matched_existing.name if matched_existing is not None else _next_device_name(serial)
+    )
+
+    for device in registry.devices:
+        if _serial_matches(device.effective_serial, serial):
+            scrcpy_install = _auto_install_scrcpy_if_required(
+                device.effective_serial,
+                screenshot_backend=device.screenshot_backend,
+                input_backend=device.input_backend,
+            )
+            _notify_supervisor_reconcile(f"manual-device:{device.name}")
+            _clear_runtime_device_state(keep=device.name, removed=removed)
+            return {
+                "ok": True,
+                "created": False,
+                "name": device.name,
+                "adb_serial": device.effective_serial,
+                "restart_required": False,
+                "removed": removed,
+                "scrcpy_install": scrcpy_install,
+            }
+
+    clean_name = desired_name
+    for device in registry.devices:
+        if device.name == clean_name:
+            raise HTTPException(
+                status_code=400,
+                detail=f"device name already exists: {clean_name!r}",
+            )
+
+    try:
+        upsert_device(
+            clean_name,
+            adb_serial=serial,
+            screenshot_backend=screenshot_backend or "",
+            input_backend=input_backend or "",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    invalidate_device_registry()
+    _notify_supervisor_reconcile(f"manual-device:{clean_name}")
+    _clear_runtime_device_state(keep=clean_name, removed=removed)
+    scrcpy_install = _auto_install_scrcpy_if_required(
+        serial,
+        screenshot_backend=screenshot_backend or "",
+        input_backend=input_backend or "",
+    )
+    return {
+        "ok": True,
+        "created": True,
+        "name": clean_name,
+        "adb_serial": serial,
+        "restart_required": False,
+        "removed": removed,
+        "scrcpy_install": scrcpy_install,
+    }
+
+
+def delete_device_by_name(name: str) -> dict[str, Any]:
+    """Remove a configured device by registry name."""
+    clean = (name or "").strip()
+    if not clean:
+        raise HTTPException(status_code=400, detail="device name is required")
+
+    removed = delete_device(clean)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"device not found: {clean!r}")
+    invalidate_device_registry()
+    _notify_supervisor_reconcile(f"delete-device:{clean}")
+    _clear_runtime_device_state(removed=[clean])
+    return {"ok": True, "name": clean}
 
 
 def reset_device_display(serial: str) -> dict[str, Any]:

@@ -1,0 +1,27 @@
+enabled: true
+name: "Sync march queue status"
+priority: 70_000
+
+node: main_menu
+
+steps:
+  - ocr: main_menu.marching.count
+    type: string
+    store: main_menu.marching.count
+  - ocr: main_menu.marching.slot.1.title
+    store: main_menu.marching.slot.1.title
+  - ocr: main_menu.marching.slot.1.time
+    store: main_menu.marching.slot.1.remaining_s
+  - ocr: main_menu.marching.slot.2.title
+    store: main_menu.marching.slot.2.title
+  - ocr: main_menu.marching.slot.2.time
+    store: main_menu.marching.slot.2.remaining_s
+  - ocr: main_menu.marching.slot.3.status
+    store: main_menu.marching.slot.3.status
+  - ocr: main_menu.marching.slot.4.status
+    store: main_menu.marching.slot.4.status
+  - ocr: main_menu.marching.slot.5.status
+    store: main_menu.marching.slot.5.status
+  - ocr: main_menu.marching.slot.6.status
+    store: main_menu.marching.slot.6.status
+  - exec: sync_main_menu_marching_status

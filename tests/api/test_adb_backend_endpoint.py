@@ -178,6 +178,92 @@ def test_register_device_rejects_empty_serial(devices_db: Path) -> None:
     assert exc.value.status_code == 400
 
 
+def test_create_device_persists_manual_serial_and_backends(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reconcile: list[str] = []
+    monkeypatch.setattr(
+        adb_api,
+        "_notify_supervisor_reconcile",
+        lambda reason: reconcile.append(reason),
+    )
+
+    result = adb_api.create_device(
+        name="manual1",
+        adb_serial="127.0.0.1:5615",
+        screenshot_backend="adb",
+        input_backend="scrcpy",
+    )
+
+    assert result["created"] is True
+    assert result["name"] == "manual1"
+    assert result["adb_serial"] == "127.0.0.1:5615"
+    row = _device("127.0.0.1:5615")
+    assert row.name == "manual1"
+    assert row.screenshot_backend == "adb"
+    assert row.input_backend == "scrcpy"
+    assert reconcile == ["manual-device:manual1"]
+
+
+def test_create_device_rejects_existing_name_for_different_serial(devices_db: Path) -> None:
+    with pytest.raises(HTTPException) as exc:
+        adb_api.create_device(name="bs1", adb_serial="127.0.0.1:5615")
+
+    assert exc.value.status_code == 400
+    assert "device name already exists" in str(exc.value.detail)
+
+
+def test_create_device_reuses_existing_serial(devices_db: Path) -> None:
+    result = adb_api.create_device(name="phone-renamed", adb_serial="RF8RC00M8MF")
+
+    assert result["created"] is False
+    assert result["name"] == "bs1"
+    rows = [d for d in load_registry().devices if d.adb_serial == "RF8RC00M8MF"]
+    assert len(rows) == 1
+
+
+def test_create_device_can_replace_existing_fleet(devices_db: Path) -> None:
+    result = adb_api.create_device(
+        adb_serial="127.0.0.1:5615",
+        replace_existing=True,
+    )
+
+    assert result["created"] is True
+    assert result["name"] == "bs1"
+    assert result["adb_serial"] == "127.0.0.1:5615"
+    assert result["removed"] == ["bs1", "phone2"]
+    registry = load_registry()
+    assert [(d.name, d.adb_serial) for d in registry.devices] == [
+        ("bs1", "127.0.0.1:5615")
+    ]
+
+
+def test_delete_device_by_name_removes_configured_device(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reconcile: list[str] = []
+    monkeypatch.setattr(
+        adb_api,
+        "_notify_supervisor_reconcile",
+        lambda reason: reconcile.append(reason),
+    )
+
+    result = adb_api.delete_device_by_name("bs1")
+
+    assert result == {"ok": True, "name": "bs1"}
+    assert [d.name for d in load_registry().devices] == ["phone2"]
+    assert reconcile == ["delete-device:bs1"]
+
+
+def test_delete_device_by_name_404_for_unknown_device(devices_db: Path) -> None:
+    with pytest.raises(HTTPException) as exc:
+        adb_api.delete_device_by_name("ghost")
+
+    assert exc.value.status_code == 404
+
+
 def test_request_device_reconcile_publishes(monkeypatch: pytest.MonkeyPatch) -> None:
     reconcile: list[str] = []
     monkeypatch.setattr(
@@ -359,7 +445,7 @@ def test_get_adb_status_marks_wos_beta_package(
 
 
 def test_build_tcp_port_range_defaults() -> None:
-    assert adb_api.build_tcp_port_range() == list(range(5555, 5626, 10))
+    assert adb_api.build_tcp_port_range() == list(range(5555, 5626, 5))
 
 
 def test_build_tcp_port_range_custom_bounds() -> None:

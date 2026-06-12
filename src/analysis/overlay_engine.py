@@ -396,17 +396,32 @@ async def evaluate_overlay_rules_async(
                 )
             except (TypeError, ValueError):
                 min_score_dt = 0.70
-            tab_ids_dt = identify_tabs_by_template(
-                image_bgr,
-                tabs_dt,
-                discover_tab_templates(
-                    area_doc,
-                    repo_root,
-                    bbox_dt,
-                    namespace=tab_namespace_dt,
-                ),
-                min_score=min_score_dt,
-            )
+            tab_pages_raw_dt = rule.get("tab_pages")
+            explicit_tab_pages_dt: list[str] = []
+            if isinstance(tab_pages_raw_dt, list):
+                explicit_tab_pages_dt = [
+                    str(item or "").strip()
+                    for item in tab_pages_raw_dt
+                    if str(item or "").strip()
+                ]
+            if explicit_tab_pages_dt:
+                tab_ids_dt = {
+                    t.index: explicit_tab_pages_dt[t.index]
+                    for t in tabs_dt
+                    if 0 <= t.index < len(explicit_tab_pages_dt)
+                }
+            else:
+                tab_ids_dt = identify_tabs_by_template(
+                    image_bgr,
+                    tabs_dt,
+                    discover_tab_templates(
+                        area_doc,
+                        repo_root,
+                        bbox_dt,
+                        namespace=tab_namespace_dt,
+                    ),
+                    min_score=min_score_dt,
+                )
             tabs_payload = [
                 {
                     "index": t.index,

@@ -4,3 +4,6 @@ edges:
 
   main_menu:
     main_city: [icon.page.back]
+    infantry: [main_menu.to.infantry]
+    lancer: [main_menu.to.lancer]
+    marksman: [main_menu.to.marksman]

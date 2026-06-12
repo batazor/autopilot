@@ -4,4 +4,63 @@
 # Placeholder skeleton — steps are filled in later via the UI labeling flow.
 name: Lighthouse Intel
 enabled: true
-steps: []
+priority: 80_000
+
+steps:
+  - exec: tap_intel_fight
+    strategy: best_score
+    threshold: 0.72
+  - wait_screen:
+      any: [intel.fight]
+      max: 5
+      interval: 500ms
+
+  - click: intel.fight.view
+  - wait_screen:
+      any: [intel.explore]
+      max: 5
+      interval: 500ms
+
+  - click: intel.explore
+  - wait_screen:
+      any: [squad_settings]
+      max: 10
+      interval: 500ms
+
+  - click: squad_settings.quick_deploy
+  - wait: 200ms
+  - click: squad_settings.fight
+  - wait: 2s
+
+  - while_match: page.squad_fight.auto
+    max: 1
+    steps:
+      - click: page.squad_fight.auto
+      - wait: 1s
+
+  - while_match: page.squad_fight.speed
+    max: 1
+    steps:
+      - click: page.squad_fight.speed
+
+  - wait_screen:
+      any: [exploration.victory, exploration.defeat]
+      max: 90
+      interval: 2s
+
+  - cond: currentNode == exploration.victory
+    steps:
+      - click: page.exploration.victory.next
+      - wait_screen:
+          any: [squad_settings, intel, main_city]
+          max: 8
+          interval: 500ms
+      - cond: currentNode == squad_settings
+        steps:
+          - click: icon.page.back
+          - wait: 1s
+
+  - cond: currentNode == exploration.defeat
+    steps:
+      - click: button.to_main_city
+      - wait: 2s

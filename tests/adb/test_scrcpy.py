@@ -19,6 +19,7 @@ from adb.scrcpy import (
     SCRCPY_SERVER_VERSION,
     ScrcpyClient,
     ScrcpyStatus,
+    _adb_forward_host,
     _CachedFrame,
     _human_step_sleeps,
     _human_swipe_points,
@@ -465,6 +466,24 @@ def test_start_passes_keep_active_to_server() -> None:
     assert "cleanup=false" in cmd
 
 
+def test_adb_forward_host_defaults_to_adb_server_socket_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("WOS_ADB_FORWARD_HOST", raising=False)
+    monkeypatch.setenv("ADB_SERVER_SOCKET", "tcp:host.docker.internal:5037")
+
+    assert _adb_forward_host() == "host.docker.internal"
+
+
+def test_adb_forward_host_explicit_override_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ADB_SERVER_SOCKET", "tcp:host.docker.internal:5037")
+    monkeypatch.setenv("WOS_ADB_FORWARD_HOST", "adb-gateway")
+
+    assert _adb_forward_host() == "adb-gateway"
+
+
 def test_connect_sockets_connects_control_before_video_metadata() -> None:
     """scrcpy-server v4 sends metadata only after all expected sockets connect."""
     events: list[str] = []
@@ -477,8 +496,8 @@ def test_connect_sockets_connects_control_before_video_metadata() -> None:
         def settimeout(self, _timeout: float | None) -> None:
             pass
 
-        def connect(self, _addr: tuple[str, int]) -> None:
-            events.append(f"{self.name}:connect")
+        def connect(self, addr: tuple[str, int]) -> None:
+            events.append(f"{self.name}:connect:{addr[0]}:{addr[1]}")
 
         def recv(self, n: int) -> bytes:
             events.append(f"{self.name}:recv:{n}")
@@ -507,7 +526,57 @@ def test_connect_sockets_connects_control_before_video_metadata() -> None:
 
     assert client.device_name == "SM-G780G"
     assert client.codec_size == (1080, 2400)
-    assert events.index("control:connect") < events.index("video:recv:64")
+    assert events.index("control:connect:127.0.0.1:1919") < events.index(
+        "video:recv:64"
+    )
+
+
+def test_connect_sockets_uses_forward_host_from_adb_server_socket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[str, tuple[str, int]]] = []
+
+    class FakeSocket:
+        def __init__(self, name: str, chunks: list[bytes] | None = None) -> None:
+            self.name = name
+            self.chunks = list(chunks or [])
+
+        def settimeout(self, _timeout: float | None) -> None:
+            pass
+
+        def connect(self, addr: tuple[str, int]) -> None:
+            events.append((self.name, addr))
+
+        def recv(self, n: int) -> bytes:
+            if not self.chunks:
+                return b""
+            chunk = self.chunks.pop(0)
+            if len(chunk) <= n:
+                return chunk
+            self.chunks.insert(0, chunk[n:])
+            return chunk[:n]
+
+    monkeypatch.delenv("WOS_ADB_FORWARD_HOST", raising=False)
+    monkeypatch.setenv("ADB_SERVER_SOCKET", "tcp:host.docker.internal:5037")
+    video = FakeSocket(
+        "video",
+        [
+            b"\x00",
+            b"SM-G780G" + (b"\x00" * 56),
+            b"h264",
+            b"\x80\x00\x00\x00" + struct.pack(">II", 1080, 2400),
+        ],
+    )
+    control = FakeSocket("control")
+    client = ScrcpyClient(serial="S", adb_bin="/adb", port=1919)
+
+    with patch("adb.scrcpy.socket.socket", side_effect=[video, control]):
+        client._connect_sockets()
+
+    assert events == [
+        ("video", ("host.docker.internal", 1919)),
+        ("control", ("host.docker.internal", 1919)),
+    ]
 
 
 def test_lookup_scrcpy_client_does_not_register_a_new_one() -> None:

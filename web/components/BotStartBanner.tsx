@@ -94,7 +94,9 @@ function formatProcessAge(startedAt: number | null): string {
 
 function formatMode(mode: BotStatusView["mode"]): string {
   if (!mode) return "unknown";
-  return mode === "embedded" ? "embedded" : "supervisor";
+  if (mode === "embedded") return "embedded";
+  if (mode === "fleet") return "fleet";
+  return "supervisor";
 }
 
 function deviceChipLabel(adb: AdbStatus | null): string {
@@ -559,6 +561,12 @@ export function BotStartBanner() {
   const currentRow =
     fleetQuery.data?.fleet.find((r) => r.instance_id === currentInstance) ?? null;
   const approvalStatus = approvalQuery.data ?? null;
+  const fleetRunning = !!fleetQuery.data?.fleet.some((row) => {
+    const status = row.status.toLowerCase();
+    return status === "live" || status === "paused";
+  });
+  const effectiveBotRunning = !!botStatus?.running || fleetRunning;
+  const effectiveMode = botStatus?.running ? botStatus.mode : fleetRunning ? "fleet" : null;
 
   const bannerTopics = currentInstance
     ? ["fleet", "queue", "instance", "approval"]
@@ -669,7 +677,7 @@ export function BotStartBanner() {
     );
   }
 
-  if (botStatus?.running) {
+  if (effectiveBotRunning) {
     const multi = processes.length > 1;
     const devicesLabel = deviceChipLabel(adbStatus);
     const selectedPaused = !!currentRow?.paused;
@@ -777,7 +785,7 @@ export function BotStartBanner() {
         <InstanceStatusLine row={currentRow} approval={approvalStatus} />
         <div className="nav-bot-banner__chips" aria-label="Bot details">
           <span className="nav-bot-banner__chip">
-            Mode {formatMode(botStatus.mode)}
+            Mode {formatMode(effectiveMode)}
           </span>
           {currentPid ? (
             <span className="nav-bot-banner__chip">PID {currentPid}</span>
@@ -797,7 +805,7 @@ export function BotStartBanner() {
             <ApprovalStatusChip
               instanceId={currentInstance}
               status={approvalStatus}
-              botRunning={!!botStatus?.running}
+              botRunning={effectiveBotRunning}
             />
           ) : null}
           {approvalStatus?.heartbeat_active ? (
@@ -897,7 +905,7 @@ export function BotStartBanner() {
           <ApprovalStatusChip
             instanceId={currentInstance}
             status={approvalStatus}
-            botRunning={!!botStatus?.running}
+            botRunning={effectiveBotRunning}
           />
         ) : null}
         {unregisteredChip}

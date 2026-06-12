@@ -5,9 +5,8 @@ name: docker
 #   * bot — worker + scheduler + FastAPI entrypoint + local Tesseract OCR (multi-arch)
 #   * web — Next.js operator dashboard (multi-arch)
 #
-# Built when you publish a GitHub Release, and on demand via the
-# workflow_dispatch button. Published as `:latest` only. Commits to main don't
-# trigger.
+# Built when you publish a GitHub Release. Published as `:latest` only.
+# Commits to main don't trigger.
 #
 # After both images build and push, the `release` job appends links to the two
 # GHCR packages onto the release you just published — a visible, at-a-glance
@@ -17,7 +16,6 @@ name: docker
 on:
   release:
     types: [published]
-  workflow_dispatch:
 
 concurrency:
   group: docker-${{ github.workflow }}-${{ github.ref }}
@@ -108,8 +106,6 @@ jobs:
     # Only runs once both images built and pushed — the links appearing on the
     # release are the at-a-glance signal that its Docker build went green.
     needs: build
-    # workflow_dispatch has no release to edit; only real publishes do.
-    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write

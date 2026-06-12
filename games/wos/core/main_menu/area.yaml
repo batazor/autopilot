@@ -1,2 +1,314 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "main_menu",
+      "ocr": "references/training.png",
+      "regions": [
+        {
+          "name": "main_menu.city",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.2469350644271957,
+            "y": 19.22528932404655,
+            "width": 28.19095477386935,
+            "height": 3.7673201845918785,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu/wilderness",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.77946150988403,
+            "y": 19.438732715956977,
+            "width": 27.43718592964819,
+            "height": 3.44986919843629,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.training.infantry.time",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 25.416666666666668,
+            "y": 29.53125,
+            "width": 20.13888888888889,
+            "height": 1.796875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.training.infantry.status",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.6,
+          "bbox": {
+            "x": 11.11111111111111,
+            "y": 26.5625,
+            "width": 40.27777777777778,
+            "height": 5.078125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.training.lancer.time",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 25.416666666666668,
+            "y": 35.15625,
+            "width": 20.13888888888889,
+            "height": 1.796875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.training.lancer.status",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.6,
+          "bbox": {
+            "x": 11.11111111111111,
+            "y": 32.34375,
+            "width": 40.27777777777778,
+            "height": 4.6875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.training.marksman.time",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 25.416666666666668,
+            "y": 40.78125,
+            "width": 20.13888888888889,
+            "height": 1.796875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.training.marksman.status",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.6,
+          "bbox": {
+            "x": 11.11111111111111,
+            "y": 37.96875,
+            "width": 40.27777777777778,
+            "height": 4.6875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.to.infantry",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.77777777777778,
+            "y": 26.953125,
+            "width": 7.083333333333333,
+            "height": 4.609375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.to.lancer",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.77777777777778,
+            "y": 32.734375,
+            "width": 7.083333333333333,
+            "height": 4.609375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.to.marksman",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.77777777777778,
+            "y": 38.359375,
+            "width": 7.083333333333333,
+            "height": 4.609375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "main_menu",
+      "ocr": "references/wilderness.png",
+      "regions": [
+        {
+          "name": "main_menu.marching.count",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 27.22222222222222,
+            "y": 15.46875,
+            "width": 7.638888888888889,
+            "height": 2.734375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.marching.slot.1.title",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 15.0,
+            "y": 26.953125,
+            "width": 37.5,
+            "height": 2.34375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.marching.slot.1.time",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 25.694444444444443,
+            "y": 29.53125,
+            "width": 20.13888888888889,
+            "height": 1.796875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.marching.slot.2.title",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.7,
+          "bbox": {
+            "x": 15.0,
+            "y": 32.734375,
+            "width": 37.5,
+            "height": 2.34375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.marching.slot.2.time",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 25.694444444444443,
+            "y": 35.3125,
+            "width": 20.13888888888889,
+            "height": 1.796875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.marching.slot.3.status",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 15.277777777777779,
+            "y": 38.75,
+            "width": 33.333333333333336,
+            "height": 4.296875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.marching.slot.4.status",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 15.277777777777779,
+            "y": 44.375,
+            "width": 33.333333333333336,
+            "height": 4.296875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.marching.slot.5.status",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 15.277777777777779,
+            "y": 50.15625,
+            "width": 33.333333333333336,
+            "height": 4.296875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_menu.marching.slot.6.status",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 15.277777777777779,
+            "y": 55.9375,
+            "width": 33.333333333333336,
+            "height": 4.296875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

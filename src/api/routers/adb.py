@@ -16,6 +16,16 @@ class BackendUpdateBody(BaseModel):
     input_backend: str | None = None
 
 
+class DeviceCreateBody(BaseModel):
+    """Manual device registration body."""
+
+    name: str = ""
+    adb_serial: str
+    screenshot_backend: str = ""
+    input_backend: str = ""
+    replace_existing: bool = False
+
+
 @router.get("")
 def get_status(
     port_start: int | None = Query(default=None, ge=1, le=65535),
@@ -23,7 +33,7 @@ def get_status(
     port_step: int | None = Query(default=None, ge=1, le=65535),
 ) -> dict[str, object]:
     """Live ADB scan. Optional ``port_start``/``port_end``/``port_step`` override
-    the localhost TCP range probed for emulator instances (default 5555-5625/10)."""
+    the localhost TCP range probed for emulator instances (default 5555-5625/5)."""
     return svc.get_adb_status(
         port_start=port_start,
         port_end=port_end,
@@ -31,10 +41,28 @@ def get_status(
     )
 
 
+@router.post("/devices")
+def post_create_device(body: DeviceCreateBody) -> dict[str, object]:
+    """Persist a manually configured ADB device without relying on scan results."""
+    return svc.create_device(
+        name=body.name,
+        adb_serial=body.adb_serial,
+        screenshot_backend=body.screenshot_backend,
+        input_backend=body.input_backend,
+        replace_existing=body.replace_existing,
+    )
+
+
 @router.post("/devices/{serial}/register")
 def post_register_device(serial: str) -> dict[str, object]:
     """Persist a live ADB serial into the device registry."""
     return svc.register_device(serial)
+
+
+@router.delete("/devices/{name}")
+def delete_device(name: str) -> dict[str, object]:
+    """Remove a configured device from the registry."""
+    return svc.delete_device_by_name(name)
 
 
 @router.post("/reconcile")

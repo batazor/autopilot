@@ -48,6 +48,7 @@ _HEALTH_STALE_SECONDS = 30.0
 _LICENSE_WAIT_POLL_SECONDS = 5.0
 _LICENSE_WAIT_LOG_SECONDS = 60.0
 _shutdown = False
+_child_shutdown_requested = False
 _CHILD_SHUTDOWN_GRACE_S = 0.2
 _CHILD_KILL_JOIN_S = 0.5
 
@@ -62,6 +63,18 @@ class _RestartTracker:
     restart_at: float = 0.0
 
 
+def _cancel_child_asyncio_tasks() -> bool:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+
+    for task in asyncio.all_tasks(loop):
+        if not task.done():
+            task.cancel()
+    return True
+
+
 def _install_child_signal_handlers() -> None:
     """Children ignore SIGINT (parent's SIGTERM drives shutdown).
 
@@ -72,12 +85,25 @@ def _install_child_signal_handlers() -> None:
     parent the single source of truth: it catches the Ctrl+C, marks
     ``_shutdown``, and ``proc.terminate()`` (SIGTERM) walks each child out.
     """
+    global _child_shutdown_requested
+
+    _child_shutdown_requested = False
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     def _term(_signum: int, _frame: object) -> None:
-        # Convert SIGTERM into a KeyboardInterrupt so ``asyncio.run`` unwinds
-        # through the ``finally`` block in ``_run`` (closing Redis, OCR, etc.)
-        # instead of dying at an arbitrary await point.
+        global _child_shutdown_requested
+
+        if _child_shutdown_requested:
+            raise KeyboardInterrupt
+
+        _child_shutdown_requested = True
+        # Ask the active asyncio workload to unwind cooperatively. Raising
+        # KeyboardInterrupt here can land inside whichever callback is running
+        # (including background analysis tasks), which produces noisy
+        # "Task exception was never retrieved" shutdown tracebacks.
+        if _cancel_child_asyncio_tasks():
+            return
+
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, _term)
@@ -119,7 +145,7 @@ def _worker_process(instance_config: InstanceConfig) -> None:
 
     try:
         asyncio.run(_run())
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
         # Flush OTel exporters here so the interpreter's atexit doesn't have
@@ -148,7 +174,7 @@ def _scheduler_process() -> None:
 
     try:
         asyncio.run(_run())
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
         shutdown_runtime_observability()

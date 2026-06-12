@@ -20,7 +20,7 @@ export type BotProcessView = {
 
 export type BotStatusView = {
   running: boolean;
-  mode: "supervisor" | "embedded" | null;
+  mode: "supervisor" | "embedded" | "fleet" | null;
   pid: number | null;
   processes: BotProcessView[];
 };
