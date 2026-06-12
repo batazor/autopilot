@@ -929,11 +929,16 @@ def _jittered_wait_seconds(seconds: float, pct: float) -> float:
     Used only for the explicit DSL ``wait:`` step — long_click duration and ttl
     must stay exact. Clamped at 0 so negative jitter on tiny waits doesn't go
     below zero.
+
+    The jitter factor is Gaussian (σ = pct/2, so ~95% of draws land inside
+    ±pct), clamped to the ±pct bounds: waits cluster around the configured
+    duration instead of spreading uniformly, which reads less mechanical.
     """
     if seconds <= 0 or pct <= 0:
         return seconds
     pct = min(pct, 1.0)
-    factor = random.uniform(1.0 - pct, 1.0 + pct)
+    factor = random.gauss(1.0, pct / 2.0)
+    factor = min(max(factor, 1.0 - pct), 1.0 + pct)
     return max(0.0, seconds * factor)
 
 

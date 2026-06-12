@@ -117,6 +117,17 @@ _FOUND_WORD_MIN_DARK_ROW_RATIO = 0.16
 # or washed-out region reads saturation ~0).
 _FOUND_WORD_BG_SAT_MIN = 55
 _FOUND_WORD_BG_SAT_MAX = 108
+# Pixel-based round-start gate (multiplayer). Before the round starts the
+# screen sits behind a dark shade and every word pill reads ~0 bright pixels;
+# the instant the shade lifts the pills appear with hundreds of near-white
+# pixels each (measured on real frames: dark ≈ 0 px / live ≈ 100–1800 px per
+# slot at gray ≥ 200). Gating the loop on this check instead of OCR gives a
+# near-0-latency round start and skips burning OCR cycles in the lobby.
+_START_GATE_BRIGHT_THRESHOLD = 200
+_START_GATE_MIN_BRIGHT_PX = 60
+_START_GATE_MIN_LIT_SLOTS = 2
+_DEFAULT_START_GATE_WAIT_S = 0.1
+
 _LIVE_STATE_FIELD = "dreamscape_memory.solve_state"
 _START_SCREEN = "dreamscape_memory"
 _TERMINAL_TIME_UP = "dreamscape_memory.time_up"
@@ -856,6 +867,56 @@ def _is_word_region_visually_found(crop: Any) -> bool:
     return has_dark_strike
 
 
+def _round_started_pixels(
+    image: Any,
+    area_doc: dict[str, Any],
+    names: list[str],
+) -> bool | None:
+    """Pixel-only round-start check: are the word pills visible yet?
+
+    Counts near-white pixels (gray ≥ ``_START_GATE_BRIGHT_THRESHOLD``) inside
+    each word-slot region. Under the pre-round shade every slot reads ~0; once
+    the shade lifts each active pill shows hundreds. The round is considered
+    started when at least ``_START_GATE_MIN_LIT_SLOTS`` slots are lit.
+
+    Returns ``None`` when the check cannot run (cv2 missing, no resolvable
+    regions, bad frame) so the caller can fail open to the OCR loop.
+    """
+    if image is None or not hasattr(image, "shape") or len(image.shape) != 3:
+        return None
+    try:
+        import cv2
+    except Exception:
+        logger.debug("dreamscape_memory_solve_loop: cv2 unavailable", exc_info=True)
+        return None
+    frame_h, frame_w = int(image.shape[0]), int(image.shape[1])
+    lit = 0
+    checked = 0
+    for name in names:
+        pair = screen_region_by_name(area_doc, name)
+        region_def = pair[1] if pair else None
+        if not isinstance(region_def, dict):
+            continue
+        px = _region_to_px(region_def, frame_w, frame_h)
+        if px is None:
+            continue
+        crop = image[px.y : px.y + px.h, px.x : px.x + px.w]
+        if crop.size == 0:
+            continue
+        checked += 1
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        _, bright = cv2.threshold(
+            gray, _START_GATE_BRIGHT_THRESHOLD, 255, cv2.THRESH_BINARY
+        )
+        if int(cv2.countNonZero(bright)) >= _START_GATE_MIN_BRIGHT_PX:
+            lit += 1
+            if lit >= _START_GATE_MIN_LIT_SLOTS:
+                return True
+    if checked == 0:
+        return None
+    return False
+
+
 def _found_word_regions_from_frame(
     image: Any,
     area_doc: dict[str, Any],
@@ -1056,12 +1117,18 @@ async def _exec_dreamscape_memory_solve(ctx: DslExecContext) -> None:
     )
 
 
+_MULTIPLAYER_MODES = frozenset({"multiplayer", "mp", "coop", "co-op"})
+
+
+def _is_multiplayer_mode(args: dict[str, Any]) -> bool:
+    return str(args.get("mode") or "").strip().lower() in _MULTIPLAYER_MODES
+
+
 def _solver_regions_from_args(args: dict[str, Any]) -> list[str]:
     raw_regions = args.get("regions")
     if isinstance(raw_regions, list) and raw_regions:
         return [str(r).strip() for r in raw_regions if str(r or "").strip()]
-    mode = str(args.get("mode") or "").strip().lower()
-    if mode in {"multiplayer", "mp", "coop", "co-op"}:
+    if _is_multiplayer_mode(args):
         return list(_DEFAULT_MULTIPLAYER_REGIONS)
     return list(_DEFAULT_REGIONS)
 
@@ -1640,6 +1707,16 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     ttl_s = _parse_duration_s(args.get("ttl"), _DEFAULT_LOOP_TTL_S)
     wait_s = _parse_duration_s(args.get("wait"), _DEFAULT_LOOP_WAIT_S)
     tap_delay_s = _parse_duration_s(args.get("tap_delay"), _DEFAULT_TAP_DELAY_S)
+    # Pixel-based round-start gate: multiplayer rounds open behind a dark
+    # shade, so until the word pills light up the loop only runs the cheap
+    # bright-pixel check (fast ticks, no OCR). Defaults on for multiplayer;
+    # override per-step with ``pixel_start_gate: true|false``.
+    start_gate_active = bool(
+        args.get("pixel_start_gate", _is_multiplayer_mode(args))
+    )
+    start_gate_wait_s = _parse_duration_s(
+        args.get("start_gate_wait"), _DEFAULT_START_GATE_WAIT_S
+    )
     help_capture_delay_s = _parse_duration_s(
         args.get("help_capture_delay"), _DEFAULT_HELP_CAPTURE_DELAY_S
     )
@@ -1713,6 +1790,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     iterations = 0
     taps_total = 0
     settled_batch_idle_iterations = 0
+    start_gate_waiting = False
     last_level_name = ""
     terminal_screen = ""
     stop_bot_after_result = False
@@ -1789,6 +1867,57 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 ctx.instance_id,
             )
             break
+
+        if start_gate_active:
+            started = _round_started_pixels(image, area_doc, regions)
+            if started is False:
+                if not start_gate_waiting:
+                    start_gate_waiting = True
+                    logger.info(
+                        "dreamscape_memory_solve_loop: waiting for shade to lift "
+                        "(pixel start gate) instance=%s",
+                        ctx.instance_id,
+                    )
+                    _append_event(
+                        events,
+                        "start_wait",
+                        "Waiting for the shade to lift (pixel start gate)",
+                        iteration=iterations,
+                    )
+                # A stale terminal screen (e.g. time_up from a previous round)
+                # also reads dark — keep the terminal detector running so the
+                # gate cannot idle on it until the ttl.
+                terminal_screen, terminal_stop = await _check_terminal_screen(
+                    ctx,
+                    image,
+                    hint=terminal_screen or last_scene_slug or None,
+                    taps_total=taps_total,
+                )
+                if terminal_stop:
+                    stop_bot_after_result = True
+                    break
+                if start_gate_wait_s > 0:
+                    await asyncio.sleep(start_gate_wait_s)
+                continue
+            start_gate_active = False
+            if started:
+                # The shade just lifted — the round starts now, so the solve
+                # ttl restarts: lobby wait time must not eat into solve time.
+                if deadline is not None:
+                    deadline = time.monotonic() + ttl_s
+                logger.info(
+                    "dreamscape_memory_solve_loop: shade lifted; round started "
+                    "(pixel start gate) instance=%s",
+                    ctx.instance_id,
+                )
+                _append_event(
+                    events,
+                    "round_start",
+                    "Shade lifted — round started",
+                    iteration=iterations,
+                )
+            # ``started is None`` → the pixel check cannot run (cv2/regions
+            # unavailable); fail open to the normal OCR loop.
 
         greyed_regions = _found_word_regions_from_frame(image, area_doc, regions)
         visually_active = set(regions) - greyed_regions

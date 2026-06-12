@@ -2417,3 +2417,89 @@ def test_reference_sample_fuzzy_recovers_garbled_ocr() -> None:
         ("Wateing Can", (482, 846)),
     ]
     assert misses == []
+
+
+# ── Pixel start gate (_round_started_pixels) ────────────────────────────────
+
+
+def _gate_area_doc() -> dict:
+    def region(name: str, x_pct: float, y_pct: float) -> dict:
+        return {
+            "name": name,
+            "action": "text",
+            "bbox": {
+                "x": x_pct,
+                "y": y_pct,
+                "width": 25.0,
+                "height": 3.0,
+                "rotation": 0,
+                "original_width": 720,
+                "original_height": 1280,
+            },
+            "type": "string",
+        }
+
+    return {
+        "screens": [
+            {
+                "id": 1,
+                "regions": [
+                    region("gate.1", 5.0, 88.0),
+                    region("gate.2", 38.0, 88.0),
+                    region("gate.3", 70.0, 88.0),
+                ],
+            }
+        ]
+    }
+
+
+_GATE_REGIONS = ["gate.1", "gate.2", "gate.3"]
+
+
+def _paint_slot(frame: np.ndarray, x_pct: float, y_pct: float) -> None:
+    h, w = frame.shape[:2]
+    x, y = int(x_pct / 100 * w), int(y_pct / 100 * h)
+    frame[y : y + int(0.03 * h), x : x + int(0.25 * w)] = 255
+
+
+def test_round_started_pixels_dark_shade_is_false() -> None:
+    frame = np.full((1280, 720, 3), 40, dtype=np.uint8)
+    assert solve._round_started_pixels(frame, _gate_area_doc(), _GATE_REGIONS) is False
+
+
+def test_round_started_pixels_lit_slots_is_true() -> None:
+    frame = np.full((1280, 720, 3), 40, dtype=np.uint8)
+    _paint_slot(frame, 5.0, 88.0)
+    _paint_slot(frame, 38.0, 88.0)
+    assert solve._round_started_pixels(frame, _gate_area_doc(), _GATE_REGIONS) is True
+
+
+def test_round_started_pixels_single_lit_slot_not_enough() -> None:
+    # One bright slot can be a sparkle/animation artifact; the gate needs two.
+    frame = np.full((1280, 720, 3), 40, dtype=np.uint8)
+    _paint_slot(frame, 5.0, 88.0)
+    assert solve._round_started_pixels(frame, _gate_area_doc(), _GATE_REGIONS) is False
+
+
+def test_round_started_pixels_unresolvable_regions_is_none() -> None:
+    frame = np.full((1280, 720, 3), 40, dtype=np.uint8)
+    assert solve._round_started_pixels(frame, _gate_area_doc(), ["missing.1"]) is None
+    assert solve._round_started_pixels(None, _gate_area_doc(), _GATE_REGIONS) is None
+
+
+def test_round_started_pixels_live_multiplayer_reference_frame() -> None:
+    image = cv2.imread(str(MODULE_DIR / "references" / "dreamscape_memory_.multiplayer.png"))
+    assert image is not None
+    area_doc = yaml.safe_load((MODULE_DIR / "area.yaml").read_text(encoding="utf-8"))
+    regions = list(solve._DEFAULT_MULTIPLAYER_REGIONS)
+    assert solve._round_started_pixels(image, area_doc, regions) is True
+    # The same frame under the pre-round shade (uniformly darkened) reads dark.
+    shaded = (image * 0.45).astype(np.uint8)
+    assert solve._round_started_pixels(shaded, area_doc, regions) is False
+
+
+def test_is_multiplayer_mode() -> None:
+    assert solve._is_multiplayer_mode({"mode": "multiplayer"})
+    assert solve._is_multiplayer_mode({"mode": " Co-Op "})
+    assert not solve._is_multiplayer_mode({"mode": "solo"})
+    assert not solve._is_multiplayer_mode({})
