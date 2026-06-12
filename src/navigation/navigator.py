@@ -19,6 +19,7 @@ from layout.types import Point, Region
 # so edges in edge_taps.yaml can resolve at runtime.
 from navigation import (
     hero_grid_resolver,  # noqa: F401
+    main_menu_panel_resolver,  # noqa: F401
     tab_index_resolver,  # noqa: F401
     template_icon_resolver,  # noqa: F401
 )
@@ -445,6 +446,141 @@ class Navigator:
         return bool(
             await asyncio.to_thread(self._tap, instance_id, point, **tap_kwargs)  # type: ignore[arg-type]
         )
+
+    async def _tap_main_menu_panel_row_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        _ = state_flat
+        section = str(spec.get("section") or "").strip().lower()
+        row = str(spec.get("row") or "").strip().lower()
+        rows_raw = spec.get("rows")
+        rows = {
+            str(r).strip().lower()
+            for r in rows_raw
+            if str(r).strip()
+        } if isinstance(rows_raw, list) else set()
+        if row:
+            rows.add(row)
+        if not section or not rows:
+            logger.info("Navigator: main_menu_panel_row spec incomplete: %s", spec)
+            return False
+
+        try:
+            main_menu_exec = __import__(
+                "games.wos.core.main_menu.exec",
+                fromlist=[
+                    "_BUTTON_X0_PCT",
+                    "_BUTTON_X1_PCT",
+                    "_scan_panel_rows",
+                ],
+            )
+        except Exception:
+            logger.exception("Navigator: main_menu panel scanner import failed")
+            return False
+        try:
+            from tasks import dsl_runtime
+
+            actions = dsl_runtime.bot_actions()
+        except Exception:
+            logger.exception("Navigator: bot actions unavailable for main_menu panel")
+            return False
+
+        for _attempt in range(4):
+            ok = await asyncio.to_thread(
+                actions.swipe_direction,
+                instance_id,
+                direction="down",
+                delta=500,
+                duration_ms=350,
+            )
+            if not ok:
+                return False
+            await asyncio.sleep(0.5)
+
+        for sweep in range(8):
+            image: np.ndarray = await asyncio.to_thread(self._capture, instance_id)  # type: ignore[arg-type]
+            _h, w = image.shape[:2]
+            scan_rows = await main_menu_exec._scan_panel_rows(  # type: ignore[attr-defined]
+                image,
+                ocr=self._ocr,
+                with_status=False,
+            )
+            target = next(
+                (
+                    r
+                    for r in scan_rows
+                    if str(r.get("section") or "").strip().lower() == section
+                    and str(r.get("row") or "").strip().lower() in rows
+                    and r.get("button")
+                ),
+                None,
+            )
+            if target is not None:
+                bx = int(
+                    (
+                        float(main_menu_exec._BUTTON_X0_PCT)  # type: ignore[attr-defined]
+                        + float(main_menu_exec._BUTTON_X1_PCT)  # type: ignore[attr-defined]
+                    )
+                    / 2
+                    / 100
+                    * w
+                )
+                point = Point(bx, int(target["cy"]))
+                approval_region = str(
+                    spec.get("approval_region")
+                    or f"main_menu.panel.{section}.{target['row']}"
+                )
+                approval_context: dict[str, Any] = {
+                    "section": section,
+                    "row": str(target["row"]),
+                    "sweep": str(sweep),
+                }
+                if from_screen:
+                    approval_context["from_screen"] = from_screen
+                if to_screen:
+                    approval_context["to_screen"] = to_screen
+                if path_csv:
+                    approval_context["path"] = path_csv
+                if hop_index is not None:
+                    approval_context["hop_index"] = str(hop_index)
+                tap_kwargs: dict[str, Any] = {"approval_region": approval_region}
+                if self._tap_supports_approval_source():
+                    tap_kwargs["approval_source"] = "navigation"
+                    tap_kwargs["approval_context"] = approval_context
+                return bool(
+                    await asyncio.to_thread(
+                        self._tap,  # type: ignore[arg-type]
+                        instance_id,
+                        point,
+                        **tap_kwargs,
+                    )
+                )
+
+            ok = await asyncio.to_thread(
+                actions.swipe_direction,
+                instance_id,
+                direction="up",
+                delta=400,
+                duration_ms=350,
+            )
+            if not ok:
+                return False
+            await asyncio.sleep(0.6)
+
+        logger.info(
+            "Navigator: main_menu_panel_row not found section=%s rows=%s",
+            section,
+            sorted(rows),
+        )
+        return False
 
     async def _system_back_async(self, instance_id: str) -> bool:
         if self._system_back is None:
@@ -1114,6 +1250,19 @@ class Navigator:
                     )
                 elif isinstance(point, dict) and point.get("type") == "tab_index":
                     tapped = await self._tap_tab_index_async(
+                        instance_id,
+                        point,
+                        from_screen=src_screen,
+                        to_screen=str(dst_screen),
+                        state_flat=state_flat,
+                        path_csv=path_csv,
+                        hop_index=hop_idx,
+                    )
+                elif (
+                    isinstance(point, dict)
+                    and point.get("type") == "main_menu_panel_row"
+                ):
+                    tapped = await self._tap_main_menu_panel_row_async(
                         instance_id,
                         point,
                         from_screen=src_screen,

@@ -1,0 +1,66 @@
+enabled: true
+name: "Labyrinth: Sync Caves"
+priority: 80_000
+node: event.labyrinth
+cond: "active_player != null"
+
+steps:
+  - ocr: labyrinth.left_cave.title
+    store: labyrinth.left_cave.title
+  - ocr: labyrinth.left_cave.ttl
+    event_timer: labyrinth.left_cave.ttl
+  - ocr: labyrinth.right_cave.title
+    store: labyrinth.right_cave.title
+  - ocr: labyrinth.right_cave.ttl
+    event_timer: labyrinth.right_cave.ttl
+  - ocr: labyrinth.bottom_cave.title
+    store: labyrinth.bottom_cave.title
+  - ocr: labyrinth.bottom_cave.status
+    store: labyrinth.bottom_cave.status
+  - ocr: labyrinth.bottom_cave.ttl
+    event_timer: labyrinth.bottom_cave.ttl
+
+  - repeat: 1
+    cond: labyrinth.left_cave.title ~~ "Land of Heroes"
+    steps:
+      - push_scenario:
+          name: event.labyrinth.land_of_heroes
+          expires: labyrinth.left_cave.ttl
+  - repeat: 1
+    cond: labyrinth.left_cave.title ~~ "Cave of Monsters"
+    steps:
+      - push_scenario:
+          name: event.labyrinth.cave_of_monsters
+          expires: labyrinth.left_cave.ttl
+  - repeat: 1
+    cond: labyrinth.left_cave.title ~~ "Research Center"
+    steps:
+      - push_scenario:
+          name: event.labyrinth.research_center
+          expires: labyrinth.left_cave.ttl
+
+  - repeat: 1
+    cond: labyrinth.right_cave.title ~~ "Charm Mine"
+    steps:
+      - push_scenario:
+          name: event.labyrinth.charm_mine
+          expires: labyrinth.right_cave.ttl
+  - repeat: 1
+    cond: labyrinth.right_cave.title ~~ "Gear Forge"
+    steps:
+      - push_scenario:
+          name: event.labyrinth.gear_forge
+          expires: labyrinth.right_cave.ttl
+
+  - repeat: 1
+    cond: labyrinth.bottom_cave.status != null
+    steps:
+      - repeat: 1
+        cond: labyrinth.bottom_cave.status !~ "Opens in|Locked"
+        steps:
+          - repeat: 1
+            cond: labyrinth.bottom_cave.title ~~ "Gaia Heart"
+            steps:
+              - push_scenario:
+                  name: event.labyrinth.gaia_heart
+                  expires: labyrinth.bottom_cave.ttl

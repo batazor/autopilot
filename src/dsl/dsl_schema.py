@@ -46,6 +46,7 @@ DSL_ACTION_KEYS: tuple[str, ...] = (
     "swipe_direction",
     "swipe",
     "tap",
+    "type_text",
     "push_scenario",
     "exec",
     "wait",
@@ -99,6 +100,9 @@ class DslStep(BaseModel):
     # schema never rejects a form the executor accepts.
     tap: str | dict[str, Any] | None = None
     swipe: str | dict[str, Any] | None = None
+    # Text input through Android/ADB. Used after a region tap opens the
+    # platform input dialog.
+    type_text: str | int | float | None = None
     # ``ttl:`` exits the scenario early and reschedules it for ``now + ttl``.
     # Accepts the same duration grammar as ``wait:`` plus ``m`` / ``h``
     # (e.g. ``"30m"``, ``"2h"``). Used inside ``while_match.else`` to back off

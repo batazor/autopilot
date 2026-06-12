@@ -109,6 +109,27 @@ async def test_cond_instance_text_substring_pipe_all_miss(redis_async: object) -
     assert allowed is False
 
 
+@pytest.mark.asyncio
+async def test_cond_instance_text_negated_substring(redis_async: object) -> None:
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"labyrinth.status": "Opens in 20:08:37"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+
+    assert (
+        await dsl._dsl_cond_allows_step(  # type: ignore[arg-type]
+            {"cond": 'labyrinth.status !~ "Opens in"'}, "bs1", r
+        )
+        is False
+    )
+
+    await r.hset("wos:instance:bs1:state", mapping={"labyrinth.status": "Attempts 5/5"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert (
+        await dsl._dsl_cond_allows_step(  # type: ignore[arg-type]
+            {"cond": 'labyrinth.status !~ "Opens in|Locked"'}, "bs1", r
+        )
+        is True
+    )
+
+
 # ---------------------------------------------------------------------------
 # ``~~`` fuzzy contains — like ``~=`` but tolerant of OCR character noise, with
 # an optional inline threshold (``~~90``). RHS still supports ``|`` alternatives.

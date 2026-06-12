@@ -382,7 +382,12 @@ _ROW_TITLE_MAP: tuple[tuple[str, str, str], ...] = (
     ("online rewards", "my_rewards", "online_rewards"),
     ("pet adventure", "pet_adventure", "pet_adventure"),
     ("tree of life", "life_essence", "tree_of_life"),
+    ("land of heroes", "labyrinth", "land_of_heroes"),
+    ("cave of monsters", "labyrinth", "cave_of_monsters"),
+    ("charm mine", "labyrinth", "charm_mine"),
+    ("research center", "labyrinth", "research_center"),
     ("gear forge", "labyrinth", "gear_forge"),
+    ("gaia heart", "labyrinth", "gaia_heart"),
     ("tundra trek", "trek", "tundra_trek"),
 )
 

@@ -2,5 +2,42 @@ edges:
   main_city:
     event.labyrinth: [main_city.to.labyrinth]
 
+  main_menu:
+    event.labyrinth:
+      resolver: main_menu_panel_row
+      section: labyrinth
+      rows:
+        - land_of_heroes
+        - cave_of_monsters
+        - charm_mine
+        - research_center
+        - gear_forge
+        - gaia_heart
+      approval_region: main_menu.panel.labyrinth
+
   event.labyrinth:
+    event.labyrinth.land_of_heroes: [labyrinth.to.land_of_heroes]
+    event.labyrinth.cave_of_monsters: [labyrinth.to.cave_of_monsters]
+    event.labyrinth.charm_mine: [labyrinth.to.charm_mine]
+    event.labyrinth.research_center: [labyrinth.to.research_center]
+    event.labyrinth.gear_forge: [labyrinth.to.gear_forge]
+    event.labyrinth.gaia_heart: [labyrinth.to.gaia_heart]
     main_city: [icon.page.back]
+
+  event.labyrinth.land_of_heroes:
+    event.labyrinth: [icon.page.back]
+
+  event.labyrinth.cave_of_monsters:
+    event.labyrinth: [icon.page.back]
+
+  event.labyrinth.charm_mine:
+    event.labyrinth: [icon.page.back]
+
+  event.labyrinth.research_center:
+    event.labyrinth: [icon.page.back]
+
+  event.labyrinth.gear_forge:
+    event.labyrinth: [icon.page.back]
+
+  event.labyrinth.gaia_heart:
+    event.labyrinth: [icon.page.back]

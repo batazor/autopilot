@@ -11,3 +11,88 @@ overlay:
       - push_scenario:
           name: event.labyrinth
           ttl: 1m
+  - name: labyrinth.main.visible
+    region: labyrinth.title
+    action: text
+    expected:
+      - Labyrinth
+    threshold: 0.9
+    screens:
+      - event.labyrinth
+    ttl: 5m
+    steps:
+      - push_scenario:
+          name: event.labyrinth.sync_caves
+          ttl: 5m
+  - name: labyrinth.main_menu.land_of_heroes.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.labyrinth.land_of_heroes.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.labyrinth
+          ttl: 1m
+  - name: labyrinth.main_menu.cave_of_monsters.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.labyrinth.cave_of_monsters.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.labyrinth
+          ttl: 1m
+  - name: labyrinth.main_menu.charm_mine.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.labyrinth.charm_mine.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.labyrinth
+          ttl: 1m
+  - name: labyrinth.main_menu.research_center.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.labyrinth.research_center.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.labyrinth
+          ttl: 1m
+  - name: labyrinth.main_menu.gear_forge.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.labyrinth.gear_forge.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.labyrinth
+          ttl: 1m
+  - name: labyrinth.main_menu.gaia_heart.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.labyrinth.gaia_heart.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.labyrinth
+          ttl: 1m

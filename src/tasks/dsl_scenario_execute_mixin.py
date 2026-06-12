@@ -684,6 +684,11 @@ class DslScenarioExecuteMixin(
                 if result is not None:
                     return result
                 continue
+            if "type_text" in step:
+                result = await self._exec_type_text_step(fr, step, _resumable_step)
+                if result is not None:
+                    return result
+                continue
             if "swipe_direction" in step:
                 result = await self._exec_swipe_direction_step(fr, step, _resumable_step)
                 if result is not None:

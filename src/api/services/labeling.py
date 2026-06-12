@@ -203,6 +203,34 @@ def _require_writable_area_path(env: ls.LabelingScopeEnv) -> Path:
     return env.area_path
 
 
+def _write_env_for_reference(
+    env: ls.LabelingScopeEnv,
+    ref_rel: str,
+) -> ls.LabelingScopeEnv:
+    """Resolve the writable module env for a reference selected in ``scope=all``."""
+    if not env.ctx.is_all:
+        return env
+
+    ref_norm = ref_rel.replace("\\", "/").strip().lstrip("/")
+    game = env.ctx.game or default_game()
+    matches: list[ls.LabelingScopeEnv] = []
+    for ctx in list_labeling_modules(env.repo_root, game=game):
+        prefix = ctx.references_prefix.rstrip("/") + "/"
+        if ref_norm.startswith(prefix):
+            matches.append(
+                ls.LabelingScopeEnv(
+                    ctx=ctx,
+                    ref_root=ctx.references_dir.resolve(),
+                    area_path=ctx.area_path,
+                    references_prefix=ctx.references_prefix.rstrip("/"),
+                )
+            )
+    if matches:
+        matches.sort(key=lambda item: len(item.references_prefix), reverse=True)
+        return matches[0]
+    return env
+
+
 def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
@@ -667,10 +695,14 @@ def promote_reference(
     """Move a pending temporal capture to ``<prefix>/<basename>.png``."""
     env = ls.scope_env(scope)
     ref_rel = ref_rel.replace("\\", "/").strip().lstrip("/")
+    env = _write_env_for_reference(env, ref_rel)
     if not ls.is_pending_temporal_ref(ref_rel, env):
         msg = f"only pending captures under {env.references_prefix}/{TEMPORAL_SUBDIR}/ can be promoted"
         raise ValueError(msg)
     src = (env.repo_root / ref_rel).resolve()
+    if not src.is_file():
+        msg = f"Source missing: `{src.name}`."
+        raise FileNotFoundError(msg)
     ok, msg, new_rel = move_temporal_to_reference_basename(
         src_temporal=src,
         name_input=basename,

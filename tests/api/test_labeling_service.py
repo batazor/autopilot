@@ -265,6 +265,82 @@ def test_promote_pending_capture(labeling_repo: Path) -> None:
     assert entry["regions"][0]["name"] == "btn"
 
 
+def test_promote_pending_capture_from_all_scope_writes_module_area(
+    labeling_repo: Path,
+) -> None:
+    from api.services.labeling import promote_reference
+    from config.module_discovery import _clear_module_discovery_caches
+    from layout.area_manifest import clear_area_doc_cache
+
+    ads_root = labeling_repo / "games" / "wos" / "ads"
+    (ads_root / "references" / TEMPORAL_SUBDIR).mkdir(parents=True)
+    (ads_root / "module.yaml").write_text(
+        "id: ads\ntitle: Ads\narea: area.yaml\nreferences: references\n",
+        encoding="utf-8",
+    )
+    (ads_root / "area.yaml").write_text('{"version": 2, "screens": []}\n', encoding="utf-8")
+    _clear_module_discovery_caches()
+    clear_area_doc_cache()
+
+    shot_rel = "games/wos/ads/references/temporal/emu-1_shot_promote_all.png"
+    shot = labeling_repo / shot_rel
+    shot.write_bytes(b"x")
+
+    out = promote_reference(
+        shot_rel,
+        "main_city",
+        "emu-1",
+        regions=[{"name": "btn", "action": "exist", "bbox": {"x": 1}}],
+        screen_id="main_city",
+        scope="all",
+    )
+
+    assert out["ok"] is True
+    assert out["ref"] == "games/wos/ads/references/main_city.png"
+    assert not shot.is_file()
+    assert (labeling_repo / "games/wos/ads/references/main_city.png").is_file()
+
+    import json
+
+    doc = json.loads((ads_root / "area.yaml").read_text(encoding="utf-8"))
+    assert doc["screens"][0]["ocr"] == "references/main_city.png"
+    assert doc["screens"][0]["screen_id"] == "main_city"
+
+
+def test_http_promote_missing_pending_capture_returns_404(labeling_repo: Path) -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from api.routers.labeling import router
+    from config.module_discovery import _clear_module_discovery_caches
+    from layout.area_manifest import clear_area_doc_cache
+
+    ads_root = labeling_repo / "games" / "wos" / "ads"
+    (ads_root / "references" / TEMPORAL_SUBDIR).mkdir(parents=True)
+    (ads_root / "module.yaml").write_text(
+        "id: ads\ntitle: Ads\narea: area.yaml\nreferences: references\n",
+        encoding="utf-8",
+    )
+    (ads_root / "area.yaml").write_text('{"version": 2, "screens": []}\n', encoding="utf-8")
+    _clear_module_discovery_caches()
+    clear_area_doc_cache()
+
+    app = FastAPI()
+    app.include_router(router)
+    body = {
+        "ref": "games/wos/ads/references/temporal/bs1_shot_20260612_202547_35beb5.png",
+        "basename": "main_city",
+        "instance_id": "bs1",
+        "regions": [],
+        "screen_id": "main_city",
+    }
+    with TestClient(app) as client:
+        resp = client.post("/api/labeling/promote?scope=all&game=wos", json=body)
+
+    assert resp.status_code == 404
+    assert "Source missing" in resp.json()["detail"]
+
+
 def test_list_screen_id_options(labeling_repo: Path) -> None:
     (labeling_repo / "area.json").write_text(
         '{"version": 2, "screens": [{"screen_id": "vip", "ocr": "references/x.png", "regions": []}]}\n',

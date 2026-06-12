@@ -130,6 +130,11 @@ def test_system_back_is_action_key() -> None:
     assert step.step_type() == "system_back"
 
 
+def test_type_text_is_action_key() -> None:
+    step = DslStep.model_validate({"type_text": "50"})
+    assert step.step_type() == "type_text"
+
+
 def test_long_click_still_rejects_real_action_conflicts() -> None:
     """``wait`` is the only modifier — adding a true second action key
     (``click``, ``match``, etc.) still fails validation."""

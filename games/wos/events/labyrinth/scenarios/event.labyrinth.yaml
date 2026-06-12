@@ -3,6 +3,24 @@ name: Labyrinth
 node: event.labyrinth
 icon: labyrinth
 steps:
+  - while_match: labyrinth.reward_track
+    isWhiteBorder: true
+    max_aspect: 1.5
+    max: 6
+    steps:
+      - click: labyrinth.reward_track
+      - wait: 1s
+      - while_match: button.click_to_continue
+        max: 1
+        steps:
+          - click: button.click_to_continue
+          - wait: 500ms
+      - while_match: button.tap_anywhere_to_exit
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 500ms
+
   - while_match: button.claim
     max: 3
     steps:

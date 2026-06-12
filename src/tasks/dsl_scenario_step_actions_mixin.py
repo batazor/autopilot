@@ -240,6 +240,32 @@ class DslScenarioStepActionsMixin(_Base):
             )
         return None
 
+    async def _exec_type_text_step(
+        self, fr: ExecFrame, step: dict[str, Any], _resumable_step: int
+    ) -> TaskResult | None:
+        key = fr.scenario_key
+        instance_id = fr.instance_id
+        _fin = fr.fin
+        _mark_top_level_step_done = fr.mark_step_done
+
+        await self._write_step_context(instance_id, scenario=key)
+        result = await self._run_type_text_step(
+            actions=fr.actions,
+            instance_id=instance_id,
+            scenario_key=key,
+            step=step,
+            trace_path=str(_resumable_step),
+        )
+        if result is not None:
+            md = dict(result.metadata or {})
+            return TaskResult(
+                success=result.success,
+                next_run_at=result.next_run_at,
+                metadata=_fin(md, completed=False),
+            )
+        await _mark_top_level_step_done()
+        return None
+
     async def _exec_swipe_direction_step(
         self, fr: ExecFrame, step: dict[str, Any], _resumable_step: int
     ) -> TaskResult | None:

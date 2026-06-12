@@ -680,7 +680,35 @@ class DslMatchMixin(_Base):
         # --- Pass 1: slide-find (contour-based) ---
         # Try the primary bbox only. Movable template regions are handled by
         # the `isSearch` full-frame matcher before a click consumes the match.
-        match = find_white_border_match_in_search_roi(image_bgr, bbox)
+        contour_kwargs: dict[str, Any] = {}
+        if isinstance(step, dict):
+            int_keys = (
+                "near_white_min_value",
+                "near_white_max_saturation",
+                "morph_close_kernel",
+                "min_side_px",
+                "max_side_px",
+                "merge_gap_px",
+            )
+            float_keys = (
+                "min_aspect",
+                "max_aspect",
+                "max_fill_ratio",
+                "min_interior_saturation",
+            )
+            for key in int_keys:
+                with suppress(TypeError, ValueError):
+                    if step.get(key) is not None:
+                        contour_kwargs[key] = int(step[key])
+            for key in float_keys:
+                with suppress(TypeError, ValueError):
+                    if step.get(key) is not None:
+                        contour_kwargs[key] = float(step[key])
+        match = find_white_border_match_in_search_roi(
+            image_bgr,
+            bbox,
+            **contour_kwargs,
+        )
         match_source = "primary"
         if match is not None:
             base["white_border_present"] = True
@@ -750,4 +778,3 @@ class DslMatchMixin(_Base):
         base["tap_match_x_pct"] = cx
         base["tap_match_y_pct"] = cy
         return base
-

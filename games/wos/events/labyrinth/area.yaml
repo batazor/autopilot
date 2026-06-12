@@ -55,6 +55,387 @@
             "original_height": 1280
           },
           "type": "string"
+        },
+        {
+          "name": "labyrinth.reward_track",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.0,
+            "y": 86.0,
+            "width": 90.0,
+            "height": 7.2,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.to.research_center",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 7.5,
+            "y": 45.8,
+            "width": 31.5,
+            "height": 20.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.to.land_of_heroes",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 7.5,
+            "y": 45.8,
+            "width": 31.5,
+            "height": 20.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.to.cave_of_monsters",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 7.5,
+            "y": 45.8,
+            "width": 31.5,
+            "height": 20.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.left_cave.title",
+          "action": "text",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 8.5,
+            "y": 60.2,
+            "width": 31.5,
+            "height": 2.9,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "labyrinth.left_cave.ttl",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 14.0,
+            "y": 63.0,
+            "width": 20.5,
+            "height": 2.7,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "time"
+        },
+        {
+          "name": "labyrinth.to.gear_forge",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 61.8,
+            "y": 52.8,
+            "width": 32.2,
+            "height": 21.8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.to.charm_mine",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 61.8,
+            "y": 52.8,
+            "width": 32.2,
+            "height": 21.8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.right_cave.title",
+          "action": "text",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 61.8,
+            "y": 69.0,
+            "width": 32.2,
+            "height": 3.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "labyrinth.right_cave.ttl",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 69.2,
+            "y": 72.0,
+            "width": 20.5,
+            "height": 2.7,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "time"
+        },
+        {
+          "name": "labyrinth.to.gaia_heart",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.0,
+            "y": 80.8,
+            "width": 40.0,
+            "height": 5.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.bottom_cave.title",
+          "action": "text",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 31.5,
+            "y": 81.3,
+            "width": 37.0,
+            "height": 2.2,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "labyrinth.bottom_cave.status",
+          "action": "text",
+          "threshold": 0.7,
+          "bbox": {
+            "x": 27.5,
+            "y": 83.5,
+            "width": 45.0,
+            "height": 2.4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "labyrinth.bottom_cave.ttl",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 49.5,
+            "y": 83.7,
+            "width": 20.5,
+            "height": 2.2,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "time"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/challenge.png",
+      "regions": [
+        {
+          "name": "labyrinth.cave.title",
+          "action": "text",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 11.5,
+            "y": 1.1,
+            "width": 42.0,
+            "height": 4.3,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "labyrinth.cave.challenge",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.5,
+            "y": 91.5,
+            "width": 43.0,
+            "height": 6.8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/labyrinth.research_center.png",
+      "regions": [
+        {
+          "name": "labyrinth.squad.title",
+          "action": "text",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 12.0,
+            "y": 1.0,
+            "width": 45.0,
+            "height": 4.4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "labyrinth.squad.balance",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.5,
+            "y": 89.5,
+            "width": 12.0,
+            "height": 7.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.squad.deploy",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 55.8,
+            "y": 91.2,
+            "width": 41.2,
+            "height": 7.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/labyrinth.research_center.balance.png",
+      "regions": [
+        {
+          "name": "labyrinth.balance.infantry.percent",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 77.0,
+            "y": 39.8,
+            "width": 11.5,
+            "height": 3.2,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.balance.lancer.percent",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 77.0,
+            "y": 51.3,
+            "width": 11.5,
+            "height": 3.2,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.balance.marksman.percent",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 77.0,
+            "y": 62.8,
+            "width": 11.5,
+            "height": 3.2,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.balance.all_future.checkbox",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.0,
+            "y": 68.9,
+            "width": 6.0,
+            "height": 3.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.balance.all_future.checked",
+          "action": "color_check",
+          "threshold": 0.15,
+          "bbox": {
+            "x": 12.7,
+            "y": 69.2,
+            "width": 4.8,
+            "height": 2.9,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "green"
+        },
+        {
+          "name": "labyrinth.balance.confirm",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.0,
+            "y": 73.0,
+            "width": 40.0,
+            "height": 7.2,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

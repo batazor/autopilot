@@ -115,6 +115,7 @@ _COND_SCREEN_UNKNOWN_RHS = frozenset({"none", "unknown", "empty"})
 # - op:
 #   - `~=`: case-insensitive substring contains; RHS may use ``|`` for alternatives
 #     (e.g. ``"Upgrade|Build"`` matches if any alternative is a substring)
+#   - `!~`: negated case-insensitive substring contains; RHS also supports ``|``
 #   - `~~`: case-insensitive FUZZY contains (rapidfuzz partial_ratio) — like `~=`
 #     but tolerant of OCR character noise (``"Vlctory"`` still matches ``"victory"``).
 #     Optional inline threshold ``~~90`` (0–100, default ``_COND_FUZZ_THRESHOLD``);
@@ -124,7 +125,7 @@ _COND_SCREEN_UNKNOWN_RHS = frozenset({"none", "unknown", "empty"})
 # only consumed after ``~~`` (``count == 90`` keeps ``90`` as the RHS).
 _COND_TEXT_RE = re.compile(
     r'^\s*(?P<lhs>[\w.\-:]+)\s*'
-    r'(?P<op>==|!=|~=|~~(?P<thr>\d{1,3})?)\s*'
+    r'(?P<op>==|!=|!~|~=|~~(?P<thr>\d{1,3})?)\s*'
     r'(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
 )
 # Default similarity cutoff (0–100) for the ``~~`` fuzzy operator when no inline
@@ -148,6 +149,7 @@ _DSL_STEP_ACTION_KEYS = frozenset({
     "swipe_direction",
     "tap",
     "swipe",
+    "type_text",
     "ocr",
     "exec",
     "click",
@@ -168,6 +170,7 @@ def _dsl_step_summary(step: Any) -> str:
         "while_match",
         "while_scroll",
         "ocr",
+        "type_text",
         "swipe_direction",
         "push_scenario",
         "exec",
@@ -193,6 +196,8 @@ def _dsl_step_summary(step: Any) -> str:
             base = f"push:{str(val)[:40]}"
         elif key == "exec":
             base = f"exec:{str(val)[:40]}"
+        elif key == "type_text":
+            base = f"type_text:{len(str(val))} chars"
         elif key == "wait_screen":
             base = f"wait_screen:{str(val)[:40]}"
         elif key == "wait":
@@ -362,6 +367,10 @@ async def _eval_instance_text_cond(expr: str, instance_id: str, redis_async: Any
         parts = [p.strip() for p in rhs_lc.split("|")]
         alts = [p for p in parts if p]
         return bool(alts) and any(a in cur_lc for a in alts)
+    if op == "!~":
+        parts = [p.strip() for p in rhs_lc.split("|")]
+        alts = [p for p in parts if p]
+        return bool(alts) and not any(a in cur_lc for a in alts)
     if op.startswith("~~"):
         thr_raw = m.group("thr")
         threshold = float(thr_raw) if thr_raw else _COND_FUZZ_THRESHOLD

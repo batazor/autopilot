@@ -311,6 +311,48 @@ class DslScenarioInlineMixin(_Base):
         self._append_trace_row(trace_path, step, "ok")
         return None
 
+    async def _run_type_text_step(
+        self,
+        *,
+        actions: BotActions,
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+        trace_path: str,
+    ) -> TaskResult | None:
+        raw = step.get("type_text")
+        text = "" if raw is None else str(raw)
+        if text:
+            ok = False
+            try:
+                ok = bool(await asyncio.to_thread(actions.type_text, instance_id, text))
+            except Exception:
+                logger.exception(
+                    "dsl_scenario: type_text failed scenario=%s instance=%s",
+                    _scen(scenario_key),
+                    instance_id,
+                )
+            if not ok:
+                logger.info(
+                    "dsl_scenario: type_text blocked — aborting scenario %s",
+                    _scen(scenario_key),
+                )
+                await self._clear_step_context(instance_id)
+                self._append_trace_row(
+                    trace_path, step, "stopped", reason="type_text_not_approved"
+                )
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={"scenario": scenario_key, "reason": "type_text_not_approved"},
+                )
+            if hasattr(actions, "invalidate_frame_cache"):
+                with suppress(Exception):
+                    actions.invalidate_frame_cache(instance_id)
+            await asyncio.sleep(_action_pause_seconds(0.2))
+        self._append_trace_row(trace_path, step, "ok", chars=len(text))
+        return None
+
     async def _color_check_region(
         self,
         *,
@@ -636,6 +678,14 @@ class DslScenarioInlineMixin(_Base):
             return ip
         if "system_back" in step:
             return await self._run_system_back_step(
+                actions=actions,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step,
+                trace_path=trace_path,
+            )
+        if "type_text" in step:
+            return await self._run_type_text_step(
                 actions=actions,
                 instance_id=instance_id,
                 scenario_key=scenario_key,
