@@ -1,10 +1,6 @@
 edges:
   main_city:
-    event.labyrinth:
-      resolver: template_icon
-      region: main_city.icon_search
-      template: games/wos/events/labyrinth/references/main_city.event.labyrinth.png
-      threshold: 0.9
+    event.labyrinth: [main_city.to.labyrinth]
 
   event.labyrinth:
     main_city: [icon.page.back]

@@ -115,6 +115,48 @@
       "screen_id": "squad_settings",
       "ocr": "references/squad_settings.png",
       "regions": []
+    },
+    {
+      "id": 5,
+      "screen_id": "intel",
+      "ocr": "references/claim.png",
+      "regions": [
+        {
+          "name": "intel.claim_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.63888888888889,
+            "y": 84.765625,
+            "width": 44.583333333333336,
+            "height": 6.71875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "screen_id": "intel",
+      "ocr": "references/camp.png",
+      "regions": [
+        {
+          "name": "intel.camp",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 61.82388107854461,
+            "y": 44.61982258583245,
+            "width": 6.8969849246230766,
+            "height": 4.084771170747522,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

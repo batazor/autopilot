@@ -7,6 +7,25 @@ enabled: true
 priority: 80_000
 
 steps:
+  - while_match: intel.claim_all
+    max: 1
+    retry:
+      attempts: 2
+      interval: 500ms
+    steps:
+      - click: intel.claim_all
+      - wait: 1s
+      - while_match: button.click_to_continue
+        max: 1
+        steps:
+          - click: button.click_to_continue
+          - wait: 500ms
+      - while_match: button.tap_anywhere_to_exit
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 500ms
+
   - exec: tap_intel_fight
     strategy: best_score
     threshold: 0.72

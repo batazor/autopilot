@@ -1,5 +1,6 @@
 screens:
   event.labyrinth:
     rules:
-      - match: event.labyrinth
+      - ocr: labyrinth.title
+        contains: Labyrinth
         threshold: 0.9

@@ -18,20 +18,42 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MODULE_DIR = Path(__file__).resolve().parent
-_FIGHT_TEMPLATE = _MODULE_DIR / "references" / "crop" / "main_intel.fight.png"
+_MARKER_TEMPLATES = {
+    "fight": _MODULE_DIR / "references" / "crop" / "main_intel.fight.png",
+    "skull": _MODULE_DIR / "references" / "crop" / "claim_intel.skull.png",
+    "skull_horned": _MODULE_DIR / "references" / "crop" / "camp_intel.skull_horned.png",
+    "camp": _MODULE_DIR / "references" / "crop" / "camp_intel.camp.png",
+}
+_MARKER_KIND_PRIORITY = {
+    # Gold intel markers should be consumed before regular fight/skull markers.
+    "skull_horned": 0,
+    "camp": 0,
+    "fight": 1,
+    "skull": 1,
+}
 _DEFAULT_THRESHOLD = 0.72
 _DEFAULT_NMS_DISTANCE_PX = 40
 
 
-class IntelFightMarker:
-    __slots__ = ("h", "score", "w", "x", "y")
+class IntelMarker:
+    __slots__ = ("h", "kind", "score", "w", "x", "y")
 
-    def __init__(self, *, x: int, y: int, w: int, h: int, score: float) -> None:
+    def __init__(
+        self,
+        *,
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        score: float,
+        kind: str,
+    ) -> None:
         self.x = x
         self.y = y
         self.w = w
         self.h = h
         self.score = score
+        self.kind = kind
 
     @property
     def center(self) -> Point:
@@ -54,16 +76,25 @@ def _as_float_arg(args: dict[str, Any], key: str, default: float) -> float:
     return value if value > 0 else default
 
 
-def _load_gray_template(path: Path = _FIGHT_TEMPLATE) -> np.ndarray | None:
+def _load_gray_template(path: Path) -> np.ndarray | None:
     template = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
     if template is None or template.size == 0:
         return None
     return template
 
 
+def _load_marker_templates() -> dict[str, np.ndarray]:
+    templates: dict[str, np.ndarray] = {}
+    for kind, path in _MARKER_TEMPLATES.items():
+        template = _load_gray_template(path)
+        if template is not None:
+            templates[kind] = template
+    return templates
+
+
 def _is_far_enough(
-    candidate: IntelFightMarker,
-    accepted: list[IntelFightMarker],
+    candidate: IntelMarker,
+    accepted: list[IntelMarker],
     *,
     min_distance_px: int,
 ) -> bool:
@@ -78,64 +109,97 @@ def _is_far_enough(
     return True
 
 
-def detect_fight_markers(
+def detect_intel_markers(
     image_bgr: np.ndarray,
     *,
     threshold: float = _DEFAULT_THRESHOLD,
     nms_distance_px: int = _DEFAULT_NMS_DISTANCE_PX,
-    template_gray: np.ndarray | None = None,
-) -> list[IntelFightMarker]:
-    """Find visible Intel fight pins using color-tolerant grayscale matching."""
+    templates_gray: dict[str, np.ndarray] | None = None,
+) -> list[IntelMarker]:
+    """Find visible Intel action pins using color-tolerant grayscale matching."""
     if image_bgr is None or not hasattr(image_bgr, "shape"):
         return []
-    template = template_gray if template_gray is not None else _load_gray_template()
-    if template is None:
+    templates = templates_gray if templates_gray is not None else _load_marker_templates()
+    if not templates:
         return []
 
     frame_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
-    th, tw = template.shape[:2]
-    if frame_gray.shape[0] < th or frame_gray.shape[1] < tw:
-        return []
+    raw: list[IntelMarker] = []
+    for kind, template in templates.items():
+        th, tw = template.shape[:2]
+        if frame_gray.shape[0] < th or frame_gray.shape[1] < tw:
+            continue
 
-    result = cv2.matchTemplate(frame_gray, template, cv2.TM_CCOEFF_NORMED)
-    ys, xs = np.where(result >= float(threshold))
-    raw: list[IntelFightMarker] = [
-        IntelFightMarker(
-            x=int(x),
-            y=int(y),
-            w=int(tw),
-            h=int(th),
-            score=float(result[y, x]),
+        result = cv2.matchTemplate(frame_gray, template, cv2.TM_CCOEFF_NORMED)
+        ys, xs = np.where(result >= float(threshold))
+        raw.extend(
+            IntelMarker(
+                x=int(x),
+                y=int(y),
+                w=int(tw),
+                h=int(th),
+                score=float(result[y, x]),
+                kind=kind,
+            )
+            for y, x in zip(ys, xs, strict=False)
         )
-        for y, x in zip(ys, xs, strict=False)
-    ]
     raw.sort(key=lambda marker: marker.score, reverse=True)
 
-    accepted: list[IntelFightMarker] = []
+    accepted: list[IntelMarker] = []
     for marker in raw:
         if _is_far_enough(marker, accepted, min_distance_px=nms_distance_px):
             accepted.append(marker)
     return accepted
 
 
-def _pick_marker(markers: list[IntelFightMarker], strategy: str) -> IntelFightMarker | None:
+def detect_fight_markers(
+    image_bgr: np.ndarray,
+    *,
+    threshold: float = _DEFAULT_THRESHOLD,
+    nms_distance_px: int = _DEFAULT_NMS_DISTANCE_PX,
+    template_gray: np.ndarray | None = None,
+) -> list[IntelMarker]:
+    """Backward-compatible wrapper for old tests/callers."""
+    fight_template = (
+        template_gray
+        if template_gray is not None
+        else _load_gray_template(_MARKER_TEMPLATES["fight"])
+    )
+    templates = {"fight": fight_template} if fight_template is not None else {}
+    return detect_intel_markers(
+        image_bgr,
+        threshold=threshold,
+        nms_distance_px=nms_distance_px,
+        templates_gray=templates,
+    )
+
+
+def _kind_priority(marker: IntelMarker) -> int:
+    return _MARKER_KIND_PRIORITY.get(marker.kind, 1)
+
+
+def _pick_marker(markers: list[IntelMarker], strategy: str) -> IntelMarker | None:
     if not markers:
         return None
     strategy_lc = strategy.strip().lower()
     if strategy_lc == "topmost":
-        return min(markers, key=lambda m: (m.y, -m.score))
+        return min(markers, key=lambda m: (_kind_priority(m), m.y, -m.score))
     if strategy_lc == "bottommost":
-        return max(markers, key=lambda m: (m.y, m.score))
+        return min(markers, key=lambda m: (_kind_priority(m), -m.y, -m.score))
     if strategy_lc == "center":
         return min(
             markers,
-            key=lambda m: (m.center.x - 360) ** 2 + (m.center.y - 640) ** 2,
+            key=lambda m: (
+                _kind_priority(m),
+                (m.center.x - 360) ** 2 + (m.center.y - 640) ** 2,
+                -m.score,
+            ),
         )
-    return max(markers, key=lambda m: m.score)
+    return min(markers, key=lambda m: (_kind_priority(m), -m.score))
 
 
 async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
-    """Tap one visible Intel fight marker.
+    """Tap one visible Intel action marker.
 
     Args:
       threshold: grayscale template score floor, default 0.72.
@@ -161,7 +225,7 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
         ctx.result.update({"action": "capture_failed"})
         return
 
-    markers = detect_fight_markers(
+    markers = detect_intel_markers(
         image,
         threshold=threshold,
         nms_distance_px=nms_distance_px,
@@ -187,6 +251,7 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
             approval_context={
                 "score": round(marker.score, 4),
                 "strategy": strategy,
+                "kind": marker.kind,
             },
         )
     except Exception:
@@ -204,9 +269,11 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
             "tap_x": point.x,
             "tap_y": point.y,
             "score": marker.score,
+            "kind": marker.kind,
             "detected": len(markers),
             "markers": [
                 {
+                    "kind": m.kind,
                     "x": m.x,
                     "y": m.y,
                     "w": m.w,
@@ -218,9 +285,10 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
         }
     )
     logger.info(
-        "dsl exec tap_intel_fight: action=%s instance=%s tap=(%d,%d) score=%.3f detected=%d",
+        "dsl exec tap_intel_fight: action=%s instance=%s kind=%s tap=(%d,%d) score=%.3f detected=%d",
         "tapped" if tapped else "tap_blocked",
         ctx.instance_id,
+        marker.kind,
         point.x,
         point.y,
         marker.score,

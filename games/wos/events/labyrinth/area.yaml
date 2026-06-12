@@ -1,2 +1,62 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.labyrinth",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.26607746905724,
+            "y": 72.7357755801321,
+            "width": 6.331658291457307,
+            "height": 3.555686193821497,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "labyrinth.money",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 82.18871595330731,
+            "y": 1.5880318885211362,
+            "width": 14.999999999999993,
+            "height": 2.7091502307398385,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "labyrinth.title",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 21.990472791975474,
+            "y": 1.1738109126807403,
+            "width": 21.972361809045193,
+            "height": 4.084771170747482,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}
