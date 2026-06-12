@@ -59,13 +59,22 @@ npmrc
 pip.conf
 auth.json
 .secrets/
+src/config/_telemetry_secrets.py
 *.key
 *.p12
 *.pfx
 *.crt
+# Durable runtime state: configured devices, accounts, player ids, queues,
+# screenshots metadata, and SQLCipher sidecars. Never upload it to the Docker
+# daemon or bake it into images; prod compose mounts a fresh named volume here.
+db/state/
+src/modules/notify/data/
 # Per-host license file lives in the bind-mounted ``license-data`` dir at
 # runtime; never bake one into the image.
 license-data/*.json
+license-data/*.jwt
+license-data/*.bak
+license-data/host-id
 # Trial / personal license JWTs sometimes dropped at repo root for local
 # testing — never leak these into the build context.
 *.licence.jwt
@@ -82,6 +91,10 @@ docker-compose*.yml
 *.bak
 coverage/
 htmlcov/
+runs/
+captures/
+.tmp_ocr/
+temporal/
 
 # --- Test code (not needed at runtime) ---------------------------------------
 **/tests/

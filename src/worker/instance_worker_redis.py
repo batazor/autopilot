@@ -381,3 +381,84 @@ class InstanceWorkerRedisMixin(_Base):
                 "identity probe: enqueued who_i_am (active_player empty) instance=%s",
                 inst,
             )
+
+    async def _maybe_identify_active_player_from_avatar(
+        self,
+        image_bgr: Any,
+        *,
+        current_screen: str,
+    ) -> bool:
+        """Set ``active_player`` from the main-city avatar reference if possible."""
+        from dashboard.dashboard_events import publish_dashboard_event_async
+        from services.player_avatar_identity import is_main_city_screen, match_player_avatar
+
+        if not is_main_city_screen(current_screen):
+            return False
+        r = self._redis
+        if r is None:
+            return False
+        inst = self._cfg.instance_id
+        inst_key = _INST_STATE_KEY_FMT.format(instance_id=inst)
+        try:
+            raw_ap = await r.hget(inst_key, "active_player")
+        except Exception:
+            logger.debug("avatar identity: active_player read failed", exc_info=True)
+            return False
+        active = (raw_ap.decode() if isinstance(raw_ap, bytes) else str(raw_ap or "")).strip()
+        if active:
+            return False
+
+        candidate_ids: list[str] = []
+        with suppress(Exception):
+            from config.devices import player_ids_for_device_candidates
+
+            candidate_ids = player_ids_for_device_candidates(
+                self._cfg.bluestacks_window_title,
+                self._cfg.instance_id,
+            )
+        try:
+            match = match_player_avatar(
+                image_bgr,
+                candidate_player_ids=candidate_ids or None,
+            )
+        except Exception:
+            logger.debug("avatar identity: match failed", exc_info=True)
+            return False
+        if match is None:
+            return False
+
+        now = time.time()
+        player_id = match.player_id
+        try:
+            await r.hset(
+                inst_key,
+                mapping={
+                    "active_player": player_id,
+                    "active_player_at": str(now),
+                    "active_player_identity_source": "avatar",
+                    "active_player_avatar_score": f"{match.score:.4f}",
+                    "active_player_avatar_at": str(now),
+                },
+            )
+        except Exception:
+            logger.debug("avatar identity: active_player write failed", exc_info=True)
+            return False
+        with suppress(Exception):
+            from config.devices import set_last_active_player
+
+            set_last_active_player(inst, player_id)
+        await publish_dashboard_event_async(
+            r,
+            topic="player",
+            instance_id=inst,
+            player_id=player_id,
+            reason="avatar_identity",
+        )
+        logger.info(
+            "avatar identity: active_player=%s score=%.3f margin=%.3f instance=%s",
+            player_id,
+            match.score,
+            match.margin,
+            inst,
+        )
+        return True

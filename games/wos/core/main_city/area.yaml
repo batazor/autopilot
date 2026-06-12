@@ -52,6 +52,20 @@
           "type": "string"
         },
         {
+          "name": "player.avatar.identity",
+          "action": "exist",
+          "threshold": 0.86,
+          "bbox": {
+            "x": 0,
+            "y": 0,
+            "width": 13.5,
+            "height": 7.65,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "chapter.task",
           "action": "text",
           "threshold": 0.9,

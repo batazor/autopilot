@@ -258,6 +258,14 @@ class InstanceWorkerRollingMixin(_Base):
             if await self._maybe_handle_popup(image_bgr, current_screen=current_screen):
                 return
 
+            avatar_identity = getattr(
+                self,
+                "_maybe_identify_active_player_from_avatar",
+                None,
+            )
+            if callable(avatar_identity):
+                await avatar_identity(image_bgr, current_screen=current_screen)
+            active_player = await _read_active_player(self._cfg.instance_id, self._redis)
             device_level_only = _rolling_overlay_device_level_only(
                 active_player=active_player,
                 cfg=cfg,
@@ -440,6 +448,19 @@ class InstanceWorkerRollingMixin(_Base):
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
             if await self._maybe_handle_popup(image_bgr, current_screen=current_screen):
                 return
+            avatar_identity = getattr(
+                self,
+                "_maybe_identify_active_player_from_avatar",
+                None,
+            )
+            if callable(avatar_identity):
+                await avatar_identity(image_bgr, current_screen=current_screen)
+            active_player = await _read_active_player(self._cfg.instance_id, self._redis)
+            device_level_only = _rolling_overlay_device_level_only(
+                active_player=active_player,
+                cfg=cfg,
+                task_busy=task_busy,
+            )
             await self._overlay_analyze_bgr(
                 image_bgr,
                 current_screen_override=current_screen,

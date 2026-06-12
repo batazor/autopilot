@@ -55,6 +55,7 @@ import type {
   PlayerStatsView,
   AllianceStatsView,
   CenturySyncResult,
+  AvatarReferenceResult,
   BuildingLevelRow,
   BuildingsView,
   ResearchView,
@@ -525,6 +526,17 @@ export async function syncPlayerFromCentury(
 ): Promise<CenturySyncResult> {
   return apiFetch<CenturySyncResult>(
     `/api/players/${encodeURIComponent(playerId)}/century-sync`,
+    { method: "POST" },
+  );
+}
+
+export async function updatePlayerAvatarReference(
+  playerId: string,
+  instanceId: string,
+): Promise<AvatarReferenceResult> {
+  const q = new URLSearchParams({ instance_id: instanceId });
+  return apiFetch<AvatarReferenceResult>(
+    `/api/players/${encodeURIComponent(playerId)}/avatar-reference?${q}`,
     { method: "POST" },
   );
 }

@@ -18,6 +18,12 @@ from dashboard.player_state_data import (
     sync_player_from_century,
 )
 from dashboard.redis_client import delete_player_redis, get_player_state_hash
+from dashboard.reference_preview import load_rolling_instance_preview
+from services.player_avatar_identity import (
+    avatar_reference_meta,
+    decode_png_bgr,
+    save_avatar_reference_from_frame,
+)
 
 
 def list_player_ids(*, instance_id: str | None = None) -> list[str]:
@@ -96,6 +102,39 @@ def get_state_db_overview() -> dict[str, Any]:
 
 def century_sync(player_id: str) -> dict[str, Any]:
     return sync_player_from_century(player_id)
+
+
+def avatar_reference_status(player_id: str) -> dict[str, Any]:
+    meta = avatar_reference_meta(player_id)
+    return {
+        "player_id": meta.player_id,
+        "exists": meta.exists,
+        "reference": meta.rel_path,
+        "mtime": meta.mtime,
+    }
+
+
+def update_avatar_reference(
+    player_id: str,
+    *,
+    instance_id: str,
+) -> dict[str, Any]:
+    iid = (instance_id or "").strip()
+    if not iid:
+        msg = "instance_id is required"
+        raise ValueError(msg)
+    png, preview_rel, preview_mtime = load_rolling_instance_preview(iid)
+    if png is None:
+        msg = f"no rolling preview image available for {iid!r}"
+        raise FileNotFoundError(msg)
+    image_bgr = decode_png_bgr(png)
+    out = save_avatar_reference_from_frame(player_id, image_bgr)
+    return {
+        **out,
+        "instance_id": iid,
+        "source_preview": preview_rel,
+        "source_preview_mtime": preview_mtime,
+    }
 
 
 def delete_player(client: redis.Redis, player_id: str) -> dict[str, Any]:

@@ -16,6 +16,7 @@ import {
   fetchPlayerState,
   fetchSuggestedPlayer,
   syncPlayerFromCentury,
+  updatePlayerAvatarReference,
 } from "@/lib/api";
 import { playerStatsHref } from "@/lib/fleet-links";
 import Link from "next/link";
@@ -278,6 +279,7 @@ function PlayerStatePageInner() {
   const [persisted, setPersisted] = useState<PlayerPersistedView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [avatarUpdating, setAvatarUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [bldgFilter, setBldgFilter] = useState("");
@@ -368,6 +370,23 @@ function PlayerStatePageInner() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const onUpdateAvatarReference = async () => {
+    if (!playerId || !instanceId || avatarUpdating) return;
+    setAvatarUpdating(true);
+    setError(null);
+    try {
+      const result = await updatePlayerAvatarReference(playerId, instanceId);
+      showSuccess(
+        `Updated avatar reference ${result.width}×${result.height} for ${result.player_id}`,
+      );
+      await refreshPersisted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAvatarUpdating(false);
     }
   };
 
@@ -482,6 +501,21 @@ function PlayerStatePageInner() {
             onClick={onSync}
           >
             {syncing ? "Syncing…" : "Sync from Century API"}
+          </button>
+        ) : null}
+        {playerId ? (
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={!instanceId || avatarUpdating}
+            onClick={onUpdateAvatarReference}
+            title={
+              instanceId
+                ? "Capture the current main-city avatar as this player's identity reference"
+                : "Select an instance first"
+            }
+          >
+            {avatarUpdating ? "Updating avatar…" : "Update avatar reference"}
           </button>
         ) : null}
         {playerId ? (

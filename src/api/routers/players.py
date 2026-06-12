@@ -84,6 +84,39 @@ def get_player_stats(player_id: str) -> dict[str, Any]:
     return players_svc.get_player_stats(player_id)
 
 
+@router.get("/players/{player_id}/avatar-reference")
+def get_avatar_reference(player_id: str) -> dict[str, Any]:
+    try:
+        return players_svc.avatar_reference_status(player_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/players/{player_id}/avatar-reference")
+def post_avatar_reference(
+    player_id: str,
+    client: RedisDep,
+    instance_id: str = Query(..., min_length=1),
+) -> dict[str, Any]:
+    try:
+        result = players_svc.update_avatar_reference(
+            player_id,
+            instance_id=instance_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    publish_dashboard_event(
+        client,
+        topic="player",
+        player_id=player_id,
+        instance_id=instance_id,
+        reason="avatar_reference",
+    )
+    return result
+
+
 @router.post("/players/{player_id}/century-sync")
 def post_century_sync(player_id: str, client: RedisDep) -> dict[str, Any]:
     result = players_svc.century_sync(player_id)

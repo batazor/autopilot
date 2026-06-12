@@ -456,6 +456,18 @@ export type CenturySyncResult = {
   steps: Array<{ step: string; detail: string }>;
 };
 
+export type AvatarReferenceResult = {
+  ok: boolean;
+  player_id: string;
+  reference: string;
+  width: number;
+  height: number;
+  mtime: number;
+  instance_id: string;
+  source_preview: string;
+  source_preview_mtime: number | null;
+};
+
 export type RoutesGraphView = "hub" | "focus" | "path" | "full";
 
 export type RoutesGraphResponse = {

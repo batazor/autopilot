@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare pHash / hybrid scoring variants for text.welcome_back on a live frame."""
+"""Compare pHash / hybrid scoring variants for text.welcome_back on a fixture frame."""
 from __future__ import annotations
 
 import sys
@@ -26,8 +26,11 @@ from layout.template_match import (  # noqa: E402
     patch_bgr_from_bbox_percent,
 )
 
-FRAME = REPO / "references/temporal/bs1_current_state.png"
-TEMPLATE = REPO / "references/crop/welcome_back_text.welcome_back.png"
+FRAME = REPO / "tests/fixtures/bs1_current_state.png"
+TEMPLATE = (
+    REPO
+    / "games/wos/core/welcome_back/references/crop/welcome_back_text.welcome_back.png"
+)
 BBOX = {
     "x": 35.13899613899614,
     "y": 18.515217391304347,

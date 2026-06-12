@@ -11,7 +11,7 @@ from layout.area_manifest import load_area_doc
 from layout.template_match import _phash_match_score, patch_bgr_from_bbox_percent
 
 REPO = Path(__file__).resolve().parents[2]
-FRAME = REPO / "temporal/bs1_current_state.png"
+FRAME = REPO / "tests/fixtures/bs1_current_state.png"
 WELCOME_BACK_BBOX = {
     "x": 35.13899613899614,
     "y": 18.515217391304347,
@@ -29,12 +29,9 @@ THRESHOLD = 0.9
 @pytest.mark.xfail(
     strict=False,
     reason=(
-        "Anchored to ``references/temporal/bs1_current_state.png`` which is a "
-        "rolling ADB preview the worker overwrites on every snapshot — its "
-        "contents are not under repo control. Passes when the last frame "
-        "captured by the bot happened to show the welcome_back popup, fails "
-        "otherwise. Re-point at a frozen fixture under references/ to make "
-        "the assertion deterministic."
+        "The frozen bs1 main-city fixture does not always contain the "
+        "welcome_back popup; keep this as a non-strict calibration check until "
+        "a dedicated welcome_back fixture is added."
     ),
 )
 async def test_welcome_back_live_frame_passes_threshold() -> None:
