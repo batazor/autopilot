@@ -2,20 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-} from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { BotStartBanner } from "@/components/BotStartBanner";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { NavIcon } from "@/components/ui/NavIcon";
 import { VersionFooterRow } from "@/components/VersionBadge";
@@ -35,10 +27,8 @@ import {
   NAV_GROUPS,
   NAV_PINNED,
   NAV_PINNED_HREFS,
-  allNavTabs,
   groupForPath,
   labelForHref,
-  type NavTab,
 } from "@/lib/nav";
 
 type AppNavProps = {
@@ -53,31 +43,12 @@ function isActivePath(pathname: string, href: string): boolean {
   );
 }
 
-function highlightMatch(text: string, query: string): ReactNode {
-  if (!query) return text;
-  const i = text.toLowerCase().indexOf(query);
-  if (i < 0) return text;
-  return (
-    <>
-      {text.slice(0, i)}
-      <mark className="nav-match">{text.slice(i, i + query.length)}</mark>
-      {text.slice(i + query.length)}
-    </>
-  );
-}
-
 export function AppNav({ open = false, onNavigate }: AppNavProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const searchRef = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<RecentNavItem[]>([]);
-  const [activeIndex, setActiveIndex] = useState(0);
 
   const [tier, setTier] = useState<string | null>(null);
 
-  const q = query.trim().toLowerCase();
-  const filtering = q.length > 0;
   const activeGroup = groupForPath(pathname);
 
   useEffect(() => {
@@ -113,75 +84,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
     setRecent(loadRecent());
   }, [pathname]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
-      const t = e.target as HTMLElement | null;
-      if (t) {
-        const tag = t.tagName;
-        if (
-          tag === "INPUT" ||
-          tag === "TEXTAREA" ||
-          tag === "SELECT" ||
-          t.isContentEditable
-        ) {
-          return;
-        }
-      }
-      e.preventDefault();
-      searchRef.current?.focus();
-      searchRef.current?.select();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  const searchHits = useMemo((): NavTab[] => {
-    if (!q) return [];
-    return allNavTabs().filter((tab) => {
-      const group = NAV_GROUPS.find((g) =>
-        g.tabs.some((t) => t.href === tab.href),
-      );
-      const hay = `${tab.label} ${tab.href} ${tab.description ?? ""} ${group?.label ?? ""}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [q]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [q]);
-
-  const goToTab = (tab: NavTab) => {
-    const lock = getNavLock(tab.href, tier);
-    if (lock?.kind === "soon") return;
-    const href = lock?.kind === "pro" || lock?.kind === "r4" ? "/license" : tab.href;
-    setQuery("");
-    onNavigate?.();
-    router.push(href);
-  };
-
-  const onSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (!filtering || searchHits.length === 0) {
-      if (e.key === "Escape") setQuery("");
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIndex((i) => (i + 1) % searchHits.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIndex((i) => (i - 1 + searchHits.length) % searchHits.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const tab = searchHits[Math.min(activeIndex, searchHits.length - 1)];
-      if (tab) goToTab(tab);
-    } else if (e.key === "Escape") {
-      setQuery("");
-    }
-  };
-
-  const recentVisible =
-    !filtering && recent.filter((r) => r.href !== pathname).length > 0;
+  const recentVisible = recent.filter((r) => r.href !== pathname).length > 0;
 
   return (
     <aside
@@ -237,52 +140,11 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
         </button>
       </div>
 
-      <BotStartBanner />
-      <OnboardingChecklist />
+      <div className="nav-body">
+        <BotStartBanner />
+        <OnboardingChecklist />
 
-      <div className="nav-search-wrap">
-        <label className="sr-only" htmlFor="nav-filter">
-          Filter pages
-        </label>
-        <span className="nav-search-icon" aria-hidden>
-          <Icon name="search" size="sm" />
-        </span>
-        <input
-          ref={searchRef}
-          id="nav-filter"
-          type="search"
-          placeholder="Filter pages…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onSearchKeyDown}
-          role="combobox"
-          aria-expanded={filtering && searchHits.length > 0}
-          aria-controls="nav-search-results"
-          aria-activedescendant={
-            filtering && searchHits.length > 0
-              ? `nav-hit-${Math.min(activeIndex, searchHits.length - 1)}`
-              : undefined
-          }
-          className="nav-search-input"
-        />
-        {!filtering ? (
-          <kbd className="nav-search-kbd" aria-hidden>
-            /
-          </kbd>
-        ) : (
-          <button
-            type="button"
-            className="nav-search-clear"
-            onClick={() => setQuery("")}
-            aria-label="Clear filter"
-          >
-            <Icon name="clear" size="sm" />
-          </button>
-        )}
-      </div>
-
-      <nav className="nav-scroll flex-1 overflow-y-auto px-2 pb-4">
-        {!filtering ? (
+        <nav className="nav-scroll px-2 pb-4">
           <div className="nav-pinned">
             <div className="nav-block-label">Quick access</div>
             <ul className="nav-list">
@@ -293,7 +155,6 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
                   label={item.label}
                   description={item.description}
                   active={isActivePath(pathname, item.href)}
-                  query={q}
                   variant="pinned"
                   lock={getNavLock(item.href, tier) ?? undefined}
                   onNavigate={onNavigate}
@@ -301,71 +162,37 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
               ))}
             </ul>
           </div>
-        ) : null}
 
-        {recentVisible ? (
-          <div className="nav-recent">
-            <div className="nav-block-label">Recent</div>
-            <ul className="nav-list">
-              {recent
-                .filter(
-                  (r) =>
-                    r.href !== pathname && !NAV_PINNED_HREFS.has(r.href),
-                )
-                .slice(0, 4)
-                .map((r) => (
-                  <li key={r.href}>
-                    <Link
-                      href={r.href}
-                      onClick={onNavigate}
-                      className="nav-link nav-link--compact"
-                    >
-                      <span className="nav-link__icon" aria-hidden>
-                        <Icon name="recent" size="sm" />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">{r.label}</span>
-                    </Link>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        ) : null}
+          {recentVisible ? (
+            <div className="nav-recent">
+              <div className="nav-block-label">Recent</div>
+              <ul className="nav-list">
+                {recent
+                  .filter(
+                    (r) =>
+                      r.href !== pathname && !NAV_PINNED_HREFS.has(r.href),
+                  )
+                  .slice(0, 4)
+                  .map((r) => (
+                    <li key={r.href}>
+                      <Link
+                        href={r.href}
+                        onClick={onNavigate}
+                        className="nav-link nav-link--compact"
+                      >
+                        <span className="nav-link__icon" aria-hidden>
+                          <Icon name="recent" size="sm" />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
 
-        {!filtering ? (
           <div className="nav-block-label mt-2">Sections</div>
-        ) : (
-          <div className="nav-block-label mt-2">
-            {searchHits.length > 0 ? "Results" : "No match"}
-          </div>
-        )}
 
-        {filtering ? (
-          searchHits.length === 0 ? (
-            <EmptyState
-              className="mx-2 border-0 bg-transparent py-6"
-              icon="search"
-              title="No pages match"
-              description="Try another filter or clear the search."
-            />
-          ) : (
-            <ul className="nav-list" id="nav-search-results" role="listbox">
-              {searchHits.map((tab, i) => (
-                <NavRow
-                  key={tab.href}
-                  id={`nav-hit-${i}`}
-                  href={tab.href}
-                  label={tab.label}
-                  description={tab.description}
-                  active={isActivePath(pathname, tab.href)}
-                  highlighted={i === Math.min(activeIndex, searchHits.length - 1)}
-                  query={q}
-                  lock={getNavLock(tab.href, tier) ?? undefined}
-                  onNavigate={onNavigate}
-                />
-              ))}
-            </ul>
-          )
-        ) : (
           <ul className="nav-list">
             {NAV_GROUPS.map((group) => {
               const groupActive = activeGroup?.id === group.id;
@@ -385,9 +212,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
                       <NavIcon groupId={group.id} size="sm" />
                     </span>
                     <span className="nav-link__body">
-                      <span className="nav-link__label">
-                        {highlightMatch(group.label, q)}
-                      </span>
+                      <span className="nav-link__label">{group.label}</span>
                       <span className="nav-link__desc truncate">
                         {group.description}
                       </span>
@@ -447,8 +272,8 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
               );
             })}
           </ul>
-        )}
-      </nav>
+        </nav>
+      </div>
 
       <footer className="nav-footer">
         <ThemeToggle compact className="nav-footer__theme" />
@@ -499,24 +324,18 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
 
 
 function NavRow({
-  id,
   href,
   label,
   description,
   active,
-  highlighted = false,
-  query,
   variant = "default",
   lock,
   onNavigate,
 }: {
-  id?: string;
   href: string;
   label: string;
   description?: string;
   active: boolean;
-  highlighted?: boolean;
-  query: string;
   variant?: "default" | "pinned";
   lock?: NavLock;
   onNavigate?: () => void;
@@ -535,15 +354,13 @@ function NavRow({
   };
 
   return (
-    <li role={id ? "option" : undefined} aria-selected={id ? highlighted : undefined}>
+    <li>
       <Link
-        id={id}
         href={linkHref}
         onClick={handleClick}
         className={[
           "nav-link",
           active && !disabling ? "nav-link--active" : "",
-          highlighted ? "nav-link--highlighted" : "",
           variant === "pinned" ? "nav-link--pinned" : "",
           disabling ? "opacity-60" : "",
           lock?.kind === "soon" ? "cursor-not-allowed" : "",
@@ -557,7 +374,7 @@ function NavRow({
         </span>
         <span className="nav-link__body">
           <span className="nav-link__label flex items-center gap-1.5">
-            <span>{highlightMatch(label, query)}</span>
+            <span>{label}</span>
             {lock ? (
               <span
                 className="rounded-full border border-amber-400/40 bg-amber-500/15 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide text-amber-300"

@@ -1,8 +1,10 @@
 @layer components {
   /* —— Sidebar navigation —— */
   .app-nav {
+    height: 100dvh;
     max-height: 100dvh;
     min-height: 0;
+    overflow: hidden;
   }
 
   .nav-brand {
@@ -17,30 +19,14 @@
     @apply inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-wos-text-muted hover:bg-wos-panel-raised hover:text-wos-text;
   }
 
-  .nav-search-wrap {
-    @apply relative mx-3 mb-2 mt-3;
-  }
-
-  .nav-search-icon {
-    @apply pointer-events-none absolute left-2.5 top-1/2 flex -translate-y-1/2 items-center text-wos-text-muted;
-  }
-
-  .nav-search-input {
-    @apply w-full rounded-lg border border-wos-border-subtle bg-wos-input py-2 pl-8 pr-9 text-sm text-wos-text placeholder:text-wos-text-muted focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25;
-  }
-
-  .nav-search-kbd {
-    @apply pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-wos-border-subtle bg-wos-panel-raised px-1.5 py-0.5 font-mono text-[10px] text-wos-text-muted;
-  }
-
-  .nav-search-clear {
-    @apply absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-md border-0 bg-transparent px-2 py-0.5 text-base leading-none text-wos-text-muted hover:bg-wos-panel-raised hover:text-wos-text;
+  .nav-body {
+    @apply min-h-0 flex-1 overflow-y-auto scroll-smooth;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .nav-scroll {
-    @apply min-h-0 scroll-smooth;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    @apply min-h-0;
   }
 
   .nav-block-label {
@@ -340,10 +326,6 @@
     @apply border-sky-400/40 bg-sky-500/20 font-medium text-sky-50 shadow-sm;
   }
 
-  .nav-link--highlighted {
-    @apply border-wos-border bg-wos-panel-raised text-wos-text;
-  }
-
   /* Pages of the active section, expanded inline under the group row —
      the sidebar shows the whole two-tier hierarchy instead of pointing the
      user at the top tab strip. */
@@ -378,10 +360,6 @@
 
   .nav-link__desc {
     @apply truncate text-[11px] font-normal leading-tight text-sky-200/80;
-  }
-
-  .nav-match {
-    @apply rounded bg-sky-400/35 px-0.5 text-inherit;
   }
 
   .nav-badge-st {

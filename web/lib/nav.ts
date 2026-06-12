@@ -13,11 +13,6 @@ export type NavSection = {
 
 /** Operator shortcuts — also pinned at the top of the sidebar. */
 export const NAV_PINNED: Pick<NavItem, "href" | "label" | "description">[] = [
-  {
-    href: "/approvals",
-    label: "Click approvals",
-    description: "Approve taps & screen updates",
-  },
   { href: "/queue", label: "Queue", description: "Pending & running tasks" },
   {
     href: "/labeling",
