@@ -307,9 +307,11 @@ function rowStatusChipClass(row: FleetInstanceRow | null): string {
 function ApprovalStatusChip({
   instanceId,
   status,
+  botRunning,
 }: {
   instanceId: string;
   status: ClickApprovalStatus | null;
+  botRunning: boolean;
 }) {
   if (!instanceId) return null;
   if (!status) {
@@ -320,6 +322,23 @@ function ApprovalStatusChip({
         title="Checking approval status"
       >
         Approvals…
+      </Link>
+    );
+  }
+  // A pending approval needs a live worker to act on it — the worker busy-waits
+  // on the Redis response key. When the bot process is stopped (authoritative
+  // psutil check, not the heartbeat — which stalls during a legit approval
+  // wait), the slot is leftover from the previous run and will be reaped on the
+  // next boot. Show it as neutral "stale" rather than blinking for input that
+  // can't be serviced. Still links through so the operator can reject it now.
+  if (status.has_pending && !botRunning) {
+    return (
+      <Link
+        href={approvalsHref(instanceId)}
+        className="nav-bot-banner__chip nav-bot-banner__chip--device"
+        title="Leftover approval from the previous run — reaped on next start, or open to reject now"
+      >
+        Approval stale
       </Link>
     );
   }
@@ -778,6 +797,7 @@ export function BotStartBanner() {
             <ApprovalStatusChip
               instanceId={currentInstance}
               status={approvalStatus}
+              botRunning={!!botStatus?.running}
             />
           ) : null}
           {approvalStatus?.heartbeat_active ? (
@@ -877,6 +897,7 @@ export function BotStartBanner() {
           <ApprovalStatusChip
             instanceId={currentInstance}
             status={approvalStatus}
+            botRunning={!!botStatus?.running}
           />
         ) : null}
         {unregisteredChip}

@@ -95,6 +95,8 @@ class Messages(BaseModel):
 class AllianceMembers(BaseModel):
     count: int = 0
     max: int = 0
+    online: int = 0
+    total: int = 0
 
 
 class AllianceState(BaseModel):
@@ -122,7 +124,9 @@ def _alliance_tech_default() -> dict[str, object]:
 class Alliance(BaseModel):
     name: str = ""
     myLevel: int = 0
+    rank: int = 0
     power: int = 0
+    money: int = 0
     members: AllianceMembers = Field(default_factory=AllianceMembers)
     state: AllianceState = Field(default_factory=AllianceState)
     war: AllianceSection = Field(default_factory=AllianceSection)

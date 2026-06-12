@@ -154,7 +154,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
   const goToTab = (tab: NavTab) => {
     const lock = getNavLock(tab.href, tier);
     if (lock?.kind === "soon") return;
-    const href = lock?.kind === "pro" ? "/license" : tab.href;
+    const href = lock?.kind === "pro" || lock?.kind === "r4" ? "/license" : tab.href;
     setQuery("");
     onNavigate?.();
     router.push(href);
@@ -402,7 +402,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
                         return (
                           <li key={tab.href}>
                             <Link
-                              href={lock?.kind === "pro" ? "/license" : tab.href}
+                              href={lock?.kind === "pro" || lock?.kind === "r4" ? "/license" : tab.href}
                               onClick={(e) => {
                                 if (lock?.kind === "soon") {
                                   e.preventDefault();
@@ -523,7 +523,7 @@ function NavRow({
 }) {
   const disabling = isLockDisabling(lock);
   const showDesc = active && description;
-  const linkHref = lock?.kind === "pro" ? "/license" : href;
+  const linkHref = lock?.kind === "pro" || lock?.kind === "r4" ? "/license" : href;
   const title = lock ? lock.tooltip : description;
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {

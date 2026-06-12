@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KonvaImageEditor } from "@/components/konva/KonvaImageEditor";
 import { LabelingCard } from "@/components/labeling/LabelingCard";
@@ -95,7 +95,6 @@ function describeRefreshError(e: unknown, instanceId: string): string {
 function LabelingPageInner() {
   const { showSuccess } = useFeedback();
   const params = useSearchParams();
-  const router = useRouter();
   const versionParam = params.get("version") ?? "";
   const moduleParam = params.get("module") ?? "";
 
@@ -116,6 +115,7 @@ function LabelingPageInner() {
   const [scopes, setScopes] = useState<LabelingScopeOption[]>([]);
   const [scopesReady, setScopesReady] = useState(false);
   const [moduleScope, setModuleScope] = useState(moduleParam || "all");
+  const moduleScopeRef = useRef(moduleParam || "all");
   const {
     instances,
     instanceId,
@@ -152,8 +152,12 @@ function LabelingPageInner() {
   // Monotonic token to discard out-of-order document loads (see loadDoc).
   const loadSeqRef = useRef(0);
   // A user/programmatic ref selection should win over one stale render of
-  // useSearchParams(); router.replace updates the URL asynchronously.
+  // useSearchParams(); URL query updates are mirrored through the History API.
   const selectedRefOverride = useRef("");
+
+  useEffect(() => {
+    moduleScopeRef.current = moduleScope;
+  }, [moduleScope]);
 
   const activeVersion = versionParam.trim() || null;
   // The fetched doc lags behind `refRel` during async loads and is left over
@@ -284,19 +288,20 @@ function LabelingPageInner() {
       const url = new URL(window.location.href);
       if (rel) url.searchParams.set("ref", rel);
       else url.searchParams.delete("ref");
-      url.searchParams.set("module", module ?? moduleScope);
+      url.searchParams.set("module", module ?? moduleScopeRef.current);
       if (version) url.searchParams.set("version", version);
       else url.searchParams.delete("version");
-      router.replace(url.pathname + url.search);
+      window.history.replaceState(null, "", url.pathname + url.search);
     },
-    [router, moduleScope],
+    [],
   );
 
   const setModuleScopeAndUrl = useCallback(
     (nextScope: string) => {
       const meta = scopes.find((s) => s.key === nextScope);
+      moduleScopeRef.current = nextScope;
       setModuleScope(nextScope);
-      setRefRel("");
+      setRefRel(meta?.default_ref ?? "");
       setDoc(null);
       setDirty(false);
       setScreenDirty(false);
@@ -306,9 +311,9 @@ function LabelingPageInner() {
       if (meta?.default_ref) url.searchParams.set("ref", meta.default_ref);
       else url.searchParams.delete("ref");
       url.searchParams.delete("version");
-      router.replace(url.pathname + url.search);
+      window.history.replaceState(null, "", url.pathname + url.search);
     },
-    [router, scopes],
+    [scopes],
   );
 
   const changeGame = useCallback(
@@ -322,6 +327,7 @@ function LabelingPageInner() {
       setGameState(value);
       setScopes([]);
       setScopesReady(false);
+      moduleScopeRef.current = "all";
       setModuleScope("all");
       setRefs([]);
       setRefRel("");
@@ -335,9 +341,9 @@ function LabelingPageInner() {
       url.searchParams.delete("module");
       url.searchParams.delete("ref");
       url.searchParams.delete("version");
-      router.replace(url.pathname + url.search);
+      window.history.replaceState(null, "", url.pathname + url.search);
     },
-    [game, router],
+    [game],
   );
 
   const selectRef = useCallback(
@@ -420,14 +426,15 @@ function LabelingPageInner() {
       return;
     }
     if (!moduleScope || !scopesReady) return;
-    const urlModule = moduleParam.trim();
+    const urlModule = new URLSearchParams(window.location.search)
+      .get("module")
+      ?.trim();
     if (urlModule && urlModule !== moduleScope) return;
     loadDoc(refRel, activeVersion);
   }, [
     refRel,
     activeVersion,
     moduleScope,
-    moduleParam,
     scopesReady,
     loadDoc,
     clearDocState,
@@ -701,19 +708,24 @@ function LabelingPageInner() {
 
   return (
     <>
-      <PageHeader title="Labeling">
-        {anyDirty ? (
-          <span className="status-pill status-pending">Unsaved</span>
-        ) : (
-          <span className="status-pill status-idle">Saved</span>
-        )}
-        {isPending ? (
-          <span className="status-pill status-pending">Pending capture</span>
-        ) : null}
-        {activeVersion ? (
-          <span className="status-pill status-running">{activeVersion}</span>
-        ) : null}
-      </PageHeader>
+      <PageHeader
+        title="Labeling"
+        actions={
+          <>
+            {anyDirty ? (
+              <span className="status-pill status-pending">Unsaved</span>
+            ) : (
+              <span className="status-pill status-idle">Saved</span>
+            )}
+            {isPending ? (
+              <span className="status-pill status-pending">Pending capture</span>
+            ) : null}
+            {activeVersion ? (
+              <span className="status-pill status-running">{activeVersion}</span>
+            ) : null}
+          </>
+        }
+      />
       <p className="meta labeling-intro">
         <span title="Draw regions on the canvas; bboxes are percentages of the active module's area file.">
           Draw regions on canvas · save to area file

@@ -10,7 +10,7 @@ import { fetchAlliances, fetchAllianceStats, fetchLicenseStatus } from "@/lib/ap
 import { PageLoading } from "@/components/ui/Spinner";
 import type { AllianceStatsView } from "@/lib/types";
 
-function ProGate() {
+function R4Gate() {
   return (
     <div className="page-stack">
       <FleetPageHeader title="Alliance statistics" />
@@ -20,15 +20,15 @@ function ProGate() {
             className="rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
             aria-hidden
           >
-            PRO
+            R4
           </span>
           <div className="min-w-0">
             <h2 className="m-0 text-base font-semibold text-wos-text">
-              Alliance statistics is a PRO feature
+              Alliance statistics is an R4 feature
             </h2>
             <p className="muted mt-1">
-              Daily alliance power and member-count charts are part of the PRO
-              tier. Activate a PRO license to view this page.
+              Daily alliance power, rank, level, and member-count charts are
+              part of the R4 tier. Activate an R4 license to view this page.
             </p>
             <div className="mt-3">
               <Link href="/license" className="btn-primary">
@@ -63,7 +63,7 @@ export default function AllianceStatsPage() {
     };
   }, []);
   if (tier === undefined) return <PageLoading />;
-  if (tier !== "pro") return <ProGate />;
+  if (tier !== "r4") return <R4Gate />;
   return <AllianceStatsInner />;
 }
 
@@ -130,8 +130,8 @@ function AllianceStatsInner() {
     <div className="page-stack">
       <FleetPageHeader title="Alliance statistics">
         <p>
-          Daily alliance power and member count, captured from per-player
-          snapshots (SQLite).
+          Daily alliance power, rank, level, and member count captured from the
+          Alliance overview screen.
         </p>
       </FleetPageHeader>
 
@@ -153,7 +153,8 @@ function AllianceStatsInner() {
       {!loadingList && alliances.length === 0 ? (
         <p className="meta">
           No alliances recorded yet — snapshots are written when a player with
-          an alliance name has their state persisted.
+          an alliance name is captured or when the Alliance overview screen is
+          synced.
         </p>
       ) : null}
 
@@ -177,6 +178,18 @@ function AllianceStatsInner() {
               </span>
             </div>
             <div className="metric-card">
+              <span className="metric-card__label">Rank</span>
+              <span className="metric-card__value">
+                {latest ? `#${latest.rank || "—"}` : "—"}
+              </span>
+            </div>
+            <div className="metric-card">
+              <span className="metric-card__label">Level</span>
+              <span className="metric-card__value">
+                {latest ? String(latest.level || "—") : "—"}
+              </span>
+            </div>
+            <div className="metric-card">
               <span className="metric-card__label">Days tracked</span>
               <span className="metric-card__value">{stats.series.length}</span>
             </div>
@@ -188,6 +201,24 @@ function AllianceStatsInner() {
               label="Alliance power"
               series={stats.series.map((d) => ({ day: d.day, value: d.power }))}
               emptyMessage="No alliance power history yet."
+            />
+          </section>
+
+          <section className="panel">
+            <h2 className="panel__title">Alliance rank over time</h2>
+            <MetricLineChart
+              label="Alliance rank"
+              series={stats.series.map((d) => ({ day: d.day, value: d.rank }))}
+              emptyMessage="No alliance rank history yet."
+            />
+          </section>
+
+          <section className="panel">
+            <h2 className="panel__title">Alliance level over time</h2>
+            <MetricLineChart
+              label="Alliance level"
+              series={stats.series.map((d) => ({ day: d.day, value: d.level }))}
+              emptyMessage="No alliance level history yet."
             />
           </section>
 

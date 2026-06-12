@@ -1,0 +1,33 @@
+enabled: true
+name: Alliance War Auto-Join
+priority: 70_000
+
+cron: "0 */6 * * *"
+node: alliance.war
+cond: "active_player != null"
+
+steps:
+  - while_match: alliance.war.auto_join
+    max: 1
+    retry:
+      attempts: 3
+      interval: 500ms
+    steps:
+      - click: alliance.war.auto_join
+      - wait: 1s
+      - while_match: alliance.war.auto_join.enable
+        max: 1
+        retry:
+          attempts: 3
+          interval: 500ms
+        steps:
+          - click: alliance.war.auto_join.enable
+          - wait: 1s
+          - while_match: alliance.war.auto_join.close
+            max: 1
+            retry:
+              attempts: 3
+              interval: 500ms
+            steps:
+              - click: alliance.war.auto_join.close
+              - wait: 500ms

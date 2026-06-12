@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from licensing.plans import (
+    FEATURE_ALLIANCE_STATS,
     FEATURE_GIFT_EXTERNAL,
     FEATURE_RADAR,
     external_accounts_limit_for_tier,
@@ -30,6 +31,7 @@ def test_r4_adds_radar_for_thirty_dollars() -> None:
     assert plan.price_usd == 30
     feats = features_for_tier("r4")
     assert FEATURE_RADAR in feats
+    assert FEATURE_ALLIANCE_STATS in feats
     assert FEATURE_GIFT_EXTERNAL in feats  # cumulative
 
 

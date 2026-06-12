@@ -1,0 +1,6 @@
+edges:
+  main_city:
+    main_menu: [main_city.to.main_menu]
+
+  main_menu:
+    main_city: [icon.page.back]

@@ -17,6 +17,7 @@ from config.state_schema import GamerState, StateDB
 
 if TYPE_CHECKING:
     import sqlite3
+    from collections.abc import Iterable, Mapping
     from pathlib import Path
 
     from sqlalchemy.engine import Engine
@@ -113,9 +114,31 @@ class AllianceDaily(SQLModel, table=True):
     alliance_name: str = Field(primary_key=True)
     day: str = Field(primary_key=True)
     power: int = Field(default=0)
+    rank: int = Field(default=0)
+    level: int = Field(default=0)
     members_count: int = Field(default=0)
     members_max: int = Field(default=0)
     recorded_at: float
+
+
+class AllianceMemberRow(SQLModel, table=True):
+    __tablename__ = "alliance_members"
+    __table_args__ = (
+        Index("idx_alliance_members_rank", "game", "alliance_name", "rank"),
+    )
+
+    game: str = Field(default="wos", primary_key=True)
+    alliance_name: str = Field(primary_key=True)
+    member_key: str = Field(primary_key=True)
+    name: str
+    rank: int = Field(default=0)
+    power: int = Field(default=0)
+    level: int = Field(default=0)
+    status: str = Field(default="")
+    online: bool = Field(default=False)
+    last_online_text: str = Field(default="")
+    last_online_seconds: int | None = Field(default=None)
+    captured_at: float
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +243,7 @@ def _ensure_game_scoped_schema(conn: sqlite3.Connection) -> None:
 
 
 _PLAYER_POWER_DAILY_COLS = ("gems", "arena_rank", "arena_power")
+_ALLIANCE_DAILY_COLS = ("rank", "level")
 
 
 def _ensure_player_power_daily_columns(conn: sqlite3.Connection) -> None:
@@ -230,6 +254,17 @@ def _ensure_player_power_daily_columns(conn: sqlite3.Connection) -> None:
         if col not in existing:
             conn.execute(
                 f"ALTER TABLE player_power_daily ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
+            )
+
+
+def _ensure_alliance_daily_columns(conn: sqlite3.Connection) -> None:
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(alliance_daily)")}
+    if not existing:
+        return
+    for col in _ALLIANCE_DAILY_COLS:
+        if col not in existing:
+            conn.execute(
+                f"ALTER TABLE alliance_daily ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
             )
 
 
@@ -270,12 +305,14 @@ def _ensure_schema(engine: Engine) -> None:
             PlayerPowerDaily.__table__,
             PlayerLevelEvent.__table__,
             AllianceDaily.__table__,
+            AllianceMemberRow.__table__,
         ],
     )
     orm.apply_migrations(engine, "state", [
         ("001_add_power_columns", _ensure_player_power_daily_columns),
         ("002_game_scoped_rebuild", _ensure_game_scoped_schema),
         ("003_gamers_power_index", _ensure_gamers_power_index),
+        ("004_add_alliance_daily_columns", _ensure_alliance_daily_columns),
     ])
 
 
@@ -409,6 +446,8 @@ def record_player_stats(gamer: GamerState, game: str | None = None) -> None:
     arena_power = int(gamer.arena.myPower or 0)
     alliance_name = (gamer.alliance.name or "").strip()
     alliance_power = int(gamer.alliance.power or 0)
+    alliance_rank = int(gamer.alliance.rank or 0)
+    alliance_level = int(gamer.alliance.myLevel or 0)
     members_count = int(gamer.alliance.members.count or 0)
     members_max = int(gamer.alliance.members.max or 0)
     day = _today_iso()
@@ -444,15 +483,168 @@ def record_player_stats(gamer: GamerState, game: str | None = None) -> None:
             if ad is None:
                 s.add(AllianceDaily(
                     game=g, alliance_name=alliance_name, day=day, power=alliance_power,
+                    rank=alliance_rank, level=alliance_level,
                     members_count=members_count, members_max=members_max, recorded_at=now,
                 ))
             else:
                 ad.power = alliance_power
+                ad.rank = alliance_rank
+                ad.level = alliance_level
                 ad.members_count = members_count
                 ad.members_max = members_max
                 ad.recorded_at = now
                 s.add(ad)
         s.commit()
+
+
+def record_alliance_stats(
+    *,
+    alliance_name: str,
+    power: int = 0,
+    rank: int = 0,
+    level: int = 0,
+    members_count: int = 0,
+    members_max: int = 0,
+    game: str | None = None,
+    day: str | None = None,
+) -> dict[str, Any]:
+    """Upsert a direct Alliance screen snapshot into today's alliance stats."""
+    name = str(alliance_name or "").strip()
+    if not name:
+        msg = "alliance_name is required"
+        raise ValueError(msg)
+    g = (game or _default_game()).strip()
+    day_s = (day or _today_iso()).strip()
+    now = time.time()
+    with _conn_lock, Session(_engine()) as s:
+        ad = s.get(AllianceDaily, (g, name, day_s))
+        if ad is None:
+            ad = AllianceDaily(
+                game=g,
+                alliance_name=name,
+                day=day_s,
+                power=int(power or 0),
+                rank=int(rank or 0),
+                level=int(level or 0),
+                members_count=int(members_count or 0),
+                members_max=int(members_max or 0),
+                recorded_at=now,
+            )
+        else:
+            ad.power = int(power or 0)
+            ad.rank = int(rank or 0)
+            ad.level = int(level or 0)
+            ad.members_count = int(members_count or 0)
+            ad.members_max = int(members_max or 0)
+            ad.recorded_at = now
+        s.add(ad)
+        s.commit()
+    return {
+        "alliance_name": name,
+        "game": g,
+        "day": day_s,
+        "power": int(power or 0),
+        "rank": int(rank or 0),
+        "level": int(level or 0),
+        "members_count": int(members_count or 0),
+        "members_max": int(members_max or 0),
+    }
+
+
+def _member_key(name: object) -> str:
+    return " ".join(str(name or "").strip().split()).casefold()
+
+
+def record_alliance_members_snapshot(
+    *,
+    alliance_name: str,
+    members: Iterable[Mapping[str, Any]],
+    game: str | None = None,
+    captured_at: float | None = None,
+) -> dict[str, Any]:
+    """Upsert the latest known roster data for an alliance."""
+    name = str(alliance_name or "").strip()
+    if not name:
+        msg = "alliance_name is required"
+        raise ValueError(msg)
+    g = (game or _default_game()).strip()
+    now = float(captured_at or time.time())
+    rows: list[AllianceMemberRow] = []
+    for member in members:
+        member_name = str(member.get("name") or "").strip()
+        key = _member_key(member_name)
+        if not key:
+            continue
+        raw_seconds = member.get("last_online_seconds")
+        rows.append(
+            AllianceMemberRow(
+                game=g,
+                alliance_name=name,
+                member_key=key,
+                name=member_name,
+                rank=int(member.get("rank") or 0),
+                power=int(member.get("power") or 0),
+                level=int(member.get("level") or 0),
+                status=str(member.get("status") or ""),
+                online=bool(member.get("online") or False),
+                last_online_text=str(member.get("last_online_text") or member.get("status") or ""),
+                last_online_seconds=None if raw_seconds is None else int(raw_seconds),
+                captured_at=now,
+            )
+        )
+
+    with _conn_lock, Session(_engine()) as s:
+        for row in rows:
+            existing = s.get(AllianceMemberRow, (g, name, row.member_key))
+            if existing is None:
+                s.add(row)
+                continue
+            existing.name = row.name
+            existing.rank = row.rank
+            existing.power = row.power
+            existing.level = row.level
+            existing.status = row.status
+            existing.online = row.online
+            existing.last_online_text = row.last_online_text
+            existing.last_online_seconds = row.last_online_seconds
+            existing.captured_at = row.captured_at
+            s.add(existing)
+        s.commit()
+    return {
+        "alliance_name": name,
+        "game": g,
+        "members_count": len(rows),
+        "captured_at": now,
+    }
+
+
+def get_alliance_members(alliance_name: str, game: str | None = None) -> dict[str, Any]:
+    name = str(alliance_name or "").strip()
+    g = (game or _default_game()).strip()
+    with _conn_lock, Session(_engine()) as s:
+        rows = s.exec(
+            select(AllianceMemberRow)
+            .where(AllianceMemberRow.game == g, AllianceMemberRow.alliance_name == name)
+            .order_by(AllianceMemberRow.rank.desc(), AllianceMemberRow.power.desc(), AllianceMemberRow.name.asc())
+        ).all()
+    return {
+        "alliance_name": name,
+        "game": g,
+        "members": [
+            {
+                "name": row.name,
+                "rank": int(row.rank or 0),
+                "power": int(row.power or 0),
+                "level": int(row.level or 0),
+                "status": row.status,
+                "online": bool(row.online),
+                "last_online_text": row.last_online_text,
+                "last_online_seconds": row.last_online_seconds,
+                "captured_at": float(row.captured_at or 0),
+            }
+            for row in rows
+        ],
+    }
 
 
 def get_player_stats(player_id: str, game: str | None = None) -> dict[str, Any]:
@@ -529,6 +721,8 @@ def get_alliance_stats(alliance_name: str, game: str | None = None) -> dict[str,
             {
                 "day": r.day,
                 "power": int(r.power or 0),
+                "rank": int(r.rank or 0),
+                "level": int(r.level or 0),
                 "members_count": int(r.members_count or 0),
                 "members_max": int(r.members_max or 0),
             }

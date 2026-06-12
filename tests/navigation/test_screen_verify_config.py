@@ -165,7 +165,7 @@ def test_production_screen_verify_yaml_contains_main_city_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"match": "icon.world", "threshold": 0.9}]
+    expected = [{"match": "main_city.to.world", "threshold": 0.9}]
     assert rules == expected
     # ``area.json`` may inject extra detection-only landmarks (e.g. main_city.title).
     assert expected[0] in landmarks

@@ -7,11 +7,14 @@ import pytest
 from config.state_schema import GamerState, StateDB
 from config.state_sqlite import (
     delete_player_state,
+    get_alliance_members,
     get_alliance_stats,
     get_player_stats,
     list_alliance_names,
     list_gamers_by_power,
     load_state_db_raw,
+    record_alliance_members_snapshot,
+    record_alliance_stats,
     record_player_stats,
     save_state_db,
     set_state_db_path_for_tests,
@@ -39,6 +42,57 @@ def test_save_load_roundtrip(sqlite_state: Path) -> None:
     assert len(db.gamers) == 1
     assert db.gamers[0].nickname == "Alice"
     assert db.gamers[0].power == 9000
+
+
+def test_state_store_sets_alliance_money(sqlite_state: Path) -> None:
+    from config.state_store import StateStore
+
+    store = StateStore(sqlite_state)
+    gamer = store.get_or_create("42", nickname="Alice")
+    gamer.set("alliance.money", 313_416)
+
+    assert gamer.get("alliance.money") == 313_416
+    db, err, _ = load_state_db_raw()
+    assert err is None
+    assert db is not None
+    assert db.gamers[0].alliance.money == 313_416
+
+
+def test_record_alliance_members_snapshot_is_alliance_scoped(sqlite_state: Path) -> None:
+    row = record_alliance_members_snapshot(
+        alliance_name="Crimson",
+        members=[
+            {
+                "rank": 4,
+                "name": "RedLady",
+                "power": 80_600_000,
+                "level": 30,
+                "status": "Online",
+                "online": True,
+                "last_online_text": "Online",
+                "last_online_seconds": 0,
+            },
+            {
+                "rank": 3,
+                "name": "Ne2pY",
+                "power": 79_900_000,
+                "level": 30,
+                "status": "7 minute(s) ago",
+                "online": False,
+                "last_online_text": "7 minute(s) ago",
+                "last_online_seconds": 420,
+            },
+        ],
+    )
+
+    assert row["members_count"] == 2
+    members = get_alliance_members("Crimson")["members"]
+    assert [m["name"] for m in members] == ["RedLady", "Ne2pY"]
+    assert members[0]["online"] is True
+    assert members[0]["last_online_seconds"] == 0
+    assert members[1]["online"] is False
+    assert members[1]["last_online_text"] == "7 minute(s) ago"
+    assert members[1]["last_online_seconds"] == 420
 
 
 def test_list_gamers_by_power_filters_on_generated_column(sqlite_state: Path) -> None:
@@ -84,6 +138,46 @@ def test_daily_power_and_level_event(sqlite_state: Path) -> None:
     assert stats["series"][0]["furnace_level"] == 4
     assert len(stats["level_events"]) == 2
     assert stats["level_events"][-1]["level"] == 4
+
+
+def test_direct_alliance_stats_record_rank_and_level(sqlite_state: Path) -> None:
+    row = record_alliance_stats(
+        alliance_name="KLA",
+        power=4_388_228_831,
+        rank=3,
+        level=10,
+        members_count=81,
+        members_max=88,
+    )
+
+    assert row["alliance_name"] == "KLA"
+    stats = get_alliance_stats("KLA")
+    assert stats["series"] == [
+        {
+            "day": stats["series"][0]["day"],
+            "power": 4_388_228_831,
+            "rank": 3,
+            "level": 10,
+            "members_count": 81,
+            "members_max": 88,
+        }
+    ]
+
+
+def test_player_stats_mirror_alliance_rank_and_level(sqlite_state: Path) -> None:
+    g = GamerState(id=1)
+    g.alliance.name = "Crimson"
+    g.alliance.power = 5000
+    g.alliance.rank = 7
+    g.alliance.myLevel = 11
+    g.alliance.members.count = 42
+    g.alliance.members.max = 50
+
+    record_player_stats(g)
+
+    latest = get_alliance_stats("Crimson")["series"][0]
+    assert latest["rank"] == 7
+    assert latest["level"] == 11
 
 
 # ---------------------------------------------------------------------------
@@ -178,5 +272,3 @@ def test_default_game_back_compat(sqlite_state: Path) -> None:
     assert err is None
     assert len(db.gamers) == 1
     assert db.gamers[0].game == "wos"
-
-

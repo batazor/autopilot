@@ -9,7 +9,7 @@ import json
 from typing import TYPE_CHECKING
 
 from licensing import cli
-from licensing.plans import FEATURE_GIFT_EXTERNAL, FEATURE_RADAR
+from licensing.plans import FEATURE_ALLIANCE_STATS, FEATURE_GIFT_EXTERNAL, FEATURE_RADAR
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -29,7 +29,11 @@ def test_tier_r4_without_features_resolves_plan_features(
         capsys, ["--email", "alice@example.com", "--machine-id", "MID", "--tier", "r4"]
     )
     assert payload["tier"] == "r4"
-    assert payload["features"] == [FEATURE_GIFT_EXTERNAL, FEATURE_RADAR]
+    assert payload["features"] == [
+        FEATURE_GIFT_EXTERNAL,
+        FEATURE_RADAR,
+        FEATURE_ALLIANCE_STATS,
+    ]
 
 
 def test_explicit_features_override_tier_default(

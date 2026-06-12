@@ -410,6 +410,8 @@ export type EventTimerRow = {
 export type AllianceDay = {
   day: string;
   power: number;
+  rank: number;
+  level: number;
   members_count: number;
   members_max: number;
 };

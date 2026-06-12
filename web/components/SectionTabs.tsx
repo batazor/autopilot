@@ -61,7 +61,7 @@ export function SectionTabs({ groupId }: { groupId: NavGroupId }) {
             const active = isActivePath(pathname, tab.href);
             const lock = getNavLock(tab.href, tier);
             const disabling = isLockDisabling(lock);
-            const linkHref = lock?.kind === "pro" ? "/license" : tab.href;
+            const linkHref = lock?.kind === "pro" || lock?.kind === "r4" ? "/license" : tab.href;
             return (
               <Tab
                 key={tab.href}

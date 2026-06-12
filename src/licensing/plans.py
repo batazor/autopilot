@@ -22,6 +22,7 @@ from dataclasses import dataclass
 # Feature flags checked by licensing.gate.has_feature / require_feature.
 FEATURE_GIFT_EXTERNAL = "gift_codes.external_accounts"
 FEATURE_RADAR = "radar"
+FEATURE_ALLIANCE_STATS = "alliance_stats"
 
 
 @dataclass(frozen=True)
@@ -57,8 +58,8 @@ PLANS: tuple[Plan, ...] = (
         id="r4",
         label="R4 · $30",
         price_usd=30,
-        features=(FEATURE_GIFT_EXTERNAL, FEATURE_RADAR),
-        blurb="Alliance R4 — up to 50 external accounts plus the Radar kingdom-map scanner.",
+        features=(FEATURE_GIFT_EXTERNAL, FEATURE_RADAR, FEATURE_ALLIANCE_STATS),
+        blurb="Alliance R4 — up to 50 external accounts, Radar, and alliance statistics.",
         max_external_accounts=50,
     ),
 )
