@@ -1,4 +1,4 @@
-"""Live stitching: the preview rebuilds as frames land during a scan."""
+"""Live stitching: the preview rebuilds (coalesced) as frames land during a scan."""
 
 import json
 import time
@@ -6,6 +6,7 @@ import time
 import cv2
 import numpy as np
 
+from modules.radar import live
 from modules.radar.live import live_stitching
 from modules.radar.scanner import MANIFEST_NAME
 from modules.radar.stitch import MAP_PREVIEW_NAME
@@ -46,7 +47,11 @@ def _wait_until(predicate, timeout_s: float = 5.0) -> bool:
     return False
 
 
-def test_live_stitching_rebuilds_preview_per_frame(tmp_path) -> None:
+def test_live_stitching_rebuilds_preview(tmp_path, monkeypatch) -> None:
+    # Short interval so the throttle gate is exercised without slow waits; the
+    # first batch still stitches promptly (last_stitch starts at 0).
+    monkeypatch.setattr(live, "_MIN_RESTITCH_INTERVAL_S", 0.4)
+    monkeypatch.setattr(live, "_RESTITCH_BATCH", 100)
     world = _make_world(3, 600, 800)
     publisher = FakePublisher()
 
@@ -65,6 +70,30 @@ def test_live_stitching_rebuilds_preview_per_frame(tmp_path) -> None:
     _write_run(tmp_path, world, [(0, 0), (1, 0), (0, 1)])
     time.sleep(1.2)
     assert publisher.updates == [1, 2]
+
+
+def test_live_stitching_coalesces_rapid_frames(tmp_path, monkeypatch) -> None:
+    """Frames arriving faster than the interval batch into one re-stitch."""
+    # Long interval + small batch: several frames written within one interval
+    # collapse into a single update rather than one per frame.
+    monkeypatch.setattr(live, "_MIN_RESTITCH_INTERVAL_S", 30.0)
+    monkeypatch.setattr(live, "_RESTITCH_BATCH", 3)
+    world = _make_world(3, 600, 800)
+    publisher = FakePublisher()
+
+    with live_stitching(tmp_path, publisher):
+        # First frame stitches promptly (last_stitch starts at 0).
+        _write_run(tmp_path, world, [(0, 0)])
+        assert _wait_until(lambda: publisher.updates == [1])
+        # Two more frames within the (long) interval but below the batch
+        # threshold → no extra update yet.
+        _write_run(tmp_path, world, [(0, 0), (1, 0)])
+        time.sleep(1.5)
+        assert publisher.updates == [1]
+        # A third new frame reaches the batch threshold → one coalesced update
+        # straight to 4 frames, not separate updates for 2/3/4.
+        _write_run(tmp_path, world, [(0, 0), (1, 0), (0, 1), (1, 1)])
+        assert _wait_until(lambda: publisher.updates == [1, 4])
 
 
 def test_live_stitching_idles_without_manifest(tmp_path) -> None:

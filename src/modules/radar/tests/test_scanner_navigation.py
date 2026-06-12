@@ -102,9 +102,12 @@ def test_swipe_relative_inverts_camera_delta_and_stays_inside_crop() -> None:
 
 
 def _frame_with_border_right_of_center(cfg: RadarConfig, offset_px: int) -> np.ndarray:
-    """Grey screen with a dashed yellow border line ``offset_px`` right of the crop center."""
+    """Grey screen with a dashed yellow border ``offset_px`` right of the crop
+    center and the neutral-dark inter-kingdom gap beyond it — a move is a
+    crossing only when the gap itself lies on the path."""
     frame = _grey_frame()
     cx = cfg.crop.x + cfg.crop.w // 2
+    frame[:, cx + offset_px + 8 :] = (40, 42, 50)
     for y in range(cfg.crop.y, cfg.crop.y + cfg.crop.h, 16):
         cv2.line(frame, (cx + offset_px, y), (cx + offset_px, y + 8), (120, 230, 235), 4)
     return frame
@@ -120,7 +123,9 @@ def test_border_swipe_guard_shortens_a_crossing_move() -> None:
     assert meta is not None
     assert meta["travel_scale"] < 1.0
     travel = (dx / cfg.viewport.rect_w) * cfg.stitch_viewport.w
-    assert 0.0 <= travel <= 200 - cfg.border.cross_margin_px + 5
+    # Stops cross_margin short of the crossing (the vertical test line cannot
+    # be Hough-fitted, so the stop line is the dark gap edge at ~208 px).
+    assert 0.0 <= travel <= 208 - cfg.border.cross_margin_px + 15
     assert dy == 0.0
 
 
@@ -935,10 +940,167 @@ def test_prior_calibration_seeds_from_latest_sibling_run(tmp_path) -> None:
 
     assert calib is not None
     assert calib.scale_x == pytest.approx(1.2)
-    assert calib.scale_y == pytest.approx(calib.max_scale)  # clamped from 5.0
+    # Clamped into the trusted seed band, not the (wider) runtime band: a 5.0
+    # in a manifest is an artifact (old divergent update law), not a gain.
+    from modules.radar.scanner_navigation import SEED_MAX_SCALE
+
+    assert calib.scale_y == pytest.approx(SEED_MAX_SCALE)
+
+
+def test_swipe_calibration_converges_under_constant_gain() -> None:
+    """Closed-loop sanity: with the game eating a constant share of every
+    swipe, the learned scale settles at 1/gain instead of growing without
+    bound (feeding back the commanded-finger ratio diverged geometrically —
+    one real scan inflated scale_x to 1.53 and tore a whole row apart)."""
+    gain = 0.95
+    calib = SwipeCalibration()
+    for _ in range(40):
+        desired = 360.0
+        finger, _fy = calib.apply(desired, 0.0)
+        measured = finger * gain
+        calib.update((desired, 0.0), (measured, 0.0))
+    assert calib.scale_x == pytest.approx(1.0 / gain, abs=0.02)
 
 
 def test_prior_calibration_none_without_history(tmp_path) -> None:
     out_dir = tmp_path / "2026-01-01_000000"
     out_dir.mkdir()
     assert _load_prior_calibration(out_dir) is None
+
+
+# ---------------------------------------------------------------------------
+# Directional border guard: yellow ahead is a crossing only when the dark
+# out-of-bounds mass lies on the path too (the corner X's arms span the whole
+# view, so a yellow-only test used to block moves INTO the kingdom).
+# ---------------------------------------------------------------------------
+
+
+def _border_with_gap_below(cfg: RadarConfig) -> np.ndarray:
+    """Dashed yellow line through the crop center column + dark gap at the bottom."""
+    frame = _grey_frame()
+    c = cfg.crop
+    cx = c.x + c.w // 2
+    # Vertical dashed yellow line crossing the center: yellow lies ahead for
+    # BOTH up and down moves — only the dark mass disambiguates them.
+    for y in range(c.y, c.y + c.h, 16):
+        cv2.line(frame, (cx, y), (cx, y + 8), (120, 230, 235), 4)
+    # Dark inter-kingdom gap along the crop bottom (flood-fill reaches it).
+    frame[c.y + c.h - 220 : c.y + c.h, :] = (40, 42, 50)
+    return frame
+
+
+def test_border_swipe_guard_blocks_only_toward_the_dark_gap() -> None:
+    cfg = _cfg()
+    frame = _border_with_gap_below(cfg)
+
+    # Downward, toward the gap: yellow ahead AND dark ahead — blocked.
+    _dx, dy, meta = _border_swipe_guard(cfg, frame, 0.0, cfg.viewport.rect_h)
+    assert meta is not None
+    assert dy < cfg.viewport.rect_h
+
+    # Upward, into the kingdom: the same yellow is ahead, but the dark mass
+    # is behind — a flank, not a crossing; the move passes unshortened.
+    assert _border_swipe_guard(cfg, frame, 0.0, -cfg.viewport.rect_h) == (
+        0.0, -cfg.viewport.rect_h, None,
+    )
+
+
+def test_border_swipe_guard_ignores_decor_yellow_without_the_gap() -> None:
+    """Yellow ahead without any out-of-bounds mass anywhere is decor (pale
+    trails, icon rows), not the border — a real border that close always
+    shows some of the gap behind it. One such line once pinned a whole scan."""
+    cfg = _cfg()
+    frame = _grey_frame()
+    c = cfg.crop
+    cx, cy = c.x + c.w // 2, c.y + c.h // 2
+    # A fitted-quality sloped line crossing the rightward corridor — but no gap.
+    cv2.line(frame, (cx + 120, cy - 60), (cx + 280, cy + 60), (120, 230, 235), 4)
+    assert _border_swipe_guard(cfg, frame, cfg.viewport.rect_w, 0.0) == (
+        cfg.viewport.rect_w, 0.0, None,
+    )
+
+
+def test_border_swipe_guard_ignores_tinted_dark_sprites() -> None:
+    """Dark TINTED content (mountains, beast sprites at the crop edge) is not
+    the inter-kingdom gap: it must neither fake 'outside ahead' nor block.
+    Reproduces the run where edge sprites + golden icons pinned the camera."""
+    cfg = _cfg()
+    frame = _grey_frame()
+    c = cfg.crop
+    cx, cy = c.x + c.w // 2, c.y + c.h // 2
+    # Dark navy blobs touching the left crop edge (tinted: spread ~95).
+    cv2.rectangle(frame, (c.x, cy - 70), (c.x + 90, cy + 70), (130, 60, 35), -1)
+    # Golden icon noise in the leftward corridor near the center.
+    cv2.circle(frame, (cx - 60, cy + 10), 9, (60, 200, 230), -1)
+    assert _border_swipe_guard(cfg, frame, -cfg.viewport.rect_w, 0.0) == (
+        -cfg.viewport.rect_w, 0.0, None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Honest manifest across guarded moves: a cell the camera never reached is
+# skipped (recorded in skipped_cells), not captured as a duplicate; the
+# unachieved travel carries into the next move.
+# ---------------------------------------------------------------------------
+
+
+def test_scan_grid_skips_unreachable_cell_and_carries_shortfall(
+    monkeypatch, tmp_path,
+) -> None:
+    import modules.radar.scanner as scanner_mod
+    from modules.radar.geometry import Affine
+    from modules.radar.scanner import _scan_grid
+
+    monkeypatch.setattr(scanner_mod.time, "sleep", lambda _s: None)
+    cfg = _cfg()
+    grid = build_scan_grid(cfg)
+    affine = Affine.from_corners(cfg.minimap.corners.as_geometry(), cfg.game_size)
+
+    monkeypatch.setattr(
+        scanner_mod, "_position_origin",
+        lambda *_a, **_k: {"mode": "tap", "origin": True},
+    )
+    monkeypatch.setattr(
+        scanner_mod, "_guarded_capture",
+        lambda *_a, **_k: (_grey_frame(), True, None),
+    )
+    # Zero out the SECOND swipe move (the walk's third cell); allow the rest.
+    calls = {"n": 0}
+
+    def fake_guard(_cfg, _frame, dx, dy):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            return 0.0, 0.0, {"travel_scale": 0.0}
+        return dx, dy, None
+
+    monkeypatch.setattr(scanner_mod, "_border_swipe_guard", fake_guard)
+
+    manifest = {"config": {}, "frames": {}}
+    device = FakeDevice()
+    _scan_grid(device, cfg, grid[:4], affine, manifest, tmp_path, events=None)
+
+    blocked = grid[2]
+    after = grid[3]
+    blocked_key = f"{blocked.ix:02d}_{blocked.iy:02d}"
+    after_key = f"{after.ix:02d}_{after.iy:02d}"
+
+    # The unreached cell produced no frame and is recorded as skipped.
+    assert blocked_key not in manifest["frames"]
+    assert manifest["skipped_cells"] == [
+        {
+            "ix": blocked.ix,
+            "iy": blocked.iy,
+            "shortfall_minimap_px": [
+                round(blocked.x - grid[1].x, 2),
+                round(blocked.y - grid[1].y, 2),
+            ],
+        },
+    ]
+    # The next move carried the shortfall: its commanded delta covers BOTH steps.
+    entry_after = manifest["frames"][after_key]
+    assert entry_after["move"]["delta_minimap_px"] == [
+        pytest.approx(after.x - grid[1].x, abs=0.05),
+        pytest.approx(after.y - grid[1].y, abs=0.05),
+    ]
+    # And the carry is repaid — nothing left over.
+    assert entry_after["move"]["shortfall_minimap_px"] == [0.0, 0.0]

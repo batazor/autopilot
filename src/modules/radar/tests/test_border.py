@@ -190,3 +190,37 @@ def test_top_border_not_fooled_by_the_bottom_corner() -> None:
     halves — that used to fire the band test and end a scan 3 frames in.
     Its crossing sits low and the line bulk is above it: must NOT trigger."""
     assert top_border_visible(_x_frame((200, 260)), None) is False
+
+
+def test_outside_dark_distance_is_directional() -> None:
+    from modules.radar.border import outside_dark_distance, outside_visible
+
+    img = _frame()
+    img[300:, :] = (40, 42, 50)  # dark gap along the bottom edge
+
+    assert outside_visible(img, None)
+    # Toward the gap: the mass starts ~100 px below the center (200).
+    down = outside_dark_distance(img, None, 0.0, 500.0)
+    assert down == pytest.approx(100, abs=15)
+    # Away from it: nothing dark ahead.
+    assert outside_dark_distance(img, None, 0.0, -500.0) is None
+    # Plain frame: no mass at all.
+    assert not outside_visible(_frame(), None)
+    assert outside_dark_distance(_frame(), None, 0.0, 500.0) is None
+
+
+def test_outside_mask_excludes_tinted_dark_but_fills_gap_holes() -> None:
+    from modules.radar.border import border_outside_fraction, outside_visible
+
+    img = _frame()
+    # Neutral-dark gap over the lower half, with a tinted monster ON the road.
+    img[200:, :] = (40, 42, 50)
+    cv2.rectangle(img, (150, 280), (230, 340), (30, 60, 120), -1)  # brown sprite
+    frac = border_outside_fraction(img, None)
+    # The enclosed sprite is absorbed into the gap, not a hole in it.
+    assert frac > 0.95
+
+    # Tinted dark content alone (a mountain at the edge) is NOT the gap.
+    mountain = _frame()
+    cv2.rectangle(mountain, (0, 150), (120, 320), (130, 60, 35), -1)
+    assert not outside_visible(mountain, None)

@@ -17,29 +17,63 @@ from modules.radar.geometry import Corners
 
 CONFIG_VERSION = 1
 RUNS_DIR_ENV = "RADAR_RUNS_DIR"
+# Runtime config + calibration directory. In production the code layer may be
+# read-only (or simply awkward to update in place), so the operator points
+# ``RADAR_DATA_DIR`` at a writable location and the config, minimap reference
+# and corner sidecar are resolved/written there. Unset → the in-module assets
+# are used exactly as before (fully backward compatible).
+DATA_DIR_ENV = "RADAR_DATA_DIR"
 DEFAULT_CONFIG_NAME = "radar_config.yaml"
 MINIMAP_REFERENCE_NAME = "radar_minimap_ref.png"
 # Sidecar for the recorded corner reference: written by the calibration
 # endpoint, so the hand-commented main YAML is never rewritten by code.
 CORNER_REF_NAME = "radar_corner_ref.yaml"
 
-# Everything radar needs lives inside the module: config + calibration assets.
+# Fallback home for config + calibration assets when RADAR_DATA_DIR is unset.
 _MODULE_DIR = Path(__file__).resolve().parent
 
 
+def data_dir() -> Path | None:
+    """Writable runtime dir for config/calibration, or ``None`` when unset."""
+    raw = os.environ.get(DATA_DIR_ENV, "").strip()
+    return Path(raw).expanduser().resolve() if raw else None
+
+
+def _resolve_read(name: str) -> Path:
+    """Prefer the data-dir copy when it exists, else the in-module asset.
+
+    Reads tolerate a missing data-dir file (a partially provisioned data dir
+    still falls back to the committed asset); writes always target the data
+    dir when one is configured — see :func:`_resolve_write`.
+    """
+    base = data_dir()
+    if base is not None and (base / name).exists():
+        return base / name
+    return _MODULE_DIR / name
+
+
+def _resolve_write(name: str) -> Path:
+    """Where code writes a runtime asset: the data dir if set, else the module."""
+    base = data_dir()
+    if base is not None:
+        base.mkdir(parents=True, exist_ok=True)
+        return base / name
+    return _MODULE_DIR / name
+
+
 def default_config_path() -> Path:
-    """``src/modules/radar/radar_config.yaml`` — the single config location."""
-    return _MODULE_DIR / DEFAULT_CONFIG_NAME
+    """Radar config path — ``$RADAR_DATA_DIR`` copy if present, else in-module."""
+    return _resolve_read(DEFAULT_CONFIG_NAME)
 
 
 def minimap_reference_path(name: str = MINIMAP_REFERENCE_NAME) -> Path:
     """Calibration reference image, resolved next to the config."""
-    return _MODULE_DIR / name
+    return _resolve_read(name)
 
 
 def corner_ref_path() -> Path:
     """Recorded corner reference (sidecar), resolved next to the config."""
-    return _MODULE_DIR / CORNER_REF_NAME
+    return _resolve_read(CORNER_REF_NAME)
 
 
 def runs_root() -> Path:
@@ -328,8 +362,14 @@ def load_config(path: Path) -> RadarConfig:
 
 
 def save_corner_ref(ref: CornerRefConfig, path: Path | None = None) -> Path:
-    """Persist the corner reference to its sidecar (the main YAML stays as-is)."""
-    target = path or corner_ref_path()
+    """Persist the corner reference to its sidecar (the main YAML stays as-is).
+
+    Without an explicit ``path`` the sidecar is written to ``$RADAR_DATA_DIR``
+    when configured (so a read-only code layer is never touched), else next to
+    the in-module config — matching where :func:`corner_ref_path` then reads it.
+    """
+    target = path or _resolve_write(CORNER_REF_NAME)
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         yaml.safe_dump(ref.model_dump(mode="json"), sort_keys=False),
         encoding="utf-8",

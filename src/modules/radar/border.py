@@ -174,7 +174,12 @@ def _outside_mask(
     if h < 2 or w < 2:
         return None
     gray = cv2.cvtColor(sub, cv2.COLOR_BGR2GRAY)
-    dark = (gray < 95).astype(np.uint8) * 255
+    # NEUTRAL dark only: the inter-kingdom road is desaturated grey (channel
+    # spread ~7), while dark in-world content — mountain shading, beast/icon
+    # sprites — is strongly tinted (spread 40+). Without the spread test, edge
+    # sprites flood-filled as "outside" and faked the gap in every direction.
+    spread = sub.max(axis=2).astype(np.int16) - sub.min(axis=2).astype(np.int16)
+    dark = ((gray < 95) & (spread < 28)).astype(np.uint8) * 255
     dark = cv2.morphologyEx(
         dark, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)),
     )
@@ -190,11 +195,48 @@ def _outside_mask(
             cv2.floodFill(flood, ffmask, (0, y), 128)
         if flood[y, w - 1]:
             cv2.floodFill(flood, ffmask, (w - 1, y), 128)
-    return flood == 128, (x0, y0)
+    outside = flood == 128
+    # Per-component size gate: a neutral-grey sprite (statue base, shadow)
+    # touching the crop edge passes both the darkness and the spread test and
+    # flood-fills as "outside" — one such blob in the probe corridor capped a
+    # whole row's moves at nothing. The genuine gap is never small: even at
+    # first sighting the wedge past the border is a sizeable corner triangle,
+    # while edge sprites are a fraction of a percent of the crop.
+    count, labels, stats, _centroids = cv2.connectedComponentsWithStats(
+        outside.astype(np.uint8),
+    )
+    min_area = outside.size * GAP_MIN_COMPONENT_FRAC
+    for i in range(1, count):
+        if stats[i, cv2.CC_STAT_AREA] < min_area:
+            outside[labels == i] = False
+    # Fill enclosed holes: tinted content sitting ON the road (beast/monster
+    # sprites, decals) fails the neutral-dark test above and would punch holes
+    # in the mass — shrinking the in-gap fraction the servo's back-off relies
+    # on. Anything not reachable from the crop edges through non-outside
+    # pixels is surrounded by the gap, hence part of it.
+    comp = (~outside).astype(np.uint8)
+    reach = comp.copy()
+    ffmask2 = np.zeros((h + 2, w + 2), dtype=np.uint8)
+    for x in range(w):
+        if reach[0, x] == 1:
+            cv2.floodFill(reach, ffmask2, (x, 0), 2)
+        if reach[h - 1, x] == 1:
+            cv2.floodFill(reach, ffmask2, (x, h - 1), 2)
+    for y in range(h):
+        if reach[y, 0] == 1:
+            cv2.floodFill(reach, ffmask2, (0, y), 2)
+        if reach[y, w - 1] == 1:
+            cv2.floodFill(reach, ffmask2, (w - 1, y), 2)
+    outside |= (comp == 1) & (reach != 2)
+    return outside, (x0, y0)
 
 
 # Fewer out-of-bounds pixels than this share of the crop is specks, not the gap.
 GAP_MIN_AREA_FRAC = 0.005
+# A single connected "outside" component below this share of the crop is an
+# edge-touching sprite, not the gap (used inside _outside_mask, resolved at
+# call time). The real gap wedge at first sighting is well above this.
+GAP_MIN_COMPONENT_FRAC = 0.01
 
 
 def border_outside_fraction(
@@ -265,6 +307,33 @@ def border_band_y(frame: np.ndarray, crop: dict | None) -> float | None:
     return y0 + (best[1] + best[3]) / 2.0
 
 
+def _ahead_distance(
+    ys: np.ndarray,
+    xs: np.ndarray,
+    center: tuple[float, float],
+    cam_dx: float,
+    cam_dy: float,
+    corridor_px: float,
+) -> float | None:
+    """10th-percentile distance of mask pixels ahead of ``center`` along the move.
+
+    Pixels are projected onto the motion direction; only those ahead and within
+    ``corridor_px`` of the motion axis count. The low percentile (not the bare
+    minimum) keeps a stray pixel from faking an early hit.
+    """
+    travel = math.hypot(cam_dx, cam_dy)
+    if travel < 1e-6 or len(ys) < CROSS_MIN_PIXELS:
+        return None
+    cx, cy = center
+    ux, uy = cam_dx / travel, cam_dy / travel
+    along = (xs - cx) * ux + (ys - cy) * uy
+    across = np.abs((ys - cy) * ux - (xs - cx) * uy)
+    ahead = (along > 0) & (across <= corridor_px)
+    if int(np.count_nonzero(ahead)) < CROSS_MIN_PIXELS:
+        return None
+    return float(np.percentile(along[ahead], 10))
+
+
 def border_cross_distance(
     frame: np.ndarray,
     crop: dict | None,
@@ -277,25 +346,89 @@ def border_cross_distance(
     ``(cam_dx, cam_dy)`` is the planned camera travel in screen px. Yellow
     pixels are projected onto the motion direction; only those ahead of the
     center and within ``corridor_px`` of the motion axis count. Returns None
-    when the path is clear. A low percentile (not the bare minimum) keeps a
-    stray yellow pixel from faking an early border.
+    when the path is clear.
+    """
+    x0, y0, x1, y1 = _crop_bounds(crop, frame.shape)
+    mask = yellow_boundary_mask(frame[y0:y1, x0:x1])
+    ys, xs = np.nonzero(mask)
+    return _ahead_distance(
+        ys, xs, ((x1 - x0) / 2.0, (y1 - y0) / 2.0), cam_dx, cam_dy, corridor_px,
+    )
+
+
+def border_line_ahead_distance(
+    frame: np.ndarray,
+    crop: dict | None,
+    cam_dx: float,
+    cam_dy: float,
+    corridor_px: float = 80.0,
+) -> float | None:
+    """Distance (px) to a HOUGH-FITTED border line along the camera move.
+
+    Raw yellow pixels in the corridor are unreliable — golden icons, marker
+    rows and pale trails fire the distance test deep inside the kingdom (one
+    such false positive pinned a whole scan row). Only a structured fitted
+    segment (proper border slope) counts here; its sampled points are
+    projected like every other directional probe. None when no fitted line
+    lies ahead in the corridor.
     """
     travel = math.hypot(cam_dx, cam_dy)
     if travel < 1e-6:
         return None
+    lines = find_border_lines(frame, crop)
     x0, y0, x1, y1 = _crop_bounds(crop, frame.shape)
-    mask = yellow_boundary_mask(frame[y0:y1, x0:x1])
-    ys, xs = np.nonzero(mask)
-    if len(ys) < CROSS_MIN_PIXELS:
-        return None
-    cx, cy = (x1 - x0) / 2.0, (y1 - y0) / 2.0
+    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     ux, uy = cam_dx / travel, cam_dy / travel
-    along = (xs - cx) * ux + (ys - cy) * uy
-    across = np.abs((ys - cy) * ux - (xs - cx) * uy)
-    ahead = (along > 0) & (across <= corridor_px)
-    if int(np.count_nonzero(ahead)) < CROSS_MIN_PIXELS:
+    best: float | None = None
+    for seg in lines.values():
+        if seg is None:
+            continue
+        sx1, sy1, sx2, sy2 = seg
+        n = max(2, int(math.hypot(sx2 - sx1, sy2 - sy1) // 4))
+        for k in range(n + 1):
+            px = sx1 + (sx2 - sx1) * k / n
+            py = sy1 + (sy2 - sy1) * k / n
+            along = (px - cx) * ux + (py - cy) * uy
+            across = abs((py - cy) * ux - (px - cx) * uy)
+            if along > 0 and across <= corridor_px and (best is None or along < best):
+                best = along
+    return best
+
+
+def outside_dark_distance(
+    frame: np.ndarray,
+    crop: dict | None,
+    cam_dx: float,
+    cam_dy: float,
+    corridor_px: float = 80.0,
+) -> float | None:
+    """Distance (px) from the crop center to the OUT-OF-BOUNDS mass along the move.
+
+    The yellow line alone cannot tell a crossing from a flank: at the bottom
+    corner the X's arms span the whole view, so "yellow ahead" is true for
+    every direction — including moves INTO the kingdom. The flood-filled dark
+    gap is the side-of-the-border ground truth: a move only crosses out when
+    the dark mass itself lies on the path. Returns None when no substantial
+    outside mass is ahead in the corridor.
+    """
+    res = _outside_mask(frame, crop)
+    if res is None:
         return None
-    return float(np.percentile(along[ahead], 10))
+    outside, _origin = res
+    if int(np.count_nonzero(outside)) < outside.size * GAP_MIN_AREA_FRAC:
+        return None
+    ys, xs = np.nonzero(outside)
+    h, w = outside.shape
+    return _ahead_distance(ys, xs, (w / 2.0, h / 2.0), cam_dx, cam_dy, corridor_px)
+
+
+def outside_visible(frame: np.ndarray, crop: dict | None) -> bool:
+    """Whether a substantial out-of-bounds (dark gap) mass is visible at all."""
+    res = _outside_mask(frame, crop)
+    if res is None:
+        return False
+    outside, _origin = res
+    return int(np.count_nonzero(outside)) >= outside.size * GAP_MIN_AREA_FRAC
 
 
 def top_border_visible(frame: np.ndarray, crop: dict | None) -> bool:

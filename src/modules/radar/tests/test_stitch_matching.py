@@ -500,3 +500,59 @@ def test_frame_mostly_outside_thresholds_on_valid_fraction() -> None:
     assert _frame_mostly_outside(img, content, crop) is True
     content[:] = 255
     assert _frame_mostly_outside(img, content, crop) is False
+
+
+# ---------------------------------------------------------------------------
+# Navigation-honest priors and layout: a zeroed move is a measured zero (not
+# an unknown), the nominal layout follows the swipes that actually happened,
+# and an edge wildly off the consensus is an aliased match to drop.
+# ---------------------------------------------------------------------------
+
+
+def test_move_prior_zero_swipes_is_a_known_zero() -> None:
+    from modules.radar.stitch import move_prior
+
+    # The border guard zeroed the move: no swipes were emitted, the frames
+    # are duplicates — expected offset is zero, not unknown.
+    assert move_prior({"move": {"mode": "swipe", "swipes": []}}) == (0.0, 0.0)
+    # Teleports and malformed moves still carry no prior.
+    assert move_prior({"move": {"mode": "tap"}}) is None
+    assert move_prior({"move": {"mode": "swipe"}}) is None
+    assert move_prior({}) is None
+
+
+def test_integrated_nominal_follows_swipes_not_the_grid() -> None:
+    from modules.radar.stitch import _integrated_nominal
+
+    right, down = (300.0, 0.0), (0.0, 500.0)
+    swipe = lambda fx, fy: [{"x1": 0, "y1": 0, "x2": fx, "y2": fy, "ms": 450}]  # noqa: E731
+    entries = [
+        {"ix": 1, "iy": 5, "move": {"mode": "tap", "origin": True}},
+        # Finger dragged left 300 → camera right 300 (one grid step).
+        {"ix": 2, "iy": 5, "move": {"mode": "swipe", "swipes": swipe(-300, 0)}},
+        # Guard zeroed this move: nominal must NOT advance a grid step.
+        {"ix": 3, "iy": 5, "move": {"mode": "swipe", "swipes": []}},
+        # No usable prior (tap) → grid-step fallback from the cell delta.
+        {"ix": 4, "iy": 5, "move": {"mode": "tap"}},
+    ]
+    nominal = _integrated_nominal(entries, right, down)
+    assert nominal[0] == (1 * 300.0, 5 * 500.0)
+    assert nominal[1] == (nominal[0][0] + 300.0, nominal[0][1])
+    assert nominal[2] == nominal[1]  # duplicate stays put
+    assert nominal[3] == (nominal[2][0] + 300.0, nominal[2][1])
+
+
+def test_drop_outlier_edges_keeps_strong_measurements() -> None:
+    from modules.radar.stitch_matching import MatchEdge, _drop_outlier_edges
+
+    entries = [{"ix": 0, "iy": 0}, {"ix": 1, "iy": 0}, {"ix": 2, "iy": 0}]
+    positions = [(0.0, 0.0), (300.0, 0.0), (600.0, 0.0)]
+    good = MatchEdge(i=0, j=1, dx=302.0, dy=1.0, score=0.9)          # small residual
+    aliased = MatchEdge(i=1, j=2, dx=80.0, dy=-200.0, score=0.3)     # way off, weak
+    strong_off = MatchEdge(i=0, j=2, dx=400.0, dy=0.0, score=0.95)   # way off, strong
+
+    kept = _drop_outlier_edges(entries, positions, [good, aliased, strong_off])
+
+    # The weak aliased edge goes; the consistent one and the high-score one
+    # stay — a strong translation fit must win over the consensus, not lose.
+    assert kept == [good, strong_off]

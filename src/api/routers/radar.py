@@ -43,16 +43,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/radar", tags=["radar"])
-
-RedisDep = Annotated[redis.Redis, Depends(get_redis)]
-
-_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-_TILES_BUILD_KEY_FMT = "radar:tiles_building:{run_id}"
-_TILES_BUILD_TTL_S = 600
-_SSE_STREAM_BLOCK_MS = 1000
-_SSE_HEARTBEAT_INTERVAL_S = 25.0
-
 
 def _require_radar() -> None:
     """Radar is an R4 ($30) feature — 402 for callers without it."""
@@ -63,6 +53,23 @@ def _require_radar() -> None:
             status_code=402,
             detail={"reason": "feature_not_licensed", "msg": str(exc)},
         ) from exc
+
+
+# Every radar endpoint sits behind the license gate (run history, tiles,
+# previews and deletes included) — the only window into the feature without a
+# license is ``GET /access``, which lives on its own ungated router below so
+# the dashboard can show the lock state. Gating at the router means a new
+# endpoint is protected by default rather than needing its own ``_require_radar``.
+router = APIRouter(prefix="/api/radar", tags=["radar"], dependencies=[Depends(_require_radar)])
+access_router = APIRouter(prefix="/api/radar", tags=["radar"])
+
+RedisDep = Annotated[redis.Redis, Depends(get_redis)]
+
+_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_TILES_BUILD_KEY_FMT = "radar:tiles_building:{run_id}"
+_TILES_BUILD_TTL_S = 600
+_SSE_STREAM_BLOCK_MS = 1000
+_SSE_HEARTBEAT_INTERVAL_S = 25.0
 
 
 def _run_dir(run_id: str) -> Path:
@@ -126,15 +133,33 @@ def list_runs() -> list[dict[str, Any]]:
     return summaries
 
 
-@router.get("/access")
+@access_router.get("/access")
 def get_access() -> dict[str, Any]:
-    """Whether the current license unlocks Radar (R4 feature) — drives the UI lock."""
+    """Whether the current license unlocks Radar (R4 feature) — drives the UI lock.
+
+    The one radar endpoint reachable without a license: it reports the lock so
+    the dashboard can render the upsell instead of a dead page.
+    """
     return {"licensed": has_feature(FEATURE_RADAR), "tier": "r4"}
 
 
 @router.get("/active")
 def get_active_scan(client: RedisDep) -> dict[str, Any]:
     return {"active": read_active(client)}
+
+
+@router.get("/instances")
+def list_instances() -> list[dict[str, str]]:
+    """Configured emulator instances for the scan target selector.
+
+    The first entry is the default target when a scan is started without an
+    explicit ``instance_id`` (matching ``start_scan``).
+    """
+    settings = load_settings()
+    return [
+        {"instance_id": inst.instance_id, "serial": inst.bluestacks_window_title, "game": inst.game}
+        for inst in settings.instances
+    ]
 
 
 @router.get("/runs/{run_id}/manifest")
@@ -291,7 +316,6 @@ def start_scan(
     client: RedisDep,
     body: ScanRequest | None = None,
 ) -> dict[str, Any]:
-    _require_radar()
     settings = load_settings()
     if not settings.instances:
         raise HTTPException(status_code=503, detail="no instances configured")
@@ -338,7 +362,6 @@ def calibrate_corner_ref(body: ScanRequest | None = None) -> dict[str, Any]:
     at the corner, dark fraction) is saved to the sidecar next to the radar
     config and used by the origin servo to verify/align at the pan clamp.
     """
-    _require_radar()
     from modules.radar.config import load_config, save_corner_ref
     from modules.radar.device import RadarDevice, pick_serial
     from modules.radar.scanner import capture_corner_reference
@@ -371,7 +394,6 @@ def calibrate_corner_ref(body: ScanRequest | None = None) -> dict[str, Any]:
 @router.post("/scan/stop")
 def stop_scan(client: RedisDep) -> dict[str, Any]:
     """Ask the running scan to stop after its current frame (partial map kept)."""
-    _require_radar()
     active = read_active(client)
     if not active or not active.get("run_id"):
         raise HTTPException(status_code=409, detail="no radar scan is currently running")
@@ -406,7 +428,6 @@ def build_tiles(run_id: str, client: RedisDep, background: BackgroundTasks) -> d
     """Stitch + tile an existing run in the background (for runs scanned before
     tiling existed, or after a stitch failure). Completion is announced as a
     ``tiles_ready`` event on the SSE stream."""
-    _require_radar()
     run_dir = _run_dir(run_id)
     _read_manifest(run_dir)  # 404 for directories that aren't runs
     if not list(run_dir.glob("frame_*.png")):

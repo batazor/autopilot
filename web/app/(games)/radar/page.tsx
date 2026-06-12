@@ -27,6 +27,7 @@ import {
   deleteRadarRun,
   fetchRadarAccess,
   fetchRadarActive,
+  fetchRadarInstances,
   fetchRadarManifest,
   fetchRadarRuns,
   fetchRadarTilesMeta,
@@ -203,6 +204,7 @@ export default function RadarPage() {
   const queryClient = useQueryClient();
   const { showSuccess, showInfo } = useFeedback();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [deleteConfirmRunId, setDeleteConfirmRunId] = useState<string | null>(null);
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
   const [live, dispatch] = useReducer(liveReducer, LIVE_IDLE);
@@ -229,6 +231,15 @@ export default function RadarPage() {
     enabled: !locked,
   });
   const runId = selectedRunId ?? runs.data?.[0]?.run_id ?? null;
+
+  const instances = useQuery({
+    queryKey: ["radar", "instances"],
+    queryFn: fetchRadarInstances,
+    enabled: !locked,
+  });
+  // Default scan target = first configured instance (matches the backend).
+  const effectiveInstanceId =
+    selectedInstanceId ?? instances.data?.[0]?.instance_id ?? "";
 
   const tiles = useQuery({
     queryKey: ["radar", "tiles", runId],
@@ -316,7 +327,7 @@ export default function RadarPage() {
   }, [live.phase, live.grid, live.runId]);
 
   const scan = useMutation({
-    mutationFn: startRadarScan,
+    mutationFn: () => startRadarScan(effectiveInstanceId),
     onSuccess: (res) => {
       dispatch({
         type: "queued",
@@ -340,7 +351,7 @@ export default function RadarPage() {
     onSuccess: () => showInfo("Tile build started — the map appears when it finishes"),
   });
   const calibrateCorner = useMutation({
-    mutationFn: calibrateRadarCorner,
+    mutationFn: () => calibrateRadarCorner(effectiveInstanceId),
     onSuccess: (res) => {
       const [cx, cy] = res.corner_ref.cross_px;
       showSuccess(`Corner reference recorded — crossing at (${Math.round(cx)}, ${Math.round(cy)})`);
@@ -457,6 +468,10 @@ export default function RadarPage() {
     value: r.run_id,
     label: `${r.run_id} (${r.frames_done}/${r.frames_total})`,
   }));
+  const instanceOptions = (instances.data ?? []).map((i) => ({
+    value: i.instance_id,
+    label: i.serial ? `${i.instance_id} (${i.serial})` : i.instance_id,
+  }));
 
   const queryError = runs.isError
     ? errMsg(runs.error)
@@ -509,14 +524,28 @@ export default function RadarPage() {
             Stop scan
           </PendingButton>
         ) : (
-          <PendingButton
-            variant="primary"
-            pending={scan.isPending}
-            title="Start a full kingdom scan"
-            onClick={() => scan.mutate()}
-          >
-            Start scan
-          </PendingButton>
+          <>
+            {instanceOptions.length > 1 ? (
+              <AppListbox
+                aria-label="Scan target instance"
+                options={instanceOptions}
+                value={effectiveInstanceId}
+                onChange={setSelectedInstanceId}
+                placeholder={instances.isLoading ? "Loading…" : "Instance"}
+                loading={instances.isLoading}
+                minWidth={200}
+                inline
+              />
+            ) : null}
+            <PendingButton
+              variant="primary"
+              pending={scan.isPending}
+              title="Start a full kingdom scan on the selected instance"
+              onClick={() => scan.mutate()}
+            >
+              Start scan
+            </PendingButton>
+          </>
         )}
         {!scanActive ? (
           <PendingButton

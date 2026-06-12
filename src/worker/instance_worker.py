@@ -33,8 +33,6 @@ from navigation.lifecycle_states import InstanceState
 from popup import PopupDetector
 from tasks.base import BaseTask, TaskResult
 from tasks.dsl_scenario import DslScenarioTask
-from tasks.radar_scan import TASK_TYPE as RADAR_SCAN_TASK_TYPE
-from tasks.radar_scan import RadarScanTask
 from worker.instance_worker_blocking import InstanceWorkerBlockingMixin
 from worker.instance_worker_health import InstanceWorkerHealthMixin
 from worker.instance_worker_overlay import InstanceWorkerOverlayMixin
@@ -62,9 +60,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_TASK_REGISTRY: dict[str, type] = {
-    RADAR_SCAN_TASK_TYPE: RadarScanTask,
-}
+# Registered factories for queue task types that need a dedicated executor
+# (beyond device-level DSL scenarios). Empty today: the radar scan runs
+# directly from the API process (POST /api/radar/scan), not through the queue.
+_TASK_REGISTRY: dict[str, type] = {}
 
 # Redis hash for UI/monitoring.
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"

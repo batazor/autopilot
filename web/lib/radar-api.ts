@@ -119,6 +119,17 @@ export async function fetchRadarTilesMeta(runId: string): Promise<RadarTilesMeta
   }
 }
 
+export type RadarInstance = {
+  instance_id: string;
+  serial: string;
+  game: string;
+};
+
+/** Configured emulator instances; the first is the default scan target. */
+export function fetchRadarInstances(): Promise<RadarInstance[]> {
+  return rfetch("/api/radar/instances");
+}
+
 export type RadarScanStart = {
   run_id: string;
   instance_id: string;
@@ -126,8 +137,9 @@ export type RadarScanStart = {
   grid: RadarGridCell[];
 };
 
-export function startRadarScan(): Promise<RadarScanStart> {
-  return rfetch("/api/radar/scan", jsonInit("POST", {}));
+/** Start a scan on `instanceId` (omit/empty → backend picks the first instance). */
+export function startRadarScan(instanceId = ""): Promise<RadarScanStart> {
+  return rfetch("/api/radar/scan", jsonInit("POST", { instance_id: instanceId }));
 }
 
 export function stopRadarScan(): Promise<{ run_id: string; status: string }> {
@@ -142,8 +154,10 @@ export type RadarCornerRef = {
 };
 
 /** Record the corner reference from the CURRENT screen (camera manually on the corner X). */
-export function calibrateRadarCorner(): Promise<{ corner_ref: RadarCornerRef; path: string }> {
-  return rfetch("/api/radar/corner-ref", jsonInit("POST", {}));
+export function calibrateRadarCorner(
+  instanceId = "",
+): Promise<{ corner_ref: RadarCornerRef; path: string }> {
+  return rfetch("/api/radar/corner-ref", jsonInit("POST", { instance_id: instanceId }));
 }
 
 export function buildRadarTiles(runId: string): Promise<{ run_id: string; status: string }> {
