@@ -18,9 +18,15 @@ import type { GiftCodeRow } from "@/lib/wiki";
 const KNOWN_GAMES: ExternalAccountsGame[] = [
   { id: "wos", label: "Whiteout Survival" },
   { id: "kingshot", label: "Kingshot" },
+  { id: "wos_beta", label: "WOS Beta" },
+  { id: "kingshot_beta", label: "Kingshot Beta" },
 ];
 
 const DEFAULT_GAME = KNOWN_GAMES[0]?.id ?? "wos";
+const EXTERNAL_ACCOUNT_GAME_IDS = new Set(["wos", "kingshot"]);
+const EXTERNAL_ACCOUNT_GAMES = KNOWN_GAMES.filter((g) =>
+  EXTERNAL_ACCOUNT_GAME_IDS.has(g.id),
+);
 
 const STATUS_CLASS: Record<string, string> = {
   PENDING: "pill-paused",
@@ -310,11 +316,13 @@ function GiftCodesContent() {
         />
       ) : null}
 
-      <ExternalAccountsPanel
-        games={KNOWN_GAMES}
-        game={game}
-        onGameChange={setGame}
-      />
+      {EXTERNAL_ACCOUNT_GAME_IDS.has(game) ? (
+        <ExternalAccountsPanel
+          games={EXTERNAL_ACCOUNT_GAMES}
+          game={game}
+          onGameChange={setGame}
+        />
+      ) : null}
     </>
   );
 }

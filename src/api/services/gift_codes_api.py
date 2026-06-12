@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Any
 import redis.asyncio as aioredis
 
 from century.gift_codes import kingshot as kingshot_gift_codes
+from century.gift_codes import kingshot_beta as kingshot_beta_gift_codes
 from century.gift_codes import wos as wos_gift_codes
+from century.gift_codes import wos_beta as wos_beta_gift_codes
 from century.gift_codes.models import RedeemStatus
 
 if TYPE_CHECKING:
@@ -65,6 +67,18 @@ _GIFT_CODE_GAMES: dict[str, _GiftCodeGame] = {
         run_redeemer_for_player=getattr(
             kingshot_gift_codes, "run_gift_code_redeemer_for_player", None
         ),
+    ),
+    "wos_beta": _GiftCodeGame(
+        game="wos_beta",
+        redeem_lock_key="wos:gift_code_redeem:lock:wos_beta",
+        poll_once=wos_beta_gift_codes.poll_once,
+        run_redeemer=wos_beta_gift_codes.run_gift_code_redeemer,
+    ),
+    "kingshot_beta": _GiftCodeGame(
+        game="kingshot_beta",
+        redeem_lock_key="wos:gift_code_redeem:lock:kingshot_beta",
+        poll_once=kingshot_beta_gift_codes.poll_once,
+        run_redeemer=kingshot_beta_gift_codes.run_gift_code_redeemer,
     ),
 }
 

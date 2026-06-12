@@ -42,6 +42,12 @@ _CRON_KEY = "wos:scheduler:cron:last_run"
 _GIFT_CODE_GAMES: list[tuple[str, str, str]] = [
     ("wos", "century.gift_codes.wos", "wos:gift_code_redeem:lock"),
     ("kingshot", "century.gift_codes.kingshot", "wos:gift_code_redeem:lock:kingshot"),
+    ("wos_beta", "century.gift_codes.wos_beta", "wos:gift_code_redeem:lock:wos_beta"),
+    (
+        "kingshot_beta",
+        "century.gift_codes.kingshot_beta",
+        "wos:gift_code_redeem:lock:kingshot_beta",
+    ),
 ]
 _GIFT_CODE_POLL_INTERVAL_S = 6 * 60 * 60
 _GIFT_CODE_LOCK_TTL_S = 2 * 60 * 60
