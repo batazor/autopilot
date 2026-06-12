@@ -1,0 +1,21 @@
+edges:
+  main_city:
+    event.tundra_trek:
+      resolver: template_icon
+      region: main_city.to.tundra_trek
+      template: games/wos/events/tundra_trek/references/crop/main_city_main_city.to.tundra_trek.png
+      search_region: main_city.tundra_trek.icon_search
+      threshold: 0.9
+
+  main_world:
+    event.tundra_trek:
+      resolver: template_icon
+      region: main_world.to.tundra_trek
+      template: games/wos/events/tundra_trek/references/crop/main_city_main_world.to.tundra_trek.png
+      search_region: main_world.tundra_trek.icon_search
+      threshold: 0.9
+
+  event.tundra_trek:
+    main_city: [icon.page.back]
+    main_world: [icon.page.back]
+    main_menu: [icon.page.back]

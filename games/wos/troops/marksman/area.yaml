@@ -1,0 +1,20 @@
+version: 2
+screens:
+  - id: 1
+    screen_id: marksman
+    regions:
+      # Placeholder until the marksman-camp screen is labeled from a live frame.
+      # `marksman.complete` is the single transition button on the troop
+      # building: green check -> collect completed troops; otherwise it opens
+      # the training dialog.
+      - name: marksman.complete
+        action: click
+        threshold: 0.9
+        bbox:
+          x: 45.87766804946814
+          y: 42.98426962731723
+          width: 7.661006313515073
+          height: 4.510546348478623
+          rotation: 0
+          original_width: 720
+          original_height: 1280

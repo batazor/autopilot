@@ -1,0 +1,13 @@
+overlay:
+  - name: lancer.complete.visible
+    region: lancer.complete
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - lancer
+      - main_city
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: troops.lancer.train
+          ttl: 1m

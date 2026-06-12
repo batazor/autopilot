@@ -1,0 +1,13 @@
+overlay:
+  - name: marksman.complete.visible
+    region: marksman.complete
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - marksman
+      - main_city
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: troops.marksman.train
+          ttl: 1m

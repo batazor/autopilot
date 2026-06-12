@@ -1,0 +1,5 @@
+screens:
+  event.tundra_trek:
+    rules:
+      - match: tundra_trek.title
+        threshold: 0.9

@@ -1,0 +1,11 @@
+enabled: true
+name: "Troops: train lancer"
+priority: 70_000
+node: lancer
+cond: "active_player != null"
+
+steps:
+  # First transition on the lancer building. If a green check is present this
+  # collects completed lancers; otherwise it opens the lancer training dialog.
+  - click: lancer.complete
+  - wait: 1s

@@ -1,0 +1,30 @@
+enabled: true
+name: "Troops: train infantry"
+priority: 70_000
+node: infantry
+cond: "active_player != null"
+
+steps:
+  # First transition on the infantry building. If a green check is present this
+  # collects completed infantry; otherwise it opens the infantry training dialog.
+  - click: infantry.complete
+  - wait: 1s
+  - click: infantry.train
+  - wait: 1s
+  - while_match: infantry.tap_anywhere
+    max: 1
+    steps:
+      - click: infantry.tap_anywhere
+      - wait: 1s
+  - while_match: train.upgrade
+    max: 1
+    steps:
+      - click: train.upgrade
+      - wait: 1s
+      - click: troops.upgrade.start
+      - wait: 1s
+      - click: troops.promotion
+      - wait: 1s
+    else:
+      - click: troops.train.start
+      - wait: 1s

@@ -1,0 +1,13 @@
+overlay:
+  - name: infantry.complete.visible
+    region: infantry.complete
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - infantry
+      - main_city
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: troops.infantry.train
+          ttl: 1m

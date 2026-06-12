@@ -1,0 +1,11 @@
+enabled: true
+name: "Troops: train marksman"
+priority: 70_000
+node: marksman
+cond: "active_player != null"
+
+steps:
+  # First transition on the marksman building. If a green check is present this
+  # collects completed marksmen; otherwise it opens the marksman training dialog.
+  - click: marksman.complete
+  - wait: 1s

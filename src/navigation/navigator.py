@@ -284,6 +284,8 @@ class Navigator:
                 "template": str(spec.get("template") or "").strip(),
                 "threshold": spec.get("threshold", 0.9),
             }
+            if "search_region" in spec:
+                rule["search_region"] = spec["search_region"]
             try:
                 fresh_out = asyncio.run(
                     evaluate_overlay_rules_async(

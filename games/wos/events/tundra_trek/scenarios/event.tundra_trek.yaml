@@ -1,0 +1,33 @@
+enabled: true
+name: Tundra Trek
+priority: 70_000
+node: event.tundra_trek
+icon: tundra_trek
+cond: "active_player != null"
+
+steps:
+  - click: tundra_trek.title
+  - wait: 1s
+  - while_match: tundra_trek.next_stop
+    max: 10
+    steps:
+      - click: tundra_trek.next_stop
+      - wait: 2s
+  - while_match: tundra_trek.skip
+    max: 1
+    steps:
+      - click: tundra_trek.skip
+      - wait: 1s
+      - click: tundra_trek.skip
+      - wait: 1s
+  - while_match: button.claim
+    max: 3
+    steps:
+      - click: button.claim
+      - wait: 1s
+  - while_match: button.claim.big
+    max: 3
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - click: tapanywhereyoexit
