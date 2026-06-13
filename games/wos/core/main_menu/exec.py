@@ -410,6 +410,10 @@ _HEADER_SECTION_MAP: tuple[tuple[str, str], ...] = (
 _RECRUIT_ROW_TITLES = ("advanced", "epic")
 
 _STATUS_FUZZ_THRESHOLD = 80.0
+_IDLE_BUILDING_QUEUE_SCENARIOS = {
+    "queue_1": "building_queue_1_empty",
+    "queue_2": "building_queue_2_empty",
+}
 
 
 def _slugify(text: str) -> str:
@@ -771,6 +775,23 @@ async def _exec_scan_main_menu_panel(ctx: DslExecContext) -> None:
             and r["kind"] == "completed"
         ):
             scenario = f"accept_troops_{r['row']}"
+            ok = await _enqueue_scenario(
+                redis_async=ctx.redis_client,
+                instance_id=ctx.instance_id,
+                player_id=player_id,
+                scenario=scenario,
+                priority=80_000,
+                run_at=now,
+                skip_if_duplicate=True,
+            )
+            if ok:
+                pushed.append(scenario)
+        elif (
+            r["section"] == "building_queue"
+            and r["kind"] == "idle"
+            and r["row"] in _IDLE_BUILDING_QUEUE_SCENARIOS
+        ):
+            scenario = _IDLE_BUILDING_QUEUE_SCENARIOS[str(r["row"])]
             ok = await _enqueue_scenario(
                 redis_async=ctx.redis_client,
                 instance_id=ctx.instance_id,

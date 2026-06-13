@@ -134,6 +134,50 @@
       ]
     },
     {
+      "id": 62,
+      "screen_id": "building",
+      "ocr": "references/building.lancer_camp.upgrade_dialog.png",
+      "regions": [
+        {
+          "name": "upgrade_blue_button",
+          "action": "exist",
+          "threshold": 0.74,
+          "bbox": {
+            "x": 63.0,
+            "y": 78.7,
+            "width": 21.0,
+            "height": 3.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "screen_id": "building",
+      "ocr": "references/building.lancer_camp.alliance_help.png",
+      "regions": [
+        {
+          "name": "building.alliance_help_button",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 45.7,
+            "y": 43.0,
+            "width": 10.1,
+            "height": 5.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
       "id": 13,
       "screen_id": "building",
       "ocr": "references/add_worker_button.png",

@@ -371,7 +371,7 @@
     },
     {
       "id": 3,
-      "screen_id": "main_city",
+      "screen_id": "main_menu",
       "ocr": "references/building.png",
       "regions": [
         {

@@ -74,6 +74,16 @@ def test_area_declares_wilderness_march_regions() -> None:
         assert status["type"] == "string"
 
 
+def test_area_declares_building_queue_reference_as_main_menu() -> None:
+    area = _load_yaml("area.yaml")
+    building = next(
+        screen
+        for screen in area["screens"]
+        if screen.get("ocr") == "references/building.png"
+    )
+    assert building["screen_id"] == "main_menu"
+
+
 def test_sync_training_status_scenario_reads_known_regions() -> None:
     scenario = _load_yaml("scenarios/sync_training_status.yaml")
     assert scenario["node"] == "main_menu"
@@ -620,6 +630,8 @@ async def test_exec_scan_panel_pushes_accept_for_completed_troops(
         "accept_troops_infantry",
         "accept_troops_lancer",
         "accept_troops_marksman",
+        "building_queue_1_empty",
+        "building_queue_2_empty",
     ]
     assert updates["troops.infantry.state.isReady"] is True
     assert updates["buildings.queue.1.state.isIdle"] is True
@@ -633,6 +645,8 @@ async def test_exec_scan_panel_pushes_accept_for_completed_troops(
         "accept_troops_infantry",
         "accept_troops_lancer",
         "accept_troops_marksman",
+        "building_queue_1_empty",
+        "building_queue_2_empty",
     ]
 
 
