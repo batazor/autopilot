@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from adb.scrcpy import (
+    _MIN_SERVER_JAR_SIZE,
     DEFAULT_PORT_BASE,
     SCRCPY_SERVER_VERSION,
     ScrcpyClient,
@@ -30,6 +31,9 @@ from adb.scrcpy import (
     get_scrcpy_status,
     install_scrcpy,
 )
+
+# A fake jar payload that passes the v4 size validation.
+_FAKE_JAR = b"\x00" * _MIN_SERVER_JAR_SIZE
 
 
 def _completed(stdout: bytes = b"", returncode: int = 0) -> subprocess.CompletedProcess[bytes]:
@@ -100,25 +104,35 @@ def test_status_missing_jar() -> None:
     assert status.abi == "arm64-v8a"
 
 
-def test_install_downloads_and_pushes(tmp_path) -> None:
-    downloads: list[str] = []
+def _fake_run_jar_on_device(jar_size: int):
+    """ADB stub: getprop + push ok, jar on device reports ``jar_size`` bytes."""
 
     def fake_run(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
         if "getprop" in cmd:
             return _completed(b"arm64-v8a\n" if "ro.product.cpu.abi" in cmd else b"33\n")
         if "push" in cmd:
             return _completed()
+        if "wc" in cmd:
+            return _completed(f"{jar_size} /data/local/tmp/scrcpy-server.jar\n".encode())
         if "ls" in cmd:
-            return _completed(b"-rw-r--r-- 1 shell shell 200 2024-01-01 scrcpy-server.jar\n")
+            return _completed(
+                f"-rw-r--r-- 1 shell shell {jar_size} 2024-01-01 scrcpy-server.jar\n".encode()
+            )
         return _completed()
+
+    return fake_run
+
+
+def test_install_downloads_and_pushes(tmp_path) -> None:
+    downloads: list[str] = []
 
     def fake_download(url: str, dest) -> None:
         downloads.append(url)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(b"jar contents")
+        dest.write_bytes(_FAKE_JAR)
 
     with (
-        patch("adb.scrcpy.subprocess.run", side_effect=fake_run),
+        patch("adb.scrcpy.subprocess.run", side_effect=_fake_run_jar_on_device(732_226)),
         patch("adb.scrcpy._download", side_effect=fake_download),
         patch("adb.scrcpy._DOWNLOAD_CACHE", tmp_path),
     ):
@@ -128,34 +142,110 @@ def test_install_downloads_and_pushes(tmp_path) -> None:
     assert any("Genymobile/scrcpy/releases/download" in u for u in downloads)
     assert any("scrcpy-server-v" in u for u in downloads)
     assert status.installed
+    assert status.last_error is None
 
 
 def test_install_skips_download_when_cached(tmp_path) -> None:
     """Cached jar in ~/.cache should not re-download on subsequent installs."""
     cached_jar = tmp_path / f"scrcpy-server-v{SCRCPY_SERVER_VERSION}.jar"
-    cached_jar.write_bytes(b"prebuilt jar")
+    cached_jar.write_bytes(_FAKE_JAR)
     downloads: list[str] = []
-
-    def fake_run(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        if "getprop" in cmd:
-            return _completed(b"arm64-v8a\n" if "ro.product.cpu.abi" in cmd else b"33\n")
-        if "push" in cmd:
-            return _completed()
-        if "ls" in cmd:
-            return _completed(b"-rw-r--r-- 1 shell shell 12 2024-01-01 scrcpy-server.jar\n")
-        return _completed()
 
     def fake_download(url: str, _dest) -> None:
         downloads.append(url)
 
     with (
-        patch("adb.scrcpy.subprocess.run", side_effect=fake_run),
+        patch("adb.scrcpy.subprocess.run", side_effect=_fake_run_jar_on_device(732_226)),
         patch("adb.scrcpy._download", side_effect=fake_download),
         patch("adb.scrcpy._DOWNLOAD_CACHE", tmp_path),
     ):
         install_scrcpy("X", "/usr/local/bin/adb")
 
     assert downloads == []  # no network call
+
+
+def test_install_redownloads_poisoned_cache(tmp_path) -> None:
+    """A truncated cache file (interrupted earlier download) must self-heal,
+    not get pushed to the device forever."""
+    cached_jar = tmp_path / f"scrcpy-server-v{SCRCPY_SERVER_VERSION}.jar"
+    cached_jar.write_bytes(b"truncated")
+    downloads: list[str] = []
+
+    def fake_download(url: str, dest) -> None:
+        downloads.append(url)
+        dest.write_bytes(_FAKE_JAR)
+
+    with (
+        patch("adb.scrcpy.subprocess.run", side_effect=_fake_run_jar_on_device(732_226)),
+        patch("adb.scrcpy._download", side_effect=fake_download),
+        patch("adb.scrcpy._DOWNLOAD_CACHE", tmp_path),
+    ):
+        status = install_scrcpy("X", "/usr/local/bin/adb")
+
+    assert len(downloads) == 1
+    assert cached_jar.read_bytes() == _FAKE_JAR
+    assert status.installed
+    assert status.last_error is None
+
+
+def test_install_rejects_truncated_download(tmp_path) -> None:
+    """A download that comes back short must fail loudly and never be pushed."""
+    pushes: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if "push" in cmd:
+            pushes.append(cmd)
+        return _completed()
+
+    def fake_download(url: str, dest) -> None:
+        dest.write_bytes(b"html error page")
+
+    with (
+        patch("adb.scrcpy.subprocess.run", side_effect=fake_run),
+        patch("adb.scrcpy._download", side_effect=fake_download),
+        patch("adb.scrcpy._DOWNLOAD_CACHE", tmp_path),
+    ):
+        status = install_scrcpy("X", "/usr/local/bin/adb")
+
+    assert pushes == []
+    assert status.last_error is not None
+    assert "truncated" in status.last_error
+
+
+def test_download_leaves_no_partial_file_on_error(tmp_path) -> None:
+    """An interrupted download must not leave a truncated file at the cache
+    path — that file would be trusted on every subsequent install."""
+    from adb.scrcpy import _download
+
+    dest = tmp_path / "scrcpy-server.jar"
+    resp = MagicMock()
+    resp.__enter__.return_value = resp
+    resp.read.side_effect = OSError("connection reset")
+
+    with (
+        patch("adb.scrcpy.urllib.request.urlopen", return_value=resp),
+        pytest.raises(OSError, match="connection reset"),
+    ):
+        _download("https://example.invalid/jar", dest)
+
+    assert not dest.exists()
+    assert list(tmp_path.iterdir()) == []  # temp file cleaned up too
+
+
+def test_install_reports_undersized_jar_after_push(tmp_path) -> None:
+    """If the device ends up with a too-small jar, last_error must say so
+    instead of the start path failing with a bare \"install failed\"."""
+    cached_jar = tmp_path / f"scrcpy-server-v{SCRCPY_SERVER_VERSION}.jar"
+    cached_jar.write_bytes(_FAKE_JAR)
+
+    with (
+        patch("adb.scrcpy.subprocess.run", side_effect=_fake_run_jar_on_device(90_640)),
+        patch("adb.scrcpy._DOWNLOAD_CACHE", tmp_path),
+    ):
+        status = install_scrcpy("X", "/usr/local/bin/adb")
+
+    assert status.last_error is not None
+    assert "after push" in status.last_error
 
 
 def test_start_reinstalls_when_device_server_is_old() -> None:

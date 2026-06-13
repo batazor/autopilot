@@ -210,15 +210,53 @@ def get_scrcpy_status(serial: str, adb_bin: str) -> ScrcpyStatus:
 
 def _download(url: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
+    # Unique temp file + atomic rename: an interrupted download must not leave
+    # a truncated jar at ``dest`` (it would be cached forever), and concurrent
+    # first starts from several worker processes must never co-write the same
+    # file or push a half-written one.
+    tmp = dest.parent / f".{dest.name}.{os.getpid()}.tmp"
     try:
         with (
             urllib.request.urlopen(url, timeout=60) as resp,
-            dest.open("wb") as fp,
+            tmp.open("wb") as fp,
         ):
             fp.write(resp.read())
+        tmp.replace(dest)
     except urllib.error.HTTPError as exc:
         msg = f"download failed ({exc.code}): {url}"
         raise RuntimeError(msg) from exc
+    finally:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+
+
+def _cached_jar_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _ensure_cache_jar(jar_cache: Path) -> None:
+    """Make sure the local cache holds a plausible v4 server jar.
+
+    A missing or undersized file (truncated by an older interrupted download)
+    is dropped and re-fetched so the cache self-heals instead of pushing the
+    same broken jar to every device forever.
+    """
+    if _cached_jar_size(jar_cache) >= _MIN_SERVER_JAR_SIZE:
+        return
+    with contextlib.suppress(OSError):
+        jar_cache.unlink()
+    logger.info("scrcpy: downloading server jar %s", _SERVER_URL)
+    _download(_SERVER_URL, jar_cache)
+    cache_size = _cached_jar_size(jar_cache)
+    if cache_size < _MIN_SERVER_JAR_SIZE:
+        msg = (
+            f"downloaded server jar is truncated ({cache_size} bytes, "
+            f"expected >= {_MIN_SERVER_JAR_SIZE}): {_SERVER_URL}"
+        )
+        raise RuntimeError(msg)
 
 
 def install_scrcpy(serial: str, adb_bin: str) -> ScrcpyStatus:
@@ -226,9 +264,7 @@ def install_scrcpy(serial: str, adb_bin: str) -> ScrcpyStatus:
     status = get_scrcpy_status(serial, adb_bin)
     jar_cache = _DOWNLOAD_CACHE / f"scrcpy-server-v{SCRCPY_SERVER_VERSION}.jar"
     try:
-        if not jar_cache.is_file():
-            logger.info("scrcpy: downloading server jar %s", _SERVER_URL)
-            _download(_SERVER_URL, jar_cache)
+        _ensure_cache_jar(jar_cache)
         logger.info("scrcpy: pushing jar to %s", serial)
         _run_adb(
             ["push", str(jar_cache), DEVICE_JAR],
@@ -243,7 +279,13 @@ def install_scrcpy(serial: str, adb_bin: str) -> ScrcpyStatus:
     except Exception as exc:
         status.last_error = str(exc)
         return status
-    return get_scrcpy_status(serial, adb_bin)
+    status = get_scrcpy_status(serial, adb_bin)
+    if not _server_status_current(status) and not status.last_error:
+        status.last_error = (
+            f"server jar on device is {status.jar_size} bytes after push, "
+            f"expected >= {_MIN_SERVER_JAR_SIZE}"
+        )
+    return status
 
 
 def _server_status_current(status: ScrcpyStatus) -> bool:
