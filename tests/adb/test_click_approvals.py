@@ -159,6 +159,24 @@ def test_require_approval_uses_request_specific_response(
     assert current["status"] == "approved"
 
 
+def test_require_approval_refreshes_worker_heartbeat_while_waiting(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    stale = str(time.time() - 300.0)
+    r.hset("wos:instance:bs1:state", mapping={"last_seen_at": stale})
+    _patch_redis(monkeypatch, r)
+
+    ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
+
+    assert ok is True
+    assert req_id is not None
+    state = r.hgetall("wos:instance:bs1:state")
+    assert float(state["last_seen_at"]) > float(stale)
+
+
 def test_require_approval_does_not_reuse_existing_pending_request(
     monkeypatch: Any, redis_sync: Any
 ) -> None:

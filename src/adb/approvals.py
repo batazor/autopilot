@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 _redis_client: redis.Redis | None = None
 _APPROVAL_POLL_SECONDS = 0.2
 _APPROVAL_PREVIEW_REFRESH_SECONDS = 2.0
+_APPROVAL_WORKER_HEARTBEAT_SECONDS = 2.0
 _APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT = 3
 # Approval mode: by default there is NO non-decision exit from the wait
 # loop — no wall-clock deadline AND no heartbeat-loss abort. The decision is
@@ -178,6 +179,31 @@ def _r_get(key: str) -> str | None:
 
 def _r_hgetall(key: str) -> dict[str, str]:
     return cast("dict[str, str]", _redis().hgetall(key))
+
+
+def _touch_worker_heartbeat_if_due(
+    instance_id: str,
+    last_heartbeat_at: float,
+    *,
+    force: bool = False,
+) -> float:
+    """Keep the worker liveness heartbeat fresh while blocked on approval.
+
+    ``_require_approval`` runs in a worker thread while the main instance loop
+    is awaiting task completion, so the normal loop heartbeat cannot fire.
+    """
+    now_m = time.monotonic()
+    if not force and (now_m - last_heartbeat_at) < _APPROVAL_WORKER_HEARTBEAT_SECONDS:
+        return last_heartbeat_at
+    try:
+        _redis().hset(
+            f"wos:instance:{instance_id}:state",
+            mapping={"last_seen_at": str(time.time())},
+        )
+    except Exception:
+        logger.debug("Failed to refresh approval wait heartbeat", exc_info=True)
+        return last_heartbeat_at
+    return now_m
 
 
 def _clear_stale_approval_current(
@@ -575,12 +601,17 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     )
     _redis().delete(resp_key)
     started_at = time.time()
+    last_worker_heartbeat_at = 0.0
     # Phase 1: try to publish the request into the per-instance "current" slot.
     # ``nx=True`` so we never overwrite an in-flight approval for this instance.
     # This is bounded ONLY by ``_APPROVAL_PUBLISH_WAIT_SECONDS`` because it is
     # not waiting on the operator — only on the previous request to clear.
     publish_deadline = started_at + _APPROVAL_PUBLISH_WAIT_SECONDS
     while time.time() < publish_deadline:
+        last_worker_heartbeat_at = _touch_worker_heartbeat_if_due(
+            instance_id,
+            last_worker_heartbeat_at,
+        )
         # Refresh preview + created_at on every retry: if the slot was held
         # for several poll intervals, the cached preview captured at
         # ``_attach_approval_preview`` time is already drifting. Re-capture so
@@ -647,6 +678,10 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         else None
     )
     while True:
+        last_worker_heartbeat_at = _touch_worker_heartbeat_if_due(
+            instance_id,
+            last_worker_heartbeat_at,
+        )
         abort_reason = _approval_abort_reason(instance_id, entered_at)
         if abort_reason is not None:
             decision = "abort"
