@@ -375,6 +375,36 @@ export type PlayerStateView = {
   building_levels: BuildingLevelRow[];
 };
 
+export type StaminaDemandRow = {
+  id: string;
+  task_type: string;
+  priority: number;
+  cost: number;
+  daily_quota: number | null;
+  quota_used: number;
+  reserve_floor: number;
+  active: boolean;
+  verdict: string | null;
+  selected: boolean;
+};
+
+export type PlayerStaminaView = {
+  enabled: boolean;
+  cap: number;
+  regen_per_hour: number;
+  est: number | null;
+  stamina_read_at: number | null;
+  seconds_to_cap: number | null;
+  retry_after_s: number | null;
+  period: string;
+  action: string;
+  reason: string;
+  target: string | null;
+  overflow_pressure: boolean;
+  demands: StaminaDemandRow[];
+  recent: Array<Record<string, unknown>>;
+};
+
 export type PlayerPowerDay = {
   day: string;
   power: number;

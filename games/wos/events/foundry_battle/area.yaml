@@ -6,6 +6,48 @@
       "screen_id": "",
       "ocr": "references/main.png",
       "regions": []
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/prepare.png",
+      "regions": []
+    },
+    {
+      "id": 3,
+      "screen_id": "main_city",
+      "ocr": "references/notify.png",
+      "regions": []
+    },
+    {
+      "id": 4,
+      "screen_id": "main_city",
+      "ocr": "references/notify_2.png",
+      "regions": []
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/enter.png",
+      "regions": []
+    },
+    {
+      "id": 6,
+      "screen_id": "",
+      "ocr": "references/wait.png",
+      "regions": []
+    },
+    {
+      "id": 7,
+      "screen_id": "",
+      "ocr": "references/battle_map.png",
+      "regions": []
+    },
+    {
+      "id": 8,
+      "screen_id": "",
+      "ocr": "references/battle_map_2.png",
+      "regions": []
     }
   ]
 }

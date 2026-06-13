@@ -1,0 +1,12 @@
+# Stamina-budget consumer stub (demand id: intel_events).
+#
+# Scenario key / task_type = `intel_run`. Enqueued by games.wos.core.stamina
+# when the budget allocator routes stamina to intel. No-op for now: a wait
+# placeholder so the worker can resolve and "run" it once the planner is
+# enabled. Real steps (navigate to intel, run one event, spend ~10 stamina)
+# are filled in later via the labeling/rehearsal flow.
+name: Intel run (stamina consumer)
+enabled: true
+priority: 80_060          # 80_000 base + demand priority 60
+steps:
+  - wait: 1s              # TODO: replace with the real intel-event flow

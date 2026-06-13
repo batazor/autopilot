@@ -7,14 +7,44 @@ max_refinement: 6.70%
 skill:
   name: Builder's Aide
   cooldown: '23:00:00'
-  effect: Skilled Hyenas adeptly deliver tools to the architect, increasing Construction Speed by 5.00%
-    / 7.00% / 9.00% / 12.00% / 15.00% for 5 minutes
+  effect: Skilled Hyenas adeptly deliver tools to the architect, increasing Construction
+    Speed by 5.00% / 7.00% / 9.00% / 12.00% / 15.00% for 5 minutes
   values:
   - 5.00%
   - 7.00%
   - 9.00%
   - 12.00%
   - 15.00%
+  levels:
+  - level: 1
+    value: 5.00%
+    effect: Skilled Hyenas adeptly deliver tools to the architect, increasing Construction
+      Speed by 5.00% for 5 minutes.
+    cooldown: '23:00:00'
+  - level: 2
+    value: 7.00%
+    effect: Skilled Hyenas adeptly deliver tools to the architect, increasing Construction
+      Speed by 7.00% for 5 minutes.
+    cooldown: '23:00:00'
+  - level: 3
+    value: 9.00%
+    effect: Skilled Hyenas adeptly deliver tools to the architect, increasing Construction
+      Speed by 9.00% for 5 minutes.
+    cooldown: '23:00:00'
+  - level: 4
+    value: 12.00%
+    effect: Skilled Hyenas adeptly deliver tools to the architect, increasing Construction
+      Speed by 12.00% for 5 minutes.
+    cooldown: '23:00:00'
+    requires:
+      pet_advancement_level: 40
+  - level: 5
+    value: 15.00%
+    effect: Skilled Hyenas adeptly deliver tools to the architect, increasing Construction
+      Speed by 15.00% for 5 minutes.
+    cooldown: '23:00:00'
+    requires:
+      pet_advancement_level: 50
 troop_bonus:
   stat: Troop Attack & Defense
   max_attack: 5.02%

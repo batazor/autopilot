@@ -1,0 +1,5 @@
+# No overlay rules yet. The calendar view is computed from the declarative
+# catalog (events.yaml) by the read_calendar scenario, not detected on screen.
+# When the on-screen calendar OCR reader lands, its trigger rule (push
+# read_calendar when the events panel is visible) goes here.
+overlay: []

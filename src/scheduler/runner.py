@@ -86,6 +86,9 @@ class SchedulerRunner:
         self._owns_wake_sync = wake_sync is None
         self._optimizer = optimizer
         self._evaluator = evaluator
+        # Last stamina decision signature per player — lets the planner skip
+        # rewriting the trace when its decision hasn't changed tick-to-tick.
+        self._stamina_last_sig: dict[str, str] = {}
 
     async def _connect(self) -> None:
         from config.redis_metrics import instrument_redis_client
@@ -753,6 +756,75 @@ class SchedulerRunner:
                     instance_id=instance_id,
                     skip_if_duplicate=True,
                     dedup_ignore_region=True,
+                )
+
+        await self._run_stamina_planner(player_states, player_instance_map, now)
+
+    async def _run_stamina_planner(
+        self,
+        player_states: dict[str, dict[str, object]],
+        player_instance_map: dict[str, str],
+        now: float,
+    ) -> None:
+        """Distribute the shared stamina pool across competing consumers.
+
+        Dormant unless ``games/wos/core/stamina/budget.yaml`` sets
+        ``enabled: true`` — until the consumer scenarios + OCR region exist,
+        enqueuing them would only hand the worker tasks it can't run. Each
+        player is independent and fully isolated by try/except so a single bad
+        snapshot can't stall the scheduler tick.
+        """
+        assert self._queue is not None and self._redis is not None
+        from games.wos.core.stamina import adapter as stamina
+
+        try:
+            budget = stamina.load_budget()   # mtime-cached; no disk read per tick
+        except Exception:
+            logger.warning("stamina budget load failed", exc_info=True)
+            return
+        if not budget.enabled:
+            return
+
+        for player_id, state in player_states.items():
+            instance_id = player_instance_map.get(player_id, "")
+            if not instance_id:
+                continue
+            try:
+                result = stamina.plan(budget, state, now)
+                dec = result.decision
+                # Only record the trace when the decision actually changes —
+                # otherwise the ring-buffer floods with identical entries every
+                # heartbeat. (Enqueue below still runs every tick; it's cheap and
+                # idempotent via skip_if_duplicate + the running-key guard.)
+                sig = stamina.decision_signature(dec)
+                if self._stamina_last_sig.get(player_id) != sig:
+                    await stamina.write_decision_trace(self._redis, player_id, result, now)
+                    self._stamina_last_sig[player_id] = sig
+                await stamina.prune_stale_quota(
+                    self._redis, player_id, state, result.period
+                )
+                if dec.action not in (stamina.CONSUME, stamina.SUPPLY):
+                    continue
+                # Same guard the cron path uses: ``skip_if_duplicate`` only sees
+                # the pending set, so re-check the running key to avoid a second
+                # copy while the worker is mid-execution.
+                if await self._task_already_running(
+                    instance_id=instance_id,
+                    player_id=player_id,
+                    task_type=dec.task_type or "",
+                ):
+                    continue
+                await stamina.enqueue_decision(
+                    self._queue,
+                    instance_id=instance_id,
+                    player_id=player_id,
+                    decision=dec,
+                    period=result.period,
+                    now=now,
+                )
+            except Exception:
+                logger.warning(
+                    "stamina planner failed for player=%s", player_id, exc_info=True
                 )
 
     async def _drain_wake_queue(self) -> bool:

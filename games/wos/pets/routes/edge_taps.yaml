@@ -7,4 +7,5 @@ edges:
       threshold: 0.9
 
   pets:
+    pets.pet_skill: [pets.skills]
     main_city: [icon.page.back]

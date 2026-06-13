@@ -6,6 +6,7 @@ import { BuildingLevelsTable } from "@/components/player-state/BuildingLevelsTab
 import { CollapsiblePanel } from "@/components/player-state/CollapsiblePanel";
 import { HeroTileGrid } from "@/components/player-state/HeroTileGrid";
 import { SearchField } from "@/components/player-state/SearchField";
+import { StaminaPanel } from "@/components/player-state/StaminaPanel";
 import { AppConfirmDialog, AppMenu } from "@/components/headless";
 import { tip } from "@/components/AppTooltip";
 import { useFleet } from "@/components/FleetContextProvider";
@@ -14,6 +15,7 @@ import { FleetPageHeader } from "@/components/FleetPageHeader";
 import {
   deletePlayer,
   fetchPlayerPersisted,
+  fetchPlayerStamina,
   fetchPlayerState,
   fetchSuggestedPlayer,
   syncPlayerFromCentury,
@@ -27,6 +29,7 @@ import type {
   HeroMissingRow,
   HeroStateRow,
   PlayerPersistedView,
+  PlayerStaminaView,
   PlayerStateView,
 } from "@/lib/types";
 
@@ -280,6 +283,7 @@ function PlayerStatePageInner() {
   const [suggestedPlayer, setSuggestedPlayer] = useState("");
   const [live, setLive] = useState<PlayerStateView | null>(null);
   const [persisted, setPersisted] = useState<PlayerPersistedView | null>(null);
+  const [stamina, setStamina] = useState<PlayerStaminaView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [avatarUpdating, setAvatarUpdating] = useState(false);
@@ -339,25 +343,41 @@ function PlayerStatePageInner() {
     }
   }, [playerId]);
 
+  const refreshStamina = useCallback(async () => {
+    if (!playerId) return;
+    try {
+      setStamina(await fetchPlayerStamina(playerId));
+    } catch {
+      // Stamina is auxiliary — don't surface its errors on the main banner.
+      setStamina(null);
+    }
+  }, [playerId]);
+
   useDashboardEventStream({
     topics: ["player"],
     playerId: playerId || undefined,
     enabled: Boolean(playerId),
     onEvent: () => {
       void refreshLive();
+      void refreshStamina();
     },
-    onFallbackPoll: refreshLive,
+    onFallbackPoll: () => {
+      void refreshLive();
+      void refreshStamina();
+    },
   });
 
   useEffect(() => {
     if (!playerId) {
       setLive(null);
       setPersisted(null);
+      setStamina(null);
       return;
     }
     void refreshLive();
     void refreshPersisted();
-  }, [playerId, refreshLive, refreshPersisted]);
+    void refreshStamina();
+  }, [playerId, refreshLive, refreshPersisted, refreshStamina]);
 
   const onSync = async () => {
     if (!playerId || syncing) return;
@@ -608,6 +628,16 @@ function PlayerStatePageInner() {
               { label: "Furnace pwr", ...summaryMetric(summary.furnace_power) },
             ]}
           />
+
+          {stamina && stamina.demands.length ? (
+            <CollapsiblePanel
+              title="Stamina budget"
+              meta={stamina.enabled ? undefined : "planner off"}
+              defaultOpen
+            >
+              <StaminaPanel stamina={stamina} />
+            </CollapsiblePanel>
+          ) : null}
 
           {p?.event_timers?.length ? (
             <CollapsiblePanel

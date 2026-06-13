@@ -1,0 +1,50 @@
+# Shared stamina budget for Whiteout Survival.
+#
+# Declarative demand table consumed by games.wos.core.stamina.allocator. Edit
+# here (config-as-code) — there is no UI editor for these values. Conditions
+# (`active_when` / `trigger_when`) are Python-expression `cond`s evaluated by
+# layout.area_versions.eval_cond against the player's flat state, so use
+# `and` / `or` (not SQL `AND`). Referenced state fields (e.g. joe_event_active)
+# are resolved by the Redis-backed adapter.
+
+# Planner active. Consumer scenarios + OCR stamina regions exist. NOTE: the
+# consumer scenarios are still no-op stubs (`wait: 1s`), so while enabled the
+# planner exercises the full pipeline (decide → enqueue → quota/estimate update
+# → decision trace) but performs no real in-game action. Quota counters and the
+# stamina estimate will move as if consuming until the stubs gain real steps.
+enabled: true
+
+cap: 200
+regen_per_hour: 12            # 1 stamina every 5 minutes
+daily_reset_utc: "02:00"      # TODO: confirm the in-game daily reset hour (UTC)
+overflow_horizon_hours: 1     # if stamina would cap within 1h, drain surplus now
+
+demands:
+  - id: joe_bandits           # hunt bandits during the Crazy Joe event
+    task_type: joe_hunt_bandits
+    priority: 100             # above intel
+    cost: 10
+    daily_quota: 30
+    active_when: "joe_event_active"
+    reserve_floor: 50         # hold stamina for Joe even when the window is imminent
+
+  - id: intel_events
+    task_type: intel_run
+    priority: 60
+    cost: 10
+    daily_quota: 10           # "10 intel events per day"
+
+  - id: beast_hunt
+    task_type: beast_hunt
+    priority: 10              # lowest
+    cost: 10
+    daily_quota: null         # unlimited → overflow sink (anti-burn)
+
+supplies:
+  - id: pet_refill            # pet skill that tops up action points
+    task_type: pet_stamina_skill
+    gives: 50
+    daily_quota: 1
+    # top_demand_cost / top_demand_priority are computed by the adapter for the
+    # highest-priority active demand that still has quota left.
+    trigger_when: "stamina < top_demand_cost and top_demand_priority >= 60"

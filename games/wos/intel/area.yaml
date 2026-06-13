@@ -63,6 +63,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "intel.stamina",
+          "action": "text",
+          "threshold": 0.7,
+          "bbox": {
+            "x": 79.72222222222223,
+            "y": 1.015625,
+            "width": 12.222222222222221,
+            "height": 4.21875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "integer",
+          "preprocess": "fast_digits"
         }
       ]
     },

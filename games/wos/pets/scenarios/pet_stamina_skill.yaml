@@ -1,0 +1,12 @@
+# Stamina-budget supply stub (supply id: pet_refill).
+#
+# Scenario key / task_type = `pet_stamina_skill`. Enqueued by
+# games.wos.core.stamina when the allocator decides to refill: a pet skill that
+# tops up action points so a high-priority demand can run. No-op for now: a
+# wait placeholder. Real steps (open pets, activate the stamina skill, confirm)
+# are filled in later via the labeling/rehearsal flow.
+name: Pet stamina skill (stamina supply)
+enabled: true
+priority: 80_000
+steps:
+  - wait: 1s              # TODO: replace with the real pet-skill activation flow

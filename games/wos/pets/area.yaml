@@ -1,2 +1,156 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "pets",
+      "ocr": "references/main_city.pets.png",
+      "screen_region": "pets.skills",
+      "regions": [
+        {
+          "name": "pets.skills",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.5628629528967,
+            "y": 63.70326760582848,
+            "width": 10.477386934673374,
+            "height": 6.51856206460724,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "pets.pet_skill",
+      "ocr": "references/pet.skill.png",
+      "screen_region": "pet.skill.title",
+      "regions": [
+        {
+          "name": "pet.skill.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.202290636059644,
+            "y": 10.46318790625656,
+            "width": 18.95728643216085,
+            "height": 3.344052203051035,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "pet.skill.cave_hyena",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.277777777777779,
+            "y": 18.75,
+            "width": 18.333333333333332,
+            "height": 10.3125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "pet.skill.artic_wolf",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.416666666666668,
+            "y": 18.75,
+            "width": 18.333333333333332,
+            "height": 10.3125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "pet.skill.musk_ox",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.55555555555556,
+            "y": 18.75,
+            "width": 18.333333333333332,
+            "height": 10.3125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "pet.skill.giant_tapir",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 70.69444444444444,
+            "y": 18.75,
+            "width": 18.333333333333332,
+            "height": 10.3125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "pet.skill.titan_roc",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.277777777777779,
+            "y": 30.15625,
+            "width": 18.333333333333332,
+            "height": 10.3125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "pet.skill.use",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.61111111111111,
+            "y": 81.71875,
+            "width": 42.77777777777778,
+            "height": 6.875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "pets.pet_skill",
+      "ocr": "references/pet.skill.cooldown.png",
+      "regions": [
+        {
+          "name": "pet.skill.cooldown.time",
+          "action": "text",
+          "threshold": 0.75,
+          "type": "time",
+          "bbox": {
+            "x": 53.05555555555556,
+            "y": 83.90625,
+            "width": 17.083333333333332,
+            "height": 2.8125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -14,11 +14,11 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def _write_edge_taps(root: Path, text: str = "edges: {}\n") -> None:
+def _write_edge_taps(root: Path, text: str = "edges: {}\n", *, game: str = "wos") -> None:
     # Validator now walks per-module ``routes/edge_taps.yaml`` only — no canonical
     # file exists. Stash the fixture under a tiny throwaway module so iter_module_dirs
     # picks it up.
-    mod = root / "games" / "wos" / "core" / "_edge_taps_fixture"
+    mod = root / "games" / game / "core" / "_edge_taps_fixture"
     (mod / "routes").mkdir(parents=True, exist_ok=True)
     (mod / "module.yaml").write_text(
         "id: _edge_taps_fixture\ntitle: edge taps fixture\nwiki: false\n",
@@ -27,7 +27,7 @@ def _write_edge_taps(root: Path, text: str = "edges: {}\n") -> None:
     (mod / "routes" / "edge_taps.yaml").write_text(text, encoding="utf-8")
 
 
-def _write_area_regions(root: Path, area_json_text: str) -> None:
+def _write_area_regions(root: Path, area_json_text: str, *, game: str = "wos") -> None:
     """Stash test-fixture area data as a per-module ``area.yaml`` manifest.
 
     The validator merges all ``modules/**/area.yaml`` via ``load_area_doc``.
@@ -42,7 +42,7 @@ def _write_area_regions(root: Path, area_json_text: str) -> None:
     raw = _json.loads(area_json_text) if area_json_text.strip().startswith("{") else _yaml.safe_load(area_json_text)
     if not isinstance(raw, dict) or not raw.get("screens"):
         return  # nothing to register
-    mod = root / "games" / "wos" / "core" / "_area_fixture"
+    mod = root / "games" / game / "core" / "_area_fixture"
     mod.mkdir(parents=True, exist_ok=True)
     (mod / "module.yaml").write_text(
         "id: _area_fixture\ntitle: area fixture\nwiki: false\n",
@@ -496,6 +496,27 @@ edges:
     assert len(issues) == 1
     assert issues[0].source == "edge_taps:main_city->mail"
     assert "missing_mail_button" in issues[0].message
+
+
+def test_startup_validation_checks_edge_taps_against_their_game_area_regions(
+    tmp_path: Path,
+) -> None:
+    _write_edge_taps(
+        tmp_path,
+        """
+edges:
+  main_city:
+    conquest: [main_city.to.conquest]
+""".lstrip(),
+        game="kingshot",
+    )
+    _write_area_regions(
+        tmp_path,
+        '{"screens":[{"regions":[{"name":"main_city.to.conquest","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
+        game="kingshot",
+    )
+
+    assert validate_startup_configs(tmp_path) == []
 
 
 def test_startup_validation_accepts_system_back_edge_tap_action(tmp_path: Path) -> None:

@@ -1,0 +1,31 @@
+# Opportunistic stamina reads. Whenever the bot is on a screen that shows the
+# stamina pill (chief_profile bottom-left, intel top-right), push read_stamina.
+# The per-push `ttl` throttles it to ~5 min per player (Redis push_ttl marker),
+# which matches the regen granularity (1 / 5 min) — finer reads add nothing.
+# Combined with regen interpolation, this keeps the estimate fresh without ever
+# navigating somewhere just to read. Matches the stable screen title (not the
+# changing number) as the trigger landmark.
+overlay:
+  - name: stamina.chief_profile.auto_read
+    region: chief_profile.title
+    action: findIcon
+    template: games/wos/core/chief_profile/references/crop/chief_profile_chief_profile.title.png
+    threshold: 0.8
+    screens:
+      - chief_profile
+    steps:
+      - push_scenario:
+          name: read_stamina
+          ttl: 5m
+
+  - name: stamina.intel.auto_read
+    region: intel.title
+    action: findIcon
+    template: games/wos/intel/references/crop/main_intel.title.png
+    threshold: 0.8
+    screens:
+      - intel
+    steps:
+      - push_scenario:
+          name: read_stamina
+          ttl: 5m

@@ -1,6 +1,8 @@
 """Player state API helpers."""
 from __future__ import annotations
 
+import json
+import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -51,6 +53,40 @@ def list_player_ids(*, instance_id: str | None = None) -> list[str]:
 def build_player_state(client: redis.Redis, player_id: str) -> dict[str, Any]:
     state = get_player_state_hash(client, player_id)
     return build_live_player_state(player_id, state)
+
+
+def _read_stamina_decisions(
+    client: redis.Redis, player_id: str, limit: int = 20
+) -> list[dict[str, Any]]:
+    """Recent allocator decisions (newest first) from the trace ring-buffer."""
+    key = f"wos:player:{player_id}:stamina_decisions"
+    try:
+        raw = client.zrevrange(key, 0, limit - 1)
+    except Exception:
+        return []
+    out: list[dict[str, Any]] = []
+    for member in raw or []:
+        text = member.decode() if isinstance(member, bytes) else member
+        try:
+            out.append(json.loads(text))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def build_player_stamina(client: redis.Redis, player_id: str) -> dict[str, Any]:
+    """Live stamina-budget snapshot + recent decision trace for the dashboard.
+
+    Reuses the pure allocator (``adapter.build_view``) for the current snapshot
+    so the API never re-implements decision logic; the recent history is read
+    from the per-player trace ZSET the scheduler writes each tick.
+    """
+    from games.wos.core.stamina import adapter as stamina
+
+    state = get_player_state_hash(client, player_id)
+    view = stamina.build_view(stamina.Budget.load(), state, time.time())
+    view["recent"] = _read_stamina_decisions(client, player_id)
+    return view
 
 
 def get_persisted_state(player_id: str) -> dict[str, Any]:

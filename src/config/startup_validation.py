@@ -281,6 +281,16 @@ def _load_merged_area_region_names(repo_root: Path) -> set[str]:
         return set()
 
 
+def _load_merged_area_region_names_for_game(repo_root: Path, *, game: str) -> set[str]:
+    """Region names merged across one game's per-module ``area.yaml`` manifests."""
+    try:
+        from layout.area_manifest import load_area_doc
+
+        return _area_region_names(load_area_doc(repo_root, game=game))
+    except Exception:
+        return set()
+
+
 def _overlay_rule_region_refs(rule: dict[str, Any]) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for field in ("region", "search_region"):
@@ -818,13 +828,20 @@ def _validate_edge_taps_file(
 def _validate_edge_taps(
     repo_root: Path,
     issues: list[StartupValidationIssue],
-    *,
-    region_names: set[str],
 ) -> None:
     """Walk every per-module ``edge_taps.yaml``."""
 
-    for path in _edge_taps_yaml_paths(repo_root):
-        _validate_edge_taps_file(path, issues, region_names=region_names)
+    from config.games import iter_games
+    from config.module_discovery import iter_module_dirs
+
+    for g in iter_games(repo_root):
+        region_names = _load_merged_area_region_names_for_game(repo_root, game=g)
+        for module_dir in iter_module_dirs(repo_root, game=g):
+            for rel in ("edge_taps.yaml", "routes/edge_taps.yaml"):
+                path = module_dir / rel
+                if path.is_file():
+                    _validate_edge_taps_file(path, issues, region_names=region_names)
+                    break
 
 
 def _screen_verify_yaml_paths(repo_root: Path) -> list[Path]:
@@ -981,7 +998,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     red_dot_regions = _area_regions_with_red_dot_capability(area_doc)
     text_search_regions = _area_regions_text_action_with_search_sibling(area_doc)
 
-    _validate_edge_taps(root, issues, region_names=region_names)
+    _validate_edge_taps(root, issues)
     _validate_dead_end_screens(root, issues)
     _validate_cron_specs(root, issues)
     _validate_analyze_manifest(

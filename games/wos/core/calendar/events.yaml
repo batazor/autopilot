@@ -1,0 +1,68 @@
+# Declarative event catalog — the recurring events whose cadence is known up
+# front, so the bot can plan without opening the game. Parsed by
+# `games.wos.core.calendar.model.Calendar`.
+#
+# All times are server time (UTC). Fields per event:
+#   id          unique key (also the digest/flag identity)
+#   title       human label
+#   category    combat | growth | alliance | limited | general (free-form tag)
+#   recurrence  weekly | daily | once
+#   weekdays    weekly only: [Mon, Wed, Sat] or [0,2,5] (Mon=0..Sun=6)
+#   start/end   "HH:MM" UTC window within each active day; "24:00" = end of day.
+#               A single window stays within one server-day — model a
+#               midnight-crossing or multi-day event as `once` or split weekdays.
+#   starts_at   once only: ISO datetime, e.g. 2026-06-20T00:00:00Z
+#   ends_at     once only: ISO datetime
+#   state_flag  flat player-state key set to 1 while live, 0 otherwise. Other
+#               modules' `active_when` conditions gate on this (see
+#               games/wos/core/stamina). Omit if nothing keys off the event.
+#   scenario    linked DSL scenario name, if the event has an automation
+#   strategy    operator-facing note on what to do / hold for this event
+#   enabled     default true; set false to keep an entry without scheduling it
+#
+# IMPORTANT: the weekday/time windows below are PLACEHOLDERS. WOS rotates its
+# schedule per server and per season — confirm each window against the live
+# in-game calendar before trusting the flags for resource decisions. The OCR
+# reader that overrides these from the on-screen calendar (as `once` entries)
+# is a follow-up step.
+enabled: true
+
+events:
+  - id: crazy_joe
+    title: Crazy Joe
+    category: combat
+    recurrence: weekly
+    weekdays: [Tue, Sat]          # PLACEHOLDER — confirm against live calendar
+    start: "00:00"
+    end: "24:00"
+    state_flag: event_crazy_joe
+    scenario: joe_hunt_bandits
+    strategy: >-
+      Bandit-hunt event: spend stamina on Joe waves while live. Hold a stamina
+      reserve heading into the window rather than burning it earlier in the day.
+
+  - id: defeat_nearby_beasts
+    title: Defeat Nearby Beasts
+    category: combat
+    recurrence: weekly
+    weekdays: [Mon, Thu]          # PLACEHOLDER — confirm against live calendar
+    start: "00:00"
+    end: "24:00"
+    state_flag: event_defeat_nearby_beasts
+    scenario: beast_hunt
+    strategy: >-
+      Beast-hunt scoring window: route stamina to beast hunting while live for
+      event points.
+
+  - id: foundry_battle
+    title: Foundry Battle
+    category: combat
+    recurrence: weekly
+    weekdays: [Sat, Sun]          # PLACEHOLDER — confirm against live calendar
+    start: "00:00"
+    end: "24:00"
+    state_flag: event_foundry_battle
+    scenario: event.foundry_battle
+    strategy: >-
+      Foundry Battle is live — prioritise the foundry_battle flow; coordinate
+      troop availability with alliance timing.

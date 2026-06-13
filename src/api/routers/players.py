@@ -44,6 +44,15 @@ def get_player_state(player_id: str, client: RedisDep) -> dict[str, Any]:
     return players_svc.build_player_state(client, player_id)
 
 
+@router.get("/players/{player_id}/stamina")
+def get_player_stamina(player_id: str, client: RedisDep) -> dict[str, Any]:
+    """Live stamina-budget snapshot + recent allocator decisions for one player."""
+    ids = players_svc.list_player_ids()
+    if player_id not in ids:
+        raise HTTPException(status_code=404, detail=f"unknown player: {player_id}")
+    return players_svc.build_player_stamina(client, player_id)
+
+
 @router.get("/players/{player_id}/persisted")
 def get_player_persisted(player_id: str) -> dict[str, Any]:
     try:

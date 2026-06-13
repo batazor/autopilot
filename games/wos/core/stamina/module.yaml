@@ -1,0 +1,10 @@
+id: stamina
+title: Stamina budget
+description: >-
+  Shared stamina-budget planner, demand table (budget.yaml), and the OCR reader
+  that feeds the per-player stamina estimate. Regions live on the chief_profile
+  and intel screens; this module only carries scenarios.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+enabled: true
+wiki: false

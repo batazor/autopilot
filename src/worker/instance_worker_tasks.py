@@ -337,6 +337,30 @@ class InstanceWorkerTasksMixin(_Base):
                     )
                 except Exception:
                     logger.debug("wake_scheduler_async failed", exc_info=True)
+                # Stamina budget accounting: a planner-enqueued consumer/supply
+                # carries its quota id + game-day period in ``args``. On success
+                # bump the matching daily counter in the player state hash — the
+                # same ``quota:<period>:<id>`` field the allocator reads back.
+                if _success and item.args:
+                    try:
+                        _q_id = item.args.get("stamina_quota_id")
+                        _q_period = item.args.get("stamina_period")
+                        _state_key = f"wos:player:{item.player_id}:state"
+                        if _q_id and _q_period:
+                            from games.wos.core.stamina.model import quota_field
+
+                            await self._redis.hincrby(
+                                _state_key, quota_field(str(_q_period), str(_q_id)), 1
+                            )
+                        # Keep the stamina estimate honest between OCR reads:
+                        # apply the spent/gained delta now (next read re-anchors).
+                        _delta = int(item.args.get("stamina_delta") or 0)
+                        if _delta:
+                            _new = await self._redis.hincrby(_state_key, "stamina", _delta)
+                            if _new < 0:
+                                await self._redis.hset(_state_key, "stamina", 0)
+                    except Exception:
+                        logger.debug("stamina post-consume update failed", exc_info=True)
                 await self._record_task_history(
                     item=item,
                     task=task,

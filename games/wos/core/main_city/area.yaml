@@ -109,6 +109,20 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "stamina.bar",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.2222222222222223,
+            "y": 6.640625,
+            "width": 8.75,
+            "height": 0.234375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ],
       "versions": [

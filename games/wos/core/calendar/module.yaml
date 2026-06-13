@@ -1,0 +1,14 @@
+id: calendar
+title: Event calendar
+description: >-
+  Look-ahead view of the in-game event schedule. The declarative catalog
+  (events.yaml) holds the recurring weekly/daily events whose cadence is known;
+  the read_calendar scenario computes "what's on today and the next few days",
+  publishes it to player state, and sets per-event active flags that other
+  modules' active_when conditions (e.g. the stamina allocator) gate on. Reading
+  limited-time events off the on-screen calendar via OCR is a follow-up — those
+  regions get labeled through the UI and enter as `recurrence: once` entries.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+enabled: true
+wiki: false

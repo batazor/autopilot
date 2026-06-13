@@ -51,6 +51,7 @@ import type {
   HealthView,
   OverviewView,
   PlayerStateView,
+  PlayerStaminaView,
   PlayerPersistedView,
   PlayerStatsView,
   AllianceStatsView,
@@ -501,6 +502,14 @@ export async function fetchSuggestedPlayer(
 export async function fetchPlayerState(playerId: string): Promise<PlayerStateView> {
   return apiFetch<PlayerStateView>(
     `/api/players/${encodeURIComponent(playerId)}/state`,
+  );
+}
+
+export async function fetchPlayerStamina(
+  playerId: string,
+): Promise<PlayerStaminaView> {
+  return apiFetch<PlayerStaminaView>(
+    `/api/players/${encodeURIComponent(playerId)}/stamina`,
   );
 }
 

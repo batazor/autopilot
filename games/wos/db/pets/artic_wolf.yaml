@@ -7,8 +7,8 @@ max_refinement: 13.41%
 skill:
   name: Arctic Embrace
   cooldown: '23:00:00'
-  effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly restoring 35 / 40
-    / 45 / 50 / 55 / 60 Chief Stamina.
+  effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly
+    restoring 35 / 40 / 45 / 50 / 55 / 60 Chief Stamina.
   values:
   - '35'
   - '40'
@@ -16,6 +16,43 @@ skill:
   - '50'
   - '55'
   - '60'
+  levels:
+  - level: 1
+    value: '35'
+    effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly
+      restoring 35 Chief Stamina.
+    cooldown: '23:00:00'
+  - level: 2
+    value: '40'
+    effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly
+      restoring 40 Chief Stamina.
+    cooldown: '23:00:00'
+  - level: 3
+    value: '45'
+    effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly
+      restoring 45 Chief Stamina.
+    cooldown: '23:00:00'
+  - level: 4
+    value: '50'
+    effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly
+      restoring 50 Chief Stamina.
+    cooldown: '23:00:00'
+    requires:
+      pet_advancement_level: 40
+  - level: 5
+    value: '55'
+    effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly
+      restoring 55 Chief Stamina.
+    cooldown: '23:00:00'
+    requires:
+      pet_advancement_level: 50
+  - level: 6
+    value: '60'
+    effect: The Arctic Wolf's comforting presence rejuvenates weary spirits, instantly
+      restoring 60 Chief Stamina.
+    cooldown: '23:00:00'
+    requires:
+      pet_advancement_level: 60
 troop_bonus:
   stat: Troop Attack & Defense
   max_attack: 10.06%
