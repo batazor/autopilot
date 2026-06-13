@@ -30,6 +30,56 @@
     @apply grid items-start gap-4 lg:grid-cols-[minmax(240px,300px)_1fr];
   }
 
+  .edit-dsl-layout--collapsed {
+    @apply lg:grid-cols-[auto_1fr];
+  }
+
+  .edit-dsl-rail {
+    @apply sticky top-4 flex flex-row items-center gap-2 self-start rounded-xl border border-wos-border-subtle bg-wos-panel/80 px-2 py-1.5 lg:flex-col lg:px-1.5 lg:py-2;
+  }
+
+  .edit-dsl-rail__label {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-wos-text-muted;
+  }
+
+  @media (min-width: 1024px) {
+    .edit-dsl-rail__label {
+      writing-mode: vertical-rl;
+    }
+  }
+
+  .edit-dsl-rail__count {
+    @apply rounded-md border border-wos-border-subtle bg-wos-panel-raised px-1 py-0.5 text-[10px] text-wos-text-muted;
+  }
+
+  .edit-dsl-panel-head__actions {
+    @apply flex shrink-0 items-center gap-1;
+  }
+
+  .edit-dsl-metric--problems {
+    @apply cursor-pointer border-red-400/50;
+  }
+
+  .edit-dsl-metric--problems strong {
+    @apply text-red-400;
+  }
+
+  .edit-dsl-problems {
+    @apply mb-4;
+  }
+
+  .edit-dsl-problems__list {
+    @apply m-0 mt-2 flex max-h-64 list-none flex-col gap-1 overflow-y-auto p-0;
+  }
+
+  .edit-dsl-problems__list li {
+    @apply flex min-w-0 flex-wrap items-center gap-2 text-sm;
+  }
+
+  .edit-dsl-problems__list code {
+    @apply shrink-0 text-xs text-wos-text-muted;
+  }
+
   .edit-dsl-header-metrics {
     @apply flex flex-wrap gap-2;
   }

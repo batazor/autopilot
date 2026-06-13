@@ -369,6 +369,7 @@ def editor_meta() -> dict[str, Any]:
     regions: list[str] = []
     region_refs: dict[str, str] = {}
     region_screens: dict[str, str] = {}
+    region_red_dot: set[str] = set()
     try:
         doc = load_area_doc(_REPO)
     except Exception:
@@ -388,7 +389,11 @@ def editor_meta() -> dict[str, Any]:
         for regs in sources:
             for reg in regs or []:
                 name = str((reg or {}).get("name") or "").strip()
-                if name and name not in seen:
+                if not name:
+                    continue
+                if (reg or {}).get("has_red_dot"):
+                    region_red_dot.add(name)
+                if name not in seen:
                     seen.add(name)
                     regions.append(name)
                     if ref_path:
@@ -405,7 +410,192 @@ def editor_meta() -> dict[str, Any]:
         "regions": regions,
         "region_refs": region_refs,
         "region_screens": region_screens,
+        "region_red_dot": sorted(region_red_dot),
         "fsm_nodes": list(fsm_nodes),
         "exec_names": sorted(DSL_EXEC_REGISTRY.keys()),
         "scenario_keys": scenario_keys,
+    }
+
+
+# --- Catalog-wide static problems (mirrors the flow editor's stepIssues) ----
+
+_PROBLEM_REGION_KINDS = (
+    "click",
+    "long_click",
+    "match",
+    "ocr",
+    "while_match",
+    "while_scroll",
+)
+
+
+def _is_templated(value: str) -> bool:
+    """Template scenarios reference regions/keys via ``${var}`` placeholders
+    that only resolve at load time — never flag those."""
+    return "${" in value
+
+
+def _step_problems(
+    step: dict[str, Any],
+    *,
+    regions: set[str],
+    red_dot: set[str],
+    execs: set[str],
+    keys: set[str],
+) -> list[str]:
+    out: list[str] = []
+    for kind in _PROBLEM_REGION_KINDS:
+        value = step.get(kind)
+        if not isinstance(value, str):
+            continue
+        region = value.strip()
+        if not region:
+            out.append(f"{kind}: region not set")
+        elif region not in regions and not _is_templated(region):
+            out.append(f'{kind}: unknown region "{region}"')
+        elif step.get("isRedDot") is not None and region in regions and region not in red_dot:
+            out.append(f'isRedDot filter, but "{region}" has no has_red_dot in area')
+    ps = step.get("push_scenario")
+    name = ps.get("name") if isinstance(ps, dict) else ps
+    if isinstance(name, str):
+        name = name.strip()
+        if not name:
+            out.append("push_scenario: scenario key not set")
+        elif name not in keys and not _is_templated(name):
+            out.append(f'push_scenario: unknown scenario "{name}"')
+    fn = step.get("exec")
+    if isinstance(fn, str):
+        fn = fn.strip()
+        if fn and fn not in execs and not _is_templated(fn):
+            out.append(f'exec: unknown function "{fn}"')
+    return out
+
+
+def _walk_step_problems(
+    steps: Any,
+    path: list[int],
+    rel: str,
+    sets: dict[str, set[str]],
+    out: list[dict[str, Any]],
+) -> None:
+    if not isinstance(steps, list):
+        return
+    for i, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        p = [*path, i]
+        step_key = "/".join(map(str, p))
+        out.extend(
+            {"rel": rel, "step": step_key, "issue": issue}
+            for issue in _step_problems(step, **sets)
+        )
+        inner = step.get("steps")
+        spec = step.get("loop") or step.get("repeat")
+        if not isinstance(inner, list) and isinstance(spec, dict):
+            inner = spec.get("steps")
+        _walk_step_problems(inner, p, rel, sets, out)
+
+
+def catalog_problems() -> list[dict[str, Any]]:
+    """Static issues across every scenario YAML — unknown regions after a
+    labeling rename, dangling ``push_scenario`` keys, unknown exec functions.
+    Same checks the flow canvas runs per-file, swept over the whole catalog."""
+    meta = editor_meta()
+    sets = {
+        "regions": set(meta["regions"]),
+        "red_dot": set(meta["region_red_dot"]),
+        "execs": set(meta["exec_names"]),
+        "keys": set(meta["scenario_keys"]),
+    }
+    out: list[dict[str, Any]] = []
+    for _root, path in iter_scenario_yaml_files(_REPO):
+        try:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(doc, dict):
+            continue
+        rel = path.relative_to(_REPO).as_posix()
+        _walk_step_problems(doc.get("steps"), [], rel, sets, out)
+    out.sort(key=lambda r: (r["rel"], r["step"]))
+    return out
+
+
+# --- Reverse references ("who calls me") ------------------------------------
+
+
+def _walk_push_refs(
+    steps: Any,
+    path: list[int],
+    target: str,
+    out: list[str],
+) -> None:
+    if not isinstance(steps, list):
+        return
+    for i, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        p = [*path, i]
+        ps = step.get("push_scenario")
+        name = ps.get("name") if isinstance(ps, dict) else ps
+        if isinstance(name, str) and name.strip() == target:
+            out.append("/".join(map(str, p)))
+        inner = step.get("steps")
+        spec = step.get("loop") or step.get("repeat")
+        if not isinstance(inner, list) and isinstance(spec, dict):
+            inner = spec.get("steps")
+        _walk_push_refs(inner, p, target, out)
+
+
+def _notify_events_for(target: str) -> list[str]:
+    """Notification event types that enqueue this scenario directly
+    (modules/notify pushes straight onto the worker queue)."""
+    try:
+        from modules.notify.config import EVENT_SCENARIOS
+    except Exception:
+        return []
+    out: list[str] = []
+    for game_map in EVENT_SCENARIOS.values():
+        out.extend(
+            event for event, key in game_map.items() if str(key).strip() == target
+        )
+    return sorted(set(out))
+
+
+def scenario_callers(rel: str) -> dict[str, Any]:
+    """Everything that can start the scenario at ``rel``: ``push_scenario``
+    steps across the catalog, its own ``cron``, and notify event pushes.
+    Answers "is it safe to rename/delete this?" without grep."""
+    path = _path_for_rel(rel)
+    target = path.stem
+    callers: list[dict[str, Any]] = []
+    for _root, p in iter_scenario_yaml_files(_REPO):
+        if p.resolve() == path.resolve():
+            continue
+        try:
+            doc = yaml.safe_load(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(doc, dict):
+            continue
+        refs: list[str] = []
+        _walk_push_refs(doc.get("steps"), [], target, refs)
+        callers.extend(
+            {
+                "rel": scenario_source_label(p, _REPO),
+                "stem": p.stem,
+                "step": ref,
+            }
+            for ref in refs
+        )
+    callers.sort(key=lambda r: (r["rel"], r["step"]))
+    try:
+        own = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except Exception:
+        own = None
+    cron = str(own.get("cron") or "").strip() if isinstance(own, dict) else ""
+    return {
+        "callers": callers,
+        "cron": cron,
+        "notify_events": _notify_events_for(target),
     }

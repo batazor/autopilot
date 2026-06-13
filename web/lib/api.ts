@@ -1784,12 +1784,47 @@ export async function fetchEditDslMeta(): Promise<{
   regions: string[];
   region_refs: Record<string, string>;
   region_screens: Record<string, string>;
+  region_red_dot: string[];
   fsm_nodes: string[];
   exec_names: string[];
   scenario_keys: string[];
 }> {
   const q = editDslQuery();
   return apiFetch(`/api/edit-dsl/meta${q ? `?${q}` : ""}`);
+}
+
+export type EditDslProblem = {
+  /** Repo-relative scenario path (matches ScenarioFileEntry.path). */
+  rel: string;
+  /** Canvas step path, e.g. "1/0/2". */
+  step: string;
+  issue: string;
+};
+
+/** Static issues across the whole scenario catalog (unknown regions/keys/execs). */
+export async function fetchEditDslProblems(): Promise<{
+  problems: EditDslProblem[];
+  count: number;
+}> {
+  const q = editDslQuery();
+  return apiFetch(`/api/edit-dsl/problems${q ? `?${q}` : ""}`);
+}
+
+export type EditDslCaller = {
+  /** Catalog rel of the calling scenario (usable as ?scenario= deep link). */
+  rel: string;
+  stem: string;
+  /** Canvas step path of the push_scenario step, e.g. "3/0". */
+  step: string;
+};
+
+/** Everything that can start a scenario: push_scenario refs, cron, notify pushes. */
+export async function fetchEditDslCallers(rel: string): Promise<{
+  callers: EditDslCaller[];
+  cron: string;
+  notify_events: string[];
+}> {
+  return apiFetch(`/api/edit-dsl/callers?${editDslQuery({ rel })}`);
 }
 
 /** Stable URL for a region's crop thumbnail. 404 if no crop is on disk. */

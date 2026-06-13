@@ -4,7 +4,6 @@ import { AppListbox } from "@/components/headless";
 import { editDslRegionPreviewUrl } from "@/lib/api";
 import { SWIPE_DIRECTIONS, detectStepType, type ScenarioStep } from "@/lib/edit-dsl/dsl";
 import { SelectWithFreetext } from "./SelectWithFreetext";
-import { StepsList } from "./StepsList";
 
 const regionPreview = (value: string) =>
   value.trim() ? editDslRegionPreviewUrl(value.trim()) : null;
@@ -13,6 +12,8 @@ export type EditorMeta = {
   regions: string[];
   region_refs?: Record<string, string>;
   region_screens?: Record<string, string>;
+  /** Regions with `has_red_dot: true` in area (valid `isRedDot` targets). */
+  region_red_dot?: string[];
   fsm_nodes: string[];
   exec_names: string[];
   scenario_keys: string[];
@@ -31,7 +32,6 @@ function labelingHrefForRegion(meta: EditorMeta, value: string): string | null {
 type Props = {
   step: ScenarioStep;
   path: number[];
-  depth: number;
   meta: EditorMeta;
   onChange: (step: ScenarioStep) => void;
 };
@@ -42,7 +42,9 @@ function setCond(step: ScenarioStep, cond: string, stype: string) {
   else if ("cond" in step && stype !== "cond") delete step.cond;
 }
 
-export function StepCard({ step, path, depth, meta, onChange }: Props) {
+/** Edits one step's own fields — inner steps of containers are nodes on the
+ *  flow canvas, never nested forms. */
+export function StepCard({ step, path, meta, onChange }: Props) {
   const stype = detectStepType(step);
   const pk = path.join("/");
   const regionLabelingHref = (v: string) => labelingHrefForRegion(meta, v);
@@ -121,7 +123,24 @@ export function StepCard({ step, path, depth, meta, onChange }: Props) {
       )}
 
       {stype === "while_match" && (
-        <WhileMatchBlock step={step} path={path} depth={depth} meta={meta} onChange={onChange} pk={pk} />
+        <WhileMatchBlock step={step} meta={meta} onChange={onChange} pk={pk} />
+      )}
+
+      {stype === "while_scroll" && (
+        <WhileScrollBlock step={step} meta={meta} onChange={onChange} pk={pk} />
+      )}
+
+      {stype === "group" && (
+        <div>
+          <p className="muted">Inline group — inner steps run in place (YAML anchor helper).</p>
+          <InnerStepsNote count={Array.isArray(step.steps) ? step.steps.length : 0} />
+        </div>
+      )}
+
+      {["wait_screen", "swipe", "tap", "ttl", "system_back"].includes(stype) && (
+        <p className="muted">
+          No form editor for <code>{stype}</code> yet — edit this step in the YAML tab.
+        </p>
       )}
 
       {stype === "ocr" && (
@@ -164,20 +183,13 @@ export function StepCard({ step, path, depth, meta, onChange }: Props) {
       )}
 
       {(stype === "loop" || stype === "repeat") && (
-        <LoopBlock step={step} stype={stype} path={path} depth={depth} meta={meta} onChange={onChange} pk={pk} />
+        <LoopBlock step={step} stype={stype} onChange={onChange} pk={pk} />
       )}
 
       {stype === "cond" && (
         <div>
           <p className="muted">Composite cond block — inner steps run only if guard above is true.</p>
-          <StepsList
-            steps={Array.isArray(step.steps) ? (step.steps as ScenarioStep[]) : []}
-            parentPath={path}
-            depth={depth + 1}
-            parentKind="cond"
-            meta={meta}
-            onStepsChange={(steps) => update({ steps })}
-          />
+          <InnerStepsNote count={Array.isArray(step.steps) ? step.steps.length : 0} />
         </div>
       )}
 
@@ -250,17 +262,21 @@ function MatchParams({
   );
 }
 
+function InnerStepsNote({ count }: { count: number }) {
+  return (
+    <p className="muted">
+      Inner steps ({count}) are shown as nodes on the canvas — select them there.
+    </p>
+  );
+}
+
 function WhileMatchBlock({
   step,
-  path,
-  depth,
   meta,
   onChange,
   pk,
 }: {
   step: ScenarioStep;
-  path: number[];
-  depth: number;
   meta: EditorMeta;
   onChange: (s: ScenarioStep) => void;
   pk: string;
@@ -307,15 +323,69 @@ function WhileMatchBlock({
           />
         </label>
       </div>
-      <p className="muted">Inner steps (run on each iteration):</p>
-      <StepsList
-        steps={inner}
-        parentPath={path}
-        depth={depth + 1}
-        parentKind="while_match"
-        meta={meta}
-        onStepsChange={(steps) => onChange({ ...step, steps })}
+      <InnerStepsNote count={inner.length} />
+    </>
+  );
+}
+
+function WhileScrollBlock({
+  step,
+  meta,
+  onChange,
+  pk,
+}: {
+  step: ScenarioStep;
+  meta: EditorMeta;
+  onChange: (s: ScenarioStep) => void;
+  pk: string;
+}) {
+  const inner = Array.isArray(step.steps) ? (step.steps as ScenarioStep[]) : [];
+  const dir = String(step.direction ?? "up");
+  return (
+    <>
+      <SelectWithFreetext
+        label="region (while_scroll)"
+        value={String(step.while_scroll ?? "")}
+        options={meta.regions}
+        onChange={(v) => onChange({ ...step, while_scroll: v })}
+        previewUrl={regionPreview}
+        labelingHref={(v) => labelingHrefForRegion(meta, v)}
+        warnIfUnknown
       />
+      <div className="form-grid-3" key={pk}>
+        <label className="field-row">
+          <span>direction</span>
+          <AppListbox
+            value={SWIPE_DIRECTIONS.includes(dir as (typeof SWIPE_DIRECTIONS)[number]) ? dir : "up"}
+            onChange={(v) => onChange({ ...step, direction: v })}
+            options={SWIPE_DIRECTIONS.map((d) => ({ value: d, label: d }))}
+            minWidth={120}
+          />
+        </label>
+        <label className="field-row">
+          <span>delta (px)</span>
+          <input
+            type="number"
+            min={10}
+            max={2000}
+            value={Number(step.delta ?? 400)}
+            onChange={(e) =>
+              onChange({ ...step, delta: parseInt(e.target.value, 10) || 400 })
+            }
+          />
+        </label>
+        <label className="field-row">
+          <span>max iterations</span>
+          <input
+            type="number"
+            min={0}
+            max={999}
+            value={Number(step.max ?? 6)}
+            onChange={(e) => onChange({ ...step, max: parseInt(e.target.value, 10) || 0 })}
+          />
+        </label>
+      </div>
+      <InnerStepsNote count={inner.length} />
     </>
   );
 }
@@ -323,17 +393,11 @@ function WhileMatchBlock({
 function LoopBlock({
   step,
   stype,
-  path,
-  depth,
-  meta,
   onChange,
   pk,
 }: {
   step: ScenarioStep;
   stype: "loop" | "repeat";
-  path: number[];
-  depth: number;
-  meta: EditorMeta;
   onChange: (s: ScenarioStep) => void;
   pk: string;
 }) {
@@ -361,15 +425,7 @@ function LoopBlock({
           onChange={(e) => setSpec({ max: parseInt(e.target.value, 10) || 0 })}
         />
       </label>
-      <p className="muted">Inner steps (use `break: loop` to exit early):</p>
-      <StepsList
-        steps={inner}
-        parentPath={path}
-        depth={depth + 1}
-        parentKind={stype}
-        meta={meta}
-        onStepsChange={(steps) => setSpec({ steps })}
-      />
+      <InnerStepsNote count={inner.length} />
     </div>
   );
 }

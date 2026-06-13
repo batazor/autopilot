@@ -1,15 +1,20 @@
 /** Module DSL editor helpers (mirrors Streamlit edit_scenarios view). */
 
+/** Mirrors `DSL_ACTION_KEYS` in src/dsl/dsl_schema.py (canonical list). */
 export const DSL_ACTION_KEYS = [
   "click",
   "long_click",
   "match",
   "while_match",
+  "while_scroll",
   "ocr",
   "swipe_direction",
+  "swipe",
+  "tap",
   "push_scenario",
   "exec",
   "wait",
+  "wait_screen",
   "ttl",
   "repeat",
   "loop",
@@ -21,6 +26,7 @@ export const STEP_TYPES_FOR_NEW = [
   "click",
   "match",
   "while_match",
+  "while_scroll",
   "wait",
   "ocr",
   "exec",
@@ -31,7 +37,12 @@ export const STEP_TYPES_FOR_NEW = [
   "long_click",
 ] as const;
 
-export const LOOP_PARENT_KINDS = new Set(["loop", "repeat", "while_match"]);
+export const LOOP_PARENT_KINDS = new Set([
+  "loop",
+  "repeat",
+  "while_match",
+  "while_scroll",
+]);
 
 export const SWIPE_DIRECTIONS = ["up", "down", "left", "right"] as const;
 
@@ -54,6 +65,9 @@ export function detectStepType(step: ScenarioStep): string {
     if (k in step && step[k] != null) return k;
   }
   if ("cond" in step && "steps" in step) return "cond";
+  // Bare group: only `steps`, no action key — the runtime inlines the inner
+  // steps (used for YAML anchors pointing at step lists).
+  if (Array.isArray(step.steps)) return "group";
   return "?";
 }
 
@@ -61,6 +75,8 @@ export function newStep(stepType: string): ScenarioStep {
   switch (stepType) {
     case "wait":
       return { wait: "1s" };
+    case "while_scroll":
+      return { while_scroll: "", direction: "up", delta: 400, max: 6, steps: [] };
     case "click":
       return { click: "" };
     case "long_click":
@@ -99,6 +115,33 @@ export function stepSummary(step: ScenarioStep): string {
       return String(step.match ?? "");
     case "while_match":
       return String(step.while_match ?? "");
+    case "while_scroll": {
+      const dir = String(step.direction ?? "").trim();
+      return `${String(step.while_scroll ?? "")}${dir ? ` (${dir})` : ""}`;
+    }
+    case "wait_screen": {
+      const spec = step.wait_screen;
+      if (spec && typeof spec === "object" && !Array.isArray(spec)) {
+        const anyOf = (spec as Record<string, unknown>).any;
+        if (Array.isArray(anyOf)) return anyOf.map(String).join(" | ");
+      }
+      return String(spec ?? "");
+    }
+    case "swipe":
+    case "tap": {
+      const spec = step[stype];
+      if (spec && typeof spec === "object" && !Array.isArray(spec)) {
+        const s = spec as Record<string, unknown>;
+        return Object.entries(s)
+          .map(([k, v]) => `${k}=${String(v)}`)
+          .join(" ");
+      }
+      return String(spec ?? "");
+    }
+    case "group": {
+      const inner = Array.isArray(step.steps) ? step.steps : [];
+      return `steps=${inner.length}`;
+    }
     case "ocr":
       return String(step.ocr ?? "");
     case "exec":

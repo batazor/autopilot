@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppListbox } from "@/components/headless";
+import { tip } from "@/components/AppTooltip";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/ui/Icon";
 import { PageLoading, Spinner } from "@/components/ui/Spinner";
@@ -13,8 +14,10 @@ import {
   createEditDslFile,
   fetchEditDslCatalog,
   fetchEditDslMeta,
+  fetchEditDslProblems,
   fetchEditScenarioFile,
   fetchWikiScopes,
+  type EditDslProblem,
 } from "@/lib/api";
 import type {
   EditableModuleEntry,
@@ -36,6 +39,8 @@ function resolveQueryScenario(
   return byStem?.rel ?? null;
 }
 
+const SIDEBAR_OPEN_KEY = "edit-dsl:sidebar-open";
+
 function EditDslPageInner() {
   const searchParams = useSearchParams();
   const [scopes, setScopes] = useState<WikiScope[]>([]);
@@ -56,9 +61,32 @@ function EditDslPageInner() {
   const [newKey, setNewKey] = useState("");
   const [loadKey, setLoadKey] = useState(0);
   const newKeyInputRef = useRef<HTMLInputElement | null>(null);
+  // Rendered open on both server and first client paint (hydration-safe),
+  // then synced from localStorage.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [problems, setProblems] = useState<EditDslProblem[]>([]);
+  const [problemsOpen, setProblemsOpen] = useState(false);
 
   const scenarioQuery = searchParams.get("scenario");
   const focusNew = searchParams.get("new") === "1";
+
+  useEffect(() => {
+    if (window.localStorage.getItem(SIDEBAR_OPEN_KEY) === "0") {
+      setSidebarOpen(false);
+    }
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((open) => {
+      window.localStorage.setItem(SIDEBAR_OPEN_KEY, open ? "0" : "1");
+      return !open;
+    });
+  }, []);
+
+  // The "new scenario" deep link needs the sidebar visible to focus its input.
+  useEffect(() => {
+    if (focusNew) setSidebarOpen(true);
+  }, [focusNew]);
 
   useEffect(() => {
     if (!focusNew) return;
@@ -104,6 +132,13 @@ function EditDslPageInner() {
       .then((m) => setMeta(m))
       .catch(() => {});
   }, []);
+
+  // Re-sweep the catalog after every save (loadKey bumps on save).
+  useEffect(() => {
+    fetchEditDslProblems()
+      .then((r) => setProblems(r.problems))
+      .catch(() => {});
+  }, [loadKey]);
 
   useEffect(() => {
     loadCatalog();
@@ -198,10 +233,85 @@ function EditDslPageInner() {
               <strong>{selectedFile.stem}</strong>
             </span>
           ) : null}
+          {problems.length > 0 ? (
+            <button
+              type="button"
+              className="edit-dsl-metric edit-dsl-metric--problems"
+              onClick={() => setProblemsOpen((o) => !o)}
+              aria-expanded={problemsOpen}
+            >
+              <span className="edit-dsl-metric__label">Problems</span>
+              <strong>{problems.length}</strong>
+            </button>
+          ) : null}
         </div>
       </PageHeader>
 
-      <div className="edit-dsl-layout">
+      {problemsOpen && problems.length > 0 ? (
+        <div className="panel edit-dsl-problems">
+          <div className="edit-dsl-panel-head">
+            <div>
+              <h2>Problems</h2>
+              <p className="meta">
+                Unknown regions / scenario keys / exec functions across the whole catalog
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => setProblemsOpen(false)}
+              aria-label="Close problems list"
+            >
+              <Icon name="clear" size="sm" />
+            </button>
+          </div>
+          <ul className="edit-dsl-problems__list">
+            {problems.map((p, i) => {
+              const file = files.find((f) => f.path === p.rel);
+              return (
+                <li key={`${p.rel}:${p.step}:${i}`}>
+                  <button
+                    type="button"
+                    className="tree-link"
+                    disabled={!file}
+                    title={file ? p.rel : `${p.rel} — switch scope to All to open`}
+                    onClick={() => {
+                      if (file) setSelectedRel(file.rel);
+                    }}
+                  >
+                    {file?.stem ?? p.rel}
+                  </button>
+                  <code>step {p.step}</code>
+                  <span className="muted">{p.issue}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
+      <div
+        className={
+          sidebarOpen
+            ? "edit-dsl-layout"
+            : "edit-dsl-layout edit-dsl-layout--collapsed"
+        }
+      >
+        {!sidebarOpen ? (
+          <aside className="edit-dsl-rail">
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={toggleSidebar}
+              aria-label="Show scenario list"
+              {...tip("Show scenarios")}
+            >
+              <Icon name="chevron-right" size="sm" />
+            </button>
+            <span className="edit-dsl-rail__label">Scenarios</span>
+            <span className="edit-dsl-rail__count">{files.length}</span>
+          </aside>
+        ) : (
         <div className="edit-dsl-sidebar-stack">
           <aside className="panel edit-dsl-sidebar">
             <div className="edit-dsl-panel-head">
@@ -209,17 +319,28 @@ function EditDslPageInner() {
                 <h2>Scenarios</h2>
                 <p className="meta">{filteredFiles.length} shown</p>
               </div>
-              {filter ? (
+              <span className="edit-dsl-panel-head__actions">
+                {filter ? (
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={() => setFilter("")}
+                    aria-label="Clear scenario filter"
+                    title="Clear filter"
+                  >
+                    <Icon name="clear" size="sm" />
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="btn-icon"
-                  onClick={() => setFilter("")}
-                  aria-label="Clear scenario filter"
-                  title="Clear filter"
+                  onClick={toggleSidebar}
+                  aria-label="Hide scenario list"
+                  {...tip("Hide scenarios")}
                 >
-                  <Icon name="clear" size="sm" />
+                  <Icon name="chevron-left" size="sm" />
                 </button>
-              ) : null}
+              </span>
             </div>
             <div className="edit-dsl-sidebar-controls">
               <AppListbox
@@ -316,6 +437,7 @@ function EditDslPageInner() {
             </div>
           </aside>
         </div>
+        )}
 
         <main className="panel edit-dsl-main">
           <div className="edit-dsl-active-file">

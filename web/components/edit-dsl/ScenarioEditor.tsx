@@ -14,8 +14,7 @@ import {
   ensureStepsList,
   type ScenarioDocument,
 } from "@/lib/edit-dsl/dsl";
-import { ScenarioHeaderForm } from "./ScenarioHeaderForm";
-import { StepsList } from "./StepsList";
+import { ScenarioFlow } from "./ScenarioFlow";
 import type { EditorMeta } from "./StepCard";
 import {
   YamlMonacoEditor,
@@ -30,14 +29,14 @@ type Props = {
   onSaved: () => void;
 };
 
-type EditorTab = "form" | "yaml";
+type EditorTab = "flow" | "yaml";
 type StatusTone = "ok" | "warn" | "danger" | "busy";
 
 /**
  * Module-level ref so the active editor tab survives `key={editorKey}`
  * remounts when the user switches scenarios in the sidebar.
  */
-const persistedTabRef: { current: EditorTab } = { current: "form" };
+const persistedTabRef: { current: EditorTab } = { current: "flow" };
 
 export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
   const [doc, setDoc] = useState<ScenarioDocument>(() => cloneDocument(initialDoc));
@@ -106,7 +105,7 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
   const nameValue = String(doc.name ?? "").trim();
   const saveDisabled =
     busy || !valid || !nameValue || collisions.length > 0 || !dirty;
-  const formStatus = busy
+  const docStatus = busy
     ? { label: "Saving", tone: "busy" as StatusTone }
     : !valid
       ? { label: "Schema errors", tone: "danger" as StatusTone }
@@ -122,7 +121,7 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
       : yamlDirty
         ? { label: "Unsaved YAML", tone: "warn" as StatusTone }
         : { label: "Synced", tone: "ok" as StatusTone };
-  const activeStatus = tab === "yaml" ? yamlStatus : formStatus;
+  const activeStatus = tab === "yaml" ? yamlStatus : docStatus;
   const activeSaveDisabled =
     tab === "yaml" ? busy || !yamlDirty || !yamlValid : saveDisabled;
   const activeSaveLabel =
@@ -134,7 +133,7 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
         ? "Saving..."
         : "Save";
 
-  async function handleSaveForm() {
+  async function handleSaveDoc() {
     setBusy(true);
     setError(null);
     try {
@@ -219,7 +218,7 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
     if (tab === "yaml") {
       void handleSaveYaml();
     } else {
-      void handleSaveForm();
+      void handleSaveDoc();
     }
   };
 
@@ -242,9 +241,9 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
     </div>
   );
 
-  const formPanel = (
+  const flowPanel = (
     <>
-      <ScenarioHeaderForm
+      <ScenarioFlow
         doc={doc}
         rel={rel}
         meta={meta}
@@ -252,28 +251,11 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
         onCollisionsChange={setCollisions}
         onChange={updateDoc}
       />
-
-      <div className="edit-scenario-section-head">
-        <h3>Steps</h3>
-        <span className="edit-scenario-count">{stepCount}</span>
-      </div>
-      <StepsList
-        steps={steps}
-        parentPath={[]}
-        depth={0}
-        meta={meta}
-        onStepsChange={(s) => updateDoc({ ...doc, steps: s })}
-      />
-
-      <div className="edit-scenario-validation-row">
-        {!valid && <span className="error-banner">Schema errors — fix before saving.</span>}
-        {valid && nameValue && !collisions.length && (
-          <span className="edit-scenario-status edit-scenario-status--ok">
-            <span className="edit-scenario-status__dot" aria-hidden />
-            Schema OK
-          </span>
-        )}
-      </div>
+      {!valid && (
+        <div className="edit-scenario-validation-row">
+          <span className="error-banner">Schema errors — fix before saving.</span>
+        </div>
+      )}
       {!valid && validationError && (
         <details className="edit-scenario-validation">
           <summary>Validation details</summary>
@@ -364,7 +346,7 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
         selectedKey={tab}
         onChange={(k) => setTab(k as EditorTab)}
         tabs={[
-          { key: "form", label: dirty ? "Form *" : "Form", panel: formPanel },
+          { key: "flow", label: dirty ? "Flow *" : "Flow", panel: flowPanel },
           { key: "yaml", label: yamlDirty ? "YAML *" : "YAML", panel: yamlPanel },
         ]}
         afterTabs={editorToolbar}

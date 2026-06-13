@@ -72,6 +72,22 @@ def post_validate(body: ValidateBody) -> dict[str, object]:
     return svc.validate_yaml(yaml_text=body.yaml, document=body.document)
 
 
+@router.get("/problems")
+def get_problems() -> dict[str, object]:
+    problems = svc.catalog_problems()
+    return {"problems": problems, "count": len(problems)}
+
+
+@router.get("/callers")
+def get_callers(rel: str = Query(...)) -> dict[str, object]:
+    try:
+        return svc.scenario_callers(rel)
+    except (ValueError, PermissionError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/name-collisions")
 def get_name_collisions(rel: str = Query(...), name: str = Query(default="")) -> dict[str, object]:
     return {"collisions": svc.name_collisions(rel, name)}
