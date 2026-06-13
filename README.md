@@ -4,7 +4,7 @@ Multi-account, game-agnostic Android bot: one worker per emulator instance, queu
 
 ## Documentation
 
-User-facing docs (installation, emulator config, troubleshooting, feature list, `docker-compose.prod.yml`) live in the public docs site, built from the [`page/`](page/) submodule:
+User-facing docs (installation, emulator config, troubleshooting, feature list, `docker-compose.prod.yml`) live in the public docs site, built from the [`landing/`](landing/) submodule:
 
 **→ <https://batazor.github.io/autopilot-page/>**
 
@@ -23,6 +23,6 @@ Local dashboard: [`web/README.md`](web/README.md) — `uv run api` + `cd web && 
 ## Links
 
 - [Discord](https://discord.gg/62twnzKG9)
-- [User docs site](https://batazor.github.io/autopilot-page/) (built from `page/`)
+- [User docs site](https://batazor.github.io/autopilot-page/) (built from `landing/`)
 - [Contributor guide](CONTRIBUTOR.md)
 - [Web dashboard notes](web/README.md)
