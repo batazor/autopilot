@@ -1,4 +1,56 @@
 import type { ReactNode, SVGProps } from "react";
+import {
+  Archive,
+  ArrowDown,
+  ArrowUp,
+  Bell,
+  BookOpen,
+  Boxes,
+  Bug,
+  ChartNoAxesCombined,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  CircleDot,
+  CircleX,
+  Copy,
+  Cpu,
+  FileCode2,
+  Gamepad2,
+  Gift,
+  GitBranch,
+  History,
+  Images,
+  Inbox,
+  Info,
+  KeyRound,
+  Layers,
+  LayoutGrid,
+  List,
+  ListX,
+  Menu,
+  Monitor,
+  Pause,
+  Play,
+  Plus,
+  Radar,
+  RefreshCw,
+  Route,
+  Scale,
+  Search,
+  Settings,
+  ShieldCheck,
+  Smartphone,
+  Square,
+  Tag,
+  Trash2,
+  TriangleAlert,
+  User,
+  X,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 
 export type IconSize = "sm" | "md" | "lg";
 
@@ -22,12 +74,18 @@ export type IconName =
   | "routes"
   | "optimizer"
   | "gift-codes"
+  | "dreamscape-memory"
+  | "notify-monitor"
+  | "radar"
+  | "trees"
   | "wiki"
   | "labeling"
+  | "gallery"
   | "edit-dsl"
   | "modules"
   | "adb"
   | "balance"
+  | "license"
   | "operate"
   | "games"
   | "debug"
@@ -59,261 +117,65 @@ type IconProps = {
   name: IconName;
   size?: IconSize;
   className?: string;
-} & SVGProps<SVGSVGElement>;
+} & Omit<SVGProps<SVGSVGElement>, "name" | "size">;
 
-function strokeIcon(children: ReactNode) {
-  return children;
-}
+const LUCIDE_ICONS: Partial<Record<IconName, LucideIcon>> = {
+  menu: Menu,
+  close: X,
+  search: Search,
+  clear: CircleX,
+  recent: History,
+  refresh: RefreshCw,
+  check: Check,
+  info: Info,
+  overview: LayoutGrid,
+  instance: Monitor,
+  "player-state": User,
+  "player-stats": ChartNoAxesCombined,
+  approvals: ShieldCheck,
+  "overlay-test": Layers,
+  queue: List,
+  routes: Route,
+  optimizer: Zap,
+  "gift-codes": Gift,
+  "dreamscape-memory": Cpu,
+  "notify-monitor": Bell,
+  radar: Radar,
+  trees: GitBranch,
+  wiki: BookOpen,
+  labeling: Tag,
+  gallery: Images,
+  "edit-dsl": FileCode2,
+  modules: Boxes,
+  adb: Smartphone,
+  balance: Scale,
+  license: KeyRound,
+  operate: CircleDot,
+  games: Gamepad2,
+  debug: Bug,
+  assets: Archive,
+  config: Settings,
+  "inbox-empty": Inbox,
+  "list-empty": ListX,
+  warning: TriangleAlert,
+  alert: CircleAlert,
+  "arrow-up": ArrowUp,
+  "arrow-down": ArrowDown,
+  plus: Plus,
+  "chevron-right": ChevronRight,
+  "chevron-left": ChevronLeft,
+  copy: Copy,
+  trash: Trash2,
+  play: Play,
+  pause: Pause,
+  stop: Square,
+};
 
-const PATHS: Record<IconName, ReactNode> = {
-  menu: strokeIcon(
-    <>
-      <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-    </>,
-  ),
-  close: strokeIcon(
-    <>
-      <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-    </>,
-  ),
-  search: strokeIcon(
-    <>
-      <circle cx="11" cy="11" r="6" />
-      <path d="M16 16l4 4" strokeLinecap="round" />
-    </>,
-  ),
-  clear: strokeIcon(
-    <>
-      <path d="M8 8l8 8M16 8l-8 8" strokeLinecap="round" />
-    </>,
-  ),
-  recent: strokeIcon(
-    <>
-      <path d="M12 8v4l3 2" strokeLinecap="round" strokeLinejoin="round" />
-      <path
-        d="M12 20a8 8 0 1 0-6.93-4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </>,
-  ),
-  refresh: strokeIcon(
-    <>
-      <path d="M20 12a8 8 0 0 1-13.5 5.8" strokeLinecap="round" />
-      <path d="M4 12A8 8 0 0 1 17.5 6.2" strokeLinecap="round" />
-      <path d="M17 3v4h4M7 21v-4H3" strokeLinecap="round" strokeLinejoin="round" />
-    </>,
-  ),
-  check: strokeIcon(
-    <path d="M6 12l4 4 8-9" strokeLinecap="round" strokeLinejoin="round" />,
-  ),
-  info: strokeIcon(
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 10v6M12 7h.01" strokeLinecap="round" />
-    </>,
-  ),
+const CUSTOM_PATHS: Partial<Record<IconName, ReactNode>> = {
   dot: <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />,
-  overview: strokeIcon(
-    <>
-      <rect x="4" y="4" width="7" height="7" rx="1.5" />
-      <rect x="13" y="4" width="7" height="7" rx="1.5" />
-      <rect x="4" y="13" width="7" height="7" rx="1.5" />
-      <rect x="13" y="13" width="7" height="7" rx="1.5" />
-    </>,
-  ),
-  instance: strokeIcon(
-    <>
-      <rect x="5" y="6" width="14" height="12" rx="2" />
-      <path d="M9 18h6" strokeLinecap="round" />
-    </>,
-  ),
-  "player-state": strokeIcon(
-    <>
-      <circle cx="12" cy="9" r="3.5" />
-      <path d="M6 19c1.2-2.5 3.2-3.8 6-3.8s4.8 1.3 6 3.8" strokeLinecap="round" />
-    </>,
-  ),
-  "player-stats": strokeIcon(
-    <>
-      <path d="M4 18V8l4 3 4-6 4 8 4-5v10" strokeLinecap="round" strokeLinejoin="round" />
-    </>,
-  ),
-  approvals: strokeIcon(
-    <>
-      <path d="M12 3l7 3v6c0 4.2-2.8 7.4-7 9-4.2-1.6-7-4.8-7-9V6z" strokeLinejoin="round" />
-      <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </>,
-  ),
-  "overlay-test": strokeIcon(
-    <>
-      <path d="M4 8l8-4 8 4-8 4-8-4z" strokeLinejoin="round" />
-      <path d="M4 16l8 4 8-4" strokeLinejoin="round" />
-    </>,
-  ),
-  queue: strokeIcon(
-    <>
-      <path d="M7 7h14M7 12h14M7 17h14" strokeLinecap="round" />
-      <path d="M4 7h.01M4 12h.01M4 17h.01" strokeLinecap="round" />
-    </>,
-  ),
-  routes: strokeIcon(
-    <>
-      <circle cx="6" cy="18" r="2" />
-      <circle cx="18" cy="6" r="2" />
-      <path d="M8 16c4-1 5-4 8-8" strokeLinecap="round" />
-    </>,
-  ),
-  optimizer: strokeIcon(
-    <path d="M13 3L5 14h6l-1 7 9-13h-6l1-5z" strokeLinejoin="round" />,
-  ),
-  "gift-codes": strokeIcon(
-    <>
-      <rect x="4" y="8" width="16" height="12" rx="2" />
-      <path d="M12 8V20M4 12h16" />
-      <path d="M8 8c0-2 1.5-3 4-3s4 1 4 3" />
-    </>,
-  ),
-  wiki: strokeIcon(
-    <>
-      <path d="M6 5h12v14H6z" />
-      <path d="M9 9h6M9 13h6M9 17h4" strokeLinecap="round" />
-    </>,
-  ),
-  labeling: strokeIcon(
-    <>
-      <path d="M6 6h12v12H6z" />
-      <path d="M9 15l6-6" strokeLinecap="round" />
-      <circle cx="9" cy="9" r="1" fill="currentColor" stroke="none" />
-    </>,
-  ),
-  "edit-dsl": strokeIcon(
-    <>
-      <path d="M8 6h10v14H8z" />
-      <path d="M6 9H4M6 13H4M6 17H4" strokeLinecap="round" />
-    </>,
-  ),
-  modules: strokeIcon(
-    <>
-      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" strokeLinejoin="round" />
-    </>,
-  ),
-  adb: strokeIcon(
-    <>
-      <rect x="5" y="6" width="14" height="12" rx="2" />
-      <path d="M8 10h8M8 14h5" strokeLinecap="round" />
-    </>,
-  ),
-  balance: strokeIcon(
-    <>
-      <path d="M12 5v14" />
-      <path d="M6 9h12M8 15h8" strokeLinecap="round" />
-    </>,
-  ),
-  operate: strokeIcon(
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <circle cx="12" cy="12" r="3" />
-    </>,
-  ),
-  games: strokeIcon(
-    <>
-      <path
-        d="M8 9h8a4 4 0 0 1 4 4 3 3 0 0 1-3 3c-1.2 0-2-.6-2.8-1.4L13 15h-2l-1.2 1.6C9 17.4 8.2 18 7 18a3 3 0 0 1-3-3 4 4 0 0 1 4-4z"
-        strokeLinejoin="round"
-      />
-      <path d="M7 12v2M6 13h2" strokeLinecap="round" />
-      <circle cx="15.5" cy="12.5" r=".6" fill="currentColor" stroke="none" />
-      <circle cx="17" cy="14" r=".6" fill="currentColor" stroke="none" />
-    </>,
-  ),
-  debug: strokeIcon(
-    <>
-      <path d="M9 4l-1 3H5l3 8H8l-1 3 3-1 1 3 3-1 1-3 3 1-1-3 3-1-3-8h2l1-3H9z" strokeLinejoin="round" />
-    </>,
-  ),
-  assets: strokeIcon(
-    <>
-      <path d="M5 7h14v12H5z" />
-      <path d="M8 7V5h8v2" strokeLinecap="round" />
-    </>,
-  ),
-  config: strokeIcon(
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path
-        d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4"
-        strokeLinecap="round"
-      />
-    </>,
-  ),
-  "inbox-empty": strokeIcon(
-    <>
-      <path d="M5 8h14l-2 10H7L5 8z" />
-      <path d="M9 8V6h6v2" strokeLinecap="round" />
-    </>,
-  ),
-  "list-empty": strokeIcon(
-    <>
-      <path d="M8 7h12M8 12h12M8 17h8" strokeLinecap="round" />
-      <path d="M5 7h.01M5 12h.01M5 17h.01" strokeLinecap="round" />
-    </>,
-  ),
-  warning: strokeIcon(
-    <>
-      <path d="M12 8v5M12 16h.01" strokeLinecap="round" />
-      <path d="M12 4l8 14H4l8-14z" strokeLinejoin="round" />
-    </>,
-  ),
-  alert: strokeIcon(
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 8v4M12 16h.01" strokeLinecap="round" />
-    </>,
-  ),
-  "arrow-up": strokeIcon(
-    <>
-      <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-    </>,
-  ),
-  "arrow-down": strokeIcon(
-    <>
-      <path d="M12 5v14M5 12l7 7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-    </>,
-  ),
-  plus: strokeIcon(
-    <path d="M12 5v14M5 12h14" strokeLinecap="round" />,
-  ),
-  "chevron-right": strokeIcon(
-    <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />,
-  ),
-  "chevron-left": strokeIcon(
-    <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />,
-  ),
-  copy: strokeIcon(
-    <>
-      <rect x="8" y="8" width="11" height="11" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
-    </>,
-  ),
-  trash: strokeIcon(
-    <>
-      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13" strokeLinecap="round" />
-      <path d="M9 7V4h6v3" strokeLinecap="round" strokeLinejoin="round" />
-    </>,
-  ),
-  play: <path d="M8 5l12 7-12 7V5z" fill="currentColor" stroke="none" />,
-  pause: (
-    <>
-      <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
-      <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
-    </>
-  ),
-  stop: <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" />,
-  // Discord glyph — stylized chat-bubble outline with two eye dots. Kept
-  // monochrome / stroke-only so it follows the surrounding text color
-  // instead of forcing the Discord brand purple.
-  discord: strokeIcon(
+  // Discord is a brand-like app action in this UI, so keep it as a local
+  // monochrome glyph instead of pulling a second icon family.
+  discord: (
     <>
       <path
         d="M7 6.5C9 5.7 11 5.5 12 5.5s3 .2 5 1L18.5 7c1.5 2 2.2 4.5 2 7-1.4 1.1-2.8 1.8-4.2 2.2l-.8-1.4c.7-.3 1.4-.7 2-1.2-2.6 1.4-5.4 1.4-8 0 .6.5 1.3.9 2 1.2l-.8 1.4c-1.4-.4-2.8-1.1-4.2-2.2-.2-2.5.5-5 2-7L7 6.5z"
@@ -321,24 +183,39 @@ const PATHS: Record<IconName, ReactNode> = {
       />
       <circle cx="9.5" cy="12" r="1" />
       <circle cx="14.5" cy="12" r="1" />
-    </>,
+    </>
   ),
 };
 
 export function Icon({ name, size = "md", className = "", ...rest }: IconProps) {
+  const classes = ["ui-icon", SIZE_CLASS[size], className].filter(Boolean).join(" ");
+  const ariaHidden = rest["aria-label"] ? undefined : true;
+  const LucideIconComponent = LUCIDE_ICONS[name];
+
+  if (LucideIconComponent) {
+    return (
+      <LucideIconComponent
+        className={classes}
+        aria-hidden={ariaHidden}
+        strokeWidth={1.75}
+        {...rest}
+      />
+    );
+  }
+
   return (
     <svg
-      className={["ui-icon", SIZE_CLASS[size], className].filter(Boolean).join(" ")}
+      className={classes}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
-      aria-hidden={rest["aria-label"] ? undefined : true}
+      aria-hidden={ariaHidden}
       {...rest}
     >
-      {PATHS[name]}
+      {CUSTOM_PATHS[name]}
     </svg>
   );
 }
