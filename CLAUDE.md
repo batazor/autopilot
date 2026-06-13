@@ -8,6 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Key Commands
 
+### Agent Tooling Rules
+
+- Use `uv run ...` for all Python commands from the repo root, including `python`, `pytest`, `ruff`, scripts, and module entrypoints.
+- For GitHub operations that need the API, use `gh api` with REST endpoints. Do not use GraphQL for repository automation unless explicitly requested.
+- Do not use `gh run watch` or polling loops for GitHub Actions status; make one-shot API requests instead.
+
 ### Development Setup
 ```sh
 uv sync                           # Install deps + Python 3.13
