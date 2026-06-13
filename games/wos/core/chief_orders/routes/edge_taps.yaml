@@ -1,0 +1,9 @@
+edges:
+  main_city:
+    chief_order: [main_city.to.chief_order]
+
+  chief_order:
+    main_city: [icon.page.back]
+
+  chief_order_enact:
+    chief_order: [chief.enact.back]
