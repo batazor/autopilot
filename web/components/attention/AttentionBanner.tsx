@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAttention } from "@/components/attention/useAttention";
+import {
+  useAttention,
+  useDismissAttention,
+} from "@/components/attention/useAttention";
 import { attentionAction } from "@/lib/attention";
 import { Icon } from "@/components/ui/Icon";
 
@@ -14,6 +17,7 @@ import { Icon } from "@/components/ui/Icon";
 export function AttentionBanner() {
   const [expanded, setExpanded] = useState(false);
   const { data } = useAttention();
+  const dismiss = useDismissAttention();
 
   const critical = (data?.items ?? []).filter((i) => i.severity === "critical");
   if (critical.length === 0) return null;
@@ -57,6 +61,20 @@ export function AttentionBanner() {
                     >
                       {action.label}
                     </Link>
+                  </>
+                ) : null}
+                {item.dismissible ? (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      className="font-medium text-red-200 underline underline-offset-2 disabled:opacity-60"
+                      disabled={dismiss.isPending}
+                      onClick={() => dismiss.mutate(item)}
+                      title="Hide this expected offline-device notice until the device reconnects"
+                    >
+                      {dismiss.isPending ? "Skipping..." : "Skip"}
+                    </button>
                   </>
                 ) : null}
               </li>

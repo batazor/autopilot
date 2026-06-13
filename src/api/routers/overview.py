@@ -39,6 +39,26 @@ def get_attention(client: RedisDep) -> dict[str, Any]:
     return attention.build_attention_view(client)
 
 
+@router.post("/attention/{kind}/{instance_id}/dismiss")
+def post_attention_dismiss(
+    kind: str,
+    instance_id: str,
+    client: RedisDep,
+) -> dict[str, bool]:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    ok = attention.dismiss_item(client, kind=kind, instance_id=instance_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"attention item is not dismissible: {kind}")
+    publish_dashboard_event(
+        client,
+        topic="fleet",
+        instance_id=instance_id,
+        reason=f"attention_dismiss:{kind}",
+    )
+    return {"ok": True}
+
+
 @router.post("/instances/{instance_id}/pause-toggle")
 def post_pause_toggle(instance_id: str, client: RedisDep) -> dict[str, str]:
     if instance_id not in list_instance_ids():

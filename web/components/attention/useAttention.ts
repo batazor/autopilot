@@ -1,7 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { fetchAttention } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { dismissAttention, fetchAttention } from "@/lib/api";
+import type { AttentionItem } from "@/lib/types";
 
 export const ATTENTION_KEY = ["attention"] as const;
 const POLL_MS = 30_000;
@@ -21,5 +22,16 @@ export function useAttention() {
     refetchInterval: POLL_MS,
     placeholderData: (prev) => prev,
     retry: false,
+  });
+}
+
+export function useDismissAttention() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (item: AttentionItem) =>
+      dismissAttention(item.kind, item.instance_id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ATTENTION_KEY });
+    },
   });
 }

@@ -20,6 +20,7 @@ Design rules:
 from __future__ import annotations
 
 import time
+from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -67,6 +68,7 @@ def _item(
     instance_id: str = "",
     detail: str = "",
     ts: float | None = None,
+    dismissible: bool = False,
 ) -> dict[str, Any]:
     return {
         "id": f"{kind}:{instance_id}" if instance_id else f"{kind}",
@@ -76,7 +78,42 @@ def _item(
         "title": title,
         "detail": detail,
         "ts": ts,
+        "dismissible": dismissible,
     }
+
+
+def _dismiss_key(kind: str, instance_id: str) -> str:
+    return f"wos:attention:dismissed:{kind}:{instance_id}"
+
+
+def _is_dismissed(client: redis.Redis, kind: str, instance_id: str) -> bool:
+    try:
+        return bool(client.get(_dismiss_key(kind, instance_id)))
+    except Exception:
+        return False
+
+
+def _clear_dismissed(client: redis.Redis, kind: str, instance_id: str) -> None:
+    with suppress(Exception):
+        client.delete(_dismiss_key(kind, instance_id))
+
+
+def dismiss_item(client: redis.Redis, *, kind: str, instance_id: str) -> bool:
+    """Hide an attention item that is safe to treat as acknowledged.
+
+    Currently only expected offline devices are dismissible. This does not
+    change worker pause state or queue blocking; it only removes the nag from
+    the attention feed until the device comes back online.
+    """
+    clean_kind = (kind or "").strip()
+    clean_iid = (instance_id or "").strip()
+    if clean_kind != "device_offline" or not clean_iid:
+        return False
+    try:
+        client.set(_dismiss_key(clean_kind, clean_iid), str(time.time()))
+    except Exception:
+        return False
+    return True
 
 
 def _load_failure_items(client: redis.Redis) -> list[dict[str, Any]]:
@@ -206,16 +243,21 @@ def _instance_items(
 
     device_offline = is_device_offline(row)
     if device_offline:
-        items.append(
-            _item(
-                kind="device_offline",
-                severity=SEVERITY_CRITICAL,
-                instance_id=instance_id,
-                title=f"{instance_id}: device offline (ADB)",
-                detail="worker auto-paused; resumes when the device reconnects",
+        if not _is_dismissed(client, "device_offline", instance_id):
+            items.append(
+                _item(
+                    kind="device_offline",
+                    severity=SEVERITY_CRITICAL,
+                    instance_id=instance_id,
+                    title=f"{instance_id}: device offline (ADB)",
+                    detail="worker auto-paused; resumes when the device reconnects",
+                    dismissible=True,
+                )
             )
-        )
-    elif status in {"stale", "crashed", "restarting"}:
+    else:
+        _clear_dismissed(client, "device_offline", instance_id)
+
+    if not device_offline and status in {"stale", "crashed", "restarting"}:
         items.append(
             _item(
                 kind="worker_down",
@@ -225,7 +267,7 @@ def _instance_items(
                 detail=last_error or blocked,
             )
         )
-    elif last_error or blocked:
+    elif not device_offline and (last_error or blocked):
         # Worker is alive but reporting trouble (game not ready, queue blocked).
         # Manual pause alone is the operator's own state — only surface it when
         # an error explains it.

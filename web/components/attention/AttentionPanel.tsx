@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useAttention } from "@/components/attention/useAttention";
+import {
+  useAttention,
+  useDismissAttention,
+} from "@/components/attention/useAttention";
 import { attentionAction } from "@/lib/attention";
 import type { AttentionItem } from "@/lib/types";
 
@@ -32,6 +35,7 @@ export function AttentionPanel() {
 
 function AttentionRow({ item }: { item: AttentionItem }) {
   const action = attentionAction(item);
+  const dismiss = useDismissAttention();
   const critical = item.severity === "critical";
   return (
     <li className="flex items-center gap-3 py-2 text-sm">
@@ -56,6 +60,20 @@ function AttentionRow({ item }: { item: AttentionItem }) {
         >
           {action.label}
         </Link>
+      ) : null}
+      {item.dismissible ? (
+        <button
+          type="button"
+          className="btn-secondary shrink-0"
+          disabled={dismiss.isPending}
+          onClick={(e) => {
+            e.stopPropagation();
+            dismiss.mutate(item);
+          }}
+          title="Hide this expected offline-device notice until the device reconnects"
+        >
+          {dismiss.isPending ? "Skipping..." : "Skip"}
+        </button>
       ) : null}
     </li>
   );

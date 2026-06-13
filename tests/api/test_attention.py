@@ -9,6 +9,21 @@ import pytest
 from api.services import attention
 
 
+class _FakeRedis:
+    def __init__(self) -> None:
+        self.kv: dict[str, str] = {}
+
+    def get(self, key: str) -> str | None:
+        return self.kv.get(key)
+
+    def set(self, key: str, value: str) -> bool:
+        self.kv[key] = value
+        return True
+
+    def delete(self, key: str) -> int:
+        return int(self.kv.pop(key, None) is not None)
+
+
 @pytest.fixture
 def fleet(monkeypatch: pytest.MonkeyPatch):
     """Two-instance fleet with all signal sources stubbed healthy.
@@ -63,8 +78,8 @@ def fleet(monkeypatch: pytest.MonkeyPatch):
     )
 
 
-def _view() -> dict[str, Any]:
-    return attention.build_attention_view(client=None)
+def _view(client: Any = None) -> dict[str, Any]:
+    return attention.build_attention_view(client=client)
 
 
 def _kinds(view: dict[str, Any]) -> list[str]:
@@ -117,6 +132,29 @@ def test_device_offline_supersedes_worker_down_and_queue_stuck(fleet) -> None:
     view = _view()
     assert _kinds(view) == ["device_offline"]
     assert view["items"][0]["severity"] == "critical"
+    assert view["items"][0]["dismissible"] is True
+
+
+def test_device_offline_attention_can_be_dismissed_until_reconnect(fleet) -> None:
+    client = _FakeRedis()
+    fleet.states["bs2"] = {
+        "worker_started_at": str(fleet.now - 9000),
+        "last_seen_at": str(fleet.now - 9000),
+        "paused": "1",
+        "auto_paused": "1",
+        "last_error": "device offline (ADB)",
+    }
+
+    assert _kinds(_view(client)) == ["device_offline"]
+    assert attention.dismiss_item(client, kind="device_offline", instance_id="bs2") is True
+    assert _view(client)["items"] == []
+
+    fleet.states["bs2"] = {
+        "worker_started_at": str(fleet.now - 60),
+        "last_seen_at": str(fleet.now),
+    }
+    assert _view(client)["items"] == []
+    assert client.kv == {}
 
 
 def test_partial_worker_down_is_reported(fleet) -> None:

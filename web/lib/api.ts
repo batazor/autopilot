@@ -300,6 +300,16 @@ export async function fetchAttention(): Promise<AttentionView> {
   return apiFetch<AttentionView>("/api/attention");
 }
 
+export async function dismissAttention(
+  kind: string,
+  instanceId: string,
+): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/api/attention/${encodeURIComponent(kind)}/${encodeURIComponent(instanceId)}/dismiss`,
+    { method: "POST" },
+  );
+}
+
 export async function fetchBuildings(): Promise<BuildingsView> {
   return apiFetch<BuildingsView>("/api/buildings");
 }

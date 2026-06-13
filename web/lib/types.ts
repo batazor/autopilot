@@ -213,6 +213,7 @@ export type AttentionItem = {
   title: string;
   detail: string;
   ts: number | null;
+  dismissible: boolean;
 };
 
 export type AttentionView = {
