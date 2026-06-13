@@ -62,6 +62,7 @@ GAMES: dict[str, GameSpec] = {
         id="kingshot",
         label="Kingshot",
         package="com.run.tower.defense",
+        package_aliases=("com.abc.defense",),
     ),
 }
 

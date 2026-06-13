@@ -141,6 +141,7 @@ def test_registry_includes_wos_and_kingshot() -> None:
     assert GAMES["wos"].package == "com.gof.global"
     assert GAMES["wos"].package_aliases == ("com.xyz.gof",)
     assert GAMES["kingshot"].package == "com.run.tower.defense"
+    assert GAMES["kingshot"].package_aliases == ("com.abc.defense",)
 
 
 def test_spec_for_game_and_package_lookups() -> None:
@@ -148,6 +149,10 @@ def test_spec_for_game_and_package_lookups() -> None:
     assert package_for_game("wos") == "com.gof.global"
     assert packages_for_game("wos") == ("com.gof.global", "com.xyz.gof")
     assert package_for_game("kingshot") == "com.run.tower.defense"
+    assert packages_for_game("kingshot") == (
+        "com.run.tower.defense",
+        "com.abc.defense",
+    )
 
 
 def test_spec_for_game_raises_on_unknown() -> None:
@@ -165,10 +170,20 @@ def test_game_for_package_accepts_wos_beta_package() -> None:
     assert game_for_package("com.xyz.gof") == "wos"
 
 
+def test_game_for_package_accepts_kingshot_beta_package() -> None:
+    assert game_for_package("com.abc.defense") == "kingshot"
+
+
 def test_package_set_helpers_accept_wos_beta_package() -> None:
     installed = {"com.android.systemui", "com.xyz.gof"}
     assert game_ids_for_packages(installed) == ["wos"]
     assert matching_packages_for_game("wos", installed) == ("com.xyz.gof",)
+
+
+def test_package_set_helpers_accept_kingshot_beta_package() -> None:
+    installed = {"com.android.systemui", "com.abc.defense"}
+    assert game_ids_for_packages(installed) == ["kingshot"]
+    assert matching_packages_for_game("kingshot", installed) == ("com.abc.defense",)
 
 
 def test_game_for_package_returns_none_for_unknown_package() -> None:

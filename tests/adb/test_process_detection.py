@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 PKG = "com.gof.global"  # the WOS package
 BETA_PKG = "com.xyz.gof"  # WOS beta package
 KINGSHOT_PKG = "com.run.tower.defense"
+KINGSHOT_BETA_PKG = "com.abc.defense"
 
 # Realistic `ps -A` dump: main process, a sub-process, a look-alike that must
 # NOT match (``com.gof.globalX``), plus unrelated system processes.
@@ -39,6 +40,13 @@ KINGSHOT_PS_OUT = """\
 USER           PID  PPID     VSZ    RSS WCHAN            ADDR S NAME
 u0_a3         3234   555 1000000  50000 0                   0 S com.run.tower.defense
 u0_a3         3240   555  900000  40000 0                   0 S com.run.tower.defense:render
+root           999     1   10000   2000 0                   0 S zygote"""
+
+KINGSHOT_BETA_PS_OUT = """\
+USER           PID  PPID     VSZ    RSS WCHAN            ADDR S NAME
+u0_a4         4234   555 1000000  50000 0                   0 S com.abc.defense
+u0_a4         4240   555  900000  40000 0                   0 S com.abc.defense:render
+u0_a4         4250   555  900000  40000 0                   0 S com.abc.defenseX
 root           999     1   10000   2000 0                   0 S zygote"""
 
 EMPTY_PS = "USER           PID  PPID     VSZ    RSS WCHAN            ADDR S NAME"
@@ -238,6 +246,42 @@ def test_list_installed_games_treats_wos_beta_as_wos() -> None:
     ).list_installed_games() == ["wos"]
 
 
+def test_detects_kingshot_beta_package_alias() -> None:
+    def shell(*args: str, timeout: float = 15.0) -> _ShellOutcome:
+        if args[:2] == ("ps", "-A"):
+            return _mk(0, KINGSHOT_BETA_PS_OUT)
+        if args[:3] == ("dumpsys", "activity", "recents"):
+            return _mk(0, "")
+        if args[:3] == ("am", "stack", "list"):
+            return _mk(0, "")
+        if args[0] == "pidof":
+            return _mk(1, "")
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    res = _controller("127.0.0.1:5625", shell).detect_game_process("kingshot")
+
+    assert res == ProcessDetection(
+        found=True, pids=[4234, 4240], method_used="ps", error=None
+    )
+    assert 4250 not in res.pids
+
+
+def test_list_installed_games_treats_kingshot_beta_as_kingshot() -> None:
+    def shell_full(*_args: str, timeout: float = 15.0) -> _ShellOutcome:
+        return _mk(0, "")
+
+    def shell_text(*args: str, timeout: float = 15.0) -> str:
+        assert args == ("pm", "list", "packages")
+        return f"package:{KINGSHOT_BETA_PKG}\npackage:com.android.systemui"
+
+    assert _controller(
+        "127.0.0.1:5625",
+        shell_full,
+        shell_text,
+    ).list_installed_games() == ["kingshot"]
+
+
 def test_ensure_game_foreground_launches_running_wos_beta_package(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -290,6 +334,60 @@ def test_ensure_game_foreground_launches_running_wos_beta_package(
     assert state["last_game_id"] == "wos"
     assert state["last_game_package"] == BETA_PKG
     # Beta alias build → flag set so identity/gift-code scenarios skip it.
+    assert state["last_game_is_beta"] == "1"
+
+
+def test_ensure_game_foreground_launches_running_kingshot_beta_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+    redis = _FakeRedis()
+
+    def shell_full(*args: str, timeout: float = 15.0) -> _ShellOutcome:
+        if args[:2] == ("ps", "-A"):
+            return _mk(0, KINGSHOT_BETA_PS_OUT)
+        if args[:3] == ("dumpsys", "activity", "recents"):
+            return _mk(0, "")
+        if args[:3] == ("am", "stack", "list"):
+            return _mk(0, "")
+        if args[0] == "pidof":
+            return _mk(1, "")
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    def shell_text(*args: str, timeout: float = 15.0) -> str:
+        calls.append(args)
+        if args == ("pm", "list", "packages"):
+            return f"package:{KINGSHOT_BETA_PKG}"
+        if args[:3] == ("dumpsys", "activity", "activities"):
+            return "ResumedActivity: com.uncube.launcher3/.HomeActivity"
+        if args[:3] == ("cmd", "package", "resolve-activity"):
+            return f"{KINGSHOT_BETA_PKG}/com.unity3d.player.MyMainPlayerActivity"
+        return ""
+
+    monkeypatch.setattr("adb.controller_process.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("adb.controller_process._redis", lambda: redis)
+    monkeypatch.setattr(
+        "adb.controller_process._require_approval",
+        lambda _iid, _p: (True, "req"),
+    )
+    monkeypatch.setattr("adb.controller_process._consume_skip", lambda _req_id: False)
+
+    _controller(
+        "127.0.0.1:5625",
+        shell_full,
+        shell_text,
+    ).ensure_game_foreground("kingshot")
+
+    assert (
+        "am",
+        "start",
+        "-n",
+        f"{KINGSHOT_BETA_PKG}/com.unity3d.player.MyMainPlayerActivity",
+    ) in calls
+    state = redis.hashes["wos:instance:bs1:state"]
+    assert state["last_game_id"] == "kingshot"
+    assert state["last_game_package"] == KINGSHOT_BETA_PKG
     assert state["last_game_is_beta"] == "1"
 
 
