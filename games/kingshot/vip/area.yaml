@@ -1,0 +1,140 @@
+version: 2
+screens:
+- id: 1
+  screen_id: vip
+  ocr: references/vip.png
+  screen_region: vip.title
+  regions:
+  - name: icon.page.back
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 1.8055555555555556
+      y: 0.859375
+      width: 10
+      height: 4.375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: button.back
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 1.8055555555555556
+      y: 0.859375
+      width: 10
+      height: 4.375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: vip.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 13.194444444444445
+      y: 1.5625
+      width: 7.5
+      height: 3.125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: page.vip.level
+    action: text
+    type: integer
+    threshold: 0.9
+    bbox:
+      x: 15.694444444444445
+      y: 16.015625
+      width: 5.277777777777778
+      height: 5.3125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: page.vip.add
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 69.16666666666667
+      y: 20
+      width: 8.194444444444445
+      height: 5.3125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: page.vip.box
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 81.38888888888889
+      y: 19.140625
+      width: 10.833333333333334
+      height: 6.09375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: button.claim
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 68.75
+      y: 62.03125
+      width: 24.02777777777778
+      height: 4.921875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    isSearch: true
+    has_red_dot: true
+  - name: page.vip.unlock
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 27.77777777777778
+      y: 89.921875
+      width: 44.44444444444444
+      height: 6.796875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+- id: 2
+  screen_id: increase_level
+  ocr: references/increase_level.png
+  screen_region: increase_level.title
+  regions:
+  - name: increase_level.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 35.833333333333336
+      y: 9.84375
+      width: 28.333333333333332
+      height: 3.59375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: increase_level.icon.close
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 90.13888888888889
+      y: 9.6875
+      width: 5.277777777777778
+      height: 3.75
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: button.use
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 68.33333333333333
+      y: 29.140625
+      width: 24.166666666666668
+      height: 5.3125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    isSearch: true

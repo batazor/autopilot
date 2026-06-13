@@ -1,11 +1,6 @@
 screens:
   main_city:
-    # Hub bias: low priority is checked early so the detector settles on the
-    # main city before more specific overlays. Mirrors wos/core/main_city.
     priority: 10
     rules:
-    # Landmark region for the kingshot main city. Capture/label it via the
-    # Labeling UI (game "kingshot" → module "main_city"); the region named
-    # here must exist in area.yaml for detection to confirm the screen.
     - match: main_city.title
       threshold: 0.9

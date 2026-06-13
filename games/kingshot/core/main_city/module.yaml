@@ -1,10 +1,8 @@
 id: main_city
 title: Main City (Kingshot)
 description: >-
-  Kingshot main city screen — the navigation hub. Screen regions and the
-  detection landmark are captured via the Labeling UI (select game "kingshot",
-  module "main_city"). Until then area.yaml stays empty and the node is
-  registered through routes/screen_verify.yaml.
+  Kingshot main city screen — the navigation hub. The primary reference is
+  captured from the active device via ADB.
 area: area.yaml
 references: references
 scenarios: scenarios

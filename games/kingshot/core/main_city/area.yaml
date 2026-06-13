@@ -1,2 +1,168 @@
 version: 2
-screens: []
+screens:
+- id: 1
+  screen_id: main_city
+  ocr: references/main_city.png
+  screen_region: main_city.title
+  regions:
+  - name: to_chief_profile
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 0
+      y: 0
+      width: 12.5
+      height: 7.5
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: to_governor_profile
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 0
+      y: 0
+      width: 12.5
+      height: 7.5
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: player.avatar.identity
+    action: exist
+    threshold: 0.86
+    bbox:
+      x: 0
+      y: 0
+      width: 12.5
+      height: 7.5
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: chapter.task
+    action: text
+    threshold: 0.9
+    bbox:
+      x: 8.333333333333332
+      y: 80
+      width: 67.63888888888889
+      height: 4.765625
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    type: string
+  - name: mail.new
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 86.94444444444444
+      y: 79.609375
+      width: 11.11111111111111
+      height: 6.25
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: page.vip
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 78.88888888888889
+      y: 4.84375
+      width: 16.38888888888889
+      height: 4.296875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: main_city.to.vip
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 78.88888888888889
+      y: 4.84375
+      width: 16.38888888888889
+      height: 4.296875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: main_city.icon_search
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.16666666666666
+      y: 0
+      width: 20.833333333333336
+      height: 45.3125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: main_city.to.conquest
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 0.6944444444444444
+      y: 92.34375
+      width: 16.666666666666664
+      height: 7.34375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: main_city.to.heroes
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 17.36111111111111
+      y: 92.34375
+      width: 16.666666666666664
+      height: 7.34375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: main_city.to.backpack
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 34.02777777777778
+      y: 92.34375
+      width: 16.666666666666664
+      height: 7.34375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: main_city.to.shop
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 50.69444444444444
+      y: 92.34375
+      width: 16.666666666666664
+      height: 7.34375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: main_city.to.world
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.44444444444444
+      y: 91.875
+      width: 19.86111111111111
+      height: 7.8125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: main_city.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.44444444444444
+      y: 91.875
+      width: 19.86111111111111
+      height: 7.8125
+      rotation: 0
+      original_width: 720
+      original_height: 1280

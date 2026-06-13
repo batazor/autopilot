@@ -1,0 +1,68 @@
+screens:
+  mail:
+    priority: 30
+    rules:
+    - match: mail.title
+      threshold: 0.9
+  mail.wars:
+    parent: mail
+    priority: 15
+    rules:
+    - match: mail.title
+      threshold: 0.9
+      tab_active: mail.tab.wars
+      max_mean_saturation: 60
+      min_mean_value: 210
+      min_yellow_ratio: 0.9
+  mail.alliance:
+    parent: mail
+    priority: 15
+    rules:
+    - match: mail.title
+      threshold: 0.9
+      tab_active: mail.tab.alliance
+      max_mean_saturation: 60
+      min_mean_value: 210
+      min_yellow_ratio: 0.9
+  mail.system:
+    parent: mail
+    priority: 15
+    rules:
+    - match: mail.title
+      threshold: 0.9
+      tab_active: mail.tab.system
+      max_mean_saturation: 60
+      min_mean_value: 210
+      min_yellow_ratio: 0.9
+  mail.reports:
+    parent: mail
+    priority: 15
+    rules:
+    - match: mail.title
+      threshold: 0.9
+      tab_active: mail.tab.reports
+      max_mean_saturation: 60
+      min_mean_value: 210
+      min_yellow_ratio: 0.9
+  mail.starred:
+    parent: mail
+    priority: 15
+    rules:
+    - match: mail.title
+      threshold: 0.9
+      tab_active: mail.tab.starred
+      max_mean_saturation: 60
+      min_mean_value: 210
+      min_yellow_ratio: 0.9
+  mail.letter:
+    parent: mail
+    priority: 20
+    rules:
+    - match: mail.letter.content_header
+      threshold: 0.9
+  mail.delete_confirm:
+    parent: mail
+    priority: 25
+    rules:
+    - match: mail.delete.confirm.title
+      threshold: 0.9

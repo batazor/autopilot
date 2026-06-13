@@ -66,6 +66,7 @@ def _write_player_bound_scenario(
     frame: np.ndarray,
     *,
     retry: dict[str, Any] | None = None,
+    search_region: str | None = None,
 ) -> None:
     """A player-bound scenario opted into strict mode via explicit ``strict: true``.
 
@@ -89,6 +90,8 @@ def _write_player_bound_scenario(
     }
     if retry is not None:
         while_step["retry"] = retry
+    if search_region:
+        while_step["search_region"] = search_region
     (scenario_root / "workers" / "test_assign.yaml").write_text(
         yaml.dump(
             {
@@ -225,6 +228,60 @@ async def test_player_bound_while_match_initial_retry_eventually_matches(
 
     assert result.success is True
     assert len(actions.tap.call_args_list) == 1  # one click after retry succeeded
+
+
+@pytest.mark.asyncio
+async def test_while_match_forwards_explicit_search_region(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+    pin_click_to_center: None,
+) -> None:
+    _write_player_bound_scenario(
+        tmp_path,
+        _frame_with_pattern(),
+        search_region="page.worker.add_search",
+    )
+    actions = make_actions([_frame_with_pattern()], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "click_approval_enabled", return_value=False)
+    _patch_instant_sleep(mocker)
+
+    seen_rules: list[dict[str, Any]] = []
+
+    async def _fake_eval(
+        _image_bgr: Any, _area_doc: Any, _repo_root: Any, rules: Any, **_kw: Any
+    ) -> dict[str, Any]:
+        assert isinstance(rules, list) and rules
+        rule = dict(rules[0])
+        seen_rules.append(rule)
+        return {
+            str(rule["name"]): {
+                "matched": True,
+                "score": 0.99,
+                "threshold": 0.9,
+                "tap_x_pct": 25.0,
+                "tap_y_pct": 25.0,
+                "tap_match_x_pct": 25.0,
+                "tap_match_y_pct": 25.0,
+                "search_region": rule.get("search_region"),
+            }
+        }
+
+    mocker.patch.object(dsl, "evaluate_overlay_rules_async", new=_fake_eval)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="test_assign",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    assert seen_rules
+    assert seen_rules[0]["search_region"] == "page.worker.add_search"
 
 
 @pytest.mark.asyncio

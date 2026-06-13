@@ -395,6 +395,9 @@ class DslMatchMixin(_Base):
             template = str(step.get("template") or "").replace("\\", "/").strip()
             if template:
                 rule["template"] = template
+            search_region = str(step.get("search_region") or "").strip()
+            if search_region:
+                rule["search_region"] = search_region
             # Lazy import via main module so monkeypatches against
             # ``tasks.dsl_scenario.evaluate_overlay_rules_async`` apply here too.
             from tasks import dsl_scenario as _dsl

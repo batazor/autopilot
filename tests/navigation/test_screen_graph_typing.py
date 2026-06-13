@@ -42,6 +42,84 @@ def test_welcome_back_routes_to_main_city() -> None:
     assert route_taps("welcome_back", "main_city") == [["button.confirm.green"]]
 
 
+def test_kingshot_welcome_back_routes_to_main_city() -> None:
+    assert route_taps("welcome_back", "main_city", game="kingshot") == [
+        ["button.confirm.green"]
+    ]
+
+
+def test_kingshot_main_city_routes() -> None:
+    expected = {
+        "conquest": [["main_city.to.conquest"]],
+        "heroes": [["main_city.to.heroes"]],
+        "backpack": [["main_city.to.backpack"]],
+        "shop": [["main_city.to.shop"]],
+        "main_world": [["main_city.to.world"]],
+        "mail": [["mail.new"]],
+        "governor_profile": [["to_governor_profile"]],
+        "chief_profile": [["to_governor_profile"]],
+        "vip": [["page.vip"]],
+    }
+    for target, taps in expected.items():
+        assert route_taps("main_city", target, game="kingshot") == taps
+
+
+def test_kingshot_mail_tab_routes() -> None:
+    assert route_taps("main_city", "mail.wars", game="kingshot") == [
+        ["mail.new"],
+        ["mail.tab.wars"],
+    ]
+    assert route_taps("mail", "mail.alliance", game="kingshot") == [
+        ["mail.tab.alliance"]
+    ]
+    assert route_taps("mail.system", "mail.reports", game="kingshot") == [
+        ["mail.tab.reports"]
+    ]
+    assert route_taps("mail.starred", "main_city", game="kingshot") == [
+        ["button.back"]
+    ]
+    assert route_taps("mail.system", "mail.letter", game="kingshot") == [
+        ["mail.gift"]
+    ]
+    assert route_taps("mail.letter", "mail.system", game="kingshot") == [
+        ["mail.letter.back", "mail.tab.system"]
+    ]
+    assert route_taps("mail.system", "mail.delete_confirm", game="kingshot") == [
+        ["mail.delete.all"]
+    ]
+    assert route_taps("mail.delete_confirm", "mail", game="kingshot") == [
+        ["mail.delete.confirm"]
+    ]
+
+
+@pytest.mark.asyncio
+async def test_kingshot_event_routes_from_main_city_by_template_icon() -> None:
+    hops = await route_hops_async(
+        "main_city",
+        "event.fishing_tournament",
+        instance_id="bs1",
+        redis_client=None,
+        game="kingshot",
+    )
+
+    assert hops == [
+        (
+            "event.fishing_tournament",
+            [
+                {
+                    "type": "template_icon",
+                    "region": "main_city.icon_search",
+                    "template": (
+                        "games/kingshot/events/fishing_tournament/references/"
+                        "main_city.to.fishing_tournament.png"
+                    ),
+                    "threshold": 0.9,
+                }
+            ],
+        )
+    ]
+
+
 def test_ads_natalia_routes_to_main_city() -> None:
     assert route_taps("ads.natalia", "main_city") == [["ads.natalia.title"]]
 
@@ -131,6 +209,9 @@ def test_rewards_routes_to_main_city() -> None:
 
 def test_increase_level_routes_back_to_vip() -> None:
     assert route_taps("increase_level", "vip") == [["increase_level.icon.close"]]
+    assert route_taps("increase_level", "vip", game="kingshot") == [
+        ["increase_level.icon.close"]
+    ]
 
 
 def test_heroes_sr_new_routes_to_main_city() -> None:
