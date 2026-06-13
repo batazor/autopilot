@@ -2,7 +2,11 @@ enabled: true
 name: State of Power
 node: event.state_of_power
 icon: state_of_power
+cond: "active_player != null"
 steps:
+  - ocr: state_of_power.matchmaking.ttl
+    event_timer: state_of_power.matchmaking
+
   - while_match: button.claim
     max: 3
     steps:
