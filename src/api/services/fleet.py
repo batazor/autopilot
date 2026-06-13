@@ -77,14 +77,14 @@ def _is_recent(ts_str: str, *, max_age_s: float) -> bool:
 def fleet_status(row: dict[str, str]) -> str:
     if not row:
         return "offline"
-    if row.get("paused") == "1":
-        return "paused"
     st_val = (row.get("state") or "").strip().lower()
     alive = _is_recent(row.get("last_seen_at") or "", max_age_s=10.0)
     if st_val in {"restarting", "crashed"}:
         return st_val
     if not (row.get("worker_started_at") or "").strip():
         return "starting"
+    if row.get("paused") == "1":
+        return "paused" if alive else "stale"
     if alive:
         return "live"
     return "stale"

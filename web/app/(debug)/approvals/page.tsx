@@ -551,6 +551,17 @@ export default function ApprovalsPage() {
   // request as an explanatory idle state instead of prompting the operator.
   const hasPending = !!view?.has_pending && workerAlive;
   const stalePending = !!view?.has_pending && !workerAlive;
+  const instanceState = view?.instance_state ?? {};
+  const staleTaskLabel =
+    (instanceState.current_scenario || instanceState.current_task_type || "").trim();
+  const staleWorkerTask =
+    !workerAlive &&
+    !view?.has_pending &&
+    Boolean(
+      (instanceState.state || "").trim().toLowerCase() === "busy" ||
+        (instanceState.current_task_id || "").trim() ||
+        staleTaskLabel,
+    );
   const scenarioProgress = view?.scenario_progress ?? null;
   const approvalEnabled = !!view?.approval_enabled;
   const heartbeatActive = !!view?.heartbeat_active;
@@ -793,6 +804,8 @@ export default function ApprovalsPage() {
               onResetScreen={onResetScreen}
               instanceId={instanceId}
               stalePending={stalePending}
+              staleWorkerTask={staleWorkerTask}
+              staleTaskLabel={staleTaskLabel}
               clearingPending={busyAction === "clear-pending"}
               onClearPending={onClearPending}
             />
@@ -1356,6 +1369,8 @@ function IdleApprovalsCard({
   onResetScreen,
   instanceId,
   stalePending,
+  staleWorkerTask,
+  staleTaskLabel,
   clearingPending,
   onClearPending,
 }: {
@@ -1364,6 +1379,8 @@ function IdleApprovalsCard({
   onResetScreen: () => void;
   instanceId: string;
   stalePending: boolean;
+  staleWorkerTask: boolean;
+  staleTaskLabel: string;
   clearingPending: boolean;
   onClearPending: () => void;
 }) {
@@ -1389,6 +1406,19 @@ function IdleApprovalsCard({
         >
           {clearingPending ? "Clearing…" : "Clear parked request"}
         </button>
+      </div>
+    );
+  }
+  if (staleWorkerTask) {
+    return (
+      <div className="idle-card">
+        <div className="idle-card__icon" aria-hidden>⏸</div>
+        <p className="idle-card__title">Bot not running</p>
+        <p className="meta">
+          Redis still shows {staleTaskLabel || "a task"} as running, but this
+          instance has no fresh worker heartbeat. Start the bot; boot cleanup
+          will close the orphaned task and fresh work can be queued.
+        </p>
       </div>
     );
   }

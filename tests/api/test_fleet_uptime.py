@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 
-from api.services.fleet import _fleet_uptime
+from api.services.fleet import _fleet_uptime, fleet_status
 
 
 def _row(*, started_offset: float | None, last_seen_offset: float | None = None) -> dict[str, str]:
@@ -82,3 +82,17 @@ def test_long_uptime_formats_with_hours() -> None:
     out = _fleet_uptime(_row(started_offset=7325.0, last_seen_offset=2.0), "live")
     # 2:02:0X
     assert out.startswith("2:02:0")
+
+
+def test_paused_status_requires_fresh_heartbeat() -> None:
+    row = _row(started_offset=120.0, last_seen_offset=2.0)
+    row["paused"] = "1"
+
+    assert fleet_status(row) == "paused"
+
+
+def test_stale_paused_status_is_not_live() -> None:
+    row = _row(started_offset=120.0, last_seen_offset=60.0)
+    row["paused"] = "1"
+
+    assert fleet_status(row) == "stale"

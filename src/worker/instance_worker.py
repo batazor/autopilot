@@ -874,6 +874,22 @@ class InstanceWorker(
 
                     await self._drain_ui_commands()
                     while self._ui_paused:
+                        now_m = time.monotonic()
+                        if now_m - last_heartbeat >= 2.0 and self._redis is not None:
+                            try:
+                                await self._redis.hset(
+                                    _INST_STATE_KEY_FMT.format(
+                                        instance_id=self._cfg.instance_id
+                                    ),
+                                    "last_seen_at",
+                                    str(time.time()),
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "Failed to write paused heartbeat",
+                                    exc_info=True,
+                                )
+                            last_heartbeat = now_m
                         await self._drain_ui_commands()
                         await asyncio.sleep(0.3)
 
