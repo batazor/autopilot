@@ -77,6 +77,47 @@ def test_clear_port_fails_when_old_process_survives() -> None:
         launch._clear_port_or_fail(host="127.0.0.1", port=8765, label="API")
 
 
+def test_start_web_exits_cleanly_when_build_is_interrupted(tmp_path, capsys) -> None:
+    web_dir = tmp_path / "web"
+    (web_dir / "node_modules").mkdir(parents=True)
+    stack = launch._PlayStack()
+
+    with (
+        patch("worker.launch._clear_port_or_fail"),
+        patch("worker.launch.shutil.which", return_value="/usr/bin/npm"),
+        patch(
+            "worker.launch.subprocess.run",
+            side_effect=launch.subprocess.CalledProcessError(
+                130, ["/usr/bin/npm", "run", "build"]
+            ),
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        stack.start_web(web_dir, host="127.0.0.1", port=3000)
+
+    assert exc_info.value.code == 130
+    assert "Next.js build interrupted." in capsys.readouterr().out
+
+
+def test_start_web_reports_build_failure_without_traceback(tmp_path) -> None:
+    web_dir = tmp_path / "web"
+    (web_dir / "node_modules").mkdir(parents=True)
+    stack = launch._PlayStack()
+
+    with (
+        patch("worker.launch._clear_port_or_fail"),
+        patch("worker.launch.shutil.which", return_value="/usr/bin/npm"),
+        patch(
+            "worker.launch.subprocess.run",
+            side_effect=launch.subprocess.CalledProcessError(
+                1, ["/usr/bin/npm", "run", "build"]
+            ),
+        ),
+        pytest.raises(SystemExit, match="Next.js build failed with exit code 1."),
+    ):
+        stack.start_web(web_dir, host="127.0.0.1", port=3000)
+
+
 def test_play_signal_handler_force_kills_and_exits() -> None:
     stack = launch._PlayStack()
     handlers: dict[int, object] = {}

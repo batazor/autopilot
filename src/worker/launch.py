@@ -172,6 +172,23 @@ def _default_build_cpus() -> int:
     return max(2, min(4, cores // 2))
 
 
+def _run_required(cmd: list[str], *, cwd: Path, env: dict[str, str], label: str) -> None:
+    try:
+        subprocess.run(
+            cmd,
+            cwd=str(cwd),
+            env=env,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode == 130:
+            msg = f"{label} interrupted."
+            print(msg, flush=True)
+            raise SystemExit(130) from None
+        msg = f"{label} failed with exit code {exc.returncode}."
+        raise SystemExit(msg) from None
+
+
 def _prepare_child_env(repo: Path) -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
@@ -348,11 +365,11 @@ class _PlayStack:
             raise SystemExit(msg)
         if not (web_dir / "node_modules").is_dir():
             print("Installing web dependencies (npm install)…", flush=True)
-            subprocess.run(
+            _run_required(
                 [npm, "install"],
-                cwd=str(web_dir),
+                cwd=web_dir,
                 env=self._env,
-                check=True,
+                label="Web dependency install",
             )
         print("Building Next.js (npm run build)…", flush=True)
         # Cap build workers so the static-generation pass doesn't OOM-kill a
@@ -363,11 +380,11 @@ class _PlayStack:
         # forwarded to `next start`.
         build_env = dict(self._env)
         build_env.setdefault("WOS_BUILD_CPUS", str(_default_build_cpus()))
-        subprocess.run(
+        _run_required(
             [npm, "run", "build"],
-            cwd=str(web_dir),
+            cwd=web_dir,
             env=build_env,
-            check=True,
+            label="Next.js build",
         )
         next_bin = web_dir / "node_modules" / ".bin" / "next"
         proc = _popen(
