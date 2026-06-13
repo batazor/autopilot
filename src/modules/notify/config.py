@@ -42,9 +42,26 @@ REDIS_URL = os.environ.get("NM_REDIS_URL", os.environ.get("WOS_REDIS_URL", "redi
 # a scenario push; every other recognized event is stored/published as an
 # informational event only. The scenario key is the YAML filename (no ext) under
 # the game's module ``scenarios/`` dir.
+#
+# These are migration *seeds*: the operator's per-pattern scenario (Patterns
+# tab) always wins; the backfill only fills rows whose scenario is empty.
+#
+# Mapping rationale:
+# - training/building/upgrade notifications re-scan the main-menu panel —
+#   ``scan_main_menu_panel`` then dispatches ``accept_troops_<type>`` itself
+#   for completed training rows (and refreshes building-queue state).
+# - healing events are deliberately NOT mapped: ``heal_injured`` only runs on
+#   the heal screen (no navigation node ported yet — see
+#   games/wos/core/heal/analyze/analyze.yaml).
 EVENT_SCENARIOS: dict[str, dict[str, str]] = {
     "wos": {
         "intel_lighthouse": "intel_lighthouse",
+        "troops_trained": "sync_main_menu_panel",
+        "construction_complete": "sync_main_menu_panel",
+        "upgrade_complete": "sync_main_menu_panel",
+        "research_done": "sync_research_status",
+        "gathering_complete": "sync_marching_status",
+        "idle_income": "claim_exploration_rewards",
     },
 }
 
