@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 from config.paths import repo_root
+from worker.orphan_helpers import cleanup_orphaned_sck_capture_helpers
 
 _DEFAULT_API_PORT = 8765
 _DEFAULT_WEB_PORT = 3000
@@ -442,6 +443,7 @@ def _run_modern_play() -> None:
 
     bootstrap_runtime_observability("play")
     assert_startup_configs_valid(repo)
+    cleanup_orphaned_sck_capture_helpers(root=repo)
 
     web_dir = repo / "web"
     if not skip_web and not web_dir.is_dir():

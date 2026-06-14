@@ -184,7 +184,7 @@ def test_production_screen_verify_yaml_contains_hero_recruitment_route_nodes() -
     assert "heroes" in names
     assert "hero.recrutment" in names
     assert hero_rules == [{"match": "heroes.grid", "threshold": 0.9}]
-    assert recruit_rules == [{"match": "isHeroRecruitment", "threshold": 0.9}]
+    assert recruit_rules == [{"match": "hero.recrutment.title", "threshold": 0.9}]
     assert route == ["shop.dawn_market", "main_city", "heroes", "hero.recrutment"]
 
 

@@ -151,6 +151,7 @@ def test_mia_fortune_hut_screen_verify_parent_and_routes() -> None:
             ["mia_fortune_hut.fortune_token_pack_box"]
         ]
         assert screen_graph.route_taps(PACK_SCREEN, SCREEN) == [["icon.page.back"]]
+        assert screen_graph.route_taps(REWARD_WISH_SCREEN, SCREEN) == [["icon.page.back"]]
         assert screen_graph.route_taps(SCREEN, "deals") == [["icon.page.back"]]
         assert screen_graph.route_taps(SCREEN, "main_city") == [["icon.page.back"]]
     finally:

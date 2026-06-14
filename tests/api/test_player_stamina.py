@@ -36,7 +36,7 @@ def test_build_player_stamina_shape_and_trace():
     view = players_svc.build_player_stamina(fake, "12345")
 
     assert view["cap"] == 200
-    assert view["enabled"] is True         # planner active (budget.yaml)
+    assert view["enabled"] is False        # planner disabled until consumers are real
     assert 155 <= view["est"] <= 157
     assert {d["id"] for d in view["demands"]} == {
         "joe_bandits",

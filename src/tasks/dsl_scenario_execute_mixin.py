@@ -366,6 +366,26 @@ class DslScenarioExecuteMixin(
                 instance_id, self.redis_client
             )
             if not cur_screen_at_entry:
+                navigator = dsl_runtime.navigator(
+                    actions,
+                    redis_client=self.redis_client,
+                )
+                try:
+                    cur_screen_at_entry = await navigator.detect_current_screen(
+                        instance_id,
+                        attempts=2,
+                        interval_seconds=0.25,
+                    )
+                except Exception:
+                    logger.debug(
+                        "dsl_scenario: live screen detect failed before node navigation "
+                        "(scenario=%s instance=%s)",
+                        _scen(key),
+                        instance_id,
+                        exc_info=True,
+                    )
+                    cur_screen_at_entry = ""
+            if not cur_screen_at_entry:
                 _trace_row(
                     0,
                     {"navigate_to": target_node},

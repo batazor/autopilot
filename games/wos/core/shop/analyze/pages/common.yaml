@@ -17,6 +17,7 @@ overlay:
       - shop.construction_queue
       - shop.weekly_monthly_cards
       - shop.get_gems
+      - shop.artisans_trove
       - shop.regular_pack
     steps:
       - push_scenario:

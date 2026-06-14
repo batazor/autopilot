@@ -6,9 +6,9 @@ human-in-the-loop: the operator solves the beta server's image-code / slider
 captcha and submits; this module never bypasses that gate — it only mints and
 stores the credentials.
 
-Names are "pretty" — an adjective + noun (+ optional number), e.g. ``FrostRaven``,
-``EmberWolf42`` — within the beta form's rule (6-15 letters or digits, no
-symbols). Two modes:
+Names are lowercase, readable nicknames with several soft fantasy-ish shapes
+within the beta form's 6-15 character envelope. Farm nicknames intentionally
+use letters only. Two modes:
   - **random** (default): cryptographically-random picks.
   - **deterministic**: derived from ``seed`` + index, so the same seed reproduces
     the same batch (recoverable without trusting only the DB).
@@ -28,19 +28,33 @@ from config import farm_accounts_db
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# Word banks kept to 4-7 chars so Adjective+Noun lands in 7-14 chars — inside
-# the beta form's 6-15 envelope, leaving room for an optional 1-2 digit suffix.
-ADJECTIVES = (
-    "Frost", "Iron", "Silent", "Crimson", "Shadow", "Storm", "Ember", "Lunar",
-    "Solar", "Wild", "Brave", "Swift", "Frozen", "Arctic", "Polar", "Mighty",
-    "Snowy", "Bold", "Royal", "Stone", "Steel", "Night", "Grim", "Lone",
-    "Pale", "Ashen", "Cobalt", "Onyx", "Amber", "Jade", "Scarlet", "Glacial",
+# Lowercase banks kept short so every template lands inside the beta form's
+# 6-15 envelope without CamelCase, digits, or obvious "three words glued
+# together" names.
+STEMS = (
+    "raven", "moss", "ember", "lumen", "niva", "aero", "sol", "mira",
+    "luna", "kora", "sora", "tavi", "rova", "elva", "nori", "kaia",
+    "zara", "faye", "lyra", "vexa", "orin", "sable", "cinder", "briar",
+    "velvet", "willow", "hazel", "coral", "ivy", "onyx", "opal", "pearl",
 )
 NOUNS = (
-    "Wolf", "Raven", "Bear", "Fox", "Hawk", "Blade", "Forge", "Wraith",
-    "Tundra", "Saber", "Talon", "Fang", "Peak", "Ridge", "Claw", "Pack",
-    "Storm", "Pine", "Crow", "Lynx", "Stag", "Boar", "Drake", "Vale",
-    "Thorn", "Reign", "Wing", "Howl", "Frost", "Glacier",
+    "vale", "haven", "grove", "field", "brook", "meadow", "harbor", "ridge",
+    "garden", "river", "hollow", "glade", "bloom", "sprout", "drift", "trail",
+    "cove", "dawn", "shade", "spark", "cloud", "stone", "branch", "leaf",
+)
+PREFIXES = (
+    "mira", "niva", "sora", "luma", "kiri", "tala", "runa", "vella",
+    "aura", "zuni", "elora", "fira", "maelis", "novi", "seren", "liri",
+)
+SUFFIXES = (
+    "ly", "ia", "ora", "elle", "wyn", "kin", "lin", "via",
+    "len", "ren", "ari", "elle", "ina", "iva", "wyn", "lyn",
+)
+COMPOUNDS = (
+    "moonlit", "softmint", "snowberry", "starling", "mistvale", "rosewood",
+    "sunberry", "foxglove", "wildfern", "dewdrop", "silkroad", "bluebell",
+    "mossling", "nightrain", "goldleaf", "brightbay", "oakwhisper", "rivermint",
+    "cloudberry", "amberfall", "pearlmist", "lilacwind", "ivorypine", "hazelrun",
 )
 
 _PASSWORD_ALPHABET = string.ascii_letters + string.digits  # beta form: no symbols
@@ -71,15 +85,20 @@ class _Picker:
         return int.from_bytes(digest[:8], "big") % n
 
 
+def _choose(words: tuple[str, ...], pick: Callable[[int], int]) -> str:
+    return words[pick(len(words))]
+
+
 def _pretty_username(pick: Callable[[int], int]) -> str:
-    base = ADJECTIVES[pick(len(ADJECTIVES))] + NOUNS[pick(len(NOUNS))]
-    base = base[:_MAX_LEN]
-    room = _MAX_LEN - len(base)
-    if room >= 1:
-        # 1-2 digit suffix for variety/uniqueness, kept within the length cap.
-        ceiling = 100 if room >= 2 else 10
-        base = f"{base}{1 + pick(ceiling - 1)}"
-    return base
+    templates = (
+        lambda: _choose(COMPOUNDS, pick),
+        lambda: _choose(STEMS, pick) + _choose(SUFFIXES, pick),
+        lambda: _choose(PREFIXES, pick) + _choose(NOUNS, pick),
+        lambda: _choose(STEMS, pick) + _choose(NOUNS, pick),
+        lambda: _choose(NOUNS, pick) + _choose(SUFFIXES, pick),
+        lambda: _choose(PREFIXES, pick) + _choose(SUFFIXES, pick),
+    )
+    return templates[pick(len(templates))]()
 
 
 def _password(pick: Callable[[int], int]) -> str:
@@ -163,13 +182,11 @@ def add_or_generate(
     mint a fresh pretty one instead.
 
     Returns the stored account plus whether the requested name was taken — so
-    the caller can tell the operator "balabol was taken, here's NewName42".
+    the caller can tell the operator "balabol was taken, here's FreshName".
     """
     want = str(desired or "").strip()
-    if want and not (
-        _MIN_LEN <= len(want) <= _MAX_LEN and want.isalnum()
-    ):
-        msg = f"username {want!r} must be {_MIN_LEN}-{_MAX_LEN} letters/digits"
+    if want and not (_MIN_LEN <= len(want) <= _MAX_LEN and want.isalpha()):
+        msg = f"username {want!r} must be {_MIN_LEN}-{_MAX_LEN} letters"
         raise ValueError(msg)
 
     if want and not farm_accounts_db.username_exists(want, game=game):

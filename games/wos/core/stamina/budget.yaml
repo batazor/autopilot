@@ -7,12 +7,10 @@
 # `and` / `or` (not SQL `AND`). Referenced state fields (e.g. joe_event_active)
 # are resolved by the Redis-backed adapter.
 
-# Planner active. Consumer scenarios + OCR stamina regions exist. NOTE: the
-# consumer scenarios are still no-op stubs (`wait: 1s`), so while enabled the
-# planner exercises the full pipeline (decide → enqueue → quota/estimate update
-# → decision trace) but performs no real in-game action. Quota counters and the
-# stamina estimate will move as if consuming until the stubs gain real steps.
-enabled: true
+# Planner is disabled until the consumer scenarios stop being no-op stubs
+# (`wait: 1s`). Leaving it enabled burns queue/worker cycles and moves quota /
+# stamina estimates without doing useful in-game work.
+enabled: false
 
 cap: 200
 regen_per_hour: 12            # 1 stamina every 5 minutes

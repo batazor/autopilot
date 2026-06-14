@@ -52,7 +52,7 @@ def _collect_push_candidates(
     active_player: str,
     current_screen: str,
 ) -> list[PushScenarioCandidate]:
-    """Dry-run overlay ``pushScenario`` selection (same priority pick as the worker)."""
+    """Dry-run overlay ``pushScenario`` enqueue selection (same policy as worker)."""
     from worker.instance_worker_overlay import _overlay_push_priority
 
     push_payloads: list[tuple[int, int, str, dict[str, Any]]] = []
@@ -62,31 +62,6 @@ def _collect_push_candidates(
         priority = _overlay_push_priority(payload)
         if priority is not None:
             push_payloads.append((priority, order, str(rule_name), payload))
-
-    selected_rule: str | None = None
-    rule_blocked_sibling: dict[str, str] = {}
-    for _priority, _order, rule_name, payload in sorted(
-        push_payloads, key=lambda it: (-it[0], it[1])
-    ):
-        targets = _push_targets(payload)
-        if not targets:
-            continue
-        sibling_skip = ""
-        for target in targets:
-            reason = _push_skip_reason(
-                target,
-                repo=repo,
-                active_player=active_player,
-                current_screen=current_screen,
-            )
-            if reason:
-                sibling_skip = f"sibling_blocked:{target}={reason}"
-                break
-        if sibling_skip:
-            rule_blocked_sibling[rule_name] = sibling_skip
-            continue
-        selected_rule = rule_name
-        break
 
     out: list[PushScenarioCandidate] = []
     for _priority, _order, rule_name, payload in sorted(
@@ -101,12 +76,7 @@ def _collect_push_candidates(
                 active_player=active_player,
                 current_screen=current_screen,
             )
-            is_selected = rule_name == selected_rule and not skip_reason
-            if not skip_reason and not is_selected:
-                if selected_rule is not None:
-                    skip_reason = f"lost_to={selected_rule}"
-                elif rule_name in rule_blocked_sibling:
-                    skip_reason = rule_blocked_sibling[rule_name]
+            is_selected = not skip_reason
             out.append(
                 PushScenarioCandidate(
                     scenario=target,

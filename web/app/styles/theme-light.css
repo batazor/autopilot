@@ -47,6 +47,18 @@
     @apply text-amber-700;
   }
 
+  html[data-theme="light"] .data-table tr.farm-row--active td {
+    @apply border-b-emerald-200 bg-emerald-50;
+  }
+
+  html[data-theme="light"] .data-table tr.farm-row--active:hover td {
+    @apply bg-emerald-100;
+  }
+
+  html[data-theme="light"] .farm-character-cell--active {
+    @apply border-emerald-300 bg-emerald-50 text-emerald-900;
+  }
+
   html[data-theme="light"] .queue-metric-live,
   html[data-theme="light"] .queue-metric-ok {
     @apply text-emerald-700;

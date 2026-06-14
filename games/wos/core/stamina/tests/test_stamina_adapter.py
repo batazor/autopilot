@@ -226,7 +226,7 @@ def test_build_view_shape_and_demand_rows():
     state = _state(joe_event_active=1, **{_qkey("intel_events"): 7})
     view = adapter.build_view(BUDGET, state, NOW)
 
-    assert view["enabled"] is True
+    assert view["enabled"] is False
     assert view["cap"] == 200
     assert view["est"] == 156.0
     assert view["period"] == PERIOD

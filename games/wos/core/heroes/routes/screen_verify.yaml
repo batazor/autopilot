@@ -8,7 +8,7 @@ screens:
   hero.recrutment:
     priority: 30
     rules:
-    - match: isHeroRecruitment
+    - match: hero.recrutment.title
       threshold: 0.9
 
   heroes.sr.new:

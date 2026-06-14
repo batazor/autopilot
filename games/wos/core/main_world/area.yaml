@@ -3,13 +3,14 @@
   "screens": [
     {
       "id": 1,
-      "screen_id": "",
-      "ocr": "references/main.png",
+      "screen_id": "main_world",
+      "ocr": "references/main_world_intel_entry.png",
+      "screen_region": "main_world.to.intel",
       "regions": [
         {
           "name": "main_world.to.intel",
           "action": "exist",
-          "threshold": 0.9,
+          "threshold": 0.75,
           "bbox": {
             "x": 88.13064316298932,
             "y": 64.38310038284392,

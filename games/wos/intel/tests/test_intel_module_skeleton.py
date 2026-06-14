@@ -11,6 +11,7 @@ import yaml
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_manifest import load_area_doc
+from navigation.screen_graph import route_taps
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[2]
@@ -61,6 +62,7 @@ def test_analyze_has_no_overlay_rules() -> None:
 def test_lighthouse_scenario_taps_fight_marker() -> None:
     scenario = _load_yaml("scenarios/intel_lighthouse.yaml")
     assert scenario["enabled"] is True
+    assert scenario["node"] == "intel"
     steps = scenario["steps"]
     assert steps[0]["while_match"] == "intel.claim_all"
     assert steps[0]["max"] == 1
@@ -78,6 +80,31 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     assert {"click": "squad_settings.quick_deploy"} in steps
     assert {"click": "squad_settings.fight"} in steps
     assert not any("push_scenario" in str(step) for step in steps)
+
+
+def test_intel_run_uses_real_stamina_flow() -> None:
+    lighthouse = _load_yaml("scenarios/intel_lighthouse.yaml")
+    scenario = _load_yaml("scenarios/intel_run.yaml")
+
+    assert scenario["enabled"] is True
+    assert scenario["node"] == "intel"
+    assert scenario["steps"] == lighthouse["steps"]
+    assert scenario["steps"] != [{"wait": "1s"}]
+
+
+def test_intel_route_is_reachable_from_world_map() -> None:
+    assert route_taps("main_city", "intel", game="wos") == [
+        ["icon.world"],
+        ["main_world.to.intel"],
+    ]
+    assert route_taps("intel", "main_city", game="wos") == [
+        ["icon.page.back"],
+        ["button.to_main_city"],
+    ]
+    assert route_taps("announcements", "intel", game="wos") == [
+        ["announcements.back"],
+        ["main_world.to.intel"],
+    ]
 
 
 @pytest.mark.asyncio

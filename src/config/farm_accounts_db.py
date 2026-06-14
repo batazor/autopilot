@@ -1,17 +1,20 @@
 """SQLModel persistence for generated farm accounts (R5 / owner-only feature).
 
-One row per (game, username). Tracks the generated credentials, the lifecycle
-status, the in-game player id (``fid``) once known, and which emulator the
-account is bound to.
+One account row per (game, username), plus zero or more in-game characters
+attached to that login. The account tracks credentials and lifecycle; the
+character table tracks server-specific game identities.
 
-    farm_accounts(game, username, password, email, fid, server, status,
+    farm_accounts(game, username, password, email, server, status,
                   device_serial, created_at, registered_at, note,
                   PRIMARY KEY(game, username))
 
+    farm_characters(game, username, server, fid, nickname, created_at,
+                    updated_at, note, PRIMARY KEY(game, username, server))
+
 Lifecycle ``status``:
   - ``pending``     — credentials generated, not yet registered on the server.
-  - ``registered``  — registration completed (human solved the captcha); fid
-                      may be filled once read in-game.
+  - ``registered``  — registration completed (human solved the captcha);
+                      characters may be filled once read in-game.
   - ``bound``       — assigned to / logged in on a specific emulator.
   - ``failed``      — a registration attempt failed.
 
@@ -59,7 +62,6 @@ class FarmAccountRow(SQLModel, table=True):
     username: str = Field(primary_key=True)
     password: str = Field(default="")
     email: str = Field(default="")
-    fid: str | None = Field(default=None)
     server: str = Field(default=_DEFAULT_SERVER)
     status: str = Field(default=STATUS_PENDING)
     device_serial: str | None = Field(default=None)
@@ -68,38 +70,137 @@ class FarmAccountRow(SQLModel, table=True):
     note: str = Field(default="")
 
 
+class FarmCharacterRow(SQLModel, table=True):
+    __tablename__ = "farm_characters"
+
+    game: str = Field(default=_DEFAULT_GAME, primary_key=True)
+    username: str = Field(primary_key=True)
+    server: str = Field(default=_DEFAULT_SERVER, primary_key=True)
+    fid: str = Field(default="")
+    nickname: str = Field(default="")
+    created_at: float = Field(default=0.0)
+    updated_at: float = Field(default=0.0)
+    note: str = Field(default="")
+
+
+@dataclass(frozen=True)
+class FarmCharacter:
+    game: str
+    username: str
+    server: str = _DEFAULT_SERVER
+    fid: str = ""
+    nickname: str = ""
+    created_at: float = 0.0
+    updated_at: float = 0.0
+    note: str = ""
+
+
 @dataclass(frozen=True)
 class FarmAccount:
     game: str
     username: str
     password: str = ""
     email: str = ""
-    fid: str | None = None
     server: str = _DEFAULT_SERVER
     status: str = STATUS_PENDING
     device_serial: str | None = None
     created_at: float = 0.0
     registered_at: float | None = None
     note: str = ""
+    characters: tuple[FarmCharacter, ...] = ()
 
 
 def _ensure_schema(engine: Engine) -> None:
-    SQLModel.metadata.create_all(engine, tables=[FarmAccountRow.__table__])
+    SQLModel.metadata.create_all(
+        engine,
+        tables=[FarmAccountRow.__table__, FarmCharacterRow.__table__],
+    )
+    orm.apply_migrations(
+        engine,
+        "farm_accounts",
+        [("drop_legacy_fid_column", _drop_legacy_fid_column)],
+    )
+
+
+def _drop_legacy_fid_column(conn) -> None:  # noqa: ANN001 - sqlite/sqlcipher connection
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(farm_accounts)")]
+    if "fid" not in cols:
+        return
+    conn.execute("DROP TABLE IF EXISTS farm_accounts_new")
+    conn.execute(
+        """
+        CREATE TABLE farm_accounts_new (
+            game TEXT NOT NULL,
+            username TEXT NOT NULL,
+            password TEXT NOT NULL,
+            email TEXT NOT NULL,
+            server TEXT NOT NULL,
+            status TEXT NOT NULL,
+            device_serial TEXT,
+            created_at REAL NOT NULL,
+            registered_at REAL,
+            note TEXT NOT NULL,
+            PRIMARY KEY (game, username)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO farm_accounts_new (
+            game, username, password, email, server, status, device_serial,
+            created_at, registered_at, note
+        )
+        SELECT
+            game, username, COALESCE(password, ''), COALESCE(email, ''),
+            COALESCE(server, ?), COALESCE(status, ?), device_serial,
+            COALESCE(created_at, 0.0), registered_at, COALESCE(note, '')
+        FROM farm_accounts
+        """,
+        (_DEFAULT_SERVER, STATUS_PENDING),
+    )
+    conn.execute("DROP TABLE farm_accounts")
+    conn.execute("ALTER TABLE farm_accounts_new RENAME TO farm_accounts")
 
 
 def _engine() -> Engine:
     engine = orm.get_engine(state_db_path())
-    orm.ensure_once(engine, "farm_accounts", _ensure_schema)
+    orm.ensure_once(engine, "farm_accounts_v2", _ensure_schema)
     return engine
 
 
-def _row_to_account(row: FarmAccountRow) -> FarmAccount:
+def _row_to_character(row: FarmCharacterRow) -> FarmCharacter:
+    return FarmCharacter(
+        game=row.game,
+        username=row.username,
+        server=row.server or _DEFAULT_SERVER,
+        fid=row.fid or "",
+        nickname=row.nickname or "",
+        created_at=float(row.created_at or 0.0),
+        updated_at=float(row.updated_at or 0.0),
+        note=row.note or "",
+    )
+
+
+def _characters_for_rows(
+    rows: list[FarmAccountRow],
+    chars: list[FarmCharacterRow],
+) -> dict[tuple[str, str], tuple[FarmCharacter, ...]]:
+    out: dict[tuple[str, str], list[FarmCharacter]] = {}
+    for char in chars:
+        out.setdefault((char.game, char.username), []).append(_row_to_character(char))
+    return {key: tuple(value) for key, value in out.items()}
+
+
+def _row_to_account(
+    row: FarmAccountRow,
+    *,
+    characters: tuple[FarmCharacter, ...] = (),
+) -> FarmAccount:
     return FarmAccount(
         game=row.game,
         username=row.username,
         password=row.password or "",
         email=row.email or "",
-        fid=row.fid,
         server=row.server or _DEFAULT_SERVER,
         status=row.status or STATUS_PENDING,
         device_serial=row.device_serial,
@@ -108,6 +209,7 @@ def _row_to_account(row: FarmAccountRow) -> FarmAccount:
             float(row.registered_at) if row.registered_at is not None else None
         ),
         note=row.note or "",
+        characters=characters,
     )
 
 
@@ -155,13 +257,12 @@ def set_status(
     status: str,
     *,
     game: str = _DEFAULT_GAME,
-    fid: str | None = None,
     note: str | None = None,
 ) -> bool:
     """Move an account to a new lifecycle status. Returns True iff a row updated.
 
-    Stamps ``registered_at`` the first time it reaches ``registered``. ``fid``
-    and ``note`` overwrite only when non-None.
+    Stamps ``registered_at`` the first time it reaches ``registered``. ``note``
+    overwrites only when non-None.
     """
     clean = str(status or "").strip().lower()
     if clean not in _VALID_STATUS:
@@ -175,8 +276,6 @@ def set_status(
         row.status = clean
         if clean == STATUS_REGISTERED and row.registered_at is None:
             row.registered_at = time.time()
-        if fid is not None:
-            row.fid = str(fid).strip() or None
         if note is not None:
             row.note = note
         s.add(row)
@@ -184,17 +283,80 @@ def set_status(
         return True
 
 
-def set_fid(username: str, fid: str, *, game: str = _DEFAULT_GAME) -> bool:
-    """Set the in-game player id read after login. Returns True iff a row updated."""
+def upsert_character(
+    username: str,
+    *,
+    server: str,
+    fid: str,
+    game: str = _DEFAULT_GAME,
+    nickname: str = "",
+    note: str = "",
+) -> FarmCharacter | None:
+    """Insert or update the game character for this farm login on ``server``."""
     uname = str(username or "").strip()
+    clean_server = str(server or "").strip()
+    clean_fid = str(fid or "").strip()
+    if not clean_server:
+        msg = "server is required"
+        raise ValueError(msg)
+    if not clean_fid:
+        msg = "fid is required"
+        raise ValueError(msg)
+    now = time.time()
     with _conn_lock, Session(_engine()) as s:
-        row = s.get(FarmAccountRow, (game, uname))
+        account = s.get(FarmAccountRow, (game, uname))
+        if account is None:
+            return None
+        row = s.get(FarmCharacterRow, (game, uname, clean_server))
         if row is None:
-            return False
-        row.fid = str(fid).strip() or None
+            row = FarmCharacterRow(
+                game=game,
+                username=uname,
+                server=clean_server,
+                created_at=now,
+            )
+        row.fid = clean_fid
+        row.nickname = str(nickname or "").strip()
+        row.note = str(note or "")
+        row.updated_at = now
         s.add(row)
         s.commit()
+        s.refresh(row)
+        return _row_to_character(row)
+
+
+def delete_character(
+    username: str,
+    *,
+    server: str,
+    game: str = _DEFAULT_GAME,
+) -> bool:
+    uname = str(username or "").strip()
+    clean_server = str(server or "").strip()
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(FarmCharacterRow, (game, uname, clean_server))
+        if row is None:
+            return False
+        s.delete(row)
+        s.commit()
         return True
+
+
+def list_characters(
+    username: str,
+    *,
+    game: str = _DEFAULT_GAME,
+) -> list[FarmCharacter]:
+    uname = str(username or "").strip()
+    with Session(_engine()) as s:
+        stmt = (
+            select(FarmCharacterRow)
+            .where(FarmCharacterRow.game == game)
+            .where(FarmCharacterRow.username == uname)
+            .order_by(FarmCharacterRow.server.asc())
+        )
+        rows = s.exec(stmt).all()
+    return [_row_to_character(r) for r in rows]
 
 
 def bind_device(
@@ -216,7 +378,15 @@ def bind_device(
 def get_account(username: str, *, game: str = _DEFAULT_GAME) -> FarmAccount | None:
     with Session(_engine()) as s:
         row = s.get(FarmAccountRow, (game, str(username or "").strip()))
-    return _row_to_account(row) if row is not None else None
+        if row is None:
+            return None
+        chars = s.exec(
+            select(FarmCharacterRow)
+            .where(FarmCharacterRow.game == game)
+            .where(FarmCharacterRow.username == row.username)
+            .order_by(FarmCharacterRow.server.asc())
+        ).all()
+    return _row_to_account(row, characters=tuple(_row_to_character(c) for c in chars))
 
 
 def username_exists(username: str, *, game: str = _DEFAULT_GAME) -> bool:
@@ -237,7 +407,18 @@ def list_accounts(
             stmt = stmt.where(FarmAccountRow.status == status.strip().lower())
         stmt = stmt.order_by(FarmAccountRow.created_at.asc())
         rows = s.exec(stmt).all()
-    return [_row_to_account(r) for r in rows]
+        char_stmt = select(FarmCharacterRow).order_by(
+            FarmCharacterRow.username.asc(),
+            FarmCharacterRow.server.asc(),
+        )
+        if game is not None:
+            char_stmt = char_stmt.where(FarmCharacterRow.game == game)
+        chars = s.exec(char_stmt).all()
+    grouped = _characters_for_rows(rows, chars)
+    return [
+        _row_to_account(r, characters=grouped.get((r.game, r.username), ()))
+        for r in rows
+    ]
 
 
 def count_accounts(
@@ -257,6 +438,13 @@ def delete_account(username: str, *, game: str = _DEFAULT_GAME) -> bool:
         row = s.get(FarmAccountRow, (game, str(username or "").strip()))
         if row is None:
             return False
+        chars = s.exec(
+            select(FarmCharacterRow)
+            .where(FarmCharacterRow.game == game)
+            .where(FarmCharacterRow.username == row.username)
+        ).all()
+        for char in chars:
+            s.delete(char)
         s.delete(row)
         s.commit()
         return True

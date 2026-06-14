@@ -90,8 +90,8 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
     <aside
       className={[
         "app-nav fixed inset-y-0 left-0 z-50 flex w-[min(100vw,18rem)] flex-col border-r border-wos-border-subtle bg-wos-surface/98 shadow-2xl shadow-black/25 backdrop-blur-xl transition-transform duration-200 ease-out",
-        "lg:static lg:z-auto lg:w-[17.5rem] lg:translate-x-0 lg:shadow-none",
-        open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+        "md:sticky md:top-0 md:z-auto md:w-[17.5rem] md:shrink-0 md:translate-x-0 md:shadow-none",
+        open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
       ].join(" ")}
       aria-label="Main navigation"
     >
@@ -132,7 +132,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
         </Link>
         <button
           type="button"
-          className="nav-icon-btn lg:hidden"
+          className="nav-icon-btn md:hidden"
           aria-label="Close menu"
           onClick={onNavigate}
         >

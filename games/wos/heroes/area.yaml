@@ -8,6 +8,17 @@ screens:
   screen_id: hero.recrutment
   ocr: references/page.hero.recrutment.png
   regions:
+  - name: hero.recrutment.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 57.916666666666664
+      y: 6.875
+      width: 38.611111111111114
+      height: 9.0625
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
   - name: key.silver
     action: text
     type: integer

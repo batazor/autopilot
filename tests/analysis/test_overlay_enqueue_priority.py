@@ -41,7 +41,7 @@ class _FakeCounter:
 
 
 @pytest.mark.asyncio
-async def test_overlay_enqueues_highest_priority_matched_payload_only() -> None:
+async def test_overlay_enqueues_all_matched_payloads_in_priority_order() -> None:
     worker = _Worker()
 
     await worker._schedule_overlay_matches(
@@ -60,7 +60,10 @@ async def test_overlay_enqueues_highest_priority_matched_payload_only() -> None:
         active_player="p1",
     )
 
-    assert [c["task_type"] for c in worker._queue.calls] == ["hand_pointer_small"]
+    assert [c["task_type"] for c in worker._queue.calls] == [
+        "hand_pointer_small",
+        "skip_text_button",
+    ]
     assert all(c.get("dedup_ignore_region") is True for c in worker._queue.calls)
 
 
@@ -112,6 +115,30 @@ async def test_overlay_enqueue_preserves_push_scenario_args() -> None:
     assert len(worker._queue.calls) == 1
     assert worker._queue.calls[0]["task_type"] == "tabs.strip.advance"
     assert worker._queue.calls[0]["args"] == {"region": "deals.tabs_strip"}
+
+
+@pytest.mark.asyncio
+async def test_overlay_enqueue_schedules_all_targets_in_one_payload() -> None:
+    worker = _Worker()
+
+    await worker._schedule_overlay_matches(
+        {
+            "deals.tabs.visible_red_dot": {
+                "matched": True,
+                "region": "deals.tabs_strip",
+                "pushScenario": [
+                    {"type": "deals.dead_shot", "priority": 80_000},
+                    {"type": "deals.tundra_trading_station", "priority": 80_000},
+                ],
+            },
+        },
+        active_player="p1",
+    )
+
+    assert [c["task_type"] for c in worker._queue.calls] == [
+        "deals.dead_shot",
+        "deals.tundra_trading_station",
+    ]
 
 
 @pytest.mark.asyncio

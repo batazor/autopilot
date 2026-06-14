@@ -48,6 +48,17 @@ const WIP_HREFS = new Set<string>([
   "/player-state",
 ]);
 
+const TIER_ORDER = ["r2", "r3", "r4", "r5"] as const;
+type TierId = (typeof TIER_ORDER)[number];
+
+export function tierAtLeast(tier: string | null | undefined, minimum: string): boolean {
+  const rank = TIER_ORDER.indexOf((tier ?? "").trim().toLowerCase() as TierId);
+  const minRank = TIER_ORDER.indexOf(
+    (minimum ?? "").trim().toLowerCase() as TierId,
+  );
+  return minRank >= 0 && rank >= minRank;
+}
+
 export function getNavLock(href: string, tier: string | null): NavLock | null {
   if (WIP_HREFS.has(href)) {
     return { kind: "wip", tooltip: "In progress — actively being built" };
@@ -61,8 +72,7 @@ export function getNavLock(href: string, tier: string | null): NavLock | null {
       tooltip: "Owner-only (R5) — in development",
     };
   }
-  // R4 features; R5 (top of the ladder) unlocks them too.
-  if (R4_ONLY_HREFS.has(href) && tier !== "r4" && tier !== "r5") {
+  if (R4_ONLY_HREFS.has(href) && !tierAtLeast(tier, "r4")) {
     return {
       kind: "r4",
       tooltip: "Requires R4 license — open License to upgrade",

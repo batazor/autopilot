@@ -29,6 +29,22 @@
     @apply pl-6 text-xs text-wos-text-muted;
   }
 
+  .data-table tr.farm-row--active td {
+    @apply border-b-emerald-400/35 bg-emerald-950/20;
+  }
+
+  .data-table tr.farm-row--active td:first-child {
+    @apply border-l-2 border-l-emerald-300;
+  }
+
+  .data-table tr.farm-row--active:hover td {
+    @apply bg-emerald-950/30;
+  }
+
+  .farm-character-cell--active {
+    @apply rounded border border-emerald-400/35 bg-emerald-500/10 px-2 py-1;
+  }
+
   .data-table tr.fleet-row {
     @apply cursor-pointer transition-colors;
   }

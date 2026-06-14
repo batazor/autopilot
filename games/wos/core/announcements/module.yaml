@@ -1,0 +1,4 @@
+id: announcements
+title: Announcements
+description: Generic Announcements webview/panel reached from event/news buttons.
+enabled: true

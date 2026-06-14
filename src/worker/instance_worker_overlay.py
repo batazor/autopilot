@@ -244,25 +244,22 @@ class InstanceWorkerOverlayMixin(_Base):
             if priority is not None:
                 push_payloads.append((priority, order, rule_name, payload))
 
-        # A single overlay frame can contain multiple true signals (for example
-        # a toast plus a red-dot badge). Starting all resulting scenarios from
-        # the same frame causes navigation churn and state flicker, so pick one
-        # push candidate per analyzer tick. Higher priority wins; YAML/order is
-        # the deterministic tie-breaker.
+        # A single overlay frame can contain multiple true signals. Queue all of
+        # them so hub screens (main_city, shop/deals tab strips, etc.) do not
+        # lose visible work just because the first scenario navigates away.
+        # Higher priority is still scheduled first; Redis queue ranking decides
+        # execution order, while per-scenario ttl/dedup keeps repeat pushes tame.
         for _priority, _order, _rule_name, payload in sorted(
             push_payloads, key=lambda it: (-it[0], it[1])
         ):
             try:
-                handled = await self._enqueue_push_scenarios_from_overlay(
+                await self._enqueue_push_scenarios_from_overlay(
                     payload, player_id="", run_at=now, active_player=active_player
                 )
-                if handled:
-                    break
             except Exception:
                 logger.debug("Failed to enqueue pushScenario task(s) from overlay", exc_info=True)
 
-        # Still persist non-push matched overlays (e.g. set_node/text state), but
-        # skip lower-priority push payloads once one scenario was handled.
+        # Still persist non-push matched overlays (e.g. set_node/text state).
         for _rule_name, payload in matched_payloads:
             if _overlay_push_priority(payload) is not None:
                 continue
@@ -274,10 +271,9 @@ class InstanceWorkerOverlayMixin(_Base):
                 logger.debug("Failed to process non-push overlay payload", exc_info=True)
 
         # Inline steps run AFTER the push handling so any ``push_scenario``
-        # sibling in the rule still hits the queue first. Independent of the
-        # "single push per tick" gate above — a rule that detects a red-dot
-        # box should both push a follow-up scenario AND tap the box immediately
-        # if it lists both.
+        # sibling in the rule still hits the queue first. A rule that detects a
+        # red-dot box should both push a follow-up scenario AND tap the box
+        # immediately if it lists both.
         for rule_name, payload in matched_payloads:
             try:
                 await self._execute_inline_overlay_steps(rule_name, payload)
@@ -599,6 +595,7 @@ class InstanceWorkerOverlayMixin(_Base):
                 ttl_override = int(ttl_override_raw)
         is_time_throttle_rule = ttl_override > 0
 
+        handled = False
         pu = payload.get("pushScenario")
         if isinstance(pu, list):
             for item in pu:
@@ -717,7 +714,8 @@ class InstanceWorkerOverlayMixin(_Base):
                             scenario=t, screen=set_node_snap, region=reg_snap,
                             outcome="time_throttle",
                         )
-                        return True
+                        handled = True
+                        continue
                     acquired = True
                     try:
                         acquired = bool(
@@ -740,12 +738,10 @@ class InstanceWorkerOverlayMixin(_Base):
                             scenario=t, screen=set_node_snap, region=reg_snap,
                             outcome="throttled_push_ttl",
                         )
-                        # Throttled debounce — no push happened. Return False so
-                        # ``_schedule_overlay_matches`` keeps walking the
-                        # priority-sorted candidate list and a lower-priority
-                        # rule (e.g. ``tabs.strip.advance.has_next_page``) gets
-                        # its tick when the top candidate is on cooldown.
-                        return False
+                        # Throttled debounce — no push happened. Continue through
+                        # the remaining push entries so one cooled-down scenario
+                        # never masks other visible work from this frame.
+                        continue
 
                 pr_raw = item.get("priority")
                 if pr_raw is not None:
@@ -840,5 +836,5 @@ class InstanceWorkerOverlayMixin(_Base):
                                 result_reason="preempted_by_device_level",
                                 reschedule=True,
                             )
-                return True
-        return False
+                handled = True
+        return handled

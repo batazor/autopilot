@@ -37,15 +37,35 @@ def test_add_get_list_count_and_collision() -> None:
 
 def test_status_transitions_and_binding() -> None:
     db.add_account("farmreg", password="pw")
-    assert db.set_status("farmreg", db.STATUS_REGISTERED, fid="900123") is True
+    assert db.set_status("farmreg", db.STATUS_REGISTERED) is True
     reg = db.get_account("farmreg")
     assert reg.status == db.STATUS_REGISTERED
-    assert reg.fid == "900123"
     assert reg.registered_at is not None
 
-    assert db.set_fid("farmreg", "900999") is True
-    assert db.get_account("farmreg").fid == "900999"
-    assert db.set_fid("missing", "1") is False
+    assert (
+        db.upsert_character(
+            "farmreg",
+            server="wos_beta_1",
+            fid="900123",
+            nickname="first",
+        )
+        is not None
+    )
+    assert (
+        db.upsert_character(
+            "farmreg",
+            server="wos_beta_2",
+            fid="900999",
+            nickname="second",
+        )
+        is not None
+    )
+    assert db.upsert_character("missing", server="wos_beta", fid="1") is None
+    chars = db.get_account("farmreg").characters
+    assert [(c.server, c.fid, c.nickname) for c in chars] == [
+        ("wos_beta_1", "900123", "first"),
+        ("wos_beta_2", "900999", "second"),
+    ]
 
     assert db.bind_device("farmreg", "127.0.0.1:5555") is True
     bound = db.get_account("farmreg")
@@ -57,6 +77,34 @@ def test_status_transitions_and_binding() -> None:
     assert db.set_status("missing", db.STATUS_REGISTERED) is False
     assert db.delete_account("farmreg") is True
     assert db.count_accounts() == 0
+    assert db.list_characters("farmreg") == []
+
+
+def test_character_upsert_delete_and_validation() -> None:
+    db.add_account("farmchars", password="pw")
+    with pytest.raises(ValueError, match="server"):
+        db.upsert_character("farmchars", server="", fid="1")
+    with pytest.raises(ValueError, match="fid"):
+        db.upsert_character("farmchars", server="wos_beta", fid="")
+
+    created = db.upsert_character("farmchars", server="wos_beta", fid="100")
+    assert created is not None
+    assert created.fid == "100"
+    updated = db.upsert_character(
+        "farmchars",
+        server="wos_beta",
+        fid="101",
+        nickname="main",
+    )
+    assert updated is not None
+    assert updated.fid == "101"
+    assert updated.nickname == "main"
+    assert [(c.server, c.fid) for c in db.list_characters("farmchars")] == [
+        ("wos_beta", "101")
+    ]
+
+    assert db.delete_character("farmchars", server="wos_beta") is True
+    assert db.delete_character("farmchars", server="wos_beta") is False
 
 
 def test_generator_deterministic_is_reproducible() -> None:
@@ -78,8 +126,30 @@ def test_generator_random_is_unique_and_shaped() -> None:
         # Beta form: username + password must be 6-15 letters/digits only.
         assert 6 <= len(a.username) <= 15 and a.username.isalnum()
         assert 6 <= len(a.password) <= 15 and a.password.isalnum()
-        # "pretty" name = adjective + noun + digits → has letters.
-        assert any(c.isalpha() for c in a.username)
+        # Auto-generated farm nicknames should look human-readable, no digits.
+        assert a.username.isalpha()
+        assert a.username == a.username.lower()
+
+
+def test_generator_uses_multiple_name_shapes() -> None:
+    names = [
+        a.username
+        for a in generator.generate(50, seed="shape-test", exists=lambda _u: False)
+    ]
+    shapes = set()
+    for name in names:
+        if name in generator.COMPOUNDS:
+            shapes.add("compound")
+        if any(name.startswith(w) for w in generator.STEMS):
+            shapes.add("stem_first")
+        if any(name.startswith(w) for w in generator.PREFIXES):
+            shapes.add("prefix_first")
+        if any(name.endswith(w) for w in generator.SUFFIXES):
+            shapes.add("suffix_last")
+        if any(name.startswith(w) for w in generator.NOUNS):
+            shapes.add("noun_first")
+
+    assert len(shapes) >= 4
 
 
 def test_generator_retries_on_collision() -> None:
@@ -102,12 +172,14 @@ def test_add_or_generate_falls_back_when_name_taken() -> None:
     assert res.requested_taken is True
     assert res.account.username != "balabol"
     assert db.username_exists(res.account.username)
-    # A free name is claimed as-is.
-    free = generator.add_or_generate("frostraven9")
+    # A free letter-only name is claimed as-is.
+    free = generator.add_or_generate("frostraven")
     assert free.requested_taken is False
-    assert free.account.username == "frostraven9"
-    # Invalid desired (symbols / too short) is rejected up front.
-    with pytest.raises(ValueError, match="letters/digits"):
+    assert free.account.username == "frostraven"
+    # Invalid desired (digits / symbols / too short) is rejected up front.
+    with pytest.raises(ValueError, match="letters"):
+        generator.add_or_generate("frostraven9")
+    with pytest.raises(ValueError, match="letters"):
         generator.add_or_generate("ab!")
 
 

@@ -5,8 +5,22 @@
       "id": 1,
       "screen_id": "chief_order",
       "ocr": "references/chief_order_notify.png",
-      "screen_region": "icon.page.back",
+      "screen_region": "chief_order.title",
       "regions": [
+        {
+          "name": "chief_order.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 37.77777777777778,
+            "y": 8.828125,
+            "width": 25.0,
+            "height": 2.8125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
         {
           "name": "chief_order.money",
           "action": "text",

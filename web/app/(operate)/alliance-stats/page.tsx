@@ -7,6 +7,7 @@ import { ErrorBanner } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { MetricLineChart } from "@/components/player-stats/MetricLineChart";
 import { fetchAlliances, fetchAllianceStats, fetchLicenseStatus } from "@/lib/api";
+import { tierAtLeast } from "@/lib/nav-locks";
 import { PageLoading } from "@/components/ui/Spinner";
 import type { AllianceStatsView } from "@/lib/types";
 
@@ -63,7 +64,7 @@ export default function AllianceStatsPage() {
     };
   }, []);
   if (tier === undefined) return <PageLoading />;
-  if (tier !== "r4") return <R4Gate />;
+  if (!tierAtLeast(tier, "r4")) return <R4Gate />;
   return <AllianceStatsInner />;
 }
 

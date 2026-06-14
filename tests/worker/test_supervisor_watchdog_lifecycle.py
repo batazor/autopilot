@@ -80,6 +80,11 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
     monkeypatch.setattr(supervisor, "load_settings", lambda: object())
     monkeypatch.setattr(supervisor, "set_settings", lambda _settings: None)
     monkeypatch.setattr(supervisor, "assert_startup_configs_valid", lambda: None)
+    monkeypatch.setattr(
+        supervisor,
+        "cleanup_orphaned_sck_capture_helpers",
+        lambda: events.append("cleanup-sck"),
+    )
     monkeypatch.setattr(supervisor, "_wait_for_license_gate", lambda: True)
     monkeypatch.setattr(
         supervisor,
@@ -118,6 +123,7 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
 
     assert events == [
         "bootstrap",
+        "cleanup-sck",
         "watchdog",
         "health-server",
         "run",

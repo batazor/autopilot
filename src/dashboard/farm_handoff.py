@@ -1,13 +1,14 @@
 """Redis handoff between the farm registration flow and the dashboard.
 
 The registration process (``games.wos.farm.register``) fills the signup form,
-then publishes a "waiting for human" marker and blocks until the operator —
-who solved the image-code + slider captcha and clicked Sign Up — presses
-**Done** (or **Failed**) in the dashboard. That button hits the farm API, which
-writes the outcome signal here; the registration process polls for it.
+tries to solve the image-code and slider captcha with ddddocr, then publishes a
+"waiting for human" marker and blocks until the operator checks the browser,
+clicks Sign Up, and presses **Done** (or **Failed**) in the dashboard. That
+button hits the farm API, which writes the outcome signal here; the registration
+process polls for it.
 
 Keys (single operator → one pending registration at a time):
-  - ``wos:farm:register:pending``        hash {username, started_at}
+  - ``wos:farm:register:pending``        hash {username, started_at, ...status}
   - ``wos:farm:register:done:<username>`` str  "done" | "failed"  (short TTL)
 
 All clients use ``decode_responses=True`` (see ``api.deps.get_redis``), so reads
@@ -30,14 +31,18 @@ def _done_key(username: str) -> str:
     return f"wos:farm:register:done:{username}"
 
 
-def set_pending(client: Redis, username: str) -> None:
+def set_pending(client: Redis, username: str, **status: object) -> None:
     """Publish that ``username`` is filled in the browser and awaiting the human.
 
     Clears any stale outcome signal for the same username first so a previous
     run's "done" can't be mistaken for this one.
     """
     client.delete(_done_key(username))
-    client.hset(KEY_PENDING, mapping={"username": username, "started_at": str(time.time())})
+    extra = {str(k): str(v) for k, v in status.items() if v is not None}
+    client.hset(
+        KEY_PENDING,
+        mapping={"username": username, "started_at": str(time.time()), **extra},
+    )
     client.expire(KEY_PENDING, _PENDING_TTL_S)
 
 

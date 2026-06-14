@@ -19,6 +19,7 @@
     "@tailwindcss/postcss": "^4.3.0",
     "@tanstack/react-query": "^5.100.14",
     "@tanstack/react-query-devtools": "^5.100.14",
+    "@tanstack/react-table": "^8.21.3",
     "@types/leaflet": "^1.9.21",
     "@xyflow/react": "^12.11.0",
     "html-to-image": "^1.11.13",

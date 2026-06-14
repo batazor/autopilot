@@ -45,6 +45,7 @@ from opentelemetry import trace
 logger = logging.getLogger(__name__)
 
 _INITIALIZED = False
+_INITIALIZED_PID: str | None = None
 _PROCESS_GUARD_ENV = "WOS_PYROSCOPE_INITIALIZED_PID"
 
 
@@ -71,14 +72,18 @@ def _attach_span_processor() -> bool:
     except ImportError:
         return False
 
-    provider = trace.get_tracer_provider()
-    add_span_processor = getattr(provider, "add_span_processor", None)
-    if not callable(add_span_processor):
-        # ``ProxyTracerProvider`` (no-op default) lacks this method —
-        # tracing wasn't configured, so span profiles have nothing to
-        # latch onto. Skip silently rather than crash.
+    try:
+        provider = trace.get_tracer_provider()
+        add_span_processor = getattr(provider, "add_span_processor", None)
+        if not callable(add_span_processor):
+            # ``ProxyTracerProvider`` (no-op default) lacks this method —
+            # tracing wasn't configured, so span profiles have nothing to
+            # latch onto. Skip silently rather than crash.
+            return False
+        add_span_processor(PyroscopeSpanProcessor())
+    except Exception:
+        logger.warning("Pyroscope span-profile correlation setup failed; continuing", exc_info=True)
         return False
-    add_span_processor(PyroscopeSpanProcessor())
     return True
 
 
@@ -98,10 +103,11 @@ def setup_profiling(component: str, *, instance_id: str | None = None) -> None:
             for non-worker processes; workers pass their BlueStacks id so
             each instance is distinguishable in the Pyroscope tag selector.
     """
-    global _INITIALIZED
+    global _INITIALIZED, _INITIALIZED_PID
     current_pid = str(os.getpid())
-    if _INITIALIZED or os.environ.get(_PROCESS_GUARD_ENV) == current_pid:
+    if (_INITIALIZED and current_pid == _INITIALIZED_PID) or os.environ.get(_PROCESS_GUARD_ENV) == current_pid:
         _INITIALIZED = True
+        _INITIALIZED_PID = current_pid
         return
 
     if _is_truthy_env("PYROSCOPE_DISABLED"):
@@ -138,9 +144,14 @@ def setup_profiling(component: str, *, instance_id: str | None = None) -> None:
     sample_rate_raw = (os.environ.get("PYROSCOPE_SAMPLE_RATE") or "").strip()
     if sample_rate_raw:
         try:
-            configure_kwargs["sample_rate"] = int(sample_rate_raw)
+            sample_rate = int(sample_rate_raw)
         except ValueError:
             logger.warning("Ignoring invalid PYROSCOPE_SAMPLE_RATE=%r (expected int Hz)", sample_rate_raw)
+        else:
+            if sample_rate > 0:
+                configure_kwargs["sample_rate"] = sample_rate
+            else:
+                logger.warning("Ignoring invalid PYROSCOPE_SAMPLE_RATE=%r (expected positive int Hz)", sample_rate_raw)
 
     basic_auth_username = (os.environ.get("PYROSCOPE_BASIC_AUTH_USERNAME") or "").strip()
     basic_auth_password = (os.environ.get("PYROSCOPE_BASIC_AUTH_PASSWORD") or "").strip()
@@ -152,11 +163,16 @@ def setup_profiling(component: str, *, instance_id: str | None = None) -> None:
     if tenant_id:
         configure_kwargs["tenant_id"] = tenant_id
 
-    pyroscope.configure(**configure_kwargs)
+    try:
+        pyroscope.configure(**configure_kwargs)
+    except Exception:
+        logger.exception("Pyroscope profiling setup failed; continuing without profiling")
+        return
 
     span_profiles_attached = _attach_span_processor()
 
     _INITIALIZED = True
+    _INITIALIZED_PID = current_pid
     os.environ[_PROCESS_GUARD_ENV] = current_pid
     logger.info(
         "Pyroscope profiling enabled — component=%s instance=%s server=%s span_profiles=%s",

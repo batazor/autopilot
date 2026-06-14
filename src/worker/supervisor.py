@@ -23,6 +23,7 @@ from worker.health_watchdog_process import (
     ensure_health_watchdog_process,
     stop_health_watchdog_process,
 )
+from worker.orphan_helpers import cleanup_orphaned_sck_capture_helpers
 from worker.restart_backoff import compute_restart_delay
 
 # Loopback HTTP ``/health`` port for the headless supervisor. Override with
@@ -582,6 +583,7 @@ def main() -> None:
     bootstrap_runtime_observability("supervisor", instance_id=generate_fingerprint())
     set_settings(load_settings())
     assert_startup_configs_valid()
+    cleanup_orphaned_sck_capture_helpers()
     ensure_health_watchdog_process()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()

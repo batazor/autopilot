@@ -1,0 +1,4 @@
+edges:
+  announcements:
+    main_world: [announcements.back]
+    main_city: [announcements.back]

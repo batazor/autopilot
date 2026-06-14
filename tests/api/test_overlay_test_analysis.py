@@ -24,7 +24,7 @@ def test_overlay_test_cond_context_assumes_player_without_redis() -> None:
     assert active_player == state_flat["active_player"]
 
 
-def test_collect_push_candidates_marks_highest_priority_selected(
+def test_collect_push_candidates_marks_all_runnable_selected_in_priority_order(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -58,14 +58,15 @@ def test_collect_push_candidates_marks_highest_priority_selected(
         current_screen="main_city",
     )
     selected = [row for row in out if row["selected"]]
-    assert len(selected) == 1
-    assert selected[0]["scenario"] == "scenario.high"
-    assert selected[0]["rule"] == "high.rule"
-    losers = [row for row in out if not row["selected"]]
-    assert losers and all(r["skip_reason"] == "lost_to=high.rule" for r in losers)
+    assert [row["scenario"] for row in selected] == [
+        "scenario.high",
+        "scenario.low",
+    ]
+    assert [row["rule"] for row in selected] == ["high.rule", "low.rule"]
+    assert all(not row["skip_reason"] for row in selected)
 
 
-def test_collect_push_candidates_marks_sibling_blocked_when_no_winner(
+def test_collect_push_candidates_marks_each_target_independently(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -96,8 +97,9 @@ def test_collect_push_candidates_marks_sibling_blocked_when_no_winner(
         active_player="123",
         current_screen="main_city",
     )
-    assert all(not row["selected"] for row in out)
     ok_row = next(row for row in out if row["scenario"] == "scenario.ok")
-    assert ok_row["skip_reason"] == "sibling_blocked:scenario.disabled=disabled"
+    assert ok_row["selected"] is True
+    assert ok_row["skip_reason"] == ""
     bad_row = next(row for row in out if row["scenario"] == "scenario.disabled")
+    assert bad_row["selected"] is False
     assert bad_row["skip_reason"] == "disabled"

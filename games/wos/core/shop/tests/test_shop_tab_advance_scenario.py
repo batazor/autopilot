@@ -106,6 +106,7 @@ def test_analyze_rule_pushes_with_throttle() -> None:
         "shop.construction_queue",
         "shop.weekly_monthly_cards",
         "shop.get_gems",
+        "shop.artisans_trove",
         "shop.regular_pack",
     }
     assert set(rule["screens"]) == expected_screens, (

@@ -2,8 +2,8 @@ screens:
   chief_order:
     priority: 50
     rules:
-      - match: icon.page.back
-        threshold: 0.85
+      - match: chief_order.title
+        threshold: 0.9
 
   chief_order_enact:
     priority: 55

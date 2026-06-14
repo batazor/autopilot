@@ -35,10 +35,19 @@ def test_pending_lifecycle_and_signal() -> None:
     r = _FakeRedis()
     assert farm_handoff.get_pending(r) is None
 
-    farm_handoff.set_pending(r, "FrostRaven7")
+    farm_handoff.set_pending(
+        r,
+        "FrostRaven7",
+        image_code="solved",
+        slider="dragged",
+        stage="awaiting_submit",
+    )
     pending = farm_handoff.get_pending(r)
     assert pending is not None
     assert pending["username"] == "FrostRaven7"
+    assert pending["image_code"] == "solved"
+    assert pending["slider"] == "dragged"
+    assert pending["stage"] == "awaiting_submit"
     assert "started_at" in pending
 
     assert farm_handoff.read_signal(r, "FrostRaven7") is None

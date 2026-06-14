@@ -1,12 +1,83 @@
-# Stamina-budget consumer stub (demand id: intel_events).
-#
-# Scenario key / task_type = `intel_run`. Enqueued by games.wos.core.stamina
-# when the budget allocator routes stamina to intel. No-op for now: a wait
-# placeholder so the worker can resolve and "run" it once the planner is
-# enabled. Real steps (navigate to intel, run one event, spend ~10 stamina)
-# are filled in later via the labeling/rehearsal flow.
+# Stamina-budget consumer (demand id: intel_events).
 name: Intel run (stamina consumer)
 enabled: true
 priority: 80_060          # 80_000 base + demand priority 60
+node: intel
+
 steps:
-  - wait: 1s              # TODO: replace with the real intel-event flow
+  - while_match: intel.claim_all
+    max: 1
+    retry:
+      attempts: 2
+      interval: 500ms
+    steps:
+      - click: intel.claim_all
+      - wait: 1s
+      - while_match: button.click_to_continue
+        max: 1
+        steps:
+          - click: button.click_to_continue
+          - wait: 500ms
+      - while_match: button.tap_anywhere_to_exit
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 500ms
+
+  - exec: tap_intel_fight
+    strategy: best_score
+    threshold: 0.72
+  - wait_screen:
+      any: [intel.fight]
+      max: 5
+      interval: 500ms
+
+  - click: intel.fight.view
+  - wait_screen:
+      any: [intel.explore]
+      max: 5
+      interval: 500ms
+
+  - click: intel.explore
+  - wait_screen:
+      any: [squad_settings]
+      max: 10
+      interval: 500ms
+
+  - click: squad_settings.quick_deploy
+  - wait: 200ms
+  - click: squad_settings.fight
+  - wait: 2s
+
+  - while_match: page.squad_fight.auto
+    max: 1
+    steps:
+      - click: page.squad_fight.auto
+      - wait: 1s
+
+  - while_match: page.squad_fight.speed
+    max: 1
+    steps:
+      - click: page.squad_fight.speed
+
+  - wait_screen:
+      any: [exploration.victory, exploration.defeat]
+      max: 90
+      interval: 2s
+
+  - cond: currentNode == exploration.victory
+    steps:
+      - click: page.exploration.victory.next
+      - wait_screen:
+          any: [squad_settings, intel, main_city]
+          max: 8
+          interval: 500ms
+      - cond: currentNode == squad_settings
+        steps:
+          - click: icon.page.back
+          - wait: 1s
+
+  - cond: currentNode == exploration.defeat
+    steps:
+      - click: button.to_main_city
+      - wait: 2s

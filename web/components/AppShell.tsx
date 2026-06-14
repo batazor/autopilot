@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {navOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 backdrop-blur-sm md:hidden"
           style={{ backgroundColor: "var(--wos-overlay-scrim)" }}
           aria-label="Close menu"
           onClick={() => setNavOpen(false)}
@@ -59,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AppNav open={navOpen} onNavigate={() => setNavOpen(false)} />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-wos-border-subtle/80 bg-wos-bg/95 px-4 py-3 backdrop-blur-md lg:hidden">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-wos-border-subtle/80 bg-wos-bg/95 px-4 py-3 backdrop-blur-md md:hidden">
           <button
             type="button"
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-wos-border-subtle bg-wos-surface text-wos-text hover:bg-wos-panel-raised"
