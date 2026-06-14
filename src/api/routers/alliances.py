@@ -6,18 +6,17 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from config.state_sqlite import get_alliance_members, get_alliance_stats, list_alliance_names
-from licensing.gate import require_feature
+from licensing.gate import require_tier
 from licensing.models import LicenseError
-from licensing.plans import FEATURE_ALLIANCE_STATS
 
 
 def _require_alliance_stats() -> None:
     try:
-        require_feature(FEATURE_ALLIANCE_STATS)
+        require_tier("r4")
     except LicenseError as exc:
         raise HTTPException(
             status_code=402,
-            detail={"reason": "feature_not_licensed", "msg": str(exc)},
+            detail={"reason": "tier_too_low", "msg": str(exc)},
         ) from exc
 
 

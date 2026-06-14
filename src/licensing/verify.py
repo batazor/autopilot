@@ -28,9 +28,9 @@ def _coerce_datetime(value: object) -> datetime | None:
 
 
 def _claims_from_payload(payload: dict[str, Any]) -> LicenseClaims:
-    features_raw = payload.get("features") or []
-    features = [str(f) for f in features_raw] if isinstance(features_raw, list) else []
     tier = str(payload.get("tier") or "free")
+    # Any legacy ``features`` claim on existing tokens is ignored (capabilities
+    # are gated by tier now); ``raw`` still retains it for forward-compat.
     # Tokens issued before the cap existed lack the claim — fall back to the
     # tier's catalog default so existing R3/R4 licenses get the right limit.
     raw_cap = payload.get("max_external_accounts")
@@ -41,7 +41,6 @@ def _claims_from_payload(payload: dict[str, Any]) -> LicenseClaims:
         sub=str(payload.get("sub") or ""),
         machine_id=str(payload.get("machine_id") or ""),
         tier=tier,
-        features=features,
         max_devices=int(payload.get("max_devices") or 1),
         max_players_per_device=int(payload.get("max_players_per_device") or 3),
         max_external_accounts=max_external_accounts,

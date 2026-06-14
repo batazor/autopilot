@@ -323,7 +323,7 @@ export default function LicensePage() {
         </li>
       </ol>
 
-      {/* Limits / features */}
+      {/* Limits */}
       {status?.active ? (
         <section className="panel mb-4">
           <h2>Plan details</h2>
@@ -337,25 +337,6 @@ export default function LicensePage() {
                       status.max_devices === 1 ? "" : "s"
                     } × ${status.max_players_per_device} players`
                   : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="muted text-xs uppercase tracking-wide">Features</dt>
-              <dd className="m-0 text-wos-text">
-                {status.features.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {status.features.map((f) => (
-                      <span
-                        key={f}
-                        className="rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-xs"
-                      >
-                        {f}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  "—"
-                )}
               </dd>
             </div>
             <div className="sm:col-span-2 lg:col-span-1">

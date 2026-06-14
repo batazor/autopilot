@@ -38,7 +38,6 @@ const activeLicense: Awaited<ReturnType<typeof api.fetchLicenseStatus>> = {
   reason: null,
   sub: "operator",
   tier: "pro",
-  features: ["core"],
   expires_at: null,
   days_left: null,
   machine_id: "machine-1",

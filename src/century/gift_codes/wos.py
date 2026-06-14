@@ -36,7 +36,7 @@ from config.giftcodes_db import (
     set_redemption_bulk,
     upsert_code,
 )
-from licensing.gate import external_accounts_limit, has_feature
+from licensing.gate import external_accounts_limit, tier_active_at_least
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -44,7 +44,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _GAME_ID = "wos"
-_EXTERNAL_ACCOUNTS_FEATURE = "gift_codes.external_accounts"
 
 
 def _is_beta_package(package: str) -> bool:
@@ -285,7 +284,7 @@ class GiftCodeRedeemer:
             )
         all_player_ids = list(local_player_ids)
         external_nicks: dict[str, str] = {}
-        if has_feature(_EXTERNAL_ACCOUNTS_FEATURE):
+        if tier_active_at_least("r3"):
             # Cap to the tier's per-game limit (rows are ordered by added_at, so
             # the oldest accounts win after a downgrade). Defends against stale
             # rows left over from a higher tier — third feature-gate layer.
@@ -310,8 +309,7 @@ class GiftCodeRedeemer:
                 )
         else:
             logger.debug(
-                "WOS redeem: %r feature not licensed — external accounts skipped",
-                _EXTERNAL_ACCOUNTS_FEATURE,
+                "WOS redeem: tier below r3 — external accounts skipped",
             )
 
         def _nick(pid: str) -> str:

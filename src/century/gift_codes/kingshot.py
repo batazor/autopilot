@@ -43,7 +43,7 @@ from config.giftcodes_db import (
     set_redemption_bulk,
     upsert_code,
 )
-from licensing.gate import has_feature
+from licensing.gate import tier_active_at_least
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -52,10 +52,9 @@ logger = logging.getLogger(__name__)
 
 _GAME_ID = KINGSHOT.id
 
-# Pro feature flag for redeeming codes against accounts the bot doesn't own
-# (alliance members, partner farms, etc.). Gated at three layers: this
-# redeemer (here), the API (rejects POST/DELETE on the table), and the UI.
-_EXTERNAL_ACCOUNTS_FEATURE = "gift_codes.external_accounts"
+# Redeeming codes against accounts the bot doesn't own (alliance members,
+# partner farms, etc.) requires tier r3+. Gated at three layers: this redeemer
+# (here), the API (rejects POST/DELETE on the table), and the UI.
 
 # ── Scraper ────────────────────────────────────────────────────────────────
 
@@ -296,7 +295,7 @@ class GiftCodeRedeemer:
         local_player_ids = registry.all_player_ids(game=_GAME_ID)
         all_player_ids = list(local_player_ids)
         external_nicks: dict[str, str] = {}
-        if has_feature(_EXTERNAL_ACCOUNTS_FEATURE):
+        if tier_active_at_least("r3"):
             for ext in list_external_gamers(game=_GAME_ID, enabled_only=True):
                 pid = str(ext.player_id)
                 if pid in local_player_ids:
@@ -310,8 +309,7 @@ class GiftCodeRedeemer:
                 )
         else:
             logger.debug(
-                "Kingshot redeem: %r feature not licensed — external accounts skipped",
-                _EXTERNAL_ACCOUNTS_FEATURE,
+                "Kingshot redeem: tier below r3 — external accounts skipped",
             )
 
         def _nick(pid: str) -> str:

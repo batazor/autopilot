@@ -451,8 +451,6 @@ async def run_startup_gift_code_scrape() -> dict[str, dict[str, Any]] | None:
 # read-only so the operator sees what they've lost access to.
 # ---------------------------------------------------------------------------
 
-_EXTERNAL_FEATURE = "gift_codes.external_accounts"
-
 
 def _ext_to_dict(ext: Any) -> dict[str, Any]:
     return {
@@ -469,12 +467,12 @@ def _ext_to_dict(ext: Any) -> dict[str, Any]:
 def list_external_accounts(*, game: str = "wos") -> dict[str, Any]:
     """Read all external accounts for ``game``. Always allowed."""
     from config.giftcodes_db import list_external_gamers
-    from licensing.gate import external_accounts_limit, has_feature
+    from licensing.gate import external_accounts_limit, tier_active_at_least
 
     rows = list_external_gamers(game=game)
     return {
         "game": game,
-        "feature_licensed": has_feature(_EXTERNAL_FEATURE),
+        "feature_licensed": tier_active_at_least("r3"),
         "limit": external_accounts_limit(),
         "accounts": [_ext_to_dict(r) for r in rows],
         "count": len(rows),
@@ -505,10 +503,10 @@ async def upsert_external_account(
         touch_external_gamer_seen,
         upsert_external_gamer,
     )
-    from licensing.gate import external_accounts_limit, require_feature
+    from licensing.gate import external_accounts_limit, require_tier
     from licensing.models import LicenseError
 
-    require_feature(_EXTERNAL_FEATURE)  # raises LicenseError → 402
+    require_tier("r3")  # raises LicenseError → 402
 
     # Tier cap — only gate *new* rows so editing an existing account (label,
     # toggle) never trips the limit even when already at the cap.
@@ -554,9 +552,9 @@ def toggle_external_account(
 ) -> dict[str, Any]:
     """Enable or disable an external account. Requires Pro feature."""
     from config.giftcodes_db import set_external_gamer_enabled
-    from licensing.gate import require_feature
+    from licensing.gate import require_tier
 
-    require_feature(_EXTERNAL_FEATURE)
+    require_tier("r3")
 
     if not set_external_gamer_enabled(player_id, enabled, game=game):
         msg = f"external account not found: game={game} player_id={player_id}"
@@ -567,9 +565,9 @@ def toggle_external_account(
 def delete_external_account(*, game: str, player_id: int) -> dict[str, Any]:
     """Remove an external account. Requires Pro feature."""
     from config.giftcodes_db import delete_external_gamer
-    from licensing.gate import require_feature
+    from licensing.gate import require_tier
 
-    require_feature(_EXTERNAL_FEATURE)
+    require_tier("r3")
 
     if not delete_external_gamer(player_id, game=game):
         msg = f"external account not found: game={game} player_id={player_id}"
@@ -578,14 +576,14 @@ def delete_external_account(*, game: str, player_id: int) -> dict[str, Any]:
 
 
 def require_external_accounts_feature() -> None:
-    """Raise ``LicenseError`` unless the external-accounts feature is licensed.
+    """Raise ``LicenseError`` unless the tier unlocks external accounts (r3+).
 
     Lets the router gate the SSE redeem endpoint *before* the stream starts, so
     an unlicensed caller gets a clean 402 instead of a half-open event stream.
     """
-    from licensing.gate import require_feature
+    from licensing.gate import require_tier
 
-    require_feature(_EXTERNAL_FEATURE)
+    require_tier("r3")
 
 
 def external_account_codes(player_id: int, *, game: str = "wos") -> dict[str, Any]:
@@ -595,7 +593,7 @@ def external_account_codes(player_id: int, *, game: str = "wos") -> dict[str, An
     the status table renders even for read-only rows after a license downgrade.
     """
     from config.giftcodes_db import list_external_gamers
-    from licensing.gate import has_feature
+    from licensing.gate import tier_active_at_least
 
     pid = str(player_id)
     codes = list_codes(game=game)
@@ -627,7 +625,7 @@ def external_account_codes(player_id: int, *, game: str = "wos") -> dict[str, An
     return {
         "fid": pid,
         "nickname": nickname,
-        "feature_licensed": has_feature(_EXTERNAL_FEATURE),
+        "feature_licensed": tier_active_at_least("r3"),
         "codes": rows,
         "summary": {"total": len(rows), "redeemed": redeemed, "needs_run": needs_run},
     }

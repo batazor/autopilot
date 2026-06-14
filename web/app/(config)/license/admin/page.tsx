@@ -40,21 +40,16 @@ type FormState = {
   machineId: string;
   days: number;
   tier: string;
-  features: string;
   maxDevices: number;
   maxPlayersPerDevice: number;
 };
 
-// Plan catalog (mirrors src/licensing/plans.py). The backend injects each
-// tier's canonical features on issue; the features box is for extra add-ons.
-const PLANS: { id: string; label: string; features: string[] }[] = [
-  { id: "r2", label: "R2 · Free", features: [] },
-  { id: "r3", label: "R3 · $5", features: ["gift_codes.external_accounts"] },
-  {
-    id: "r4",
-    label: "R4 · $30 (Radar)",
-    features: ["gift_codes.external_accounts", "radar"],
-  },
+// Plan catalog (mirrors src/licensing/plans.py). Capabilities are gated by the
+// tier ladder (r2 < r3 < r4), not by named flags.
+const PLANS: { id: string; label: string }[] = [
+  { id: "r2", label: "R2 · Free" },
+  { id: "r3", label: "R3 · $5" },
+  { id: "r4", label: "R4 · $30 (Radar)" },
 ];
 
 const DEFAULTS: FormState = {
@@ -62,17 +57,9 @@ const DEFAULTS: FormState = {
   machineId: "",
   days: 30,
   tier: "r3",
-  features: "",
   maxDevices: 1,
   maxPlayersPerDevice: 3,
 };
-
-function parseFeatures(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
 
 export default function LicenseAdminPage() {
   const [status, setStatus] = useState<LicenseStatus | null>(null);
@@ -144,7 +131,6 @@ export default function LicenseAdminPage() {
           machine_id: machineId,
           days: form.days,
           tier,
-          features: parseFeatures(form.features),
           max_devices: form.maxDevices,
           max_players_per_device: form.maxPlayersPerDevice,
         },
@@ -269,20 +255,8 @@ export default function LicenseAdminPage() {
               ))}
             </select>
             <span className="meta">
-              Includes:{" "}
-              {PLANS.find((p) => p.id === tier)?.features.join(", ") || "—"}{" "}
-              (auto-added on issue)
+              Capabilities are unlocked by the tier ladder (r2 &lt; r3 &lt; r4).
             </span>
-          </label>
-
-          <label>
-            <span>Extra features (comma-separated, optional)</span>
-            <input
-              type="text"
-              value={form.features}
-              onChange={(e) => setForm({ ...form, features: e.target.value })}
-              placeholder="heroes, mail, alliance"
-            />
           </label>
 
           <label>

@@ -1375,7 +1375,7 @@ export class FeatureLockedError extends Error {
 async function externalAccountsFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base}${path}`, { cache: "no-store", ...init });
   if (res.status === 402) {
-    const detail = await res.json().catch(() => ({ msg: "feature_not_licensed" }));
+    const detail = await res.json().catch(() => ({ msg: "tier_too_low" }));
     throw new FeatureLockedError(
       typeof detail === "object" && detail && "msg" in detail
         ? String((detail as { msg: unknown }).msg)

@@ -15,8 +15,7 @@ from games.wos.alliance.base.members_parser import (
 from config.state_sqlite import record_alliance_members_snapshot, record_alliance_stats
 from config.state_store import get_state_store
 from layout.types import Point
-from licensing.gate import has_feature
-from licensing.plans import FEATURE_ALLIANCE_STATS
+from licensing.gate import tier_active_at_least
 from tasks import dsl_runtime
 from tasks.dsl_exec.context import DslExecContext, _decode_redis_raw
 
@@ -44,12 +43,11 @@ async def _read_hash(redis_client: Any, key: str, field: str) -> str:
 
 
 def _require_alliance_stats_license(ctx: DslExecContext) -> bool:
-    if has_feature(FEATURE_ALLIANCE_STATS):
+    if tier_active_at_least("r4"):
         return True
     ctx.result.update(
         {
-            "reason": "feature_not_licensed",
-            "feature": FEATURE_ALLIANCE_STATS,
+            "reason": "tier_too_low",
             "required_tier": "r4",
         }
     )
@@ -63,7 +61,7 @@ async def _exec_sync_alliance_stats(ctx: DslExecContext) -> None:
     is device-level and must work even before an active player is known.
     """
     if not _require_alliance_stats_license(ctx):
-        logger.info("dsl exec sync_alliance_stats: feature_not_licensed")
+        logger.info("dsl exec sync_alliance_stats: tier_too_low")
         return
 
     if ctx.redis_client is None:
@@ -240,7 +238,7 @@ async def _exec_scan_alliance_members_frame(ctx: DslExecContext) -> None:
 async def _exec_scan_alliance_members(ctx: DslExecContext) -> None:
     """Expand rank groups, scroll their visible member lists, and persist a roster snapshot."""
     if not _require_alliance_stats_license(ctx):
-        logger.info("dsl exec scan_alliance_members: feature_not_licensed")
+        logger.info("dsl exec scan_alliance_members: tier_too_low")
         return
 
     player_id = (ctx.player_id or "").strip()

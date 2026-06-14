@@ -18,7 +18,6 @@ class IssueRequest(BaseModel):
     machine_id: str = Field(..., description="fingerprint from the user's UI", min_length=1)
     days: int = Field(30, ge=1, le=365)
     tier: str = Field("r3", min_length=1)
-    features: list[str] = Field(default_factory=list)
     max_devices: int = Field(1, ge=1, le=100)
     max_players_per_device: int = Field(3, ge=1, le=100)
     # None → resolve the per-game external-account cap from the tier catalog.
@@ -39,7 +38,7 @@ def get_status() -> dict[str, Any]:
 
 @router.get("/plans")
 def get_plans() -> list[dict[str, Any]]:
-    """Public plan catalog (R2/R3/R4 tiers, prices, features)."""
+    """Public plan catalog (R2/R3/R4 tiers, prices, caps)."""
     return svc.list_plans()
 
 
@@ -55,7 +54,6 @@ def post_issue(
         machine_id=body.machine_id,
         days=body.days,
         tier=body.tier,
-        features=body.features,
         max_devices=body.max_devices,
         max_players_per_device=body.max_players_per_device,
         max_external_accounts=body.max_external_accounts,

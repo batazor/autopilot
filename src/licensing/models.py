@@ -24,8 +24,7 @@ class LicenseClaims:
 
     sub: str                       # user email or stable id
     machine_id: str                # bound host fingerprint
-    tier: str                      # trial / pro / enterprise, etc.
-    features: list[str] = field(default_factory=list)
+    tier: str                      # r2 / r3 / r4 (ladder); legacy strings rank below r2
     max_devices: int = 1
     max_players_per_device: int = 3
     max_external_accounts: int = 0  # per-game cap on external gift-code accounts
@@ -40,9 +39,6 @@ class LicenseClaims:
         delta = self.expires_at - datetime.now(UTC)
         return delta.total_seconds() / 86400.0
 
-    def has_feature(self, name: str) -> bool:
-        return name in self.features
-
 
 @dataclass(slots=True)
 class LicenseStatus:
@@ -53,7 +49,6 @@ class LicenseStatus:
     reason: str | None = None
     sub: str | None = None
     tier: str | None = None
-    features: list[str] = field(default_factory=list)
     expires_at: datetime | None = None
     days_left: float | None = None
     machine_id: str | None = None  # current host fingerprint (always populated)
@@ -68,7 +63,6 @@ class LicenseStatus:
             "reason": self.reason,
             "sub": self.sub,
             "tier": self.tier,
-            "features": list(self.features),
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "days_left": self.days_left,
             "machine_id": self.machine_id,

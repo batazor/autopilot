@@ -18,8 +18,7 @@ def test_save_and_load_round_trip(keypair_paths: object, tmp_path) -> None:
         sub="alice@example.com",
         machine_id="ABCD-EFGH-IJKL-MNOP",
         days=30,
-        tier="pro",
-        features=["heroes", "mail"],
+        tier="r4",
     )
     out_path = tmp_path / "licence.jwt"
     save_token_to_file(token, out_path)

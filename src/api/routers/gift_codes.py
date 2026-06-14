@@ -48,8 +48,8 @@ async def post_redeem(game: str = Query(default="wos")) -> dict[str, Any]:
 # External accounts (Pro feature: gift_codes.external_accounts)
 #
 # Reads are always allowed (so a downgraded license still shows the existing
-# table); writes require the feature flag and return 402 Payment Required
-# with reason='feature_not_licensed' otherwise.
+# table); writes require tier r3+ and return 402 Payment Required with
+# reason='tier_too_low' otherwise.
 # ---------------------------------------------------------------------------
 
 
@@ -111,7 +111,7 @@ async def upsert_external_account(
         reason = (
             "external_accounts_limit_reached"
             if exc.code == "external_limit"
-            else "feature_not_licensed"
+            else "tier_too_low"
         )
         raise HTTPException(
             status_code=402, detail={"reason": reason, "msg": str(exc)}
@@ -132,7 +132,7 @@ def toggle_external_account(
         )
     except LicenseError as exc:
         raise HTTPException(
-            status_code=402, detail={"reason": "feature_not_licensed", "msg": str(exc)}
+            status_code=402, detail={"reason": "tier_too_low", "msg": str(exc)}
         ) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -146,7 +146,7 @@ def delete_external_account(
         return svc.delete_external_account(game=game, player_id=player_id)
     except LicenseError as exc:
         raise HTTPException(
-            status_code=402, detail={"reason": "feature_not_licensed", "msg": str(exc)}
+            status_code=402, detail={"reason": "tier_too_low", "msg": str(exc)}
         ) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -173,7 +173,7 @@ async def external_account_redeem_stream(
         svc.require_external_accounts_feature()
     except LicenseError as exc:
         raise HTTPException(
-            status_code=402, detail={"reason": "feature_not_licensed", "msg": str(exc)}
+            status_code=402, detail={"reason": "tier_too_low", "msg": str(exc)}
         ) from exc
 
     async def event_source() -> Any:

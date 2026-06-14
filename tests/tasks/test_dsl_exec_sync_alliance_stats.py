@@ -13,7 +13,9 @@ from tasks.dsl_exec.registry import build_dsl_exec_registry
 def _licensed_registry(monkeypatch: pytest.MonkeyPatch, licensed: bool = True):
     registry = build_dsl_exec_registry()
     handler = registry["sync_alliance_stats"]
-    monkeypatch.setitem(handler.__globals__, "has_feature", lambda _feature: licensed)
+    monkeypatch.setitem(
+        handler.__globals__, "tier_active_at_least", lambda _minimum: licensed
+    )
     return registry
 
 
@@ -121,8 +123,7 @@ async def test_sync_alliance_stats_requires_r4_feature(tmp_path, monkeypatch: py
         await registry["sync_alliance_stats"](ctx)
 
         assert ctx.result == {
-            "reason": "feature_not_licensed",
-            "feature": "alliance_stats",
+            "reason": "tier_too_low",
             "required_tier": "r4",
         }
         assert get_alliance_stats("KINGLACUNI")["series"] == []

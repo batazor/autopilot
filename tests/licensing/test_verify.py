@@ -14,13 +14,11 @@ def test_verify_happy_path(keypair_paths: object) -> None:
         sub="alice@example.com",
         machine_id="ABCD-EFGH-IJKL-MNOP",
         days=30,
-        tier="pro",
-        features=["heroes", "mail"],
+        tier="r4",
     )
     claims = verify_license(token, expected_machine_id="ABCD-EFGH-IJKL-MNOP")
     assert claims.sub == "alice@example.com"
-    assert claims.tier == "pro"
-    assert claims.features == ["heroes", "mail"]
+    assert claims.tier == "r4"
     assert claims.machine_id == "ABCD-EFGH-IJKL-MNOP"
 
 

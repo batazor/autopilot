@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 
 from licensing.keys import load_private_key
-from licensing.plans import external_accounts_limit_for_tier, features_for_tier
+from licensing.plans import external_accounts_limit_for_tier
 from licensing.verify import ALGORITHM, ISSUER
 
 _MAX_DAYS = 365
@@ -19,7 +19,6 @@ def issue_license(
     machine_id: str,
     days: int = 30,
     tier: str = "pro",
-    features: list[str] | None = None,
     max_devices: int = 1,
     max_players_per_device: int = 3,
     max_external_accounts: int | None = None,
@@ -33,8 +32,6 @@ def issue_license(
     - ``max_devices`` clamped to ``[1, 100]``
     - ``max_external_accounts=None`` resolves the per-game cap from the plan
       catalog for ``tier``; an explicit int is clamped to ``[0, 1000]``
-    - ``features=None`` resolves the claim from the plan catalog for ``tier``;
-      an explicit list (even empty) is taken as-is
     """
     sub = (sub or "").strip()
     machine_id = (machine_id or "").strip()
@@ -64,7 +61,6 @@ def issue_license(
         "jti": uuid.uuid4().hex,
         "machine_id": machine_id,
         "tier": tier,
-        "features": list(features) if features is not None else features_for_tier(tier),
         "max_devices": max_devices,
         "max_players_per_device": max_players_per_device,
         "max_external_accounts": resolved_external,

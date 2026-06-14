@@ -63,7 +63,6 @@ def license_status() -> LicenseStatus:
         state="active",
         sub=claims.sub,
         tier=claims.tier,
-        features=list(claims.features),
         expires_at=claims.expires_at,
         days_left=claims.days_until_expiry(),
         machine_id=machine_id,

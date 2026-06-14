@@ -3,7 +3,7 @@
 Example:
     uv run issue-license --email alice@example.com \\
         --machine-id ABCD-EFGH-IJKL-MNOP \\
-        --days 30 --tier pro --features heroes,mail,alliance \\
+        --days 30 --tier r4 \\
         --out ./alice.licence.jwt
 
 Default output path is ``./<email-slug>.licence.jwt`` so multiple
@@ -19,13 +19,6 @@ from pathlib import Path
 
 from licensing.issue import issue_license
 from licensing.models import LicenseError
-
-
-def _parse_features(raw: str | None) -> list[str] | None:
-    """``None`` when not given — issue_license then resolves features from the tier."""
-    if not raw:
-        return None
-    return [part.strip() for part in raw.split(",") if part.strip()]
 
 
 def _slug_for_email(sub: str) -> str:
@@ -59,11 +52,6 @@ def main(argv: list[str] | None = None) -> int:
         "--tier",
         default=None,
         help="tier label (default: 'pro' for regular, 'trial' under --trial)",
-    )
-    parser.add_argument(
-        "--features",
-        default="",
-        help="comma-separated feature flags (default: resolved from --tier per licensing.plans)",
     )
     parser.add_argument(
         "--max-devices",
@@ -127,7 +115,6 @@ def main(argv: list[str] | None = None) -> int:
             machine_id=machine_id,
             days=args.days,
             tier=tier,
-            features=_parse_features(args.features),
             max_devices=max_devices,
             max_players_per_device=max_players_per_device,
             max_external_accounts=args.max_external_accounts,
@@ -151,7 +138,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"wrote license file: {out_path}")
     print(f"  issued_to:           {payload['sub']}")
     print(f"  tier:                {payload['tier']}")
-    print(f"  features:            {payload['features']}")
     print(f"  machine_id:          {payload['machine_id']}")
     print(f"  max_devices:         {payload['max_devices']}")
     print(f"  max_players/device:  {payload['max_players_per_device']}")

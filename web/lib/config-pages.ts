@@ -196,7 +196,6 @@ export type LicenseStatus = {
   reason: string | null;
   sub: string | null;
   tier: string | null;
-  features: string[];
   expires_at: string | null;
   days_left: number | null;
   machine_id: string | null;
@@ -211,7 +210,6 @@ export type LicenseIssueRequest = {
   machine_id: string;
   days: number;
   tier: string;
-  features: string[];
   max_devices: number;
   max_players_per_device: number;
 };

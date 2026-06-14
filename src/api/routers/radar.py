@@ -22,9 +22,8 @@ from pydantic import BaseModel
 
 from api.deps import get_redis
 from config.loader import load_settings
-from licensing.gate import has_feature, require_feature
+from licensing.gate import require_tier, tier_active_at_least
 from licensing.models import LicenseError
-from licensing.plans import FEATURE_RADAR
 from modules.radar.config import default_config_path, runs_root
 from modules.radar.events import (
     STREAM,
@@ -47,11 +46,11 @@ logger = logging.getLogger(__name__)
 def _require_radar() -> None:
     """Radar is an R4 ($30) feature — 402 for callers without it."""
     try:
-        require_feature(FEATURE_RADAR)
+        require_tier("r4")
     except LicenseError as exc:
         raise HTTPException(
             status_code=402,
-            detail={"reason": "feature_not_licensed", "msg": str(exc)},
+            detail={"reason": "tier_too_low", "msg": str(exc)},
         ) from exc
 
 
@@ -140,7 +139,7 @@ def get_access() -> dict[str, Any]:
     The one radar endpoint reachable without a license: it reports the lock so
     the dashboard can render the upsell instead of a dead page.
     """
-    return {"licensed": has_feature(FEATURE_RADAR), "tier": "r4"}
+    return {"licensed": tier_active_at_least("r4"), "tier": "r4"}
 
 
 @router.get("/active")

@@ -11,7 +11,7 @@ from licensing.fingerprint import fingerprint_components, generate_fingerprint
 from licensing.issue import issue_license
 from licensing.keys import admin_issuing_available
 from licensing.models import LicenseError
-from licensing.plans import PLANS, features_for_tier
+from licensing.plans import PLANS
 from licensing.status import license_status
 from licensing.storage import (
     extract_token,
@@ -69,7 +69,6 @@ def issue(
     machine_id: str,
     days: int,
     tier: str,
-    features: list[str],
     max_devices: int,
     max_players_per_device: int = 3,
     max_external_accounts: int | None = None,
@@ -80,16 +79,12 @@ def issue(
     authoritative signed string the user must keep. ``max_external_accounts``
     of ``None`` lets ``issue_license`` resolve the cap from the tier catalog.
     """
-    # Resolve the plan's canonical features so a tier always carries what it
-    # promises (e.g. R4 always includes radar), unioned with any explicit extras.
-    resolved_features = sorted(set(features) | set(features_for_tier(tier)))
     try:
         token, payload = issue_license(
             sub=sub,
             machine_id=machine_id,
             days=days,
             tier=tier,
-            features=resolved_features,
             max_devices=max_devices,
             max_players_per_device=max_players_per_device,
             max_external_accounts=max_external_accounts,
@@ -102,13 +97,12 @@ def issue(
 
 
 def list_plans() -> list[dict[str, Any]]:
-    """Public plan catalog (tiers, prices, features) for the UI."""
+    """Public plan catalog (tiers, prices, caps) for the UI."""
     return [
         {
             "id": p.id,
             "label": p.label,
             "price_usd": p.price_usd,
-            "features": list(p.features),
             "blurb": p.blurb,
             "max_external_accounts": p.max_external_accounts,
         }

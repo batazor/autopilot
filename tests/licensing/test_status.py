@@ -27,8 +27,7 @@ def test_status_active_via_env(
     token, _ = issue_license(
         sub="alice@example.com",
         machine_id=host_fp,
-        tier="pro",
-        features=["heroes"],
+        tier="r3",
     )
     monkeypatch.setenv("WOS_LICENSE", token)
     status = license_status()
@@ -44,13 +43,13 @@ def test_status_active_via_file(
     monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     host_fp = generate_fingerprint()
     token, _ = issue_license(
-        sub="bob@example.com", machine_id=host_fp, features=["mail"],
+        sub="bob@example.com", machine_id=host_fp, tier="r3",
     )
     save_token_to_file(token, license_file)
     status = license_status()
     assert status.active is True
     assert status.sub == "bob@example.com"
-    assert status.features == ["mail"]
+    assert status.tier == "r3"
 
 
 def test_env_takes_precedence_over_file(
