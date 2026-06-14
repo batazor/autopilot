@@ -1,0 +1,108 @@
+# Gather the scarcest resource on the world map.
+#
+# Policy (agreed): send marches to the resource with the LOWEST stockpile;
+# dispatch up to GATHER_BUDGET marches, never filling the last queue slot past
+# capacity. Re-runs on cron and tops up as marches return.
+#
+# enabled: false until the regions below are labelled via the Labeling UI and
+# the flow is verified on a device. Then flip to true.
+#
+# REUSED (already labelled):
+#   - node main_world ........... navigate to the world map
+#   - marches.active_count / marches.capacity ... march-queue state, populated by
+#       the `sync_marching_status` scenario (core/main_menu) — pushed below
+#   - squad_settings.quick_deploy ... auto-fill troops on the deploy screen
+#   - icon.page.back ............ universal back button
+#
+# TO LABEL (new gathering regions — name them exactly like this):
+#   - gathering.rss.meat / .wood / .coal / .iron .. top-bar amount OCR (string)
+#   - gathering.search.open ..... the fixed magnifier button on the world map
+#   - gathering.search.meat / .wood / .coal / .iron .. resource tabs in the panel
+#   - gathering.search.level.max .. optional "max level" button (skip if none)
+#   - gathering.search.go ....... the "Search" button (flies the map to a tile)
+#   - gathering.tile.center ..... tap target for the located tile
+#   - gathering.tile.gather ..... the "Gather" button on the tile popup
+#   - gathering.deploy .......... the final Deploy/March button (may equal
+#                                 squad_settings.fight — confirm during labelling)
+#
+# DEPENDS ON exec: gather_pick_scarcest (games/wos/core/gathering/exec.py)
+
+name: "Gather — scarcest resource"
+enabled: false
+node: main_world
+cron: "*/20 * * * *"
+
+steps:
+  # Refresh march-queue state (marches.active_count / marches.capacity).
+  - push_scenario: sync_marching_status
+
+  # Fill up to GATHER_BUDGET marches; stop early when the queue is full.
+  # GATHER_BUDGET — config knob: edit this `max:`.
+  - loop:
+      max: 4
+      steps:
+        # No free slot → done for now.
+        - cond: "marches.active_count >= marches.capacity"
+          steps:
+            - break: loop
+
+        # Read the four stockpiles off the top bar.
+        - ocr: gathering.rss.meat
+          store: gathering.rss.meat
+        - ocr: gathering.rss.wood
+          store: gathering.rss.wood
+        - ocr: gathering.rss.coal
+          store: gathering.rss.coal
+        - ocr: gathering.rss.iron
+          store: gathering.rss.iron
+
+        # Parse amounts (K/M/B) and write the scarcest to gathering.target.
+        - exec: gather_pick_scarcest
+
+        # Open the search panel and select the scarcest resource tab.
+        - click: gathering.search.open
+        - wait: 800ms
+        - cond: "gathering.target == meat"
+          steps:
+            - click: gathering.search.meat
+        - cond: "gathering.target == wood"
+          steps:
+            - click: gathering.search.wood
+        - cond: "gathering.target == coal"
+          steps:
+            - click: gathering.search.coal
+        - cond: "gathering.target == iron"
+          steps:
+            - click: gathering.search.iron
+        - wait: 400ms
+
+        # Max the tile level if the button exists, then Search.
+        - match: gathering.search.level.max
+          steps:
+            - click: gathering.search.level.max
+            - wait: 200ms
+        - click: gathering.search.go
+        - wait: 1.5s
+
+        # Tap the located tile and open its Gather action.
+        - click: gathering.tile.center
+        - wait: 600ms
+        - match: gathering.tile.gather
+          steps:
+            - click: gathering.tile.gather
+            - wait: 1s
+
+            # Deploy screen — auto-fill troops, then march out.
+            - match: squad_settings.quick_deploy
+              steps:
+                - click: squad_settings.quick_deploy
+                - wait: 300ms
+            - click: gathering.deploy
+            - wait: 1.2s
+
+            # Re-read the queue so the next iteration's gate is accurate.
+            - push_scenario: sync_marching_status
+          else:
+            # Tile popup had no Gather (occupied / blocked) — back out and stop.
+            - system_back: true
+            - break: loop
