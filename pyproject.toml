@@ -57,6 +57,12 @@ compile = [
     "nuitka>=2.5",
     "ordered-set>=4.1",
 ]
+# Browser automation for the R5/owner-only farm registration flow (the operator
+# solves the captcha; Playwright only fills the form). Optional — not needed at
+# runtime for the bot. After installing, run `playwright install chromium`.
+farm = [
+    "playwright>=1.40",
+]
 [project.scripts]
 play = "worker.launch:main"
 bot = "worker.supervisor:main"
