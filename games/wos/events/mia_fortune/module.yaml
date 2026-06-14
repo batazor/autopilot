@@ -1,6 +1,9 @@
 id: mia_fortune
-title: Mia Fortune
-description: Limited-time Mia Fortune event.
+title: Mia's Fortune Hut
+description: Limited-time Mia's Fortune Hut deals page.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
 references: references
 icon: mia_fortune
 wiki: false

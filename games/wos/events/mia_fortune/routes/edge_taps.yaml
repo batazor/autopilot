@@ -1,0 +1,8 @@
+edges:
+  deals.mia_fortune_hut:
+    deals.mia_fortune_hut.fortune_token_pack: [mia_fortune_hut.fortune_token_pack_box]
+    deals: [icon.page.back]
+    main_city: [icon.page.back]
+
+  deals.mia_fortune_hut.fortune_token_pack:
+    deals.mia_fortune_hut: [icon.page.back]
