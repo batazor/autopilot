@@ -205,10 +205,10 @@
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
-            "x": 30.0,
-            "y": 80.8,
-            "width": 40.0,
-            "height": 5.5,
+            "x": 40.0,
+            "y": 67.0,
+            "width": 20.0,
+            "height": 12.0,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -432,6 +432,69 @@
             "y": 73.0,
             "width": 40.0,
             "height": 7.2,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "screen_id": "",
+      "ocr": "references/labyrinth.gaia.png",
+      "regions": [
+        {
+          "name": "labyrinth.gaia.raid",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 38,
+            "y": 93,
+            "width": 24,
+            "height": 4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "screen_id": "",
+      "ocr": "references/labyrinth.gaia.quick.png",
+      "regions": [
+        {
+          "name": "labyrinth.gaia.quick_challenge",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 30,
+            "y": 93,
+            "width": 40,
+            "height": 4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "screen_id": "",
+      "ocr": "references/labyrinth.gaia.raid_rewards.png",
+      "regions": [
+        {
+          "name": "labyrinth.gaia.raid_claim",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 34,
+            "y": 64,
+            "width": 32,
+            "height": 6,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

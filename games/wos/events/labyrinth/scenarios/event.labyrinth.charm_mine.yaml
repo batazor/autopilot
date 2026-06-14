@@ -15,11 +15,11 @@ steps:
   - wait: 300ms
   - click: labyrinth.balance.lancer.percent
   - wait: 300ms
-  - type_text: "10"
+  - type_text: "15"
   - wait: 300ms
   - click: labyrinth.balance.marksman.percent
   - wait: 300ms
-  - type_text: "40"
+  - type_text: "35"
   - wait: 300ms
   - match: labyrinth.balance.all_future.checked
     else:

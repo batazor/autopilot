@@ -61,12 +61,16 @@ SLOT_TIMERS = {
     "right": "labyrinth.right_cave.ttl",
     "bottom": "labyrinth.bottom_cave.ttl",
 }
+# Per-cave infantry/lancer/marksman split. The four standard caves fight with
+# server-provided Lv.10 troops (equal for everyone), so these ratios are static
+# (Black Dead via Vortex Gaming). Land of Heroes / Gaia Heart use your own
+# troops — a balanced 50/20/30 single squad.
 CAVE_RATIOS = {
     "event.labyrinth.land_of_heroes": ["50", "20", "30"],
-    "event.labyrinth.cave_of_monsters": ["50", "10", "40"],
-    "event.labyrinth.charm_mine": ["50", "10", "40"],
-    "event.labyrinth.research_center": ["50", "10", "40"],
-    "event.labyrinth.gear_forge": ["50", "10", "40"],
+    "event.labyrinth.cave_of_monsters": ["55", "15", "30"],
+    "event.labyrinth.charm_mine": ["50", "15", "35"],
+    "event.labyrinth.research_center": ["60", "15", "25"],
+    "event.labyrinth.gear_forge": ["45", "20", "35"],
     "event.labyrinth.gaia_heart": ["50", "20", "30"],
 }
 
@@ -266,13 +270,27 @@ def test_labyrinth_sync_scenario_pushes_caves_with_timer_deadlines() -> None:
     steps = scenario["steps"]
 
     assert scenario["node"] == "event.labyrinth"
-    assert scenario["cond"] == "active_player != null"
+    # Player-bound scenario already implies an active player — no redundant
+    # `cond: active_player != null` (project convention).
+    assert "cond" not in scenario
+
     for slot, timer_region in SLOT_TIMERS.items():
         assert {
             "ocr": f"labyrinth.{slot}_cave.title",
             "store": f"labyrinth.{slot}_cave.title",
         } in steps
-        assert {"ocr": timer_region, "event_timer": timer_region} in steps
+        if slot == "bottom":
+            # Bottom slot carries the "Opens in" marker in its dedicated status
+            # region, so the countdown only needs the durable event-timer snapshot.
+            assert {"ocr": timer_region, "event_timer": timer_region} in steps
+        else:
+            # Left/right slots have no status region: the countdown is also stored
+            # raw so `<region>_text` can be probed for the "Opens in" marker.
+            assert {
+                "ocr": timer_region,
+                "store": timer_region,
+                "event_timer": timer_region,
+            } in steps
 
     def _pushes_from(block: dict) -> list[dict]:
         out: list[dict] = []
@@ -284,23 +302,24 @@ def test_labyrinth_sync_scenario_pushes_caves_with_timer_deadlines() -> None:
             out.extend(_pushes_from(inner))
         return out
 
-    repeat_blocks = [
-        step for step in steps if isinstance(step, dict) and step.get("repeat") == 1
+    cond_blocks = [
+        step for step in steps if isinstance(step, dict) and "cond" in step
     ]
-    pushes = [push for block in repeat_blocks for push in _pushes_from(block)]
+    pushes = [push for block in cond_blocks for push in _pushes_from(block)]
     for cave_node, cave in CAVES.items():
-        assert {
-            "name": cave_node,
-            "expires": SLOT_TIMERS[cave["slot"]],
-        } in pushes
+        timer = SLOT_TIMERS[cave["slot"]]
+        # OPEN: run now, drop the queued task when the window closes.
+        assert {"name": cave_node, "expires": timer} in pushes
+        # CLOSED: defer the run until the cave opens.
+        assert {"name": cave_node, "delay": timer} in pushes
 
-    gaia_blocks = [
-        block
-        for block in repeat_blocks
-        if str(block.get("cond", "")).startswith("labyrinth.bottom_cave.status")
-    ]
-    assert gaia_blocks
-    assert "labyrinth.bottom_cave.status !~ \"Opens in|Locked\"" in str(gaia_blocks)
+    # Closed-cave detection: left/right slots probe the countdown's raw text;
+    # the bottom slot has a dedicated status region.
+    blob = str(steps)
+    assert 'labyrinth.left_cave.ttl_text ~= "Opens in"' in blob
+    assert 'labyrinth.right_cave.ttl_text ~= "Opens in"' in blob
+    assert 'labyrinth.bottom_cave.status ~= "Opens in"' in blob
+    assert 'labyrinth.bottom_cave.status !~ "Opens in|Locked"' in blob
 
 
 def test_labyrinth_cave_scenarios_use_cave_nodes_and_generic_claim_flow() -> None:
@@ -310,7 +329,10 @@ def test_labyrinth_cave_scenarios_use_cave_nodes_and_generic_claim_flow() -> Non
         "labyrinth.balance.marksman.percent",
     ]
 
-    for cave_node in CAVES:
+    # Gaia Heart is a stage-raid zone with its own flow (see the dedicated test
+    # below); the rest fight provided Lv.10 troops via challenge→balance→deploy.
+    balance_caves = [c for c in CAVES if c != "event.labyrinth.gaia_heart"]
+    for cave_node in balance_caves:
         scenario = _load_yaml(f"scenarios/{cave_node}.yaml")
         steps = scenario["steps"]
 
@@ -336,6 +358,43 @@ def test_labyrinth_cave_scenarios_use_cave_nodes_and_generic_claim_flow() -> Non
         assert any(step.get("while_match") == "button.claim.big" for step in steps)
         assert "tapanywhereyoexit" not in str(steps)
         assert "button.tap_anywhere_to_exit" in str(steps)
+
+
+def test_labyrinth_gaia_heart_uses_raid_flow() -> None:
+    # Gaia Heart is a stage-raid zone: claim the daily Raid sweep, then loop
+    # Quick Challenge to auto-clear out-powered stages. No balance/deploy.
+    scenario = _load_yaml("scenarios/event.labyrinth.gaia_heart.yaml")
+    steps = scenario["steps"]
+    blob = str(steps)
+
+    assert scenario["node"] == "event.labyrinth.gaia_heart"
+    assert "cond" not in scenario
+    # Daily sweep claim.
+    assert any(step.get("while_match") == "labyrinth.gaia.raid" for step in steps)
+    assert "labyrinth.gaia.raid_claim" in blob
+    # Free progression loop.
+    assert any(
+        step.get("while_match") == "labyrinth.gaia.quick_challenge" for step in steps
+    )
+    assert "button.tap_anywhere_to_exit" in blob
+    # The old challenge→balance→deploy flow must be gone for this zone.
+    assert "labyrinth.cave.challenge" not in blob
+    assert "labyrinth.squad.balance" not in blob
+    assert "type_text" not in blob
+
+    # Regions the flow taps must exist + have crops.
+    for region, crop in [
+        ("labyrinth.gaia.raid", "labyrinth.gaia_labyrinth.gaia.raid.png"),
+        (
+            "labyrinth.gaia.quick_challenge",
+            "labyrinth.gaia.quick_labyrinth.gaia.quick_challenge.png",
+        ),
+        (
+            "labyrinth.gaia.raid_claim",
+            "labyrinth.gaia.raid_rewards_labyrinth.gaia.raid_claim.png",
+        ),
+    ]:
+        assert (MODULE_DIR / "references" / "crop" / crop).is_file(), region
 
 
 def test_labyrinth_challenge_reference_is_module_local() -> None:

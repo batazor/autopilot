@@ -1,53 +1,42 @@
+# Gaia Heart is a stage-raid zone (not the challenge→balance→deploy flow the
+# standard caves use). Daily automation = claim the Raid sweep, then let Quick
+# Challenge auto-clear every stage we out-power. The manual "Challenge" wall
+# (consumes daily attempts, uses your own troops) is intentionally left to the
+# player. Verified live 2026-06-14; tap targets confirmed, while_match timing
+# may need tuning after the first unattended run at reset.
 enabled: true
 name: "Labyrinth: Gaia Heart"
 priority: 80_000
 node: event.labyrinth.gaia_heart
-cond: "active_player != null"
 
 steps:
-  - click: labyrinth.cave.challenge
-  - wait: 1s
-  - click: labyrinth.squad.balance
-  - wait: 1s
-  - click: labyrinth.balance.infantry.percent
-  - wait: 300ms
-  - type_text: "50"
-  - wait: 300ms
-  - click: labyrinth.balance.lancer.percent
-  - wait: 300ms
-  - type_text: "20"
-  - wait: 300ms
-  - click: labyrinth.balance.marksman.percent
-  - wait: 300ms
-  - type_text: "30"
-  - wait: 300ms
-  - match: labyrinth.balance.all_future.checked
-    else:
-      - click: labyrinth.balance.all_future.checkbox
-      - wait: 500ms
-  - click: labyrinth.balance.confirm
-  - wait: 1s
-  - click: labyrinth.squad.deploy
-  - wait: 1s
-
-  - while_match: button.claim
-    max: 3
+  # ── Daily sweep: claim rewards for already-cleared stages ───────────────────
+  - while_match: labyrinth.gaia.raid
+    max: 1
     steps:
-      - click: button.claim
+      - click: labyrinth.gaia.raid
       - wait: 1s
-      - while_match: button.tap_anywhere_to_exit
+      - while_match: labyrinth.gaia.raid_claim
         max: 1
+        steps:
+          - click: labyrinth.gaia.raid_claim
+          - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        max: 2
         steps:
           - click: button.tap_anywhere_to_exit
           - wait: 500ms
 
-  - while_match: button.claim.big
-    max: 3
+  # ── Free progression: Quick Challenge auto-sweeps stages we out-power, each
+  #    run ending on a "Success!" summary. The outer loop re-presses until the
+  #    button is gone (the stage turns into a manual "Challenge" — the wall). ───
+  - while_match: labyrinth.gaia.quick_challenge
+    max: 10
     steps:
-      - click: button.claim.big
-      - wait: 1s
+      - click: labyrinth.gaia.quick_challenge
+      - wait: 2s
       - while_match: button.tap_anywhere_to_exit
-        max: 1
+        max: 5
         steps:
           - click: button.tap_anywhere_to_exit
-          - wait: 500ms
+          - wait: 1s
