@@ -1,11 +1,20 @@
 edges:
-  main_city:
-    deals.bank:
-      resolver: template_icon
-      region: main_city.icon_search
-      template: games/wos/deals/bank/references/main_city.deals.bank.png
-      threshold: 0.9
+  deals:
+    deals.bank: [bank.tab]
+
+  deals.sign_in:
+    deals.bank: [bank.tab]
+
+  deals.home_and_beyond:
+    deals.bank: [bank.tab]
+
+  deals.hall_of_heroes:
+    deals.bank: [bank.tab]
 
   deals.bank:
     deals: [icon.page.back]
     main_city: [icon.page.back]
+    bank.deposit_dialog: [bank.deposit_5.button]
+
+  bank.deposit_dialog:
+    deals.bank: [bank.deposit_dialog.close]

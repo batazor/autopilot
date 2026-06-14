@@ -1,0 +1,19 @@
+enabled: true
+name: "Deals: Bank withdraw"
+node: deals.bank
+icon: bank
+priority: 100_000
+steps:
+  - while_match: bank.withdraw.button
+    max: 1
+    steps:
+      - click: bank.withdraw.button
+      - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        max: 2
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
+      - push_scenario:
+          name: deals.bank.deposit
+          priority: 100_000

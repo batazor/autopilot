@@ -1,6 +1,7 @@
 id: bank
 title: Bank
 description: Bank deals sub-tab; opens via main_city event strip or deals hub.
+enabled: true
 scenarios: scenarios
 analyze: analyze/analyze.yaml
 area: area.yaml

@@ -1,16 +1,19 @@
 enabled: true
-name: Bank
+name: "Deals: Bank router"
 node: deals.bank
 icon: bank
+priority: 95_000
 steps:
-  - while_match: button.claim
-    max: 3
+  - while_match: bank.withdraw.button
+    max: 1
     steps:
-      - click: button.claim
-      - wait: 1s
-  - while_match: button.claim.big
-    max: 3
+      - push_scenario:
+          name: deals.bank.withdraw
+          priority: 100_000
+
+  - while_match: bank.deposit_5.button
+    max: 1
     steps:
-      - click: button.claim.big
-      - wait: 1s
-      - click: tapanywhereyoexit
+      - push_scenario:
+          name: deals.bank.deposit
+          priority: 95_000

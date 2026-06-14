@@ -1,5 +1,11 @@
 screens:
   deals.bank:
+    priority: 52
     rules:
       - match: bank.title
+        threshold: 0.9
+  bank.deposit_dialog:
+    priority: 53
+    rules:
+      - match: bank.deposit_dialog.title
         threshold: 0.9
