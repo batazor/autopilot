@@ -636,6 +636,14 @@ class BotActions:
             self._mark_post_action_frame_boundary(instance_id)
         return ok
 
+    def press_key(self, instance_id: str, keycode: str) -> bool:
+        """Send a single keyevent (e.g. ``KEYCODE_DEL``) to ``instance_id``."""
+        self.invalidate_frame_cache(instance_id)
+        ok = self._controller(instance_id).press_key(keycode)
+        if ok:
+            self._mark_post_action_frame_boundary(instance_id)
+        return ok
+
     def restart_application(self, instance_id: str) -> bool:
         self.invalidate_frame_cache(instance_id)
         ok = self._controller(instance_id).restart_application(self._get_game(instance_id))

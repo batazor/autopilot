@@ -1,0 +1,16 @@
+overlay:
+  # When the Trap Enhancement icon on the info page carries a red dot, at least
+  # one trap can still be levelled — push the contribute scenario. (The scenario
+  # itself re-checks each tab's progress bar and skips maxed traps.)
+  - name: bear_hunt.trap_enhancement.red_dot
+    region: bear_hunt.trap_enhancement
+    action: findIcon
+    template: games/wos/events/bear_hunt/references/crop/main_bear_hunt.trap_enhancement.png
+    threshold: 0.85
+    isRedDot: true
+    screens:
+      - event.bear_hunt.info
+    steps:
+      - push_scenario:
+          name: contribute_trap_enhancement
+          ttl: 5m

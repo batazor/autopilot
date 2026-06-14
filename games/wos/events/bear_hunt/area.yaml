@@ -5,7 +5,39 @@
       "id": 1,
       "screen_id": "",
       "ocr": "references/main.png",
-      "regions": []
+      "regions": [
+        {
+          "name": "bear_hunt.info.title",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 2.0833,
+            "y": 16.5625,
+            "width": 31.9444,
+            "height": 3.5938,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "bear_hunt.trap_enhancement",
+          "action": "exist",
+          "threshold": 0.85,
+          "has_red_dot": true,
+          "bbox": {
+            "x": 83.0556,
+            "y": 88.9063,
+            "width": 13.0556,
+            "height": 6.4063,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
     },
     {
       "id": 2,

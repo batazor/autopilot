@@ -538,6 +538,25 @@ class AdbInputMixin(_Base):
             self._refresh_rolling_preview()
         return True
 
+    def press_key(self, keycode: str) -> bool:
+        """Send a single ``input keyevent`` (e.g. ``KEYCODE_DEL`` to clear a field)."""
+        payload = self._approval_payload_with_preview(
+            {"type": "key_event", "keycode": keycode, "serial": self._serial}
+        )
+        ok, req_id = _require_approval(self._instance_id, payload)
+        if not ok:
+            logger.info("ADB key %s blocked (no approval): %s", keycode, self._instance_id)
+            return False
+        if _consume_skip(req_id):
+            logger.info("ADB key %s skipped by operator: %s", keycode, self._instance_id)
+            self._refresh_rolling_preview()
+            return True
+        with self._approval_execution(req_id):
+            self._shell("input", "keyevent", keycode)
+            logger.debug("Key %s on %s", keycode, self._serial)
+            self._refresh_rolling_preview()
+        return True
+
     def type_text(self, text: str) -> bool:
         # ``adb shell ARGS`` concatenates ARGS and runs them through the
         # device-side ``sh``, so shell metacharacters (``&``, ``;``, ``|``,
