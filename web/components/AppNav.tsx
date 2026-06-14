@@ -251,6 +251,9 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
                               }
                               title={lock ? lock.tooltip : tab.description}
                             >
+                              <span className="nav-link__icon" aria-hidden>
+                                <NavIcon href={tab.href} size="sm" />
+                              </span>
                               <span className="min-w-0 flex-1 truncate">
                                 {tab.label}
                               </span>

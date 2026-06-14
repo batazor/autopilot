@@ -7,6 +7,7 @@ import {
   BookOpen,
   Boxes,
   Bug,
+  CalendarDays,
   ChartNoAxesCombined,
   Check,
   ChevronLeft,
@@ -72,6 +73,7 @@ export type IconName =
   | "overlay-test"
   | "queue"
   | "routes"
+  | "calendar"
   | "optimizer"
   | "gift-codes"
   | "dreamscape-memory"
@@ -136,6 +138,7 @@ const LUCIDE_ICONS: Partial<Record<IconName, LucideIcon>> = {
   "overlay-test": Layers,
   queue: List,
   routes: Route,
+  calendar: CalendarDays,
   optimizer: Zap,
   "gift-codes": Gift,
   "dreamscape-memory": Cpu,
