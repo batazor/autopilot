@@ -24,7 +24,12 @@ from dataclasses import dataclass
 # Tier ladder, low → high. Capability gates compare a license tier's rank
 # (index in this tuple) against a required minimum. Unknown/legacy tier
 # strings rank below r2 (rank -1), so they unlock no paid capability.
-TIER_ORDER = ("r2", "r3", "r4")
+#
+# ``r5`` is the internal owner/developer tier (in-game alliance R5 = leader).
+# It is NOT a customer-facing plan: it exists to gate modules still in
+# development behind an owner-only license so they stay hidden from every other
+# tier. Top of the ladder, so it unlocks everything below it.
+TIER_ORDER = ("r2", "r3", "r4", "r5")
 
 
 @dataclass(frozen=True)
@@ -59,6 +64,13 @@ PLANS: tuple[Plan, ...] = (
         price_usd=30,
         blurb="Alliance R4 — up to 50 external accounts, Radar, and alliance statistics.",
         max_external_accounts=50,
+    ),
+    Plan(
+        id="r5",
+        label="R5 · Owner",
+        price_usd=0,
+        blurb="Owner/developer tier — unlocks in-development modules. Not for sale.",
+        max_external_accounts=999,
     ),
 )
 

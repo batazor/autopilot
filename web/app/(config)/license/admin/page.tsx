@@ -45,11 +45,13 @@ type FormState = {
 };
 
 // Plan catalog (mirrors src/licensing/plans.py). Capabilities are gated by the
-// tier ladder (r2 < r3 < r4), not by named flags.
+// tier ladder (r2 < r3 < r4 < r5), not by named flags. R5 is the owner/dev
+// tier — not for sale; it unlocks in-development modules (e.g. farm).
 const PLANS: { id: string; label: string }[] = [
   { id: "r2", label: "R2 · Free" },
   { id: "r3", label: "R3 · $5" },
   { id: "r4", label: "R4 · $30 (Radar)" },
+  { id: "r5", label: "R5 · Owner (internal)" },
 ];
 
 const DEFAULTS: FormState = {

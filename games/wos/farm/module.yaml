@@ -1,0 +1,15 @@
+id: farm
+title: Farm
+description: Farm-account automation. In development — owner-only (R5) until ready.
+# Skeleton: no scenarios/regions yet, so it stays inert (flip to true once the
+# first flow + labeled regions land). `min_tier: r5` is the owner/dev gate —
+# the module is invisible to the navigator, overlay engine, scenario loader and
+# startup validator for every tier below R5, so it's closed to all other users.
+enabled: false
+min_tier: r5
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: farm
+wiki: false

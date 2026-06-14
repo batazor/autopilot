@@ -82,6 +82,8 @@ def _module_dirs_cached(game: str, root_s: str) -> tuple[Path, ...]:
             continue
         if not _module_manifest_enabled(manifest):
             continue
+        if not _module_manifest_tier_ok(manifest):
+            continue
         found.append(module_dir)
 
     return tuple(sorted(found, key=lambda p: _module_sort_key(p, modules_dir)))
@@ -107,6 +109,36 @@ def _module_manifest_enabled(manifest: Path) -> bool:
     if isinstance(flag, str):
         return flag.strip().lower() not in {"false", "0", "no", "off"}
     return True
+
+
+def _module_manifest_tier_ok(manifest: Path) -> bool:
+    """`min_tier: <tier>` in module.yaml is an owner/dev gate: the module is
+    discovered only when the active license ranks at/above that tier, so it
+    stays hidden from the navigator, overlay engine, scenario loader, and
+    startup validator for every lower tier.
+
+    Modules without `min_tier` are always visible. On any licensing error we
+    treat the gate as unmet (hide) so a gated module never leaks to a tier we
+    can't confirm holds it.
+    """
+    try:
+        raw = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    except Exception:
+        return True
+    if not isinstance(raw, dict):
+        return True
+    min_tier = str(raw.get("min_tier") or "").strip()
+    if not min_tier:
+        return True
+    try:
+        # Lazy import: ``licensing`` reads config, so importing it at module
+        # top would risk a circular import during config bootstrap.
+        from licensing.gate import current_tier
+        from licensing.plans import tier_at_least
+
+        return tier_at_least(current_tier(), min_tier)
+    except Exception:
+        return False
 
 
 def _clear_module_discovery_caches() -> None:
