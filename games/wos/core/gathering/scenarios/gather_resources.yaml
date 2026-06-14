@@ -37,7 +37,7 @@
 # DEPENDS ON exec: gather_pick_scarcest (../exec.py)
 
 name: "Gather — scarcest resource"
-enabled: false
+enabled: true
 node: main_world
 cron: "*/20 * * * *"
 
