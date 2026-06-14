@@ -32,9 +32,9 @@
           "action": "exist",
           "threshold": 0.85,
           "bbox": {
-            "x": 48.333333333333336,
-            "y": 65.46875,
-            "width": 15.555555555555555,
+            "x": 18.75,
+            "y": 66.25,
+            "width": 15.277777777777779,
             "height": 6.406249999999999,
             "rotation": 0,
             "original_width": 720,
@@ -46,9 +46,37 @@
           "action": "exist",
           "threshold": 0.85,
           "bbox": {
-            "x": 68.75,
-            "y": 65.46875,
-            "width": 15.555555555555555,
+            "x": 39.58333333333333,
+            "y": 66.25,
+            "width": 15.277777777777779,
+            "height": 6.406249999999999,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "gathering.search.coal",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 60.416666666666664,
+            "y": 66.25,
+            "width": 15.277777777777779,
+            "height": 6.406249999999999,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "gathering.search.iron",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 81.25,
+            "y": 66.25,
+            "width": 15.277777777777779,
             "height": 6.406249999999999,
             "rotation": 0,
             "original_width": 720,
@@ -61,7 +89,7 @@
           "threshold": 0.85,
           "bbox": {
             "x": 1.3888888888888888,
-            "y": 65.234375,
+            "y": 66.015625,
             "width": 97.22222222222221,
             "height": 7.187499999999999,
             "rotation": 0,

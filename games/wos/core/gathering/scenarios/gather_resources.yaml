@@ -66,12 +66,17 @@ steps:
         # Parse amounts (K/M/B) and write the scarcest to gathering.target.
         - exec: gather_pick_scarcest
 
-        # Open the search panel.
+        # Open the search panel and scroll the tab row to its end so all four
+        # resource tabs (Meat | Wood | Coal | Iron) sit at fixed positions.
         - click: gathering.search.open
         - wait: 800ms
+        - swipe_direction:
+            direction: left
+            region: gathering.search.tabrow
+            delta: 480
+        - wait: 400ms
 
-        # Select the scarcest resource tab. Coal/Iron sit off-screen right, so
-        # swipe the tab row left first.
+        # Select the scarcest resource tab.
         - cond: "gathering.target == meat"
           steps:
             - click: gathering.search.meat
@@ -80,19 +85,9 @@ steps:
             - click: gathering.search.wood
         - cond: "gathering.target == coal"
           steps:
-            - swipe_direction:
-                direction: left
-                region: gathering.search.tabrow
-                delta: 240
-            - wait: 300ms
             - click: gathering.search.coal
         - cond: "gathering.target == iron"
           steps:
-            - swipe_direction:
-                direction: left
-                region: gathering.search.tabrow
-                delta: 360
-            - wait: 300ms
             - click: gathering.search.iron
         - wait: 400ms
 
