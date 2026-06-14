@@ -39,6 +39,7 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/radar": "radar",
   "/calendar": "calendar",
   "/trees": "trees",
+  "/farm": "modules",
   "/wiki": "wiki",
   "/labeling": "labeling",
   "/gallery": "gallery",

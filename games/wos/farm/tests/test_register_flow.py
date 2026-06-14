@@ -68,3 +68,19 @@ async def test_drive_reports_failure_when_modal_stays_open() -> None:
 
     ok = await register.drive_registration(page, _acct(), on_ready)
     assert ok is False
+
+
+async def test_explicit_outcome_overrides_modal_heuristic() -> None:
+    # The dashboard Done/Failed button returns an authoritative bool — it must
+    # win over the modal-closed heuristic (here the modal is left "open").
+    page = _FakePage()
+
+    async def said_done() -> bool:
+        return True
+
+    async def said_failed() -> bool:
+        return False
+
+    assert await register.drive_registration(page, _acct(), said_done) is True
+    assert page.visible is True  # heuristic would have said False; outcome won
+    assert await register.drive_registration(page, _acct(), said_failed) is False

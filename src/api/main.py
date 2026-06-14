@@ -95,6 +95,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     dreamscape_onboarding,
     edit_dsl,
     events,
+    farm,
     fish_detect,
     fish_video,
     gallery,
@@ -166,6 +167,7 @@ app.include_router(queue.router)
 app.include_router(radar.router)
 app.include_router(radar.access_router)
 app.include_router(events.router)
+app.include_router(farm.router)
 app.include_router(players.router)
 app.include_router(alliances.router)
 app.include_router(labeling.router)

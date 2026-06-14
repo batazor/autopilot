@@ -64,6 +64,11 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Game trees",
         description: "Research & building dependency trees per game",
       },
+      {
+        href: "/farm",
+        label: "Farm",
+        description: "Generate beta farm accounts & confirm registration (R5)",
+      },
     ],
   },
   {

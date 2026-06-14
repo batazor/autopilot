@@ -10,7 +10,7 @@
  * is purely a label and the route stays clickable.
  */
 
-export type NavLockKind = "r4" | "pro" | "soon" | "wip";
+export type NavLockKind = "r4" | "r5" | "pro" | "soon" | "wip";
 
 export type NavLock = {
   kind: NavLockKind;
@@ -19,6 +19,7 @@ export type NavLock = {
 
 export const NAV_LOCK_BADGE: Record<NavLockKind, string> = {
   r4: "R4",
+  r5: "R5",
   pro: "PRO",
   soon: "SOON",
   wip: "WIP",
@@ -26,10 +27,17 @@ export const NAV_LOCK_BADGE: Record<NavLockKind, string> = {
 
 /** Kinds that disable navigation / dim the tab. "wip" intentionally does not. */
 export function isLockDisabling(lock: NavLock | null | undefined): boolean {
-  return lock?.kind === "r4" || lock?.kind === "pro" || lock?.kind === "soon";
+  return (
+    lock?.kind === "r4" ||
+    lock?.kind === "r5" ||
+    lock?.kind === "pro" ||
+    lock?.kind === "soon"
+  );
 }
 
 const R4_ONLY_HREFS = new Set<string>(["/alliance-stats"]);
+// R5 is the owner/dev tier (top of the ladder); farm is hidden below it.
+const R5_ONLY_HREFS = new Set<string>(["/farm"]);
 const COMING_SOON_HREFS = new Set<string>(["/optimizer", "/balance"]);
 // "wip" is resolved before tier/soon below, so a route here shows the WIP badge
 // and stays clickable even if it also appears in R4_ONLY/COMING_SOON. Removing
@@ -47,7 +55,14 @@ export function getNavLock(href: string, tier: string | null): NavLock | null {
   if (COMING_SOON_HREFS.has(href)) {
     return { kind: "soon", tooltip: "Coming soon — not yet available" };
   }
-  if (R4_ONLY_HREFS.has(href) && tier !== "r4") {
+  if (R5_ONLY_HREFS.has(href) && tier !== "r5") {
+    return {
+      kind: "r5",
+      tooltip: "Owner-only (R5) — in development",
+    };
+  }
+  // R4 features; R5 (top of the ladder) unlocks them too.
+  if (R4_ONLY_HREFS.has(href) && tier !== "r4" && tier !== "r5") {
     return {
       kind: "r4",
       tooltip: "Requires R4 license — open License to upgrade",
