@@ -34,6 +34,20 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "journey_of_light.claim_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.293508660026474,
+            "y": 90.28004668136191,
+            "width": 31.01123595505616,
+            "height": 5.043072576140814,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },

@@ -6,6 +6,20 @@ node: deals
 icon: journey_of_light
 
 steps:
+  - while_match: journey_of_light.claim_all
+    max: 1
+    retry:
+      attempts: 2
+      interval: 500ms
+    steps:
+      - click: journey_of_light.claim_all
+      - wait: 1s
+      - while_match: tapanywhereyoexit
+        max: 1
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s
+
   - while_match: journey_of_light.add
     isRedDot: true
     steps:
