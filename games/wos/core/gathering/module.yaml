@@ -3,10 +3,10 @@ title: Gathering
 description: >-
   World-map resource gathering. Dispatches idle marches to gather the scarcest
   resource (meat / wood / coal / iron) and redeploys as marches return.
-# enabled stays false until the gather-flow regions are labelled via the
-# Labeling UI (search magnifier, resource tabs, tile Gather, deploy) and the
-# `gather_resources` scenario is verified on a device. Flip to true then.
-enabled: false
+# Module is enabled (discoverable so its regions can be labelled), but the
+# `gather_resources` scenario stays enabled:false until the flow is verified on a
+# device — so nothing gathers yet; the module is otherwise inert.
+enabled: true
 scenarios: scenarios
 analyze: analyze/analyze.yaml
 area: area.yaml

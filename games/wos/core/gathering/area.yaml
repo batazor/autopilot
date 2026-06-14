@@ -1,2 +1,145 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "main_world",
+      "ocr": "references/world_topbar.png",
+      "regions": [
+        {
+          "name": "gathering.search.open",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 2.7777777777777777,
+            "y": 64.453125,
+            "width": 9.166666666666666,
+            "height": 5.15625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/search_panel.png",
+      "regions": [
+        {
+          "name": "gathering.search.meat",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 48.333333333333336,
+            "y": 65.46875,
+            "width": 15.555555555555555,
+            "height": 6.406249999999999,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "gathering.search.wood",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 68.75,
+            "y": 65.46875,
+            "width": 15.555555555555555,
+            "height": 6.406249999999999,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "gathering.search.tabrow",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 1.3888888888888888,
+            "y": 65.234375,
+            "width": 97.22222222222221,
+            "height": 7.187499999999999,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "gathering.search.go",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 29.166666666666668,
+            "y": 91.5625,
+            "width": 41.66666666666667,
+            "height": 4.0625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/tile_gather.png",
+      "regions": [
+        {
+          "name": "gathering.tile.gather",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 38.611111111111114,
+            "y": 47.5,
+            "width": 22.916666666666664,
+            "height": 3.90625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/deploy.png",
+      "regions": [
+        {
+          "name": "gathering.deploy",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 57.638888888888886,
+            "y": 94.140625,
+            "width": 37.5,
+            "height": 4.53125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "gathering.deploy.balance",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 39.58333333333333,
+            "y": 94.140625,
+            "width": 13.194444444444445,
+            "height": 5.15625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}
