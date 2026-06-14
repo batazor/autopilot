@@ -20,18 +20,19 @@
 #   4. Deploy screen ("<Resource>") with troop selectors + "Deploy" (bottom-right,
 #      ~(290,1235)); "Balance" auto-distributes troops.
 #
-# REUSED (already labelled): node main_world, marches.active_count /
-#   marches.capacity (sync_marching_status), icon.page.back.
+# REUSED: node main_world, marches.active_count / marches.capacity
+#   (sync_marching_status).
 #
-# TO LABEL (new — exact names):
-#   gathering.rss.meat/.wood/.coal/.iron  top-bar amount OCR (string)
+# REGIONS (all labelled — see references/):
+#   gathering.to.resources                top-bar resource button → Overview
+#   gathering.rss.meat/.wood/.coal/.iron  "Owned" amounts on the Overview (OCR)
 #   gathering.search.open                 the search magnifier (3rd round button)
-#   gathering.search.tabrow               tab strip (swipe anchor for coal/iron)
-#   gathering.search.meat/.wood/.coal/.iron   resource tabs
-#   gathering.search.go                   blue "Search" button
-#   gathering.tile.gather                 green "Gather" on the tile popup
-#   gathering.deploy.balance              "Balance" auto-fill (optional)
-#   gathering.deploy                      final "Deploy" button
+#   gathering.search.tabrow               tab strip (swipe anchor)
+#   gathering.search.meat/.wood/.coal/.iron   resource tabs (scrolled positions)
+#   gathering.search.go                   "Search" button
+#   gathering.tile.gather                 "Gather" on the tile popup
+#   gathering.deploy.balance              "Balance" auto-fill
+#   gathering.deploy                      "Deploy" button
 #
 # DEPENDS ON exec: gather_pick_scarcest (../exec.py)
 
@@ -53,7 +54,10 @@ steps:
           steps:
             - break: loop
 
-        # Read the four stockpiles off the top bar.
+        # Open the resource Overview (tap the top-bar resource button), read the
+        # four "Owned" stockpiles, then close it.
+        - click: gathering.to.resources
+        - wait: 800ms
         - ocr: gathering.rss.meat
           store: gathering.rss.meat
         - ocr: gathering.rss.wood
@@ -62,6 +66,8 @@ steps:
           store: gathering.rss.coal
         - ocr: gathering.rss.iron
           store: gathering.rss.iron
+        - system_back: true
+        - wait: 500ms
 
         # Parse amounts (K/M/B) and write the scarcest to gathering.target.
         - exec: gather_pick_scarcest
