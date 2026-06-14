@@ -8,3 +8,11 @@ edges:
 
   event.foundry_battle:
     main_city: [icon.page.back]
+
+  # Alternate inbound route: reach Foundry Battle from the calendar by matching
+  # its event bar and tapping the popup's Go button. Useful when the main_city
+  # event icon isn't showing; BFS still prefers the direct main_city edge above.
+  event.calendar:
+    event.foundry_battle:
+      resolver: calendar_go
+      aliases: ["Foundry Battle"]

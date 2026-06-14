@@ -18,6 +18,7 @@ from layout.types import Point, Region
 # Side-effect imports: register dynamic-edge resolvers with screen_graph
 # so edges in edge_taps.yaml can resolve at runtime.
 from navigation import (
+    calendar_go_resolver,  # noqa: F401
     hero_grid_resolver,  # noqa: F401
     main_menu_panel_resolver,  # noqa: F401
     tab_index_resolver,  # noqa: F401
@@ -446,6 +447,53 @@ class Navigator:
         return bool(
             await asyncio.to_thread(self._tap, instance_id, point, **tap_kwargs)  # type: ignore[arg-type]
         )
+
+    async def _tap_calendar_go_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        """Reach an event by tapping its calendar bar and the popup's Go button.
+
+        Delegates the interactive walk to the calendar module (it needs swipe +
+        OCR, which the bot-action surface provides). Aliases come from the spec's
+        ``aliases`` and/or an ``event`` slug (de-slugged to words for matching).
+        """
+        _ = (from_screen, to_screen, state_flat, path_csv, hop_index)
+        aliases: list[str] = []
+        raw = spec.get("aliases")
+        if isinstance(raw, str):
+            aliases.append(raw)
+        elif isinstance(raw, list):
+            aliases.extend(str(a) for a in raw)
+        event_id = str(spec.get("event") or "").strip()
+        if event_id:
+            aliases.append(event_id.replace("_", " "))  # slug → words for fuzzy match
+        aliases = [a for a in (a.strip() for a in aliases) if a]
+        if not aliases:
+            logger.info("Navigator: calendar_go spec has no aliases/event: %s", spec)
+            return False
+        try:
+            from games.wos.core.calendar.go_nav import navigate_via_go
+
+            from tasks import dsl_runtime
+
+            actions = dsl_runtime.bot_actions()
+            threshold = float(spec.get("threshold", 0.72))
+            return bool(
+                await navigate_via_go(
+                    actions, instance_id, self._ocr._run_tesseract, aliases, threshold=threshold
+                )
+            )
+        except Exception:
+            logger.exception("Navigator: calendar_go navigation failed: %s", spec)
+            return False
 
     async def _tap_main_menu_panel_row_async(
         self,
@@ -1250,6 +1298,16 @@ class Navigator:
                     )
                 elif isinstance(point, dict) and point.get("type") == "tab_index":
                     tapped = await self._tap_tab_index_async(
+                        instance_id,
+                        point,
+                        from_screen=src_screen,
+                        to_screen=str(dst_screen),
+                        state_flat=state_flat,
+                        path_csv=path_csv,
+                        hop_index=hop_idx,
+                    )
+                elif isinstance(point, dict) and point.get("type") == "calendar_go":
+                    tapped = await self._tap_calendar_go_async(
                         instance_id,
                         point,
                         from_screen=src_screen,

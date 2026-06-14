@@ -1,77 +1,89 @@
-"""Tests for the Redis-backed calendar adapter.
-
-``build_view`` / ``state_mapping`` are exercised purely; ``publish`` uses a
-minimal async Redis fake — no real Redis, no ADB.
-"""
+"""Tests for the Redis-backed calendar adapter (pure helpers + async fakes)."""
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 
-from games.wos.core.calendar import adapter
-from games.wos.core.calendar.model import Calendar
+from games.wos.core.calendar import adapter, schedule
 
-# 2026-06-15 12:00 UTC as a unix ts (matches test_model's NOW).
 NOW = datetime(2026, 6, 15, 12, 0, tzinfo=UTC).timestamp()
-TODAY_WD = datetime.fromtimestamp(NOW, tz=UTC).weekday()
 
 
-def _weekday_name(wd: int) -> str:
-    return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][wd]
+def _events():
+    return [
+        ("Live", datetime(2026, 6, 15, tzinfo=UTC), datetime(2026, 6, 16, tzinfo=UTC)),
+        ("Soon", datetime(2026, 6, 16, 8, tzinfo=UTC), datetime(2026, 6, 16, 10, tzinfo=UTC)),
+    ]
 
 
-def _calendar() -> Calendar:
-    return Calendar.from_dict({"events": [
-        {"id": "live", "title": "Live", "recurrence": "daily",
-         "start": "00:00", "end": "24:00", "state_flag": "event_live",
-         "scenario": "do_live"},
-        {"id": "soon", "title": "Soon", "recurrence": "weekly",
-         "weekdays": [_weekday_name((TODAY_WD + 1) % 7)], "start": "08:00",
-         "end": "10:00", "state_flag": "event_soon"},
-    ]})
+def _view():
+    return schedule.build_view(_events(), datetime.fromtimestamp(NOW, tz=UTC), days=3)
 
 
 class _FakeRedis:
     def __init__(self) -> None:
-        self.hset_calls: list[tuple[str, dict]] = []
+        self.hashes: dict[str, dict[str, str]] = {}
+        self.kv: dict[str, str] = {}
 
     async def hset(self, key, *, mapping):
-        self.hset_calls.append((key, mapping))
+        self.hashes.setdefault(key, {}).update({str(k): str(v) for k, v in mapping.items()})
         return len(mapping)
 
+    async def hgetall(self, key):
+        return dict(self.hashes.get(key, {}))
 
-def test_build_view_separates_active_and_upcoming():
-    view = adapter.build_view(_calendar(), NOW, days=3)
-    assert [e["id"] for e in view["active"]] == ["live"]
-    assert [e["id"] for e in view["upcoming"]] == ["soon"]
-    assert view["flags"] == {"event_live": 1, "event_soon": 0}
-    assert len(view["digest"]) == 3
-    # Upcoming carries a positive lead time.
-    assert view["upcoming"][0]["in_hours"] > 0
-
-
-def test_state_mapping_flattens_flags_and_json_blobs():
-    view = adapter.build_view(_calendar(), NOW, days=3)
-    mapping = adapter.state_mapping(view, NOW)
-    assert mapping["event_live"] == "1"
-    assert mapping["event_soon"] == "0"
-    assert mapping["calendar_at"] == str(NOW)
-    # Blobs round-trip as JSON.
-    assert [e["id"] for e in json.loads(mapping["calendar_upcoming"])] == ["soon"]
-    assert len(json.loads(mapping["calendar_digest"])) == 3
+    async def set(self, key, value, *, nx=False, ex=None):
+        if nx and key in self.kv:
+            return None
+        self.kv[key] = str(value)
+        return True
 
 
-async def test_publish_writes_player_state():
+def test_should_refresh_on_ttl():
+    assert adapter.should_refresh(None, NOW) is True
+    assert adapter.should_refresh(NOW, NOW, ttl=3600) is False
+    assert adapter.should_refresh(NOW - 7200, NOW, ttl=3600) is True
+
+
+def test_shared_mapping_decode_round_trip():
+    mapping = adapter.shared_mapping(_view(), NOW, source="sqlite")
+    decoded = adapter.decode_shared(mapping)
+    assert decoded["read_at"] == NOW
+    assert decoded["source"] == "sqlite"
+    assert decoded["flags"] == {"event_live": 1, "event_soon": 0}
+    # bytes hash (as redis returns) decodes too
+    raw_bytes = {k.encode(): v.encode() for k, v in mapping.items()}
+    assert adapter.decode_shared(raw_bytes)["read_at"] == NOW
+
+
+def test_derive_flags_recomputed_from_digest():
+    shared = {"digest": _view()["digest"]}
+    assert adapter.derive_flags(shared, NOW)["event_live"] == 1
+    later = datetime(2026, 6, 17, tzinfo=UTC).timestamp()       # both windows closed
+    assert adapter.derive_flags(shared, later) == {"event_live": 0, "event_soon": 0}
+
+
+async def test_write_then_read_shared_round_trips():
     redis = _FakeRedis()
-    view = await adapter.publish(redis, "42", _calendar(), NOW, days=3)
-    assert len(redis.hset_calls) == 1
-    key, mapping = redis.hset_calls[0]
-    assert key == "wos:player:42:state"
-    assert mapping["event_live"] == "1"
-    assert view["flags"]["event_live"] == 1
+    await adapter.write_shared(redis, "1234", _view(), NOW)
+    assert "wos:state:1234:calendar" in redis.hashes
+    shared = await adapter.read_shared(redis, "1234")
+    assert shared["read_at"] == NOW
+    assert adapter.derive_flags(shared, NOW)["event_live"] == 1
 
 
-async def test_publish_noop_without_target():
-    # No player id → compute the view but skip the write (no crash).
-    view = await adapter.publish(None, "", _calendar(), NOW)
-    assert view["flags"]["event_live"] == 1
+async def test_refresh_lock_is_single_winner():
+    redis = _FakeRedis()
+    assert await adapter.acquire_refresh_lock(redis, "1234") is True
+    assert await adapter.acquire_refresh_lock(redis, "1234") is False
+
+
+async def test_apply_flags_writes_player_state():
+    redis = _FakeRedis()
+    await adapter.apply_flags_to_player(redis, "42", {"event_live": 1, "event_soon": 0})
+    assert redis.hashes["wos:player:42:state"] == {"event_live": "1", "event_soon": "0"}
+
+
+async def test_apply_flags_noop_when_empty():
+    redis = _FakeRedis()
+    await adapter.apply_flags_to_player(redis, "42", {})
+    assert redis.hashes == {}

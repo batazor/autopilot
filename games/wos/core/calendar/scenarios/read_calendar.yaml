@@ -1,12 +1,10 @@
-# Recompute the event-calendar look-ahead and publish it to player state.
+# Fan this player's live event flags out from the SQLite schedule.
 #
-# Pure compute — no screen needed: the exec derives "what's on today and the
-# next couple of days" from the declarative catalog (events.yaml) and writes the
-# digest + per-event active flags so other modules' active_when conditions (e.g.
-# the stamina allocator) can gate on a live event. Safe to run on any screen.
-#
-# Hourly is plenty: the windows are day-grained, so the only thing that changes
-# between runs is which events crossed a start/end boundary.
+# Cheap and frequent: reads db.calendar_events for the player's state, derives
+# `event_<slug>` flags (1 while live) from the stored start/end windows, and
+# writes them to wos:player:<id>:state — what the stamina allocator's active_when
+# conditions read. No screen, no catalog; the schedule itself is read by
+# refresh_calendar. If there are no flags yet, refresh_calendar hasn't run.
 name: Read calendar
 enabled: true
 cron: "0 * * * *"

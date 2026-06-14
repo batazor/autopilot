@@ -1,5 +1,3 @@
-# No overlay rules yet. The calendar view is computed from the declarative
-# catalog (events.yaml) by the read_calendar scenario, not detected on screen.
-# When the on-screen calendar OCR reader lands, its trigger rule (push
-# read_calendar when the events panel is visible) goes here.
+# No overlay rules. The schedule is read on screen by refresh_calendar (tap each
+# event bar → OCR popup) and stored in SQLite; nothing here is detected per-tick.
 overlay: []

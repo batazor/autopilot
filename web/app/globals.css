@@ -25,3 +25,8 @@
 @import "./styles/tabs-wiki.css";
 @import "./styles/trees.css";
 @import "./styles/theme-light.css";
+
+/* Calendar Gantt: tint the "today" column (SVAR highlightTime class). */
+.cal-gantt-today {
+  background: rgba(56, 189, 248, 0.12);
+}

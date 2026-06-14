@@ -1,0 +1,24 @@
+# Tab transition onto the Calendar tab.
+#
+# Calendar is always the FIRST tab of the Events panel. Unlike the other event
+# tabs (state_of_power, foundry_battle, …) it has no floating main_city icon —
+# you reach it by opening the panel on some event tab and then tapping the
+# Calendar tab (the blue `calendar.tab` capsule on the left). So the inbound
+# edge is a tab tap from an already-open event tab, not a main_city icon match.
+#
+# Source today: event.state_of_power (the tab observed when this was labeled),
+# which already routes from main_city — giving the path
+# main_city → event.state_of_power → event.calendar. Add the same
+# `[calendar.tab]` edge from any other always-present event tab to make calendar
+# reachable when State of Power isn't running.
+#
+# NEXT STEP (deferred): when the tab strip is scrolled so the first tab is off
+# screen, `calendar.tab` won't be at its labeled position. The planned fix is a
+# resolver that template-matches `calendar.tab` across the strip and swipes the
+# strip right→left until it appears (calendar is leftmost), then taps it.
+edges:
+  event.state_of_power:
+    event.calendar: [calendar.tab]
+
+  event.calendar:
+    main_city: [icon.page.back]

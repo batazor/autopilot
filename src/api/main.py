@@ -88,6 +88,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     alliances,
     balance,
     buildings,
+    calendar,
     click_approvals,
     config_reload,
     dev_bot,
@@ -172,6 +173,7 @@ app.include_router(routes.router)
 app.include_router(gift_codes.router)
 app.include_router(wiki.router)
 app.include_router(buildings.router)
+app.include_router(calendar.router)
 app.include_router(research.router)
 app.include_router(research.alliance_tech_router)
 app.include_router(click_approvals.router)
