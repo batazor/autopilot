@@ -184,6 +184,19 @@ def set_status(
         return True
 
 
+def set_fid(username: str, fid: str, *, game: str = _DEFAULT_GAME) -> bool:
+    """Set the in-game player id read after login. Returns True iff a row updated."""
+    uname = str(username or "").strip()
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(FarmAccountRow, (game, uname))
+        if row is None:
+            return False
+        row.fid = str(fid).strip() or None
+        s.add(row)
+        s.commit()
+        return True
+
+
 def bind_device(
     username: str, device_serial: str, *, game: str = _DEFAULT_GAME
 ) -> bool:

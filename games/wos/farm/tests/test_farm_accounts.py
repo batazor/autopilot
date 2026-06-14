@@ -43,6 +43,10 @@ def test_status_transitions_and_binding() -> None:
     assert reg.fid == "900123"
     assert reg.registered_at is not None
 
+    assert db.set_fid("farmreg", "900999") is True
+    assert db.get_account("farmreg").fid == "900999"
+    assert db.set_fid("missing", "1") is False
+
     assert db.bind_device("farmreg", "127.0.0.1:5555") is True
     bound = db.get_account("farmreg")
     assert bound.status == db.STATUS_BOUND

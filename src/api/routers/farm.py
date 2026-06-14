@@ -39,6 +39,23 @@ class DoneBody(BaseModel):
     outcome: str = "done"  # "done" | "failed"
 
 
+class GenerateBody(BaseModel):
+    count: int = 1
+    seed: str | None = None
+    server: str = "wos_beta"
+
+
+class FidBody(BaseModel):
+    fid: str
+
+
+class BindBody(BaseModel):
+    device_serial: str
+
+
+_MAX_GENERATE = 50
+
+
 @router.get("/registration/pending")
 def get_pending(
     client: Annotated[redis.Redis, Depends(get_redis)],
@@ -73,9 +90,62 @@ def list_accounts() -> dict[str, Any]:
                 "status": a.status,
                 "fid": a.fid,
                 "server": a.server,
+                "device_serial": a.device_serial,
                 "created_at": a.created_at,
                 "registered_at": a.registered_at,
             }
             for a in farm_accounts_db.list_accounts(game="wos")
         ]
     }
+
+
+@router.post("/generate")
+def post_generate(body: GenerateBody) -> dict[str, Any]:
+    _require_r5()
+    from games.wos.farm import generator
+
+    if body.count < 1 or body.count > _MAX_GENERATE:
+        raise HTTPException(
+            status_code=400, detail=f"count must be 1..{_MAX_GENERATE}"
+        )
+    created = generator.generate_and_store(
+        body.count, seed=body.seed, server=body.server.strip() or "wos_beta"
+    )
+    return {"created": [a.username for a in created]}
+
+
+@router.get("/accounts/{username}/secret")
+def get_secret(username: str) -> dict[str, Any]:
+    """Reveal a single account's password (owner-only, on demand — not in the list)."""
+    _require_r5()
+    acct = farm_accounts_db.get_account(username, game="wos")
+    if acct is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    return {"username": acct.username, "password": acct.password}
+
+
+@router.post("/accounts/{username}/fid")
+def post_fid(username: str, body: FidBody) -> dict[str, Any]:
+    _require_r5()
+    if not farm_accounts_db.set_fid(username, body.fid, game="wos"):
+        raise HTTPException(status_code=404, detail="account not found")
+    return {"ok": True}
+
+
+@router.post("/accounts/{username}/bind")
+def post_bind(username: str, body: BindBody) -> dict[str, Any]:
+    _require_r5()
+    serial = body.device_serial.strip()
+    if not serial:
+        raise HTTPException(status_code=400, detail="device_serial required")
+    if not farm_accounts_db.bind_device(username, serial, game="wos"):
+        raise HTTPException(status_code=404, detail="account not found")
+    return {"ok": True}
+
+
+@router.delete("/accounts/{username}")
+def delete_account(username: str) -> dict[str, Any]:
+    _require_r5()
+    if not farm_accounts_db.delete_account(username, game="wos"):
+        raise HTTPException(status_code=404, detail="account not found")
+    return {"ok": True}
