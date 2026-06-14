@@ -30,14 +30,27 @@ Resource-level labels on every series: `service.name=wos`,
    directly — no collector needed: <https://grafana.com/auth/sign-up/create-user>.
 2. **Open your stack** → *Connect data* → *OpenTelemetry* → *OTLP-HTTP*.
    Copy the endpoint URL and the pre-encoded `Authorization` header.
-3. **Drop the creds into the repo:**
-   ```sh
-   cp src/config/_telemetry_secrets.py.example src/config/_telemetry_secrets.py
-   $EDITOR src/config/_telemetry_secrets.py   # fill ENDPOINT + AUTH_HEADER
-   ```
-   The real file is gitignored. When the production Docker build runs Nuitka,
-   the two strings get absorbed into `config.so` and ship to users.
-4. **Build the production image:**
+3. **Provide the creds.** They live in `src/config/_telemetry_secrets.py`
+   (`ENDPOINT` + `AUTH_HEADER`). The file is **gitignored** — it must be present
+   in the *Docker build context* so `COPY src/` pulls it into the bot image
+   (Nuitka then compiles it into `config.so`). Two ways to get it there:
+
+   - **Official build (CI):** set repo secrets `TELEMETRY_OTLP_ENDPOINT` and
+     `TELEMETRY_OTLP_AUTH_HEADER` (Settings → Secrets and variables → Actions).
+     The `Bake telemetry secrets` step in `.github/workflows/docker.yml` writes
+     the file from them just before `docker build`. Unset → the image ships with
+     no telemetry.
+   - **Local build:**
+     ```sh
+     cp src/config/_telemetry_secrets.py.example src/config/_telemetry_secrets.py
+     $EDITOR src/config/_telemetry_secrets.py   # fill ENDPOINT + AUTH_HEADER
+     ```
+
+   > ⚠️ The file must **not** be added to `.dockerignore` — excluding it silently
+   > strips it from the build context, so nothing (metrics *or* logs) is ever
+   > baked or shipped.
+
+4. **Build the production image** (CI does this on release; locally:)
    ```sh
    DOCKER_BUILDKIT=1 docker build -f Dockerfile.bot -t autopilot:latest .
    ```
@@ -79,7 +92,13 @@ End users cannot opt out of telemetry in production builds:
   unconditionally by the baked values at process start (see
   `runtime_bootstrap._apply_baked_telemetry_secrets`).
 - `OTEL_SDK_DISABLED=true` — stripped from the env before the SDK reads it.
-- `OTEL_METRICS_EXPORTER=none` / `OTEL_TRACES_EXPORTER=none` — same treatment.
+- `OTEL_METRICS_EXPORTER=none` — stripped, so metrics always export.
+- **Logs** are forced on at `ERROR` only (`WOS_OTEL_LOG_LEVEL=ERROR`,
+  `OTEL_LOGS_EXPORTER` cleared): uncaught exceptions / crashes and `ERROR`-level
+  lines ship to Loki with stack traces. Requires the OTLP token to carry
+  `logs:write` scope (metrics-only tokens 401 on log export). `INFO`/`DEBUG`
+  never leave the machine.
+- `OTEL_TRACES_EXPORTER=none` — traces stay off (no per-span egress).
 
 For dev builds (public repo, no `_telemetry_secrets.py`) the function is a
 no-op, so contributors don't accidentally ship metrics during local work.

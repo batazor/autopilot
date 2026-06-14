@@ -78,6 +78,28 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
 
+      # Bake Grafana Cloud OTLP creds into the bot image so it ships metrics +
+      # ERROR logs from user machines (see grafana/README.md). The file is
+      # gitignored, so it never exists in the checkout — we write it from repo
+      # secrets just before the build. Only the ``bot`` image consumes it; if the
+      # secrets are unset (e.g. a fork), we skip and the build stays telemetry-free
+      # (runtime bootstrap no-ops without the file).
+      - name: Bake telemetry secrets
+        if: matrix.service.name == 'bot'
+        env:
+          ENDPOINT: ${{ secrets.TELEMETRY_OTLP_ENDPOINT }}
+          AUTH_HEADER: ${{ secrets.TELEMETRY_OTLP_AUTH_HEADER }}
+        run: |
+          if [ -z "$ENDPOINT" ]; then
+            echo "TELEMETRY_OTLP_ENDPOINT unset — building without baked telemetry."
+            exit 0
+          fi
+          {
+            echo "ENDPOINT = \"${ENDPOINT}\""
+            echo "AUTH_HEADER = \"${AUTH_HEADER}\""
+          } > src/config/_telemetry_secrets.py
+          echo "Wrote src/config/_telemetry_secrets.py ($(wc -l < src/config/_telemetry_secrets.py) lines)"
+
       - name: Build and push
         uses: docker/build-push-action@v7
         with:

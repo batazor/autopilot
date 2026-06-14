@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from config.crash_logging import install_crash_logging
 from config.env_loader import load_env_once
 from config.logging_otel import setup_otel_logging
 from config.logging_stdout import setup_stdout_logging
@@ -52,12 +53,16 @@ def _apply_baked_telemetry_secrets() -> None:
     # Metrics is the signal that carries our user-facing telemetry — make
     # absolutely sure the user can't disable it via the per-signal opt-out.
     os.environ.pop("OTEL_METRICS_EXPORTER", None)
-    # Logs and traces are *forced off* — the maintainer's metrics-only
-    # access policy doesn't carry ``logs:write`` or ``traces:write`` scope,
-    # so attempting export just spams 401s. Set the per-signal disable
-    # explicitly so the SDK skips them at the source instead of hammering
-    # the OTLP endpoint every batch.
-    os.environ["OTEL_LOGS_EXPORTER"] = "none"
+    # Logs are *forced on*, at ERROR only: ship uncaught exceptions / crashes and
+    # ERROR-level lines (with stack traces) to Loki so the maintainer can debug
+    # field failures. Clearing any user-set ``OTEL_LOGS_EXPORTER`` lets the SDK
+    # default (otlp) apply, and pinning the level keeps volume bounded and stops
+    # a user from flooding the backend with DEBUG. Requires the baked Grafana
+    # Cloud token to carry ``logs:write`` scope.
+    os.environ.pop("OTEL_LOGS_EXPORTER", None)
+    os.environ["WOS_OTEL_LOG_LEVEL"] = "ERROR"
+    # Traces stay off — the metrics-only policy doesn't carry ``traces:write``,
+    # and we don't ship per-span data from user machines.
     os.environ["OTEL_TRACES_EXPORTER"] = "none"
 
 
@@ -74,6 +79,8 @@ def bootstrap_runtime_observability(
     _apply_baked_telemetry_secrets()
     setup_tracing(component, instance_id=instance_id)
     setup_otel_logging(component, instance_id=instance_id)
+    # Ship uncaught exceptions / crashes through logging so they reach Loki too.
+    install_crash_logging()
     # The user-facing telemetry gauges live in the MeterProvider that
     # ``setup_tracing`` just installed (or didn't, in which case they
     # silently no-op).

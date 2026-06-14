@@ -59,7 +59,10 @@ npmrc
 pip.conf
 auth.json
 .secrets/
-src/config/_telemetry_secrets.py
+# NOTE: src/config/_telemetry_secrets.py is deliberately NOT ignored here — it
+# must reach the build context so the bot image bakes the OTLP creds (gitignored
+# in source, written from a GitHub secret in CI; see .github/workflows/docker.yml
+# and grafana/README.md). Excluding it silently disables ALL telemetry.
 *.key
 *.p12
 *.pfx
