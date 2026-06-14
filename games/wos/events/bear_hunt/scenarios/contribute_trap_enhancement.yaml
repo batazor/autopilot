@@ -3,11 +3,9 @@
 # Triggered two ways: the analyzer pushes this when the Trap Enhancement icon
 # shows a red dot on the info page (bear_hunt.trap_enhancement.red_dot), and a
 # 12h cron sweeps in to top up regardless. The exec opens the popup and, for
-# each non-maxed trap tab (progress bar reads "X/300", not "MAX"), taps
-# Contribute, types the arrow amount via the keyboard, and commits.
+# each non-maxed trap (level < Lv. 5), taps Contribute, drags the slider fully
+# right (all available arrows), and commits. Both maxed → one trap for the rewards.
 #
-# amount: 10 keeps test runs cheap (enough arrows for several passes). Switch to
-# `amount: max` once the flow is trusted to contribute everything available.
 name: "Bear Hunt: Trap Enhancement"
 enabled: true
 cron: "0 */12 * * *"
@@ -16,4 +14,3 @@ steps:
   - match: bear_hunt.info.title
     steps:
       - exec: contribute_trap_enhancement
-        amount: 10

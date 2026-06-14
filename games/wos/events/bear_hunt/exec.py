@@ -136,27 +136,17 @@ async def _exec_read_bear_hunt_cooldowns(ctx: DslExecContext) -> None:
     logger.info("bear_hunt: alliance=%s wrote %d trap(s) ready=%s", alliance, written, any_ready)
 
 
-def _resolve_amount(raw: object) -> int:
-    """Arrow count to contribute (default 10 for safe test runs)."""
-    try:
-        amount = int(raw)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return 10
-    return amount if amount > 0 else 10
-
-
 async def _exec_contribute_trap_enhancement(ctx: DslExecContext) -> None:
-    """Contribute arrows into each non-maxed Trap Enhancement tab.
+    """Contribute all available arrows into each non-maxed Trap Enhancement tab.
 
     Runs on ``event.bear_hunt.info``. Reads each trap's level off the info page,
-    remembers it per alliance (``bear_hunt_traps.level``), then contributes into
-    every non-maxed trap — or into one if both are maxed (to still earn the
-    contribution rewards). Arg ``amount`` (int) defaults to 10 for safe test runs.
-    Per-player action (arrows are personal), so no alliance lock.
+    remembers it per alliance (``bear_hunt_traps.level``), then pours all arrows
+    (slider to max) into every non-maxed trap — or into one if both are maxed (to
+    still earn the contribution rewards). Per-player action (arrows are personal),
+    so no alliance lock.
     """
     from tasks import dsl_runtime
 
-    amount = _resolve_amount((ctx.args or {}).get("amount", 10))
     alliance = await _resolve_alliance(ctx)  # for remembering levels (no lock)
     actions = dsl_runtime.bot_actions()
     ocr = dsl_runtime.ocr_client()
@@ -177,7 +167,7 @@ async def _exec_contribute_trap_enhancement(ctx: DslExecContext) -> None:
     maxed = {tid: is_maxed(level) for tid, (_cd, level) in info.items()}
     targets = select_targets(maxed)
     try:
-        results = await contribute_traps(actions, ctx.instance_id, amount, targets)
+        results = await contribute_traps(actions, ctx.instance_id, targets)
     except Exception:
         logger.exception("bear_hunt contribute failed instance=%s", ctx.instance_id)
         ctx.result.update({"action": "failed"})
@@ -186,7 +176,6 @@ async def _exec_contribute_trap_enhancement(ctx: DslExecContext) -> None:
     ctx.result.update(
         {
             "action": "contributed",
-            "amount": amount,
             "alliance": alliance,
             "levels": levels,
             "targets": targets,
@@ -194,8 +183,8 @@ async def _exec_contribute_trap_enhancement(ctx: DslExecContext) -> None:
         }
     )
     logger.info(
-        "bear_hunt contribute: instance=%s amount=%s levels=%s targets=%s",
-        ctx.instance_id, amount, levels, targets,
+        "bear_hunt contribute: instance=%s levels=%s targets=%s",
+        ctx.instance_id, levels, targets,
     )
 
 

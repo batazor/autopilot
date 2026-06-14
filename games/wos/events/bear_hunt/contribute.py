@@ -6,8 +6,8 @@ either trap can still be levelled. We decide which traps to feed by their
 trap at :data:`~.parser.MAX_LEVEL` is maxed and skipped; below it still has room.
 The alliance progress bar (``X/300``) is irrelevant — only the level matters.
 
-For each chosen tab we open the popup, tap **Contribute**, type the arrow count
-into the amount field (keyboard — exact and predictable), confirm, and commit.
+For each chosen tab we open the popup, tap **Contribute**, drag the amount slider
+fully right (= all available arrows), confirm, and commit.
 
 All on-screen geometry is fixed (static layout), so coordinates live here as
 constants. ``actions`` is injected like the cooldown reader, keeping
@@ -33,10 +33,11 @@ ICON_TAP = (645, 1180)
 POPUP_TAB_TAPS: dict[str, tuple[int, int]] = {"1": (210, 400), "2": (510, 400)}
 # Popup "Contribute" pill (opens the amount window).
 POPUP_CONTRIBUTE = (360, 940)
-# Amount window: numeric field (opens the IME), IME "OK", and the commit button.
-QTY_FIELD = (579, 702)
-QTY_OK = (660, 1210)
+# Amount window: the commit button + slider drag endpoints. Dragging the handle
+# fully right sets the amount to all available arrows.
 QTY_CONTRIBUTE = (360, 830)
+SLIDER_FROM = (200, 702)
+SLIDER_TO = (458, 702)
 # Popup close (X).
 POPUP_CLOSE = (660, 318)
 
@@ -73,28 +74,25 @@ async def _tap(actions: Any, iid: str, point: tuple[int, int], region: str) -> N
     )
 
 
-async def _set_amount(actions: Any, iid: str, amount: int) -> None:
-    """Open the amount field, clear it, and type ``amount`` via the keyboard."""
-    await _tap(actions, iid, QTY_FIELD, "bear_hunt.te.amount_field")
-    await asyncio.sleep(SETTLE_MS / 1000.0)
-    # Cursor to end, then clear up to 6 digits, then type the new value.
-    await asyncio.to_thread(actions.press_key, iid, "KEYCODE_MOVE_END")
-    for _ in range(6):
-        await asyncio.to_thread(actions.press_key, iid, "KEYCODE_DEL")
-    await asyncio.to_thread(actions.type_text, iid, str(amount))
-    await _tap(actions, iid, QTY_OK, "bear_hunt.te.amount_ok")
+async def _set_max(actions: Any, iid: str) -> None:
+    """Drag the amount slider fully right → all available arrows."""
+    from layout.types import Point
+
+    await asyncio.to_thread(
+        actions.swipe, iid, Point(*SLIDER_FROM), Point(*SLIDER_TO), 400
+    )
     await asyncio.sleep(SETTLE_MS / 1000.0)
 
 
 async def contribute_traps(
     actions: Any,
     instance_id: str,
-    amount: int,
     targets: Iterable[str],
     *,
     settle_ms: int = SETTLE_MS,
 ) -> dict[str, str]:
-    """Open the popup and contribute ``amount`` into each trap in ``targets``.
+    """Open the popup and contribute **all available** arrows into each trap in
+    ``targets`` (slider to max).
 
     ``targets`` is decided by the caller from per-trap levels (see
     :func:`select_targets`). Returns ``{trap_id: outcome}``; leaves the popup closed.
@@ -112,10 +110,10 @@ async def contribute_traps(
         await asyncio.sleep(settle_ms / 1000.0)
         await _tap(actions, instance_id, POPUP_CONTRIBUTE, "bear_hunt.te.contribute")
         await asyncio.sleep(settle_ms / 1000.0)
-        await _set_amount(actions, instance_id, amount)
+        await _set_max(actions, instance_id)
         await _tap(actions, instance_id, QTY_CONTRIBUTE, "bear_hunt.te.commit")
         await asyncio.sleep(settle_ms / 1000.0)
-        results[trap_id] = f"contributed_{amount}"
+        results[trap_id] = "contributed_max"
 
     await _tap(actions, instance_id, POPUP_CLOSE, "bear_hunt.te.close")
     await asyncio.sleep(settle_ms / 1000.0)
