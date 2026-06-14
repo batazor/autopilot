@@ -1,31 +1,39 @@
 # Gather the scarcest resource on the world map.
 #
-# Policy (agreed): send marches to the resource with the LOWEST stockpile;
-# dispatch up to GATHER_BUDGET marches, never filling the last queue slot past
-# capacity. Re-runs on cron and tops up as marches return.
+# Policy: send marches to the resource with the LOWEST stockpile; dispatch up to
+# GATHER_BUDGET marches, never past queue capacity. Re-runs on cron and tops up
+# as marches return.
 #
 # enabled: false until the regions below are labelled via the Labeling UI and
-# the flow is verified on a device. Then flip to true.
+# the flow is verified on a device. Then flip module.yaml + this to enabled.
 #
-# REUSED (already labelled):
-#   - node main_world ........... navigate to the world map
-#   - marches.active_count / marches.capacity ... march-queue state, populated by
-#       the `sync_marching_status` scenario (core/main_menu) — pushed below
-#   - squad_settings.quick_deploy ... auto-fill troops on the deploy screen
-#   - icon.page.back ............ universal back button
+# FLOW (captured on device 2026-06-14, com.gof.global / 720x1280):
+#   1. World map → tap the SEARCH magnifier — the 3rd round button on the left
+#      edge (missions / global-map / search), ~ (52,857). NOT the coordinate
+#      magnifier by the X/Y readout.
+#   2. Search panel: a scrollable tab row — Beasts | Polar Terror | Meat | Wood |
+#      Coal | Iron. Meat ~x405, Wood ~x552 are on-screen; Coal/Iron need a LEFT
+#      swipe on the tab row. Level slider underneath (leave default). Blue
+#      "Search" button ~ (290,1180).
+#   3. Search auto-centres a tile and opens its popup with a green "Gather"
+#      button ~ (290,618) — no separate tile tap needed.
+#   4. Deploy screen ("<Resource>") with troop selectors + "Deploy" (bottom-right,
+#      ~(290,1235)); "Balance" auto-distributes troops.
 #
-# TO LABEL (new gathering regions — name them exactly like this):
-#   - gathering.rss.meat / .wood / .coal / .iron .. top-bar amount OCR (string)
-#   - gathering.search.open ..... the fixed magnifier button on the world map
-#   - gathering.search.meat / .wood / .coal / .iron .. resource tabs in the panel
-#   - gathering.search.level.max .. optional "max level" button (skip if none)
-#   - gathering.search.go ....... the "Search" button (flies the map to a tile)
-#   - gathering.tile.center ..... tap target for the located tile
-#   - gathering.tile.gather ..... the "Gather" button on the tile popup
-#   - gathering.deploy .......... the final Deploy/March button (may equal
-#                                 squad_settings.fight — confirm during labelling)
+# REUSED (already labelled): node main_world, marches.active_count /
+#   marches.capacity (sync_marching_status), icon.page.back.
 #
-# DEPENDS ON exec: gather_pick_scarcest (games/wos/core/gathering/exec.py)
+# TO LABEL (new — exact names):
+#   gathering.rss.meat/.wood/.coal/.iron  top-bar amount OCR (string)
+#   gathering.search.open                 the search magnifier (3rd round button)
+#   gathering.search.tabrow               tab strip (swipe anchor for coal/iron)
+#   gathering.search.meat/.wood/.coal/.iron   resource tabs
+#   gathering.search.go                   blue "Search" button
+#   gathering.tile.gather                 green "Gather" on the tile popup
+#   gathering.deploy.balance              "Balance" auto-fill (optional)
+#   gathering.deploy                      final "Deploy" button
+#
+# DEPENDS ON exec: gather_pick_scarcest (../exec.py)
 
 name: "Gather — scarcest resource"
 enabled: false
@@ -36,12 +44,11 @@ steps:
   # Refresh march-queue state (marches.active_count / marches.capacity).
   - push_scenario: sync_marching_status
 
-  # Fill up to GATHER_BUDGET marches; stop early when the queue is full.
+  # Fill up to GATHER_BUDGET marches; stop when the queue is full.
   # GATHER_BUDGET — config knob: edit this `max:`.
   - loop:
       max: 4
       steps:
-        # No free slot → done for now.
         - cond: "marches.active_count >= marches.capacity"
           steps:
             - break: loop
@@ -59,9 +66,12 @@ steps:
         # Parse amounts (K/M/B) and write the scarcest to gathering.target.
         - exec: gather_pick_scarcest
 
-        # Open the search panel and select the scarcest resource tab.
+        # Open the search panel.
         - click: gathering.search.open
         - wait: 800ms
+
+        # Select the scarcest resource tab. Coal/Iron sit off-screen right, so
+        # swipe the tab row left first.
         - cond: "gathering.target == meat"
           steps:
             - click: gathering.search.meat
@@ -70,32 +80,35 @@ steps:
             - click: gathering.search.wood
         - cond: "gathering.target == coal"
           steps:
+            - swipe_direction:
+                direction: left
+                region: gathering.search.tabrow
+                delta: 240
+            - wait: 300ms
             - click: gathering.search.coal
         - cond: "gathering.target == iron"
           steps:
+            - swipe_direction:
+                direction: left
+                region: gathering.search.tabrow
+                delta: 360
+            - wait: 300ms
             - click: gathering.search.iron
         - wait: 400ms
 
-        # Max the tile level if the button exists, then Search.
-        - match: gathering.search.level.max
-          steps:
-            - click: gathering.search.level.max
-            - wait: 200ms
+        # Search — flies to a tile and opens its Gather popup.
         - click: gathering.search.go
         - wait: 1.5s
 
-        # Tap the located tile and open its Gather action.
-        - click: gathering.tile.center
-        - wait: 600ms
         - match: gathering.tile.gather
           steps:
             - click: gathering.tile.gather
             - wait: 1s
 
-            # Deploy screen — auto-fill troops, then march out.
-            - match: squad_settings.quick_deploy
+            # Deploy screen — Balance auto-fills troops, then march out.
+            - match: gathering.deploy.balance
               steps:
-                - click: squad_settings.quick_deploy
+                - click: gathering.deploy.balance
                 - wait: 300ms
             - click: gathering.deploy
             - wait: 1.2s
@@ -103,6 +116,6 @@ steps:
             # Re-read the queue so the next iteration's gate is accurate.
             - push_scenario: sync_marching_status
           else:
-            # Tile popup had no Gather (occupied / blocked) — back out and stop.
+            # No Gather (tile occupied / search empty) — back out and stop.
             - system_back: true
             - break: loop
