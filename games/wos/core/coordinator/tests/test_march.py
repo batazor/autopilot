@@ -6,7 +6,7 @@ batch (via ``from_intel_plan``) and economy gather targets through
 """
 from __future__ import annotations
 
-from games.wos.core.coordinator import MARCH, plan_march
+from games.wos.core.coordinator import MARCH, intel_intent, plan_march
 from games.wos.intel.planner import IntelEvent, plan_next
 
 
@@ -80,3 +80,37 @@ def test_no_idle_slots_commits_nothing():
     )
     assert decision.commits == ()
     assert any(c.domain == "intel" for c in decision.no_channel)
+
+
+# --- intel_intent: the blind "intel wants a slot" candidate ------------------
+
+
+def test_intel_intent_emits_march_candidate_when_affordable():
+    c = intel_intent(stamina=100, seconds_since_last_run=None, cost=10)
+    assert c is not None
+    assert c.domain == "intel"
+    assert c.channel_kind == MARCH
+    assert c.cost == {"stamina": 10}
+
+
+def test_intel_intent_none_without_stamina():
+    assert intel_intent(stamina=None, seconds_since_last_run=None) is None
+
+
+def test_intel_intent_none_below_cost():
+    assert intel_intent(stamina=5, seconds_since_last_run=None, cost=10) is None
+
+
+def test_intel_intent_reserve_blocks_then_clears():
+    # 56 stamina, 50 reserved for Joe → 6 spendable < 10.
+    assert intel_intent(stamina=56, seconds_since_last_run=None, cost=10, reserve=50) is None
+    assert intel_intent(stamina=56, seconds_since_last_run=None, cost=10, reserve=0) is not None
+
+
+def test_intel_intent_cooldown_blocks_then_clears():
+    assert intel_intent(
+        stamina=100, seconds_since_last_run=100, cost=10, cooldown_s=900
+    ) is None
+    assert intel_intent(
+        stamina=100, seconds_since_last_run=1000, cost=10, cooldown_s=900
+    ) is not None

@@ -17,23 +17,35 @@ double-dispatch today; the coordinator is the intended owner of MARCH dispatch.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from .march import intel_intent, plan_march
 from .model import MARCH
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from games.wos.core.roles import RoleProfile
+    from redis.asyncio import Redis
+
     from scheduler.queue import RedisQueue
 
     from .model import CoordinatorDecision
+
+logger = logging.getLogger(__name__)
 
 # Ordinary queue tasks sit at this absolute priority (see
 # ``stamina.adapter.DEFAULT_PRIORITY``); a MARCH winner is lifted to
 # ``BASE + cross-domain priority`` so it ranks above background work while the
 # relative order between MARCH domains (intel > gather) is preserved.
 DISPATCH_PRIORITY_BASE = 80_000
+
+# Min gap between blind intel dispatches. The board refreshes on a (multi-hour)
+# timer, so re-running right after a clear just burns a navigation. Placeholder —
+# tune to the real refresh cadence once known.
+INTEL_RUN_COOLDOWN_S = 900.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,3 +130,109 @@ async def dispatch_march(
         else:
             skipped.append(MarchSkip(action.domain, action.key, "duplicate"))
     return MarchDispatch(enqueued=tuple(enqueued), skipped=tuple(skipped))
+
+
+def _decode(raw: Any) -> str:
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace")
+    return "" if raw is None else str(raw)
+
+
+def _to_float(text: str) -> float | None:
+    if text in ("", None):
+        return None
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _read_player_state(redis: Redis, player_id: str) -> dict[str, str]:
+    try:
+        raw = await redis.hgetall(f"wos:player:{player_id}:state")
+    except Exception:
+        logger.debug("march tick: state read failed player=%s", player_id, exc_info=True)
+        return {}
+    return {_decode(k): _decode(v) for k, v in (raw or {}).items()}
+
+
+def _intel_reserve(state: Mapping[str, str]) -> int:
+    """Calendar-driven event reserve for intel (same rule the tap handler uses)."""
+    try:
+        from games.wos.core.stamina.adapter import load_budget
+        from games.wos.core.stamina.model import reserve_for
+
+        return reserve_for(load_budget(), "intel_events", dict(state))
+    except Exception:
+        logger.debug("march tick: reserve derivation failed", exc_info=True)
+        return 0
+
+
+async def _seconds_since_last_intel(
+    queue: RedisQueue, *, instance_id: str, player_id: str, now: float
+) -> float | None:
+    try:
+        last = await queue.last_run_at(
+            instance_id=instance_id, task_type="intel_run", player_id=player_id
+        )
+    except Exception:
+        logger.debug("march tick: last_run_at read failed", exc_info=True)
+        return None
+    return (now - float(last)) if last is not None else None
+
+
+async def run_march_tick(
+    *,
+    queue: RedisQueue,
+    redis: Redis,
+    instance_id: str,
+    player_id: str,
+    now: float,
+    idle_slots: int,
+    resource_balances: Mapping[str, int] | None = None,
+    role: RoleProfile | None = None,
+    cooldown_s: float = INTEL_RUN_COOLDOWN_S,
+    boosts: Mapping[str, float] | None = None,
+) -> MarchDispatch:
+    """Dispatch-blind MARCH tick: decide + queue without reading the intel board.
+
+    Reads the player's stamina estimate + the calendar-driven event reserve, gates
+    intel on stamina + the board-refresh cooldown, then routes the blind intent
+    through :func:`plan_march` (so it still contends with gather on the channel)
+    and dispatches the winners. ``idle_slots`` and ``resource_balances`` are
+    injected — the caller's live readers (the march-lease slot ledger and resource
+    OCR); with no resource balances, gather simply doesn't compete yet.
+
+    Returns the dispatch trace. No-op (empty dispatch) when stamina is unknown,
+    the reserve eats the budget, or the cooldown hasn't elapsed.
+    """
+    state = await _read_player_state(redis, player_id)
+    stamina = _to_float(state.get("stamina", ""))
+    reserve = _intel_reserve(state)
+    secs_since = await _seconds_since_last_intel(
+        queue, instance_id=instance_id, player_id=player_id, now=now
+    )
+
+    intent = intel_intent(
+        stamina=stamina,
+        seconds_since_last_run=secs_since,
+        reserve=reserve,
+        cooldown_s=cooldown_s,
+        role=role,
+        boost=(boosts or {}).get("intel", 1.0),
+    )
+    balances: dict[str, int] = {"stamina": int(stamina or 0), **(resource_balances or {})}
+    decision = plan_march(
+        idle_slots=idle_slots,
+        balances=balances,
+        role=role,
+        boosts=boosts,
+        extra_candidates=(intent,) if intent else (),
+    )
+    return await dispatch_march(
+        decision,
+        queue=queue,
+        instance_id=instance_id,
+        player_id=player_id,
+        now=now,
+    )

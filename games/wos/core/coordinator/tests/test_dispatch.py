@@ -9,19 +9,36 @@ from games.wos.core.coordinator.dispatch import (
     DISPATCH_PRIORITY_BASE,
     MarchScenario,
     dispatch_march,
+    run_march_tick,
 )
 
 
 class _FakeQueue:
     """Captures schedule() calls; returns per-task_type enqueue results."""
 
-    def __init__(self, results: dict[str, bool] | None = None) -> None:
+    def __init__(
+        self,
+        results: dict[str, bool] | None = None,
+        last_run: float | None = None,
+    ) -> None:
         self.calls: list[dict[str, Any]] = []
         self._results = results or {}
+        self._last_run = last_run
 
     async def schedule(self, **kwargs: Any) -> bool:
         self.calls.append(kwargs)
         return self._results.get(kwargs.get("task_type"), True)
+
+    async def last_run_at(self, *, instance_id: str, task_type: str, player_id: str) -> float | None:
+        return self._last_run
+
+
+class _FakeRedis:
+    def __init__(self, state: dict[str, str] | None = None) -> None:
+        self._state = state or {}
+
+    async def hgetall(self, key: str) -> dict[str, str]:
+        return dict(self._state)
 
 
 def _march_action(domain: str, *, priority: float, cost: dict[str, int] | None = None):
@@ -120,3 +137,75 @@ async def test_custom_registry_dispatches_gather():
     assert queue.calls[0]["task_type"] == "gather_run"
     assert queue.calls[0]["priority"] == DISPATCH_PRIORITY_BASE + 720
     assert [e.task_type for e in result.enqueued] == ["gather_run"]
+
+
+# --- run_march_tick: the dispatch-blind orchestration ------------------------
+
+
+@pytest.mark.asyncio
+async def test_tick_dispatches_intel_when_stamina_and_cooldown_ok():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis({"stamina": "100"})
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert [e.task_type for e in result.enqueued] == ["intel_run"]
+    assert queue.calls[0]["task_type"] == "intel_run"
+
+
+@pytest.mark.asyncio
+async def test_tick_skips_during_cooldown():
+    queue = _FakeQueue(last_run=9_900.0)  # 100s ago, under the 900s cooldown
+    redis = _FakeRedis({"stamina": "100"})
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert result.enqueued == ()
+    assert queue.calls == []
+
+
+@pytest.mark.asyncio
+async def test_tick_skips_without_stamina_reading():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis({})  # no stamina yet → don't act blind
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert result.enqueued == ()
+    assert queue.calls == []
+
+
+@pytest.mark.asyncio
+async def test_tick_holds_during_joe_reserve():
+    # Calendar says Joe is live → reserve 50; 56 − 50 = 6 < 10 → no intel dispatch.
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis({"stamina": "56", "joe_event_active": "1"})
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert result.enqueued == ()
+
+
+@pytest.mark.asyncio
+async def test_tick_no_idle_slots_dispatches_nothing():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis({"stamina": "100"})
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=0,
+    )
+
+    assert result.enqueued == ()

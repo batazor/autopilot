@@ -23,7 +23,8 @@ from typing import TYPE_CHECKING
 from .adapters import from_intel_plan
 from .coordinator import coordinate
 from .economy import economy_bias, gather_candidates
-from .model import MARCH, Channel
+from .model import MARCH, CandidateAction, Channel
+from .objective import domain_priority
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -31,12 +32,53 @@ if TYPE_CHECKING:
     from games.wos.core.roles import RoleProfile
     from games.wos.intel.planner import IntelPlan
 
-    from .model import CandidateAction, CoordinatorDecision
+    from .model import CoordinatorDecision
+
+# Stamina one intel marker costs — mirrors intel.planner.DEFAULT_COST_PER_EVENT
+# and budget.yaml's intel_events demand. Kept local so this pure module doesn't
+# import the intel package; callers that know the live value pass ``cost=``.
+_INTEL_MARKER_COST = 10
 
 
 def march_channels(idle_slots: int) -> list[Channel]:
     """``idle_slots`` free MARCH lanes with stable ids (``march_1`` …)."""
     return [Channel(id=f"march_{i + 1}", kind=MARCH) for i in range(max(0, int(idle_slots)))]
+
+
+def intel_intent(
+    *,
+    stamina: float | None,
+    seconds_since_last_run: float | None,
+    cost: int = _INTEL_MARKER_COST,
+    reserve: int = 0,
+    cooldown_s: float = 0.0,
+    role: RoleProfile | None = None,
+    boost: float = 1.0,
+) -> CandidateAction | None:
+    """A "blind" intel MARCH candidate — intel wants a slot, board unread.
+
+    Dispatch-blind: we don't read the markers here. ``intel_run`` reads them live
+    when it runs and the tap-gate (``select_planned_marker``) declines per-marker,
+    so this only gates on cheap signals — at least one marker's stamina is
+    affordable after the (calendar-driven) event reserve, and the board-refresh
+    cooldown has elapsed since the last run. Returns ``None`` to skip intel this
+    tick. The caller feeds the result to :func:`plan_march` as an extra candidate
+    so intel still contends with gather on the channel.
+    """
+    if stamina is None:
+        return None
+    if seconds_since_last_run is not None and seconds_since_last_run < cooldown_s:
+        return None
+    if (stamina - max(0, int(reserve))) < cost:
+        return None
+    return CandidateAction(
+        domain="intel",
+        channel_kind=MARCH,
+        key="intel:run",
+        priority=domain_priority("intel", role, boost=boost),
+        cost={"stamina": int(cost)},
+        detail="intel run (blind)",
+    )
 
 
 def plan_march(

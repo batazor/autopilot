@@ -46,7 +46,7 @@ from .feedback import (
     record_many,
     tuning,
 )
-from .march import march_channels, plan_march
+from .march import intel_intent, march_channels, plan_march
 from .model import (
     CONSTRUCTION,
     HERO,
@@ -127,6 +127,7 @@ __all__ = [
     "from_pet_plan",
     "from_research_plan",
     "gather_candidates",
+    "intel_intent",
     "march_channels",
     "merge_boosts",
     "plan_march",
