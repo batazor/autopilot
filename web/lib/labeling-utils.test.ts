@@ -28,8 +28,8 @@ const TEMPORAL = "games/wos/events/fishing_tournament/references/temporal/bs1_sh
 describe("inferScopeFromRef", () => {
   it("infers game-prefixed scopes from module reference paths", () => {
     expect(
-      inferScopeFromRef("games/wos/core/who_i_am/references/chief_profile.png"),
-    ).toBe("wos:core/who_i_am");
+      inferScopeFromRef("games/wos/core/chief_profile/references/chief_profile.png"),
+    ).toBe("wos:core/chief_profile");
     expect(
       inferScopeFromRef("games/wos/deals/deals/references/main_city.png"),
     ).toBe("wos:deals/deals");

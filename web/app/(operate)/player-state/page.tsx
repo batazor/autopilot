@@ -37,7 +37,7 @@ import type {
 const COLLAPSE_BUILDINGS_ABOVE = 18;
 const COLLAPSE_HEROES_ABOVE = 10;
 const AVATAR_IDENTITY_HELP =
-  "Avatar identity works best when each account on this device uses a different in-game avatar. Shared avatars fall back to who_i_am.";
+  "Avatar identity works best when each account on this device uses a different in-game avatar. Shared avatars fall back to the chief-profile identity probe.";
 
 function filterHeroRows<T extends HeroStateRow | HeroMissingRow>(
   rows: T[],

@@ -895,7 +895,7 @@ async def test_exec_fetch_player_role_not_exist_clears_active_player(
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CHIEF_PROFILE_REF = (
-    _REPO_ROOT / "games/wos/core/who_i_am/references/chief_profile.png"
+    _REPO_ROOT / "games/wos/core/chief_profile/references/chief_profile.png"
 )
 # Real in-game player_id printed on the labelled chief_profile reference image.
 _REFERENCE_PLAYER_ID = "765502864"

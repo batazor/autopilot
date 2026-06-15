@@ -1,4 +1,4 @@
-"""Identity bootstrap scenarios live under modules/core/who_i_am."""
+"""Identity bootstrap scenarios live under games/wos/core/chief_profile."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ REPO = Path(__file__).resolve().parents[2]
 def test_identity_scenarios_resolve_from_modules() -> None:
     who = resolve(REPO, "who_i_am")
     assert who is not None
-    assert "games/wos/core/who_i_am/scenarios" in str(who.path)
+    assert "games/wos/core/chief_profile/scenarios" in str(who.path)
 
 
 def test_identity_scenarios_not_under_core_onboarding() -> None:
@@ -29,7 +29,7 @@ def test_identity_scenarios_not_under_core_onboarding() -> None:
 
 def test_scenario_roots_include_identity_modules() -> None:
     labels = {r.label for r in scenario_roots(REPO)}
-    assert "games/wos/core/who_i_am/scenarios" in labels
+    assert "games/wos/core/chief_profile/scenarios" in labels
 
 
 def test_who_i_am_resolves_player_id_before_player_state_writes() -> None:

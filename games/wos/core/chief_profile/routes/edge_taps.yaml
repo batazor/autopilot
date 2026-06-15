@@ -1,1 +1,6 @@
-../../who_i_am/routes/edge_taps.yaml
+edges:
+  main_city:
+    chief_profile: [to_chief_profile]
+
+  chief_profile:
+    main_city: [icon.page.back]

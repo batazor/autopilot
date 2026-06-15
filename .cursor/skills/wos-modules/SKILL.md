@@ -20,7 +20,7 @@ lives in `modules/core/*`; feature automation lives in top-level `modules/*`.
 
 | Location | Role | Examples |
 |----------|------|----------|
-| `modules/core/<id>/` | Base game: overlay pages, identity/bootstrap | `pop-up`, `main_page`, `building`, `who_i_am` |
+| `modules/core/<id>/` | Base game: overlay pages, identity/bootstrap | `pop-up`, `main_page`, `building`, `chief_profile` |
 | `modules/<id>/` | Feature automation | `mail`, `vip`, `backpack`, `trials`, `gift_codes` (``exploration`` lives under ``modules/core/exploration/``) |
 
 Discovery order (deterministic): **all `modules/core/*` first** (sorted by dir
