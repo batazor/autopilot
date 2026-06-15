@@ -152,6 +152,18 @@ def post_reset_current_screen(
     return {"ok": True}
 
 
+@router.post("/instances/{instance_id}/reset-active-player")
+def post_reset_active_player(
+    instance_id: str,
+    client: RedisDep,
+) -> dict[str, bool]:
+    """Clear the active-player binding so the identity probe re-detects the gamer id."""
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    store.reset_active_player(client, instance_id)
+    return {"ok": True}
+
+
 @router.get("/instances/{instance_id}/notifications")
 def get_instance_notifications(
     instance_id: str,

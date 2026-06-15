@@ -241,6 +241,22 @@ def reset_current_screen(client: Any, instance_id: str) -> None:
     client.hdel(key, "dreamscape_memory.solve_state")
 
 
+def reset_active_player(client: Any, instance_id: str) -> None:
+    """Clear the active-player binding so the identity probe re-detects it.
+
+    Drops ``active_player`` / ``active_player_at`` from the Redis state hash and
+    the device's persisted ``last_active_player`` — same teardown ``fetch_player``
+    does when it finds an invalid binding, but operator-triggered from the
+    approvals card next to the player id.
+    """
+    from config.devices import clear_last_active_player
+
+    key = f"wos:instance:{instance_id}:state"
+    client.hdel(key, "active_player", "active_player_at")
+    with suppress(Exception):
+        clear_last_active_player(instance_id)
+
+
 def _screenshot_backend_for_instance(instance_id: str) -> tuple[str, str]:
     for inst in load_settings().instances:
         if inst.instance_id != instance_id:

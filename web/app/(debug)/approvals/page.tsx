@@ -27,6 +27,7 @@ import {
   fetchModules,
   fetchNotifications,
   overlayTestImageUrl,
+  resetActivePlayer,
   resetCurrentScreen,
   setApprovalEnabled,
   setInstanceTestModule,
@@ -53,7 +54,7 @@ type Decision = "approve" | "reject" | "skip";
 // (operators routinely change their mind between approve/reject before the
 // previous request returns, and the old "global busy flag" pattern made
 // that impossible).
-type BusyAction = Decision | "toggle" | "clear-pending" | "clear-queue" | "reset-screen" | "test-module" | null;
+type BusyAction = Decision | "toggle" | "clear-pending" | "clear-queue" | "reset-screen" | "reset-player" | "test-module" | null;
 
 type ImageSource = "capture" | "live";
 
@@ -429,6 +430,19 @@ export default function ApprovalsPage() {
     }
   };
 
+  const onResetPlayer = async () => {
+    if (!instanceId || busyAction !== null) return;
+    setBusyAction("reset-player");
+    try {
+      await resetActivePlayer(instanceId);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const onClearQueue = async () => {
     if (busyAction !== null) return;
     setBusyAction("clear-queue");
@@ -598,6 +612,15 @@ export default function ApprovalsPage() {
         <span className="status-fact">
           <span className="status-fact__label">Player</span>
           <code>{inGameId || activePlayer || "—"}</code>
+          <button
+            type="button"
+            className="status-fact__reset"
+            onClick={onResetPlayer}
+            disabled={!instanceId || busyAction !== null}
+            title="Clear the active-player binding so the identity probe re-detects the gamer id"
+          >
+            {busyAction === "reset-player" ? "Resetting…" : "Reset id"}
+          </button>
           {playerAccountKey ? (
             <span className="status-fact__sub" title="Redis active_player account key">
               {playerAccountKey}

@@ -663,6 +663,13 @@ export async function resetCurrentScreen(instanceId: string): Promise<void> {
   );
 }
 
+export async function resetActivePlayer(instanceId: string): Promise<void> {
+  await apiFetch<{ ok: boolean }>(
+    `/api/instances/${encodeURIComponent(instanceId)}/reset-active-player`,
+    { method: "POST" },
+  );
+}
+
 export async function clearQueueAll(): Promise<number> {
   const data = await apiFetch<{ removed: number }>("/api/queue/clear-all", {
     method: "POST",

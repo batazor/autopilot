@@ -127,6 +127,10 @@
     @apply text-xs text-wos-text-muted;
   }
 
+  .status-fact__reset {
+    @apply rounded border border-wos-border-subtle px-1.5 py-0.5 text-[11px] font-medium text-wos-text-secondary transition-colors hover:border-wos-border hover:bg-wos-panel-raised hover:text-wos-text disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
   .heartbeat-dot {
     @apply inline-block h-2 w-2 rounded-full;
   }
