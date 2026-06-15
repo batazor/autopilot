@@ -45,7 +45,7 @@
 
   /* Search affordance that opens the command palette; doubles as a Cmd+K hint. */
   .nav-search {
-    @apply mb-1 mt-1 flex w-full cursor-pointer items-center gap-2 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text-muted transition-colors hover:border-sky-400/50 hover:text-wos-text;
+    @apply mb-3 mt-1 flex w-full cursor-pointer items-center gap-2 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text-muted transition-colors hover:border-sky-400/50 hover:text-wos-text;
   }
 
   .nav-search__icon {

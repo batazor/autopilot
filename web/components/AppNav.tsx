@@ -305,7 +305,7 @@ export function AppNav({
 
           <button
             type="button"
-            className="nav-block-label nav-block-toggle mt-2"
+            className="nav-block-label nav-block-toggle"
             onClick={() => toggleBlock("sections")}
             aria-expanded={!blockCollapsed.sections}
             title={blockCollapsed.sections ? "Expand Sections" : "Collapse Sections"}
