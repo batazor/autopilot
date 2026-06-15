@@ -7,7 +7,7 @@ import {
   type ExternalAccountsGame,
 } from "@/components/gift-codes/ExternalAccountsPanel";
 import { AppTabs } from "@/components/headless";
-import { ErrorBanner } from "@/components/feedback";
+import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { PageHeader } from "@/components/PageHeader";
 import {
   fetchBotStatus,
@@ -411,7 +411,7 @@ function GiftCodesContent() {
   const [filter, setFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const { showSuccess, showInfo } = useFeedback();
   const [view, setView] = useState<"active" | "expired">("active");
   const [discordConfig, setDiscordConfig] = useState<GiftCodeDiscordConfig | null>(
     null,
@@ -451,14 +451,13 @@ function GiftCodesContent() {
   const saveDiscordConfig = async () => {
     setDiscordBusy(true);
     setDiscordError(null);
-    setMessage(null);
     try {
       const next = await updateGiftCodeDiscordConfig({
         bot_token: discordToken || null,
       });
       setDiscordConfig(next);
       setDiscordToken("");
-      setMessage("Discord settings saved.");
+      showSuccess("Discord settings saved.");
     } catch (e) {
       setDiscordError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -469,12 +468,11 @@ function GiftCodesContent() {
   const clearDiscordToken = async () => {
     setDiscordBusy(true);
     setDiscordError(null);
-    setMessage(null);
     try {
       const next = await updateGiftCodeDiscordConfig({ clear_token: true });
       setDiscordConfig(next);
       setDiscordToken("");
-      setMessage("Discord token cleared.");
+      showSuccess("Discord token cleared.");
     } catch (e) {
       setDiscordError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -492,18 +490,23 @@ function GiftCodesContent() {
       return;
     }
     setBusy(true);
-    setMessage(null);
     try {
       if (action === "scrape") {
         const res = await scrapeGiftCodes(game);
-        setMessage(
-          res.count
-            ? `Found ${res.count} new code(s): ${res.new_codes.join(", ")}`
-            : "No new codes.",
-        );
+        if (res.count) {
+          showSuccess(
+            `Found ${res.count} new code(s): ${res.new_codes.join(", ")}`,
+          );
+        } else {
+          showInfo("No new codes.");
+        }
       } else {
         const res = await redeemGiftCodes(game);
-        setMessage(res.already_running ? "Redeem is already running." : "Redeem finished.");
+        if (res.already_running) {
+          showInfo("Redeem is already running.");
+        } else {
+          showSuccess("Redeem finished.");
+        }
       }
       await load();
     } catch (e) {
@@ -573,9 +576,6 @@ function GiftCodesContent() {
       />
 
       <ErrorBanner message={error} onRetry={load} />
-      {message ? (
-        <div className="success-banner">{message}</div>
-      ) : null}
 
       {data?.parse_error ? (
         <ErrorBanner message={`YAML error: ${data.parse_error}`} />

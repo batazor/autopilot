@@ -23,9 +23,11 @@ import {
   loadDockPos,
   loadQuickAccessCollapsed,
   loadRecent,
+  loadSectionCollapsed,
   pushRecent,
   saveDockPos,
   saveQuickAccessCollapsed,
+  saveSectionCollapsed,
   type DockPos,
   type RecentNavItem,
 } from "@/lib/nav-prefs";
@@ -65,6 +67,10 @@ export function AppNav({
   const pathname = usePathname();
   const [recent, setRecent] = useState<RecentNavItem[]>([]);
   const [quickCollapsed, setQuickCollapsed] = useState(false);
+  // Per-block collapse (keys: "recent", "sections"), persisted as a record.
+  const [blockCollapsed, setBlockCollapsed] = useState<Record<string, boolean>>(
+    {},
+  );
   // Resolved after mount to avoid an SSR/client hydration mismatch.
   const [shortcut, setShortcut] = useState("");
 
@@ -75,6 +81,7 @@ export function AppNav({
   useEffect(() => {
     setRecent(loadRecent());
     setQuickCollapsed(loadQuickAccessCollapsed());
+    setBlockCollapsed(loadSectionCollapsed());
     const isMac = /Mac|iPhone|iPad/.test(
       navigator.platform || navigator.userAgent,
     );
@@ -85,6 +92,14 @@ export function AppNav({
     setQuickCollapsed((prev) => {
       const next = !prev;
       saveQuickAccessCollapsed(next);
+      return next;
+    });
+  };
+
+  const toggleBlock = (key: string) => {
+    setBlockCollapsed((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      saveSectionCollapsed(next);
       return next;
     });
   };
@@ -246,34 +261,63 @@ export function AppNav({
 
           {recentVisible ? (
             <div className="nav-recent">
-              <div className="nav-block-label">Recent</div>
-              <ul className="nav-list">
-                {recent
-                  .filter(
-                    (r) =>
-                      r.href !== pathname && !NAV_PINNED_HREFS.has(r.href),
-                  )
-                  .slice(0, 4)
-                  .map((r) => (
-                    <li key={r.href}>
-                      <Link
-                        href={r.href}
-                        onClick={onNavigate}
-                        className="nav-link nav-link--compact"
-                      >
-                        <span className="nav-link__icon" aria-hidden>
-                          <Icon name="recent" size="sm" />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">{r.label}</span>
-                      </Link>
-                    </li>
-                  ))}
-              </ul>
+              <button
+                type="button"
+                className="nav-block-label nav-block-toggle"
+                onClick={() => toggleBlock("recent")}
+                aria-expanded={!blockCollapsed.recent}
+                title={blockCollapsed.recent ? "Expand Recent" : "Collapse Recent"}
+              >
+                <span>Recent</span>
+                <Icon
+                  name={blockCollapsed.recent ? "arrow-down" : "arrow-up"}
+                  size="sm"
+                />
+              </button>
+              {!blockCollapsed.recent ? (
+                <ul className="nav-list">
+                  {recent
+                    .filter(
+                      (r) =>
+                        r.href !== pathname && !NAV_PINNED_HREFS.has(r.href),
+                    )
+                    .slice(0, 4)
+                    .map((r) => (
+                      <li key={r.href}>
+                        <Link
+                          href={r.href}
+                          onClick={onNavigate}
+                          className="nav-link nav-link--compact"
+                        >
+                          <span className="nav-link__icon" aria-hidden>
+                            <Icon name="recent" size="sm" />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {r.label}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                </ul>
+              ) : null}
             </div>
           ) : null}
 
-          <div className="nav-block-label mt-2">Sections</div>
+          <button
+            type="button"
+            className="nav-block-label nav-block-toggle mt-2"
+            onClick={() => toggleBlock("sections")}
+            aria-expanded={!blockCollapsed.sections}
+            title={blockCollapsed.sections ? "Expand Sections" : "Collapse Sections"}
+          >
+            <span>Sections</span>
+            <Icon
+              name={blockCollapsed.sections ? "arrow-down" : "arrow-up"}
+              size="sm"
+            />
+          </button>
 
+          {blockCollapsed.sections ? null : (
           <ul className="nav-list">
             {NAV_GROUPS.map((group) => {
               const groupActive = activeGroup?.id === group.id;
@@ -356,6 +400,7 @@ export function AppNav({
               );
             })}
           </ul>
+          )}
         </nav>
       </div>
 
