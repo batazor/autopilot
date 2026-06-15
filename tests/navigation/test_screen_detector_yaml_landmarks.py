@@ -175,6 +175,52 @@ screens:
 
 
 @pytest.mark.asyncio
+async def test_screen_detector_returns_yaml_screen_not_in_import_time_enum(
+    mocker,
+    tmp_path: Path,
+) -> None:
+    cfg = tmp_path / "screen_verify.yaml"
+    cfg.write_text(
+        """
+screens:
+  hot_added:
+    landmarks:
+      - match: hot.added.title
+        threshold: 0.9
+""",
+        encoding="utf-8",
+    )
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    async def evaluate_overlay_rules_async(
+        _image: np.ndarray,
+        _area_doc: dict[str, Any],
+        _repo_root: Path,
+        rules: list[dict[str, Any]],
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        return {str(rule["name"]): {"matched": True} for rule in rules}
+
+    import navigation.detector as detector_module
+
+    mocker.patch.object(
+        detector_module,
+        "evaluate_overlay_rules_async",
+        new=evaluate_overlay_rules_async,
+    )
+    detector = ScreenDetector(OcrClient(get_settings()))
+    detector._area_doc = {"screens": []}
+
+    try:
+        detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    assert detected == "hot_added"
+
+
+@pytest.mark.asyncio
 async def test_screen_detector_requires_combined_match_and_tab_active(
     mocker,
     tmp_path: Path,

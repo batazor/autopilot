@@ -45,6 +45,16 @@ def test_returns_screen_id_string_on_full_detect_hit(mocker) -> None:
     assert suggest_node_for_image_sync(img) == "main_city"
 
 
+def test_returns_hot_added_screen_id_string_on_full_detect_hit(mocker) -> None:
+    async def _fake_detect(self: object, _img: np.ndarray, **_kwargs: Any) -> str:
+        return "icefire"
+
+    mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_fake_detect)
+
+    img = np.zeros((100, 100, 3), dtype=np.uint8)
+    assert suggest_node_for_image_sync(img) == "icefire"
+
+
 def test_falls_back_to_template_when_full_detect_raises(mocker) -> None:
     """OCR backend down → full path raises → template-only path is consulted."""
     async def _broken(self: object, _img: np.ndarray, **_kwargs: Any) -> ScreenName:

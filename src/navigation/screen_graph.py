@@ -19,6 +19,7 @@ Adding a new screen
 """
 from __future__ import annotations
 
+import heapq
 import itertools
 from collections import deque
 from collections.abc import Awaitable, Callable
@@ -35,6 +36,7 @@ Tap = str | dict[str, Any]
 VerifyRule = dict[str, Any]
 VerifyConfig = dict[str, Any]
 ScreenVerifyEntry = dict[str, Any]
+ScreenFamilyEntry = dict[str, Any]
 DynamicEdgeSpec = dict[str, Any]
 """Per-edge spec for runtime-resolved taps.
 
@@ -332,6 +334,32 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     return rule
 
 
+def _normalize_screen_family(raw_name: object, raw: object) -> ScreenFamilyEntry | None:
+    if not isinstance(raw, dict):
+        return None
+    name = str(raw_name or "").strip()
+    if not name:
+        return None
+    raw_d = cast("dict[str, Any]", raw)
+    out: ScreenFamilyEntry = {"name": name}
+    for key in (
+        "hub",
+        "prefix",
+        "tab_region",
+        "namespace",
+        "advance_scenario",
+        "next_region",
+    ):
+        value = raw_d.get(key)
+        if isinstance(value, str) and value.strip():
+            out[key] = value.strip()
+    # Sensible defaults: a ``deals`` family covers ``deals`` and ``deals.*``.
+    out.setdefault("hub", name)
+    out.setdefault("prefix", f"{name}.")
+    out.setdefault("namespace", name)
+    return out
+
+
 def _file_fingerprint(path: Path) -> tuple[str, int, int]:
     try:
         st = path.stat()
@@ -463,6 +491,16 @@ def _load_screen_verify_config_cached(
         docs.append(raw if isinstance(raw, dict) else {})
 
     retry = next((doc.get("retry") for doc in docs if isinstance(doc.get("retry"), dict)), {})
+    out_families: dict[str, ScreenFamilyEntry] = {}
+    for raw in docs:
+        families = raw.get("families")
+        if not isinstance(families, dict):
+            continue
+        for family_name, family_raw in families.items():
+            family = _normalize_screen_family(family_name, family_raw)
+            if family is not None:
+                out_families[str(family_name).strip()] = family
+
     out_screens: dict[str, ScreenVerifyEntry] = {}
     for raw in docs:
         screens = raw.get("screens")
@@ -553,10 +591,13 @@ def _load_screen_verify_config_cached(
         entry["rules"] = co_rules
         entry["landmarks"] = co_landmarks
 
-    return {
+    out: VerifyConfig = {
         "retry": retry if isinstance(retry, dict) else {},
         "screens": out_screens,
     }
+    if out_families:
+        out["families"] = out_families
+    return out
 
 
 def load_screen_verify_config(
@@ -619,6 +660,35 @@ def screen_verify_parent(screen: str) -> str | None:
     if isinstance(parent, str) and parent.strip():
         return parent.strip()
     return None
+
+
+def screen_family_configs() -> dict[str, ScreenFamilyEntry]:
+    families = load_screen_verify_config().get("families")
+    if not isinstance(families, dict):
+        return {}
+    return {
+        str(name).strip(): cast("ScreenFamilyEntry", dict(entry))
+        for name, entry in families.items()
+        if str(name).strip() and isinstance(entry, dict)
+    }
+
+
+def screen_family_for(screen: str) -> tuple[str, ScreenFamilyEntry] | None:
+    screen_s = str(screen or "").strip()
+    if not screen_s:
+        return None
+    for name, cfg in screen_family_configs().items():
+        hub = str(cfg.get("hub") or "").strip()
+        prefix = str(cfg.get("prefix") or "").strip()
+        if screen_s == hub or (prefix and screen_s.startswith(prefix)):
+            return name, cfg
+    return None
+
+
+def same_screen_family(a: str, b: str) -> bool:
+    fa = screen_family_for(a)
+    fb = screen_family_for(b)
+    return bool(fa and fb and fa[0] == fb[0])
 
 
 def screen_verify_screen_names() -> list[str]:
@@ -751,31 +821,114 @@ def screen_verify_retry(screen: str | None = None) -> tuple[int, float]:
 
 
 # ---------------------------------------------------------------------------
-# BFS path finder
+# Cost-aware path finder
 # ---------------------------------------------------------------------------
 
-def bfs_route(src: str, dst: str, *, game: str | None = None) -> list[str] | None:
-    """Shortest path [src, …, dst] over the tap-action graph; None if unreachable.
+DEFAULT_EDGE_COST = 100
+SAME_FAMILY_EDGE_COST = 40
+MAIN_CITY_FALLBACK_PENALTY = 5_000
+MAIN_CITY_DEPARTURE_PENALTY = 250
 
-    Uses sorted neighbor iteration for deterministic results when multiple
-    shortest paths of equal length exist.
+
+def _edge_cost(src: str, dst: str, *, target: str) -> int:
+    cost = SAME_FAMILY_EDGE_COST if same_screen_family(src, dst) else DEFAULT_EDGE_COST
+    if target != "main_city":
+        if dst == "main_city" and src != "main_city":
+            cost += MAIN_CITY_FALLBACK_PENALTY
+        elif src == "main_city":
+            cost += MAIN_CITY_DEPARTURE_PENALTY
+    return cost
+
+
+def route_path_cost(path: list[str] | None, *, target: str | None = None) -> int | None:
+    if not path:
+        return None
+    target_s = str(target or path[-1]).strip()
+    total = 0
+    for src, dst in itertools.pairwise(path):
+        total += _edge_cost(src, dst, target=target_s)
+    return total
+
+
+def bfs_route(src: str, dst: str, *, game: str | None = None) -> list[str] | None:
+    """Lowest-cost path ``[src, …, dst]`` over the tap-action graph.
+
+    Historically this was a pure BFS. It now keeps the public name for callers
+    but ranks routes by edge cost so local screen-family hops beat a visually
+    silly fallback through ``main_city`` when both are available.
     """
     if src == dst:
         return [src]
     _static, _dynamic, graph = graph_for_game(game)
-    visited: set[str] = {src}
-    queue: deque[list[str]] = deque([[src]])
-    while queue:
-        path = queue.popleft()
-        for nb in sorted(graph.get(path[-1], set())):
-            if nb in visited:
+    heap: list[tuple[int, int, tuple[str, ...], str]] = [(0, 0, (src,), src)]
+    best: dict[str, tuple[int, int]] = {src: (0, 0)}
+    while heap:
+        cost, hops, path_t, node = heapq.heappop(heap)
+        if node == dst:
+            return list(path_t)
+        if best.get(node) != (cost, hops):
+            continue
+        for nb in sorted(graph.get(node, set())):
+            next_cost = cost + _edge_cost(node, nb, target=dst)
+            next_hops = hops + 1
+            prev = best.get(nb)
+            if prev is not None and prev <= (next_cost, next_hops):
                 continue
-            new_path = [*path, nb]
-            if nb == dst:
-                return new_path
-            visited.add(nb)
-            queue.append(new_path)
+            best[nb] = (next_cost, next_hops)
+            heapq.heappush(heap, (next_cost, next_hops, (*path_t, nb), nb))
     return None
+
+
+def route_explain(src: str, dst: str, *, game: str | None = None) -> dict[str, Any]:
+    """Small structured route explanation for logs/UI attention banners."""
+    selected = bfs_route(src, dst, game=game)
+    family_src = screen_family_for(src)
+    family_dst = screen_family_for(dst)
+    same_family = bool(family_src and family_dst and family_src[0] == family_dst[0])
+    out: dict[str, Any] = {
+        "src": src,
+        "dst": dst,
+        "selected_path": selected or [],
+        "selected_cost": route_path_cost(selected, target=dst),
+        "same_family": same_family,
+        "family": family_src[0] if same_family and family_src else "",
+    }
+    if same_family and family_src:
+        cfg = family_src[1]
+        out["family_tab_region"] = cfg.get("tab_region", "")
+        out["family_next_region"] = cfg.get("next_region", "")
+    if src != "main_city" and dst != "main_city":
+        to_hub = bfs_route(src, "main_city", game=game)
+        from_hub = bfs_route("main_city", dst, game=game)
+        via_hub = (
+            [*to_hub, *from_hub[1:]]
+            if to_hub and from_hub and to_hub[-1] == "main_city"
+            else None
+        )
+        out["main_city_path"] = via_hub or []
+        out["main_city_cost"] = route_path_cost(via_hub, target=dst)
+    return out
+
+
+def format_route_explain(src: str, dst: str, *, game: str | None = None) -> str:
+    info = route_explain(src, dst, game=game)
+    selected = " → ".join(info.get("selected_path") or []) or "unreachable"
+    lines = [
+        f"route {src} -> {dst}",
+        f"selected: {selected} (cost={info.get('selected_cost')})",
+    ]
+    if info.get("same_family"):
+        lines.append(
+            "family: "
+            f"{info.get('family')} tab_region={info.get('family_tab_region')}"
+        )
+    main_city_path = info.get("main_city_path")
+    if main_city_path:
+        lines.append(
+            "main_city fallback: "
+            f"{' → '.join(main_city_path)} (cost={info.get('main_city_cost')})"
+        )
+    return "\n".join(lines)
 
 
 def route_taps(

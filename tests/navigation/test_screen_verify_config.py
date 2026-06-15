@@ -377,6 +377,32 @@ def test_production_screen_verify_yaml_contains_rewards_rule() -> None:
     assert rules == expected
 
 
+def test_production_screen_verify_yaml_contains_rewards_upgraded_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        landmarks = screen_graph.screen_landmark_rules("rewards.upgraded")
+        rules = screen_graph.screen_verify_rules("rewards.upgraded")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    expected = [{"match": "rewards.upgraded.title", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_claimed_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        landmarks = screen_graph.screen_landmark_rules("claimed")
+        rules = screen_graph.screen_verify_rules("claimed")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    expected = [{"match": "claimed.title", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
+
+
 def test_production_screen_verify_yaml_contains_increase_level_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:

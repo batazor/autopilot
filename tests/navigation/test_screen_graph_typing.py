@@ -1,11 +1,18 @@
 from __future__ import annotations
 
-from typing import get_type_hints
+from typing import TYPE_CHECKING, get_type_hints
 
 import pytest
 
+import config.module_discovery as module_discovery
+import config.paths as paths
+import navigation.screen_graph as screen_graph
+from config.reload import reload_config
 from navigation import template_icon_resolver  # noqa: F401
 from navigation.screen_graph import route_hops_async, route_taps
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_route_taps_type_hints_are_resolvable() -> None:
@@ -16,6 +23,44 @@ def test_route_taps_type_hints_are_resolvable() -> None:
 
 def test_building_routes_back_to_main_city() -> None:
     assert route_taps("building", "main_city") == [["from.building.to.main_city"]]
+
+
+def _write_reload_edge_module(tmp_path: Path, edge_taps: str) -> None:
+    mod = tmp_path / "games" / "wos" / "core" / "nav_reload"
+    (mod / "routes").mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text(
+        "id: nav_reload\ntitle: nav reload\nwiki: false\n",
+        encoding="utf-8",
+    )
+    (mod / "routes" / "edge_taps.yaml").write_text(edge_taps, encoding="utf-8")
+
+
+def test_reload_config_invalidates_screen_graph_edges(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(paths, "repo_root", lambda: tmp_path)
+    module_discovery._clear_module_discovery_caches()
+    screen_graph.invalidate_screen_verify_config()
+    _write_reload_edge_module(
+        tmp_path,
+        "edges:\n  alpha:\n    beta: [tap.alpha.beta]\n",
+    )
+
+    try:
+        assert route_taps("alpha", "beta") == [["tap.alpha.beta"]]
+        _write_reload_edge_module(
+            tmp_path,
+            "edges:\n  alpha:\n    beta: [tap.alpha.beta]\n    gamma: [tap.alpha.gamma]\n",
+        )
+        assert route_taps("alpha", "gamma") is None
+
+        reload_config()
+
+        assert route_taps("alpha", "gamma") == [["tap.alpha.gamma"]]
+    finally:
+        screen_graph.invalidate_screen_verify_config()
+        module_discovery._clear_module_discovery_caches()
 
 
 def test_survivor_status_routes_main_city() -> None:
@@ -203,7 +248,33 @@ def test_frostdragon_tyrant_routes_to_main_city() -> None:
 
 def test_rewards_routes_to_main_city() -> None:
     assert route_taps("rewards", "main_city") == [
-        [{"type": "system_back"}]
+        ["button.click_to_continue"]
+    ]
+
+
+def test_rewards_upgraded_routes_to_deals() -> None:
+    assert route_taps("rewards.upgraded", "deals") == [
+        ["rewards.upgraded.tap_anywhere_to_exit"]
+    ]
+
+
+def test_rewards_upgraded_routes_to_main_city_via_deals() -> None:
+    assert route_taps("rewards.upgraded", "main_city") == [
+        ["rewards.upgraded.tap_anywhere_to_exit"],
+        ["icon.page.back"],
+    ]
+
+
+def test_claimed_routes_to_shop_daily_deals() -> None:
+    assert route_taps("claimed", "shop.daily_deals") == [
+        ["claimed.tap_anywhere_to_exit"]
+    ]
+
+
+def test_claimed_routes_to_main_city_via_shop_daily_deals() -> None:
+    assert route_taps("claimed", "main_city") == [
+        ["claimed.tap_anywhere_to_exit"],
+        ["icon.page.back"],
     ]
 
 

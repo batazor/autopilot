@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import threading
+import time
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -25,6 +26,7 @@ from navigation.screen_graph import (
 from ocr.client import OcrClient
 
 logger = logging.getLogger(__name__)
+ScreenValue = StrEnum | str
 
 
 # ScreenName is generated at import time from screen_verify.yaml plus a small
@@ -114,6 +116,9 @@ class ScreenDetector:
     _landmark_rules_cache: ClassVar[
         dict[tuple[str, str], tuple[list[dict[str, Any]], list[list[str]]]]
     ] = {}
+    _unknown_reload_lock: ClassVar[threading.Lock] = threading.Lock()
+    _last_unknown_reload_mono: ClassVar[float] = 0.0
+    _UNKNOWN_RELOAD_MIN_INTERVAL_S: ClassVar[float] = 5.0
 
     def __init__(self, ocr_client: OcrClient) -> None:
         self._client = ocr_client
@@ -239,7 +244,7 @@ class ScreenDetector:
         screen_names: list[str] | None = None,
         try_first: list[str] | None = None,
         frame_gray: np.ndarray | None = None,
-    ) -> ScreenName:
+    ) -> ScreenValue:
         """Template/tab landmark scan in ``screen_verify`` priority order.
 
         Cold-path optimisation: instead of looping screen-by-screen (each call
@@ -264,14 +269,11 @@ class ScreenDetector:
         root = repo_root()
 
         entries: list[
-            tuple[str, ScreenName, list[dict[str, Any]], list[list[str]], str | None]
+            tuple[str, ScreenValue, list[dict[str, Any]], list[list[str]], str | None]
         ] = []
         referenced_parents: set[str] = set()
         for screen_s in ordered:
-            try:
-                screen_name = ScreenName(screen_s)
-            except ValueError:
-                continue
+            screen_name = self._screen_value(screen_s)
             rules, groups = self._landmark_overlay_rules_cached(
                 screen_s,
                 name_prefix="screen_detector",
@@ -388,7 +390,7 @@ class ScreenDetector:
         return ScreenName.UNKNOWN
 
     @staticmethod
-    def _sticky_preempt_candidates(hint_name: ScreenName) -> list[str]:
+    def _sticky_preempt_candidates(hint_name: ScreenValue) -> list[str]:
         """Screens that should get a chance to override a verified sticky hint.
 
         Sticky verification keeps steady-state detection cheap, but modal screens
@@ -400,11 +402,7 @@ class ScreenDetector:
         for screen_s in screen_verify_screen_names():
             if screen_s == str(hint_name):
                 break
-            try:
-                candidate = ScreenName(screen_s)
-            except ValueError:
-                continue
-            if candidate in (ScreenName.UNKNOWN, ScreenName.MAIN_CITY):
+            if screen_s in (str(ScreenName.UNKNOWN), str(ScreenName.MAIN_CITY)):
                 continue
             out.append(screen_s)
         return out
@@ -412,7 +410,7 @@ class ScreenDetector:
     async def _verify_screen(
         self,
         image: np.ndarray,
-        screen: ScreenName,
+        screen: ScreenValue,
         *,
         frame_gray: np.ndarray | None = None,
     ) -> bool:
@@ -449,16 +447,55 @@ class ScreenDetector:
         return self._first_matching_landmark_group(out, overlay_rule_groups)
 
     @staticmethod
-    def _parse_screen_name(value: ScreenName | str | None) -> ScreenName | None:
+    def _screen_value(value: ScreenName | str) -> ScreenValue:
+        value_s = str(value).strip()
+        try:
+            return value if isinstance(value, ScreenName) else ScreenName(value_s)
+        except ValueError:
+            return value_s
+
+    @classmethod
+    def _parse_screen_name(cls, value: ScreenName | str | None) -> ScreenValue | None:
         if value is None:
             return None
-        try:
-            name = value if isinstance(value, ScreenName) else ScreenName(str(value))
-        except ValueError:
+        value_s = str(value).strip()
+        if not value_s:
             return None
+        name = cls._screen_value(value_s)
         if name == ScreenName.UNKNOWN:
             return None
         return name
+
+    def _reload_config_after_unknown(self) -> bool:
+        """Refresh frozen config caches once when no landmark matched.
+
+        Labeling edits can add a new module/screen while a worker is already
+        running. The direct overlay probe sees the new crop immediately, but
+        the detector may still hold the old module/screen_verify path cache.
+        On an UNKNOWN result, refresh those caches and retry the same template
+        scan once. Throttle to avoid paying reload cost on every truly-unknown
+        frame.
+        """
+        now = time.monotonic()
+        with self._unknown_reload_lock:
+            if now - self._last_unknown_reload_mono < self._UNKNOWN_RELOAD_MIN_INTERVAL_S:
+                return False
+            type(self)._last_unknown_reload_mono = now
+        try:
+            from config.reload import reload_config
+
+            reload_config()
+            self._area_doc = None
+            type(self)._landmark_rules_cache.clear()
+            type(self)._landmark_rules_cache_fp = None
+            logger.debug("ScreenDetector: reloaded config caches after UNKNOWN")
+            return True
+        except Exception:
+            logger.debug(
+                "ScreenDetector: config reload after UNKNOWN failed",
+                exc_info=True,
+            )
+            return False
 
     async def detect_screen(
         self,
@@ -466,7 +503,7 @@ class ScreenDetector:
         *,
         hint: ScreenName | str | None = None,
         expected: ScreenName | str | None = None,
-    ) -> ScreenName:
+    ) -> ScreenValue:
         """Identify the current screen on ``image``.
 
         ``hint`` (sticky path): when set, run only the rules attached to
@@ -543,11 +580,20 @@ class ScreenDetector:
                 modal_preempt,
                 try_first=try_first,
             )
-        return await self._detect_by_match_landmarks(
+        matched = await self._detect_by_match_landmarks(
             image,
             try_first=full_try_first,
             frame_gray=frame_gray,
         )
+        if matched != ScreenName.UNKNOWN:
+            return matched
+        if self._reload_config_after_unknown():
+            matched = await self._detect_by_match_landmarks(
+                image,
+                try_first=full_try_first,
+                frame_gray=frame_gray,
+            )
+        return matched
 
 
 def _dedup_key(rule: dict[str, Any]) -> tuple[str, str, float]:
@@ -693,6 +739,7 @@ def suggest_node_for_image_sync(
                 "suggest_node_for_image_sync: template-only fallback failed", exc_info=True
             )
             return None
-    if not isinstance(result, ScreenName) or result == ScreenName.UNKNOWN:
+    result_s = str(result.value) if isinstance(result, ScreenName) else str(result).strip()
+    if not result_s or result_s == str(ScreenName.UNKNOWN):
         return None
-    return str(result.value)
+    return result_s

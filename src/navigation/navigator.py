@@ -27,7 +27,10 @@ from navigation import (
 from navigation.detector import ScreenDetector, ScreenName
 from navigation.screen_graph import (
     Tap,
+    format_route_explain,
     route_hops_async,
+    same_screen_family,
+    screen_family_for,
     screen_verify_retry,
     screen_verify_rules,
 )
@@ -156,6 +159,22 @@ class Navigator:
         if not isinstance(bbox, dict):
             logger.warning("Navigator: region %r missing bbox", region_name)
             return False
+        if bool(reg.get("isSearch")):
+            match = self._match_search_region_for_tap(
+                instance_id,
+                str(reg.get("name") or region_name),
+                threshold=reg.get("threshold", 0.9),
+                state_flat=state_flat,
+            )
+            if match is None:
+                logger.info(
+                    "Navigator: dynamic region %r not visible — cancelling navigation tap",
+                    region_name,
+                )
+                return False
+            pt = match
+        else:
+            pt = None
         try:
             dev_w = int(bbox["original_width"])
             dev_h = int(bbox["original_height"])
@@ -165,7 +184,8 @@ class Navigator:
                 region_name,
             )
             return False
-        pt = bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
+        if pt is None:
+            pt = bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
         approval_context: dict[str, Any] = {}
         if from_screen:
             approval_context["from_screen"] = from_screen
@@ -198,6 +218,66 @@ class Navigator:
                 approval_region=str(reg.get("name") or region_name),
             )
         )  # type: ignore[operator]
+
+    def _match_search_region_for_tap(
+        self,
+        instance_id: str,
+        region_name: str,
+        *,
+        threshold: Any,
+        state_flat: dict[str, Any] | None,
+    ) -> Point | None:
+        """Resolve an ``isSearch`` tap region through findIcon before clicking."""
+        try:
+            image = self._capture(instance_id)  # type: ignore[operator]
+        except Exception:
+            logger.warning(
+                "Navigator: capture failed before dynamic region tap %s",
+                region_name,
+                exc_info=True,
+            )
+            return None
+        rule = {
+            "name": "navigator.dynamic_region_tap",
+            "action": "findIcon",
+            "region": region_name,
+            "threshold": threshold,
+        }
+        try:
+            out = asyncio.run(
+                evaluate_overlay_rules_async(
+                    image,
+                    self._load_area_doc(),
+                    self._repo_root,
+                    [rule],
+                    state_flat=state_flat,
+                )
+            )
+        except Exception:
+            logger.warning(
+                "Navigator: findIcon failed before dynamic region tap %s",
+                region_name,
+                exc_info=True,
+            )
+            return None
+        hit = out.get("navigator.dynamic_region_tap")
+        if not isinstance(hit, dict) or not hit.get("matched"):
+            return None
+        try:
+            x_pct = float(hit["tap_match_x_pct"])
+            y_pct = float(hit["tap_match_y_pct"])
+        except (KeyError, TypeError, ValueError):
+            logger.info(
+                "Navigator: dynamic region match missing tap coords for %s: %s",
+                region_name,
+                hit,
+            )
+            return None
+        h, w = int(image.shape[0]), int(image.shape[1])
+        return Point(
+            int(round(x_pct / 100.0 * w)),
+            int(round(y_pct / 100.0 * h)),
+        )
 
     async def _tap_region_name_async(
         self,
@@ -727,6 +807,112 @@ class Navigator:
                 "Navigator: failed to push screen history to Redis", exc_info=True
             )
 
+    async def _write_nav_error(self, instance_id: str, detail: str) -> None:
+        if self._redis is None:
+            return
+        try:
+            await self._redis.hset(
+                self._state_key(instance_id),
+                "nav_error",
+                str(detail or "").strip(),
+            )
+        except Exception:
+            logger.debug("Navigator: failed to write nav_error to Redis", exc_info=True)
+
+    async def _clear_nav_error(self, instance_id: str) -> None:
+        if self._redis is None:
+            return
+        try:
+            await self._redis.hset(self._state_key(instance_id), "nav_error", "")
+        except Exception:
+            logger.debug("Navigator: failed to clear nav_error in Redis", exc_info=True)
+
+    async def _region_visible_async(
+        self,
+        image_bgr: np.ndarray,
+        region_name: str,
+        *,
+        state_flat: dict[str, Any] | None,
+    ) -> bool:
+        area_doc = self._load_area_doc()
+        pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
+        if pair is None:
+            return False
+        _entry, reg = pair
+        try:
+            threshold = float(reg.get("threshold", 0.8))
+        except (TypeError, ValueError):
+            threshold = 0.8
+        rule = {
+            "name": "navigator.region_visible",
+            "region": region_name,
+            "action": "findIcon",
+            "threshold": threshold,
+        }
+        try:
+            out = await evaluate_overlay_rules_async(
+                image_bgr,
+                area_doc,
+                self._repo_root,
+                [rule],
+                state_flat=state_flat,
+            )
+        except Exception:
+            logger.debug(
+                "Navigator: region visibility probe failed for %s",
+                region_name,
+                exc_info=True,
+            )
+            return False
+        row = out.get("navigator.region_visible")
+        return bool(isinstance(row, dict) and row.get("matched"))
+
+    async def _try_family_tab_advance(
+        self,
+        instance_id: str,
+        *,
+        current: str,
+        target: str,
+        image_bgr: np.ndarray,
+        state_flat: dict[str, Any] | None,
+    ) -> bool:
+        if not same_screen_family(current, target):
+            return False
+        family = screen_family_for(current)
+        if family is None:
+            return False
+        family_name, cfg = family
+        next_region = str(cfg.get("next_region") or "").strip()
+        if not next_region:
+            return False
+        if not await self._region_visible_async(
+            image_bgr,
+            next_region,
+            state_flat=state_flat,
+        ):
+            logger.info(
+                "Navigator: same-family route %s -> %s has no visible advance region %s",
+                current,
+                target,
+                next_region,
+            )
+            return False
+        logger.info(
+            "Navigator: trying local %s tab advance %s before main_city fallback "
+            "(%s -> %s)",
+            family_name,
+            next_region,
+            current,
+            target,
+        )
+        return await self._tap_region_name_async(
+            instance_id,
+            next_region,
+            state_flat=state_flat,
+            from_screen=current,
+            to_screen=target,
+        )
+
     async def _screen_history(self, instance_id: str) -> list[str]:
         """Most-recent-first list of screens previously written by this navigator.
 
@@ -1107,6 +1293,7 @@ class Navigator:
 
             if current == target:
                 await self._write_screen(instance_id, str(target))
+                await self._clear_nav_error(instance_id)
                 return True
 
             if current == ScreenName.UNKNOWN:
@@ -1180,7 +1367,31 @@ class Navigator:
                 instance_id=instance_id, redis_client=self._redis,
             )
 
+            if (
+                hop_sequences
+                and current != _MAIN_CITY
+                and str(hop_sequences[0][0]) == str(_MAIN_CITY)
+                and await self._try_family_tab_advance(
+                    instance_id,
+                    current=str(current),
+                    target=str(target),
+                    image_bgr=image,
+                    state_flat=state_flat,
+                )
+            ):
+                await asyncio.sleep(_NAV_HOP_SETTLE_S)
+                continue
+
             if hop_sequences is None and current != _MAIN_CITY:
+                if await self._try_family_tab_advance(
+                    instance_id,
+                    current=str(current),
+                    target=str(target),
+                    image_bgr=image,
+                    state_flat=state_flat,
+                ):
+                    await asyncio.sleep(_NAV_HOP_SETTLE_S)
+                    continue
                 # No direct route or missing taps: go main_city first, then retry.
                 to_hub = await route_hops_async(
                     str(current), str(_MAIN_CITY),
@@ -1201,6 +1412,11 @@ class Navigator:
                         "No route %s → main_city on %s; considering icon.page.back",
                         current,
                         instance_id,
+                    )
+                    await self._write_nav_error(
+                        instance_id,
+                        "navigation route failed before main_city fallback\n"
+                        + format_route_explain(str(current), str(target)),
                     )
                     img2: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                     if await self._ui_page_back_visible(img2):
@@ -1234,6 +1450,7 @@ class Navigator:
                         instance_id, from_hub, from_screen=str(_MAIN_CITY)
                     )
                     if hr == "ok":
+                        await self._clear_nav_error(instance_id)
                         return True
                     if hr == "tap_failed":
                         # Tap rejected; the previous ``_write_screen``
@@ -1245,6 +1462,11 @@ class Navigator:
                         current,
                         target,
                     )
+                    await self._write_nav_error(
+                        instance_id,
+                        "navigation path unavailable\n"
+                        + format_route_explain(str(current), str(target)),
+                    )
                     return False
                 continue
 
@@ -1252,6 +1474,7 @@ class Navigator:
                 instance_id, hop_sequences, from_screen=str(current)
             )
             if hr == "ok":
+                await self._clear_nav_error(instance_id)
                 return True
             if hr == "tap_failed":
                 # Tap rejected; the previous ``_write_screen``
@@ -1259,6 +1482,11 @@ class Navigator:
                 return False
 
         logger.error("Failed to navigate to %s after 10 attempts", target)
+        await self._write_nav_error(
+            instance_id,
+            "navigation failed after retries\n"
+            + format_route_explain(str(current), str(target)),
+        )
         await self._write_screen(instance_id, "")
         return False
 

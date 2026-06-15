@@ -306,3 +306,65 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unrouted_screen(
     ok = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
     assert ok is False
     assert tap_calls["n"] == 1, "rejected fallback page back must not retry"
+
+
+@pytest.mark.asyncio
+async def test_same_family_route_via_main_city_tries_local_advance_first(
+    mocker,
+    redis_async: object,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
+    state = {"advanced": False}
+
+    def capture(_instance_id: str) -> np.ndarray:
+        return np.zeros((100, 100, 3), dtype=np.uint8)
+
+    def tap(_instance_id: str, point: Any, **kw: Any) -> bool:
+        del point, kw
+        return True
+
+    async def detect_screen(_image: np.ndarray, **_kwargs) -> str:
+        return "deals.hall_of_heroes" if state["advanced"] else "deals.vault_of_enigma"
+
+    async def fake_route_hops_async(
+        src: str,
+        dst: str,
+        **_kwargs: Any,
+    ) -> list[tuple[str, list[str]]] | None:
+        if src == "deals.vault_of_enigma" and dst == "deals.hall_of_heroes":
+            return [
+                ("main_city", ["icon.page.back"]),
+                ("deals.hall_of_heroes", ["main_city.to.deals"]),
+            ]
+        return None
+
+    async def local_advance(*_args: Any, **_kwargs: Any) -> bool:
+        state["advanced"] = True
+        return True
+
+    async def fail_execute_hops(*_args: Any, **_kwargs: Any) -> str:
+        pytest.fail("navigator should try local family advance before main_city hops")
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    import navigation.navigator as navmod
+
+    nav = make_navigator(
+        capture,
+        tap,
+        settings=settings,
+        ocr_client=ocr_client,
+        redis_client=redis_async,
+    )
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)
+    mocker.patch.object(nav, "_try_family_tab_advance", new=local_advance)
+    mocker.patch.object(nav, "_execute_hops", new=fail_execute_hops)
+    mocker.patch.object(navmod, "route_hops_async", new=fake_route_hops_async)
+    mocker.patch.object(navmod.asyncio, "sleep", new=no_sleep)
+
+    ok = await nav._navigate_to_impl("deals.hall_of_heroes", "bs1")  # type: ignore[arg-type]
+
+    assert ok is True
+    assert state["advanced"] is True
