@@ -1,14 +1,15 @@
 # Contribute Explosive Arrowheads into Trap Enhancement to raise the bear level.
 #
-# Triggered two ways: the analyzer pushes this when the Trap Enhancement icon
-# shows a red dot on the info page (bear_hunt.trap_enhancement.red_dot), and a
-# 12h cron sweeps in to top up regardless. The exec opens the popup and, for
-# each non-maxed trap (level < Lv. 5), taps Contribute, drags the slider fully
-# right (all available arrows), and commits. Both maxed → one trap for the rewards.
+# TODO:
+# - Rebuild this flow through Alliance.
+# - Open Alliance -> Territory.
+# - Open Special Buildings.
+# - Select the Bear Trap building.
+# - From the Bear Trap screen, open Trap Enhancement and contribute arrows.
+# - Re-enable only after this route and its screen guards are labeled.
 #
 name: "Bear Hunt: Trap Enhancement"
-enabled: true
-cron: "0 */12 * * *"
+enabled: false
 node: event.bear_hunt.info
 steps:
   - match: bear_hunt.info.title

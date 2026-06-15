@@ -10,7 +10,4 @@ overlay:
     isRedDot: true
     screens:
       - event.bear_hunt.info
-    steps:
-      - push_scenario:
-          name: contribute_trap_enhancement
-          ttl: 5m
+    steps: []

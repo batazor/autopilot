@@ -1,6 +1,8 @@
 id: tundra_trek
 title: Tundra Trek
 description: Limited-time Tundra Trek event; opens from the main menu Trek row.
+# Temporarily disabled.
+enabled: false
 scenarios: scenarios
 analyze: analyze/analyze.yaml
 area: area.yaml

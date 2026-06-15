@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/main.png",
+      "regions": []
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/league_missions.png",
+      "regions": []
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/shop.png",
+      "regions": []
+    }
+  ]
+}
