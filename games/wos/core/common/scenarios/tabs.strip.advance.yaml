@@ -1,6 +1,8 @@
 enabled: true
 name: "Tabs: advance tab strip"
-priority: 70_000
+priority: 79_900
+ranking:
+  recent_debuff: false
 # Generic helper for pages with a horizontal tab strip. Analyzer rules pass
 # runtime args, so each module only owns its regions:
 #
@@ -19,6 +21,8 @@ nodes:
   - shop.construction_queue
   - shop.weekly_monthly_cards
   - shop.get_gems
+  - shop.artisans_trove
+  - shop.custom_artistry_chest
   - shop.regular_pack
   - deals
   - deals.sign_in

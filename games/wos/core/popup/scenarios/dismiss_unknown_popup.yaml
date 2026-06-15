@@ -7,14 +7,20 @@ priority: 70_000
 cond: currentNode == unknown
 
 steps:
-  # Smart pass first: the game-wide, template-free pop-up detector localizes a
-  # blurred-scrim modal and dismisses it with a single safety-classified tap
-  # (loop-until-clear, approval-gated). No-op when it finds nothing / escalates
-  # — the region shotgun below then runs as the deeper fallback.
-  - exec: dismiss_popup
-
   - cond: currentNode == unknown
     steps:
+      - while_match: rewards.upgraded.tap_anywhere_to_exit
+        max: 1
+        steps:
+          - click: rewards.upgraded.tap_anywhere_to_exit
+          - wait: 1s
+
+      - while_match: button.tap_anywhere_to_exit
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
+
       - while_match: button.free
         max: 1
         steps:
@@ -33,12 +39,6 @@ steps:
           - click: icon.page.back
           - wait: 1s
 
-      - while_match: button.tap_anywhere_to_exit
-        max: 1
-        steps:
-          - click: button.tap_anywhere_to_exit
-          - wait: 1s
-
       - while_match: button.click_to_continue
         max: 1
         steps:
@@ -50,3 +50,8 @@ steps:
         steps:
           - click: heroes.sr.new.close
           - wait: 1s
+
+  # Template regions above are safer and produce meaningful approval labels.
+  # Fall back to the game-wide popup detector only when known affordances were
+  # not found.
+  - exec: dismiss_popup
