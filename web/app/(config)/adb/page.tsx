@@ -1081,7 +1081,7 @@ export default function AdbPage() {
       {status && (
         <>
           {unregistered.length > 0 && (
-            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            <div className="my-4 flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
               <span>
                 <strong>
                   {unregistered.length === 1
@@ -1106,7 +1106,7 @@ export default function AdbPage() {
               ))}
             </div>
           )}
-          <dl className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-wos-border-subtle/70 bg-wos-panel-raised/40 px-3 py-2 text-xs">
+          <dl className="my-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-wos-border-subtle/70 bg-wos-panel-raised/40 px-3 py-2 text-xs">
             <div className="flex items-center gap-2">
               <dt className="font-semibold uppercase tracking-wide text-wos-text-muted">
                 adb
@@ -1125,7 +1125,7 @@ export default function AdbPage() {
             </div>
           </dl>
           {status.scan_error && (
-            <p className="error-banner mb-4">Scan: {status.scan_error}</p>
+            <p className="error-banner my-4">Scan: {status.scan_error}</p>
           )}
           <section className="panel panel--spaced">
             <h2>
