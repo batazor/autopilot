@@ -43,6 +43,9 @@ SEVERITY_WARNING = "warning"
 OVERDUE_STUCK_THRESHOLD_S = 30 * 60.0
 
 _DEVICE_OFFLINE_ERROR = "device offline (ADB)"
+_ADB_OFFLINE_EXHAUSTED_FIELD = "adb_offline_retry_exhausted"
+_ADB_OFFLINE_ATTEMPTS_FIELD = "adb_offline_attempts"
+_ADB_OFFLINE_RETRY_LIMIT = 5
 
 
 def is_device_offline(state_row: dict[str, Any]) -> bool:
@@ -55,7 +58,7 @@ def is_device_offline(state_row: dict[str, Any]) -> bool:
     blocked = (state_row.get("queue_blocked_reason") or "").strip()
     paused = state_row.get("paused") == "1"
     auto_paused = state_row.get("auto_paused") == "1"
-    return _DEVICE_OFFLINE_ERROR in (last_error, blocked) or (
+    return _DEVICE_OFFLINE_ERROR in last_error or _DEVICE_OFFLINE_ERROR in blocked or (
         auto_paused and paused and not last_error
     )
 
@@ -260,13 +263,22 @@ def _instance_items(
     device_offline = is_device_offline(row)
     if device_offline:
         if not _is_dismissed(client, "device_offline", instance_id):
+            retry_exhausted = row.get(_ADB_OFFLINE_EXHAUSTED_FIELD) == "1"
+            attempts = (row.get(_ADB_OFFLINE_ATTEMPTS_FIELD) or "").strip()
+            detail = "worker auto-paused; resumes when the device reconnects"
+            if retry_exhausted:
+                count = attempts or str(_ADB_OFFLINE_RETRY_LIMIT)
+                detail = (
+                    f"offline retry limit reached ({count}/{_ADB_OFFLINE_RETRY_LIMIT}); "
+                    "worker is stopped until an operator resumes it"
+                )
             items.append(
                 _item(
                     kind="device_offline",
                     severity=SEVERITY_CRITICAL,
                     instance_id=instance_id,
                     title=f"{instance_id}: device offline (ADB)",
-                    detail="worker auto-paused; resumes when the device reconnects",
+                    detail=detail,
                     dismissible=True,
                 )
             )

@@ -176,6 +176,24 @@ def test_device_offline_attention_can_be_dismissed_until_reconnect(fleet) -> Non
     assert client.kv == {}
 
 
+def test_device_offline_retry_exhausted_attention_requires_operator(fleet) -> None:
+    fleet.states["bs2"] = {
+        "worker_started_at": str(fleet.now - 9000),
+        "last_seen_at": str(fleet.now - 9000),
+        "paused": "1",
+        "auto_paused": "0",
+        "last_error": "device offline (ADB): retry limit reached (5/5); user action required",
+        "adb_offline_attempts": "5",
+        "adb_offline_retry_exhausted": "1",
+    }
+
+    view = _view()
+
+    assert _kinds(view) == ["device_offline"]
+    assert "retry limit reached (5/5)" in view["items"][0]["detail"]
+    assert "operator resumes" in view["items"][0]["detail"]
+
+
 def test_partial_worker_down_is_reported(fleet) -> None:
     fleet.states["bs1"] = {
         "worker_started_at": str(fleet.now - 9000),
