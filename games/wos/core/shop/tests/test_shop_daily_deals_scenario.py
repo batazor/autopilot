@@ -20,6 +20,7 @@ from unittest.mock import ANY, call
 
 import cv2
 import pytest
+import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
@@ -57,18 +58,18 @@ def _free_box_bbox() -> dict[str, float]:
 
 
 def _wipe_template(frame: np.ndarray, bbox: dict[str, float]) -> None:
-    """Paint over ``bbox`` with mid-gray so template match falls below 0.9.
+    """Paint over ``bbox`` with white so template match falls below threshold.
 
     The scenario relies on plain template matching against the cropped
-    ``box.free`` PNG; replacing the chest pixels with a flat grey patch
-    drops normalized cross-correlation well under the 0.9 threshold.
+    ``box.free`` PNG; replacing the chest pixels with a flat white patch
+    drops normalized cross-correlation well under the claim threshold.
     """
     h, w = frame.shape[:2]
     x0 = int(bbox["x"] / 100 * w)
     x1 = int((bbox["x"] + bbox["width"]) / 100 * w)
     y0 = int(bbox["y"] / 100 * h)
     y1 = int((bbox["y"] + bbox["height"]) / 100 * h)
-    frame[y0:y1, x0:x1] = (80, 80, 80)
+    frame[y0:y1, x0:x1] = (255, 255, 255)
 
 
 @pytest.fixture
@@ -82,6 +83,21 @@ def free_box_bbox() -> dict[str, float]:
 def test_shop_daily_deals_scenario_file_exists() -> None:
     """Guards against accidental deletion / rename of the scenario file."""
     assert (MODULE_DIR / "scenarios" / "shop.daily_deals.yaml").exists()
+
+
+def test_daily_deals_analyzer_pushes_from_visible_free_box() -> None:
+    """The page title alone must not suppress a retry while the free chest is
+    still visible; the work trigger is the chest itself."""
+    doc = yaml.safe_load((MODULE_DIR / "analyze/pages/daily_deals.yaml").read_text())
+    rules = doc.get("overlay") or []
+    assert len(rules) == 1
+    rule = rules[0]
+    assert rule["name"] == "shop.daily_deals.free.visible"
+    assert rule["region"] == FREE_BOX_REGION
+    assert rule["action"] == "findIcon"
+    assert rule["threshold"] == 0.70
+    push = rule["steps"][0]["push_scenario"]
+    assert push == {"name": "shop.daily_deals", "ttl": "5s"}
 
 
 # ── Execution paths ─────────────────────────────────────────────────────────
@@ -116,6 +132,11 @@ async def test_clicks_free_chest_when_visible(
     assert actions.tap.call_args_list == [
         call("bs1", ANY, approval_region=FREE_BOX_REGION),
     ]
+    point = actions.tap.call_args.args[1]
+    assert 65 <= point.x <= 105
+    assert 390 <= point.y <= 420, (
+        f"tap y={point.y} — expected chest body, not the lower 'Free' label"
+    )
 
 
 @pytest.mark.asyncio

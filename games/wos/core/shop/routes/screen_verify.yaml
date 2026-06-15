@@ -1,3 +1,12 @@
+families:
+  shop:
+    hub: shop
+    prefix: shop.
+    tab_region: shop.tabs_strip
+    namespace: shop
+    advance_scenario: tabs.strip.advance
+    next_region: shop.tab.next_page
+
 # Shop sub-pages: use ``parent: shop`` so the parent's ``page.shop.title`` is the
 # shared gate, plus ONE specific landmark per sub-page (sub-page title or tab).
 # Rules across multiple list entries are OR-ed (any matches → screen wins), so
@@ -71,6 +80,12 @@ screens:
     priority: 55
     rules:
     - match: artisans_trove.title
+      threshold: 0.9
+  shop.custom_artistry_chest:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.custom_artistry_chest.title
       threshold: 0.9
   shop:
     priority: 60

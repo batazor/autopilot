@@ -6,7 +6,7 @@ node: shop.daily_deals
 
 steps:
   - while_match: box.free
-    threshold: 0.73
+    threshold: 0.70
     max: 1
     retry:
       attempts: 3

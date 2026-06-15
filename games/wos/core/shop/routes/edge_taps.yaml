@@ -14,6 +14,7 @@ edges:
     shop.dawn_fund:            [shop.to.dawn_fund]
     shop.get_gems:             [shop.to.get_gems]
     shop.artisans_trove:       [shop.to.artisans_trove]
+    shop.custom_artistry_chest: [shop.to.custom_artistry_chest]
 
   # Shop tabs close directly to main_city via icon.page.back — there is no
   # tab → hub edge (cross-tab navigation goes main_city → shop → tab).
@@ -28,3 +29,4 @@ edges:
   shop.dawn_fund:           { main_city: [icon.page.back] }
   shop.get_gems:            { main_city: [icon.page.back] }
   shop.artisans_trove:      { main_city: [icon.page.back] }
+  shop.custom_artistry_chest: { main_city: [icon.page.back] }

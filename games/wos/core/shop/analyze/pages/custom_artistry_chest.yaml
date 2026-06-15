@@ -1,0 +1,10 @@
+overlay:
+  - name: shop.custom_artistry_chest.claimable
+    region: page.shop.custom_artistry_chest.claimable
+    isRedDot: true
+    screens:
+      - shop.custom_artistry_chest
+    steps:
+      - push_scenario:
+          name: shop.custom_artistry_chest
+          ttl: 1m

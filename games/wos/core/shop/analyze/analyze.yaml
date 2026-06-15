@@ -9,4 +9,5 @@ include:
   - pages/weekly_monthly_cards.yaml
   - pages/get_gems.yaml
   - pages/artisans_trove.yaml
+  - pages/custom_artistry_chest.yaml
   - pages/regular_pack.yaml

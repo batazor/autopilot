@@ -169,10 +169,10 @@
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
-            "x": 6.91119691119691,
-            "y": 33.15217391304348,
-            "width": 9.0,
-            "height": 3.2,
+            "x": 6.9,
+            "y": 29.9,
+            "width": 9.3,
+            "height": 4.5,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -519,6 +519,56 @@
             "y": 8.855700010566636,
             "width": 7.425401683244066,
             "height": 3.2164042748094333,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1112,
+      "screen_id": "shop.custom_artistry_chest",
+      "ocr": "references/page.shop.custom_artistry_chest.png",
+      "regions": [
+        {
+          "name": "page.shop.custom_artistry_chest.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.861111111111112,
+            "y": 15.625,
+            "width": 56.94444444444444,
+            "height": 4.53125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.custom_artistry_chest.claimable",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.44444444444444,
+            "y": 16.40625,
+            "width": 15.0,
+            "height": 8.125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "shop.to.custom_artistry_chest",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.333333333333332,
+            "y": 7.96875,
+            "width": 23.61111111111111,
+            "height": 6.40625,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

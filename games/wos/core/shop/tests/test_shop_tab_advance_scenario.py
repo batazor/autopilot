@@ -19,8 +19,8 @@ Three risks are tested:
   a hypothetical never-ending strip can only tap once per invocation.
 * **Scheduling contract** — push TTL on the analyzer rule throttles
   re-pushes (otherwise the 1Hz overlay loop would queue advance every
-  tick), and the scenario's priority sits below claim scenarios so they
-  always run first when both are queued.
+  tick), the scenario's priority sits just below regular 80k page work,
+  and queue ranking does not add recent-run debuff to this navigation helper.
 """
 from __future__ import annotations
 
@@ -57,6 +57,22 @@ def _load_bgr(name: str) -> np.ndarray:
     return frame
 
 
+def _expected_shop_tab_screens() -> set[str]:
+    return {
+        "shop",
+        "shop.dawn_market",
+        "shop.daily_deals",
+        "shop.mix_match",
+        "shop.dawn_fund",
+        "shop.construction_queue",
+        "shop.weekly_monthly_cards",
+        "shop.get_gems",
+        "shop.artisans_trove",
+        "shop.custom_artistry_chest",
+        "shop.regular_pack",
+    }
+
+
 # ── Scenario / analyze structural sanity ────────────────────────────────────
 
 
@@ -71,16 +87,17 @@ def test_scenario_shape_is_single_exec_step() -> None:
     assert doc["steps"][1] == {"wait": "1s"}
 
 
-def test_scenario_priority_below_claim_scenarios() -> None:
-    """Advance must be lower priority than claim scenarios so claims run first
-    when both are pushed in the same tick — otherwise the bot may scroll past
-    a claimable tab before the claim scenario gets a turn."""
+def test_scenario_priority_between_current_page_and_away_work() -> None:
+    """Advance must not beat current-page 80k claims, but should beat regular
+    80k work that needs at least one graph hop away from the current tab."""
     doc = yaml.safe_load(SCENARIO_PATH.read_text())
-    assert doc["priority"] == 70_000
+    assert doc["priority"] == 79_900
+    assert doc["ranking"] == {"recent_debuff": False}
     claim_doc = yaml.safe_load(
         (MODULE_DIR / "scenarios" / "shop.dawn_market.yaml").read_text()
     )
     assert doc["priority"] < claim_doc["priority"]
+    assert doc["priority"] > claim_doc["priority"] - 500
 
 
 def test_analyze_rule_pushes_with_throttle() -> None:
@@ -97,20 +114,13 @@ def test_analyze_rule_pushes_with_throttle() -> None:
     (rule,) = rules
     # next_page arrow is reachable from every shop sub-page, so each one
     # must be listed (the analyzer has no wildcard support).
-    expected_screens = {
-        "shop",
-        "shop.dawn_market",
-        "shop.daily_deals",
-        "shop.mix_match",
-        "shop.dawn_fund",
-        "shop.construction_queue",
-        "shop.weekly_monthly_cards",
-        "shop.get_gems",
-        "shop.artisans_trove",
-        "shop.regular_pack",
-    }
+    expected_screens = _expected_shop_tab_screens()
     assert set(rule["screens"]) == expected_screens, (
         f"screens drift: {set(rule['screens']) ^ expected_screens}"
+    )
+    scenario_doc = yaml.safe_load(SCENARIO_PATH.read_text())
+    assert expected_screens <= set(scenario_doc["nodes"]), (
+        "tabs.strip.advance nodes must cover every shop screen that can push it"
     )
     steps = rule.get("steps") or []
     advance_push = None
@@ -134,6 +144,40 @@ def test_analyze_rule_pushes_with_throttle() -> None:
     # the loader treats as 1 second — fine here, but we still want a
     # human-readable unit suffix as the convention).
     assert ttl.endswith(("s", "m", "h")), f"unexpected TTL form: {ttl!r}"
+
+
+def test_analyze_rule_pushes_on_visible_red_dot_tabs() -> None:
+    """Visible red-dot tabs must push the shared helper even when the
+    carousel next-page arrow is absent."""
+    from analysis.overlay_manifest import load_analyze_yaml
+
+    doc = load_analyze_yaml(ANALYZE_PATH)
+    rules = [
+        r
+        for r in doc.get("overlay", [])
+        if r.get("name") == "shop.tabs.visible_red_dot"
+    ]
+    assert len(rules) == 1, f"expected exactly one visible red-dot rule, got {rules!r}"
+    (rule,) = rules
+    assert rule["region"] == TABS_STRIP_REGION
+    assert rule["action"] == "detectTabs"
+    assert set(rule["screens"]) == _expected_shop_tab_screens()
+
+    steps = rule.get("steps") or []
+    push = next(
+        (
+            step.get("push_scenario")
+            for step in steps
+            if isinstance(step, dict) and "push_scenario" in step
+        ),
+        None,
+    )
+    assert isinstance(push, dict)
+    assert push.get("name") == SCENARIO_KEY
+    assert push.get("args") == {
+        "region": TABS_STRIP_REGION,
+        "next_region": NEXT_PAGE_REGION,
+    }
 
 
 # ── Execution paths ─────────────────────────────────────────────────────────
@@ -185,8 +229,8 @@ async def test_clicks_exactly_once_per_run_when_arrow_visible(
 ) -> None:
     """Arrow visible → exactly one tap, then ``max: 1`` drops out of the
     loop. This is the *per-tick load cap*: even if the arrow never
-    disappears, the analyzer's 1-minute TTL combined with this cap means
-    at most one click per minute."""
+    disappears, the analyzer TTL combined with this cap means at most one
+    click per throttle window."""
     await redis_async.hset(  # type: ignore[attr-defined]
         "wos:instance:bs1:state",
         mapping={"active_player": "p1", "current_screen": "shop"},
