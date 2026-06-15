@@ -74,11 +74,24 @@ function approvalStatusQueryKey(instanceId: string) {
 
 type BannerStatus = {
   bot: BotStatusView;
-  adb: AdbStatus;
+  adb: AdbStatus | null;   // null when the ADB scan is slow/failed — never blocks the bot controller
 };
 
+// ADB readiness is a device port-scan that can be slow or hang; it must never
+// block the bot controller. Bot status is the essential half (errors there
+// surface the offline banner), so we await it directly — but the ADB half races
+// a short timeout and swallows its own errors, degrading to `null` ("ADB
+// checking") instead of leaving the whole banner stuck in its loading state.
+const ADB_STATUS_TIMEOUT_MS = 3000;
+
 async function fetchBannerStatus(): Promise<BannerStatus> {
-  const [bot, adb] = await Promise.all([fetchBotStatus(), fetchAdbStatus()]);
+  const adbSoft: Promise<AdbStatus | null> = Promise.race([
+    fetchAdbStatus().catch(() => null),
+    new Promise<AdbStatus | null>((resolve) =>
+      setTimeout(() => resolve(null), ADB_STATUS_TIMEOUT_MS),
+    ),
+  ]);
+  const [bot, adb] = await Promise.all([fetchBotStatus(), adbSoft]);
   return { bot, adb };
 }
 
@@ -623,7 +636,24 @@ export function BotStartBanner() {
   const error = localError ?? queryError ?? fleetError ?? approvalError;
 
   if (!loaded && refreshing && !query.data) {
-    return null;
+    // Never blank the controller while the first status fetch is in flight — a
+    // slow/stuck status endpoint used to make the Start button disappear with no
+    // hint. Show a placeholder card instead; it fills in once status arrives.
+    return (
+      <div className="nav-bot-banner" role="region" aria-label="Bot worker">
+        <div className="nav-bot-banner__top">
+          <div className="nav-bot-banner__identity">
+            <span className="nav-bot-banner__icon" aria-hidden>
+              <Icon name="play" size="sm" />
+            </span>
+            <span className="nav-bot-banner__body">
+              <span className="nav-bot-banner__eyebrow">Bot control</span>
+              <span className="nav-bot-banner__title">Checking…</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (query.isError && !query.data) {
