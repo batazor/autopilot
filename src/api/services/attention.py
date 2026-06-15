@@ -69,6 +69,7 @@ def _item(
     detail: str = "",
     ts: float | None = None,
     dismissible: bool = False,
+    debug_log: str = "",
 ) -> dict[str, Any]:
     return {
         "id": f"{kind}:{instance_id}" if instance_id else f"{kind}",
@@ -79,6 +80,7 @@ def _item(
         "detail": detail,
         "ts": ts,
         "dismissible": dismissible,
+        "debug_log": debug_log,
     }
 
 
@@ -132,13 +134,27 @@ def _load_failure_items(client: redis.Redis) -> list[dict[str, Any]]:
             ts = float(ts_raw) if ts_raw is not None else None
         except (TypeError, ValueError):
             ts = None
+        source = str(f.get("source") or "").strip()
+        severity_raw = str(f.get("severity") or "").strip().lower()
+        is_warning = severity_raw == SEVERITY_WARNING
+        if source == "startup_validation":
+            title_prefix = (
+                "Startup config validation warning"
+                if is_warning
+                else "Startup config validation failed"
+            )
+            severity = SEVERITY_WARNING if is_warning else SEVERITY_CRITICAL
+        else:
+            title_prefix = "Scenario failed to load"
+            severity = SEVERITY_CRITICAL
         items.append(
             _item(
                 kind="load_failure",
-                severity=SEVERITY_CRITICAL,
-                title=f"Scenario failed to load: {subject}",
+                severity=severity,
+                title=f"{title_prefix}: {subject}",
                 detail=str(f.get("error") or "").strip(),
                 ts=ts,
+                debug_log=str(f.get("trace") or f.get("log") or "").strip(),
             )
         )
     # One stable id per failure row, not per kind — several files can break

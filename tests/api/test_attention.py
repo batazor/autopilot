@@ -104,6 +104,25 @@ def test_load_failure_is_critical(fleet) -> None:
     assert item["detail"] == "boom"
 
 
+def test_startup_validation_warning_is_warning_with_trace(fleet) -> None:
+    fleet.failures.append(
+        {
+            "source": "startup_validation",
+            "file": "screen_family:shop",
+            "error": "2 sibling route gap(s)",
+            "severity": "warning",
+            "trace": "[warning] screen_family:shop: 2 sibling route gap(s)",
+            "ts": 1.0,
+        }
+    )
+    view = _view()
+    assert _kinds(view) == ["load_failure"]
+    item = view["items"][0]
+    assert item["severity"] == "warning"
+    assert "warning" in item["title"]
+    assert item["debug_log"].startswith("[warning]")
+
+
 def test_approval_pending_names_scenario(fleet) -> None:
     fleet.approvals["bs1"] = {
         "context": {"scenario": "deals.sign_in"},

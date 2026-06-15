@@ -8,6 +8,7 @@ import {
 } from "@/components/attention/useAttention";
 import { attentionAction } from "@/lib/attention";
 import { Icon } from "@/components/ui/Icon";
+import { CopyButton } from "@/components/CopyButton";
 
 /**
  * Global strip under the header: critical fleet problems only. Warnings live
@@ -76,6 +77,22 @@ export function AttentionBanner() {
                       {dismiss.isPending ? "Skipping..." : "Skip"}
                     </button>
                   </>
+                ) : null}
+                {item.debug_log ? (
+                  <div className="mt-2 rounded-md border border-red-400/30 bg-black/20 p-2">
+                    <div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-red-100/70">
+                      <span>Diagnostic trace</span>
+                      <CopyButton
+                        text={item.debug_log}
+                        label="Copy"
+                        title="Copy diagnostic trace"
+                        className="ml-auto px-2 py-0.5 text-[11px]"
+                      />
+                    </div>
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-red-50/90">
+                      {item.debug_log}
+                    </pre>
+                  </div>
                 ) : null}
               </li>
             );

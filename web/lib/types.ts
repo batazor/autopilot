@@ -214,6 +214,7 @@ export type AttentionItem = {
   detail: string;
   ts: number | null;
   dismissible: boolean;
+  debug_log?: string;
 };
 
 export type AttentionView = {

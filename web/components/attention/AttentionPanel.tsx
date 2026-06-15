@@ -7,6 +7,7 @@ import {
 } from "@/components/attention/useAttention";
 import { attentionAction } from "@/lib/attention";
 import type { AttentionItem } from "@/lib/types";
+import { CopyButton } from "@/components/CopyButton";
 
 /**
  * Overview "needs attention" section: every open problem (critical and
@@ -38,9 +39,9 @@ function AttentionRow({ item }: { item: AttentionItem }) {
   const dismiss = useDismissAttention();
   const critical = item.severity === "critical";
   return (
-    <li className="flex items-center gap-3 py-2 text-sm">
+    <li className="flex items-start gap-3 py-2 text-sm">
       <span
-        className={`h-2 w-2 shrink-0 rounded-full ${critical ? "bg-red-400" : "bg-amber-400"}`}
+        className={`mt-2 h-2 w-2 shrink-0 rounded-full ${critical ? "bg-red-400" : "bg-amber-400"}`}
         title={item.severity}
       />
       <div className="min-w-0 flex-1">
@@ -50,6 +51,24 @@ function AttentionRow({ item }: { item: AttentionItem }) {
             {" "}
             — {item.detail}
           </span>
+        ) : null}
+        {item.debug_log ? (
+          <div className="mt-2 rounded-md border border-wos-border-subtle bg-wos-panel-raised/30 p-2">
+            <div className="mb-1 flex items-center gap-2 text-xs text-wos-text-muted">
+              <span className="font-semibold uppercase tracking-wide">
+                Diagnostic trace
+              </span>
+              <CopyButton
+                text={item.debug_log}
+                label="Copy"
+                title="Copy diagnostic trace"
+                className="ml-auto px-2 py-0.5 text-xs"
+              />
+            </div>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-wos-surface p-2 font-mono text-xs leading-relaxed text-wos-text-secondary">
+              {item.debug_log}
+            </pre>
+          </div>
         ) : null}
       </div>
       {action ? (
