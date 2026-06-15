@@ -191,6 +191,35 @@ def test_recent_debuff_can_be_disabled_for_tab_navigation(monkeypatch):
     assert ranked[1][3]["recent_debuff_disabled"] is True
 
 
+def test_tab_advance_beats_far_deals_work(monkeypatch):
+    """A visible red-dot tab should be clicked before jumping out through
+    ``main_city`` to a far Deals page.
+    """
+    _patch_required_nodes(
+        monkeypatch,
+        {"deals.tundra_trading_station": "deals.tundra_trading_station"},
+    )
+    _patch_hops(
+        monkeypatch,
+        {("deals.hall_of_heroes", "deals.tundra_trading_station"): 3},
+    )
+    monkeypatch.setattr(
+        RedisQueue,
+        "_task_types_without_recent_debuff",
+        staticmethod(lambda: {"tabs.strip.advance"}),
+    )
+
+    tab_advance = _due_item(task_type="tabs.strip.advance", priority=79_900)
+    tundra = _due_item(task_type="deals.tundra_trading_station", priority=80_000)
+
+    ranked = _rank([tundra, tab_advance], current_screen="deals.hall_of_heroes")
+
+    assert [r[2]["task_type"] for r in ranked] == [
+        "tabs.strip.advance",
+        "deals.tundra_trading_station",
+    ]
+
+
 def test_current_screen_task_ignores_recent_debuff(monkeypatch):
     """Visible work on the current page must finish before jumping tabs.
 
