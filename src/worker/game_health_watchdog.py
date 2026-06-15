@@ -22,11 +22,17 @@ from config.loader import Settings, get_settings, load_settings, set_settings
 from config.redis_health import sync_redis_from_url_or_exit
 from config.runtime_bootstrap import bootstrap_runtime_observability
 from config.startup_validation import assert_startup_configs_valid
+from dashboard.notifications import push_ui_notification_sync
 from navigation.lifecycle_states import InstanceState
 
 logger = logging.getLogger(__name__)
 
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
+_ADB_OFFLINE_ERROR = "device offline (ADB)"
+_ADB_OFFLINE_RETRY_LIMIT = 5
+_ADB_OFFLINE_ATTEMPTS_FIELD = "adb_offline_attempts"
+_ADB_OFFLINE_EXHAUSTED_FIELD = "adb_offline_retry_exhausted"
+_ADB_OFFLINE_NOTIFIED_FIELD = "adb_offline_retry_notified"
 
 
 def _push_instance_command(r: redis.Redis, instance_id: str, cmd: dict[str, object]) -> None:
@@ -48,6 +54,124 @@ def _publish_abort_task(r: redis.Redis, instance_id: str, reason: str) -> None:
             f"wos:events:abort_task:{instance_id}",
             json.dumps({"reason": reason}),
         )
+
+
+def _int_field(row: dict[Any, Any], field: str) -> int:
+    raw = row.get(field)
+    if isinstance(raw, (bytes, bytearray)):
+        raw = raw.decode(errors="replace")
+    with contextlib.suppress(TypeError, ValueError):
+        return max(0, int(str(raw or "0").strip() or "0"))
+    return 0
+
+
+def _offline_retry_exhausted(row: dict[Any, Any]) -> bool:
+    return str(row.get(_ADB_OFFLINE_EXHAUSTED_FIELD) or "").strip() == "1"
+
+
+def _offline_retry_error(attempts: int) -> str:
+    capped = min(max(1, attempts), _ADB_OFFLINE_RETRY_LIMIT)
+    return (
+        f"{_ADB_OFFLINE_ERROR}: retry limit reached "
+        f"({capped}/{_ADB_OFFLINE_RETRY_LIMIT}); user action required"
+    )
+
+
+def _clear_offline_retry_state(r: redis.Redis, key: str) -> None:
+    with contextlib.suppress(redis.RedisError):
+        r.hdel(
+            key,
+            _ADB_OFFLINE_ATTEMPTS_FIELD,
+            _ADB_OFFLINE_EXHAUSTED_FIELD,
+            _ADB_OFFLINE_NOTIFIED_FIELD,
+            "queue_blocked_reason",
+        )
+
+
+def _handle_adb_offline_instance(
+    r: redis.Redis,
+    *,
+    instance_id: str,
+    serial: str,
+    state_row: dict[Any, Any],
+) -> tuple[int, bool]:
+    """Pause on ADB-offline and lock after repeated misses.
+
+    First misses are recoverable: the watchdog auto-pauses and will auto-resume
+    if ADB comes back. After the retry budget is exhausted, ownership moves to
+    the operator: no auto-resume, one UI notification, and a persistent banner.
+    """
+    key = _INST_STATE_KEY_FMT.format(instance_id=instance_id)
+    attempts = _int_field(state_row, _ADB_OFFLINE_ATTEMPTS_FIELD) + 1
+    exhausted = attempts >= _ADB_OFFLINE_RETRY_LIMIT
+
+    if str(state_row.get("paused") or "").strip() != "1":
+        _push_instance_command(r, instance_id, {"cmd": "pause"})
+    if exhausted:
+        _publish_abort_task(r, instance_id, "watchdog: adb offline retry exhausted")
+        msg = _offline_retry_error(attempts)
+        already_notified = (
+            str(state_row.get(_ADB_OFFLINE_NOTIFIED_FIELD) or "").strip() == "1"
+        )
+        with contextlib.suppress(redis.RedisError):
+            r.hset(
+                key,
+                mapping={
+                    "paused": "1",
+                    "auto_paused": "0",
+                    "last_error": msg,
+                    "queue_blocked_reason": msg,
+                    _ADB_OFFLINE_ATTEMPTS_FIELD: str(attempts),
+                    _ADB_OFFLINE_EXHAUSTED_FIELD: "1",
+                    _ADB_OFFLINE_NOTIFIED_FIELD: "1",
+                },
+            )
+        if not already_notified:
+            push_ui_notification_sync(
+                r,
+                instance_id,
+                kind="device.offline.retry_exhausted",
+                level="error",
+                message=(
+                    f"{instance_id}: ADB device {serial} is offline after "
+                    f"{_ADB_OFFLINE_RETRY_LIMIT} checks. Bot paused; operator "
+                    "action required."
+                ),
+                payload={
+                    "serial": serial,
+                    "attempts": attempts,
+                    "limit": _ADB_OFFLINE_RETRY_LIMIT,
+                },
+            )
+            logger.warning(
+                "Watchdog: %s offline after %s/%s checks (serial=%s) — locked for operator",
+                instance_id,
+                attempts,
+                _ADB_OFFLINE_RETRY_LIMIT,
+                serial,
+            )
+        return attempts, True
+
+    with contextlib.suppress(redis.RedisError):
+        r.hset(
+            key,
+            mapping={
+                "paused": "1",
+                "auto_paused": "1",
+                "last_error": _ADB_OFFLINE_ERROR,
+                "queue_blocked_reason": _ADB_OFFLINE_ERROR,
+                _ADB_OFFLINE_ATTEMPTS_FIELD: str(attempts),
+                _ADB_OFFLINE_EXHAUSTED_FIELD: "0",
+            },
+        )
+    logger.info(
+        "Watchdog: %s offline check %s/%s (serial=%s) — paused",
+        instance_id,
+        attempts,
+        _ADB_OFFLINE_RETRY_LIMIT,
+        serial,
+    )
+    return attempts, False
 
 
 _FOREGROUND_VERIFY_TIMEOUT_S = 20.0
@@ -384,24 +508,17 @@ def run_forever(stop: threading.Event | None = None) -> None:
             was_auto_paused = str(state_row.get("auto_paused") or "").strip() == "1"
 
             if not is_live:
-                if not is_paused:
+                if _offline_retry_exhausted(state_row):
+                    continue
+                if not is_paused or was_auto_paused:
                     # Cmd goes via the worker's command channel so its in-memory
-                    # ``_ui_paused`` flag flips too; ``auto_paused`` lets us tell
-                    # an operator-initiated pause apart from this one (we only
-                    # auto-resume what we paused).
-                    _push_instance_command(r, iid, {"cmd": "pause"})
-                    with contextlib.suppress(redis.RedisError):
-                        r.hset(
-                            key,
-                            mapping={
-                                "auto_paused": "1",
-                                "last_error": "device offline (ADB)",
-                            },
-                        )
-                    logger.info(
-                        "Watchdog: %s offline (serial=%s) — paused",
-                        iid,
-                        inst.bluestacks_window_title,
+                    # ``_ui_paused`` flag flips too. Attempts 1-4 are
+                    # auto-paused/recoverable; attempt 5 becomes a manual stop.
+                    _handle_adb_offline_instance(
+                        r,
+                        instance_id=iid,
+                        serial=inst.bluestacks_window_title,
+                        state_row=state_row,
                     )
                 continue
 
@@ -419,6 +536,7 @@ def run_forever(stop: threading.Event | None = None) -> None:
                         key,
                         mapping={"auto_paused": "0", "last_error": ""},
                     )
+                _clear_offline_retry_state(r, key)
                 logger.info(
                     "Watchdog: %s back online (serial=%s) — game launch attempted, resumed",
                     iid,
@@ -426,6 +544,9 @@ def run_forever(stop: threading.Event | None = None) -> None:
                 )
                 # Skip the foreground check this tick; worker resumes into main loop.
                 continue
+
+            if not is_paused:
+                _clear_offline_retry_state(r, key)
 
             if is_paused and not was_auto_paused:
                 last_err = str(state_row.get("last_error") or "")

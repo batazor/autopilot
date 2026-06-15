@@ -79,6 +79,7 @@ def _is_adb_offline_error(exc: BaseException) -> bool:
         or ("device '" in s and "' not found" in s)
         or ("device not found" in s)
         or ("no devices/emulators found" in s)
+        or ("device offline" in s)
     )
 
 # DSL scenarios pushed once per instance start. Each entry must be a key resolvable

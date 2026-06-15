@@ -9,6 +9,7 @@ import worker.game_health_watchdog as watchdog
 from adb.controller import ProcessDetection
 from worker.game_health_watchdog import (
     _capture_restart_context,
+    _handle_adb_offline_instance,
     _is_game_running_after_retries,
     _record_restart_breadcrumb,
     restart_application_after_health_failure,
@@ -79,9 +80,16 @@ class _FakeRedis:
     def __init__(self) -> None:
         self.hashes: dict[str, dict[str, str]] = {}
         self.lists: dict[str, list[str]] = {}
+        self.published: list[tuple[str, str]] = []
+        self.expires: dict[str, int] = {}
 
     def hset(self, key: str, *, mapping: dict[str, str]) -> None:
         self.hashes.setdefault(key, {}).update({k: str(v) for k, v in mapping.items()})
+
+    def hdel(self, key: str, *fields: str) -> None:
+        h = self.hashes.setdefault(key, {})
+        for field in fields:
+            h.pop(field, None)
 
     def hincrby(self, key: str, field: str, amount: int) -> int:
         h = self.hashes.setdefault(key, {})
@@ -94,11 +102,16 @@ class _FakeRedis:
     def ltrim(self, _key: str, _start: int, _stop: int) -> None:
         pass
 
+    def expire(self, key: str, seconds: int) -> None:
+        self.expires[key] = seconds
+
+    def publish(self, key: str, value: str) -> None:
+        self.published.append((key, value))
+
 
 class _FakeRecoveryRedis(_FakeRedis):
     def __init__(self) -> None:
         super().__init__()
-        self.published: list[tuple[str, str]] = []
         self.deleted: list[str] = []
 
     def publish(self, key: str, value: str) -> None:
@@ -181,6 +194,53 @@ def test_record_restart_breadcrumb_persists_reason_and_count() -> None:
     assert rows[0]["event"] == "game.restart"
     assert rows[0]["foreground"] == "com.gof.global/.MainActivity"
     assert rows[0]["reason"] == "process_dead_after_retries"
+
+
+def test_adb_offline_retry_exhaustion_locks_instance_and_notifies() -> None:
+    r = _FakeRedis()
+    key = "wos:instance:bs1:state"
+
+    for i in range(1, 5):
+        attempts, exhausted = _handle_adb_offline_instance(
+            cast("object", r),  # type: ignore[arg-type]
+            instance_id="bs1",
+            serial="127.0.0.1:5625",
+            state_row=dict(r.hashes.get(key, {})),
+        )
+        assert attempts == i
+        assert exhausted is False
+        assert r.hashes[key]["auto_paused"] == "1"
+
+    attempts, exhausted = _handle_adb_offline_instance(
+        cast("object", r),  # type: ignore[arg-type]
+        instance_id="bs1",
+        serial="127.0.0.1:5625",
+        state_row=dict(r.hashes.get(key, {})),
+    )
+
+    assert attempts == 5
+    assert exhausted is True
+    state = r.hashes[key]
+    assert state["paused"] == "1"
+    assert state["auto_paused"] == "0"
+    assert state["adb_offline_attempts"] == "5"
+    assert state["adb_offline_retry_exhausted"] == "1"
+    assert state["adb_offline_retry_notified"] == "1"
+    assert "retry limit reached (5/5)" in state["last_error"]
+    assert "retry limit reached (5/5)" in state["queue_blocked_reason"]
+    notifications = [
+        json.loads(x)
+        for x in r.lists["wos:ui:notifications:bs1"]
+        if "device.offline.retry_exhausted" in x
+    ]
+    assert len(notifications) == 1
+    assert notifications[0]["level"] == "error"
+    assert r.published == [
+        (
+            "wos:events:abort_task:bs1",
+            json.dumps({"reason": "watchdog: adb offline retry exhausted"}),
+        )
+    ]
 
 
 def test_health_recovery_starts_missing_application_without_restart(monkeypatch) -> None:
