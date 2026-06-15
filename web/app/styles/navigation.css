@@ -11,6 +11,20 @@
     @apply flex items-center gap-2 border-b border-wos-border-subtle/80 px-4 py-4;
   }
 
+  /* Floating Bot control shown when the sidebar is collapsed (desktop). */
+  .nav-dock {
+    @apply fixed left-3 top-3 z-40 w-[18rem] rounded-xl border border-wos-border-subtle bg-wos-surface/98 pb-1 shadow-2xl shadow-black/30 backdrop-blur-xl;
+  }
+
+  .nav-dock__head {
+    @apply flex cursor-move items-center justify-between px-2 pt-2;
+    touch-action: none;
+  }
+
+  .nav-dock__grip {
+    @apply select-none px-1 text-base leading-none text-wos-text-muted;
+  }
+
   .nav-brand__logo {
     @apply flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg;
   }
@@ -31,6 +45,18 @@
 
   .nav-block-label {
     @apply mb-1.5 mt-3 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-wos-text-muted;
+  }
+
+  .nav-block-toggle {
+    @apply flex w-full cursor-pointer items-center justify-between gap-2 border-0 bg-transparent text-left text-wos-text-muted transition-colors hover:text-wos-text;
+  }
+
+  .nav-block-toggle > :last-child {
+    @apply shrink-0 opacity-60 transition-opacity;
+  }
+
+  .nav-block-toggle:hover > :last-child {
+    @apply opacity-100;
   }
 
   .nav-bot-banner {

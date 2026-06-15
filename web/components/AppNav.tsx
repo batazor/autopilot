@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { BotStartBanner } from "@/components/BotStartBanner";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
@@ -19,8 +19,14 @@ import {
   type NavLock,
 } from "@/lib/nav-locks";
 import {
+  clearDockPos,
+  loadDockPos,
+  loadQuickAccessCollapsed,
   loadRecent,
   pushRecent,
+  saveDockPos,
+  saveQuickAccessCollapsed,
+  type DockPos,
   type RecentNavItem,
 } from "@/lib/nav-prefs";
 import {
@@ -34,6 +40,10 @@ import {
 type AppNavProps = {
   open?: boolean;
   onNavigate?: () => void;
+  /** Desktop-only: when true the sidebar is hidden (md+). */
+  collapsed?: boolean;
+  /** Desktop-only: collapse the whole sidebar. */
+  onCollapse?: () => void;
 };
 
 function isActivePath(pathname: string, href: string): boolean {
@@ -43,9 +53,15 @@ function isActivePath(pathname: string, href: string): boolean {
   );
 }
 
-export function AppNav({ open = false, onNavigate }: AppNavProps) {
+export function AppNav({
+  open = false,
+  onNavigate,
+  collapsed = false,
+  onCollapse,
+}: AppNavProps) {
   const pathname = usePathname();
   const [recent, setRecent] = useState<RecentNavItem[]>([]);
+  const [quickCollapsed, setQuickCollapsed] = useState(false);
 
   const [tier, setTier] = useState<string | null>(null);
 
@@ -53,7 +69,16 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
 
   useEffect(() => {
     setRecent(loadRecent());
+    setQuickCollapsed(loadQuickAccessCollapsed());
   }, []);
+
+  const toggleQuickAccess = () => {
+    setQuickCollapsed((prev) => {
+      const next = !prev;
+      saveQuickAccessCollapsed(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -87,11 +112,13 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
   const recentVisible = recent.filter((r) => r.href !== pathname).length > 0;
 
   return (
+    <>
     <aside
       className={[
         "app-nav fixed inset-y-0 left-0 z-50 flex w-[min(100vw,18rem)] flex-col border-r border-wos-border-subtle bg-wos-surface/98 shadow-2xl shadow-black/25 backdrop-blur-xl transition-transform duration-200 ease-out",
         "md:sticky md:top-0 md:z-auto md:w-[17.5rem] md:shrink-0 md:translate-x-0 md:shadow-none",
         open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+        collapsed ? "md:hidden" : "",
       ].join(" ")}
       aria-label="Main navigation"
     >
@@ -138,6 +165,17 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
         >
           <Icon name="close" size="md" />
         </button>
+        {onCollapse ? (
+          <button
+            type="button"
+            className="nav-icon-btn hidden md:inline-flex"
+            aria-label="Collapse menu"
+            title="Collapse menu"
+            onClick={onCollapse}
+          >
+            <Icon name="chevron-left" size="md" />
+          </button>
+        ) : null}
       </div>
 
       <div className="nav-body">
@@ -146,21 +184,40 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
 
         <nav className="nav-scroll px-2 pb-4">
           <div className="nav-pinned">
-            <div className="nav-block-label">Quick access</div>
-            <ul className="nav-list">
-              {NAV_PINNED.map((item) => (
-                <NavRow
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  description={item.description}
-                  active={isActivePath(pathname, item.href)}
-                  variant="pinned"
-                  lock={getNavLock(item.href, tier) ?? undefined}
-                  onNavigate={onNavigate}
-                />
-              ))}
-            </ul>
+            <button
+              type="button"
+              className={[
+                "nav-block-label nav-block-toggle",
+                // No list below when collapsed → drop the gap so the label
+                // sits vertically centered in the pinned box.
+                quickCollapsed ? "mb-0" : "",
+              ].join(" ")}
+              onClick={toggleQuickAccess}
+              aria-expanded={!quickCollapsed}
+              title={quickCollapsed ? "Expand Quick access" : "Collapse Quick access"}
+            >
+              <span>Quick access</span>
+              <Icon
+                name={quickCollapsed ? "arrow-down" : "arrow-up"}
+                size="sm"
+              />
+            </button>
+            {!quickCollapsed ? (
+              <ul className="nav-list">
+                {NAV_PINNED.map((item) => (
+                  <NavRow
+                    key={item.href}
+                    href={item.href}
+                    label={item.label}
+                    description={item.description}
+                    active={isActivePath(pathname, item.href)}
+                    variant="pinned"
+                    lock={getNavLock(item.href, tier) ?? undefined}
+                    onNavigate={onNavigate}
+                  />
+                ))}
+              </ul>
+            ) : null}
           </div>
 
           {recentVisible ? (
@@ -322,6 +379,133 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
         </div>
       </footer>
     </aside>
+
+    {/* When the sidebar is collapsed (desktop), Bot control still needs to be
+        reachable, so it floats as a draggable standalone block over the page.
+        Hidden on mobile, where the drawer covers it. */}
+    {collapsed && onCollapse ? <NavDock onExpand={onCollapse} /> : null}
+    </>
+  );
+}
+
+
+// Floating, draggable Bot-control dock shown while the sidebar is collapsed.
+// Drag by the header strip; the position persists in localStorage and is
+// clamped to the viewport so it can never be dragged fully off-screen.
+function NavDock({ onExpand }: { onExpand: () => void }) {
+  const [pos, setPos] = useState<DockPos | null>(null);
+  const elRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+  const posRef = useRef<DockPos | null>(null);
+
+  useEffect(() => {
+    setPos(loadDockPos());
+  }, []);
+
+  const MARGIN = 12;
+  const SNAP = 28;
+
+  const bounds = () => {
+    const el = elRef.current;
+    const w = el?.offsetWidth ?? 288;
+    const h = el?.offsetHeight ?? 200;
+    return {
+      maxX: Math.max(MARGIN, window.innerWidth - w - MARGIN),
+      maxY: Math.max(MARGIN, window.innerHeight - h - MARGIN),
+    };
+  };
+
+  const clamp = (x: number, y: number): DockPos => {
+    const { maxX, maxY } = bounds();
+    return {
+      x: Math.min(Math.max(MARGIN, x), maxX),
+      y: Math.min(Math.max(MARGIN, y), maxY),
+    };
+  };
+
+  // Magnetic edges: when a drop lands near an edge, tuck it flush to that edge
+  // (so corners "click" into place), but free placement is kept elsewhere.
+  const snap = ({ x, y }: DockPos): DockPos => {
+    const { maxX, maxY } = bounds();
+    return {
+      x: x - MARGIN <= SNAP ? MARGIN : maxX - x <= SNAP ? maxX : x,
+      y: y - MARGIN <= SNAP ? MARGIN : maxY - y <= SNAP ? maxY : y,
+    };
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Let clicks on the expand button through without starting a drag.
+    if ((e.target as HTMLElement).closest("button")) return;
+    const el = elRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    dragRef.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const next = clamp(e.clientX - dragRef.current.dx, e.clientY - dragRef.current.dy);
+    posRef.current = next;
+    setPos(next);
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (posRef.current) {
+      const snapped = snap(posRef.current);
+      posRef.current = snapped;
+      setPos(snapped);
+      saveDockPos(snapped);
+    }
+  };
+
+  const resetPosition = () => {
+    clearDockPos();
+    posRef.current = null;
+    setPos(null);
+  };
+
+  const style = pos ? { left: pos.x, top: pos.y, right: "auto" as const } : undefined;
+
+  return (
+    <div ref={elRef} className="nav-dock hidden md:block" style={style}>
+      <div
+        className="nav-dock__head"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        title="Drag to move"
+      >
+        <span className="nav-dock__grip" aria-hidden>
+          ⠿
+        </span>
+        <span className="flex items-center">
+          <button
+            type="button"
+            className="nav-icon-btn"
+            aria-label="Reset position"
+            title="Reset position"
+            onClick={resetPosition}
+          >
+            <Icon name="refresh" size="sm" />
+          </button>
+          <button
+            type="button"
+            className="nav-icon-btn"
+            aria-label="Expand menu"
+            title="Expand menu"
+            onClick={onExpand}
+          >
+            <Icon name="chevron-right" size="md" />
+          </button>
+        </span>
+      </div>
+      <BotStartBanner />
+    </div>
   );
 }
 

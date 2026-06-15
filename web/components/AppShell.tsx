@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { ApiStatusProvider } from "@/components/ApiStatusProvider";
 import { AppNav } from "@/components/AppNav";
 import { AppTooltipHost } from "@/components/AppTooltip";
+import { CommandPalette } from "@/components/CommandPalette";
 import { EarlyDevBanner } from "@/components/EarlyDevBanner";
 import { FeedbackProvider } from "@/components/feedback";
 import { useFleetOptional } from "@/components/FleetContextProvider";
@@ -14,6 +15,7 @@ import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Icon } from "@/components/ui";
 import { VersionBadge } from "@/components/VersionBadge";
+import { loadSidebarCollapsed, saveSidebarCollapsed } from "@/lib/nav-prefs";
 
 function GameBadge() {
   // Pages outside the fleet-context layouts (e.g. ``/onboarding``) render
@@ -33,14 +35,40 @@ function GameBadge() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
+  // Desktop-only: whole-sidebar collapse, persisted across sessions.
+  const [navCollapsed, setNavCollapsed] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    setNavCollapsed(loadSidebarCollapsed());
+  }, []);
+
+  const toggleNavCollapsed = useCallback(() => {
+    setNavCollapsed((prev) => {
+      const next = !prev;
+      saveSidebarCollapsed(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setNavOpen(false);
+      if (e.key === "Escape") {
+        setNavOpen(false);
+        return;
+      }
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      } else if (meta && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleNavCollapsed();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [toggleNavCollapsed]);
 
   return (
     <ApiStatusProvider>
@@ -56,7 +84,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      <AppNav open={navOpen} onNavigate={() => setNavOpen(false)} />
+      <AppNav
+        open={navOpen}
+        collapsed={navCollapsed}
+        onNavigate={() => setNavOpen(false)}
+        onCollapse={toggleNavCollapsed}
+      />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-wos-border-subtle/80 bg-wos-bg/95 px-4 py-3 backdrop-blur-md md:hidden">
@@ -91,6 +124,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <AttentionBanner />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
       </div>
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onToggleSidebar={toggleNavCollapsed}
+      />
       <OnboardingWizard />
       <AppTooltipHost />
     </div>

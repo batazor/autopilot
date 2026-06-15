@@ -174,7 +174,7 @@ export default function OverviewPage() {
         <FleetStatusGrid fleet={optimisticFleet} onOpen={openInstance} />
       ) : null}
 
-      <section className="panel">
+      <section className="panel panel--spaced">
         <div className="fleet-section__head">
           <h2>Fleet</h2>
           {data?.has_devices && optimisticFleet.length ? (

@@ -897,7 +897,6 @@ export function BotStartBanner() {
         >
           {deviceChipLabel(adbStatus)}
         </span>
-        <span className="nav-bot-banner__chip">Mode local</span>
         {currentInstance ? (
           <InstanceStatusChip instanceId={currentInstance} row={currentRow} />
         ) : null}
