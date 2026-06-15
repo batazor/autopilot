@@ -1147,6 +1147,7 @@ async def evaluate_overlay_rules_async(
                     "ref_rel": ref_rel,
                     "rule_type": rule_type,
                     "expected": expected,
+                    "exact": compiled.exact,
                     "threshold": threshold,
                     "preprocess": preprocess,
                     "push_tasks": compiled.push_tasks,
@@ -1241,15 +1242,27 @@ async def _evaluate_pending_text_rules(
         expected = p["expected"]
 
         if expected:
-            # ``partial=True``: OCR may pick up sibling labels (multi-line
-            # popups, level badges next to the prompt). Mirrors what an
-            # author writes in ``expected: ["tap anywhere"]`` — they mean
-            # "this phrase appears somewhere in the OCR'd content", not
-            # "the OCR result equals this phrase verbatim".
-            m = fuzzy_match(txt, expected, threshold=p["threshold"], partial=True)
-            if m is not None:
-                matched = True
-                best = {"candidate": m.candidate, "score": m.score}
+            if p.get("exact"):
+                # Screen-identity rules: plain case-insensitive substring, no
+                # fuzzy scoring. ``fuzz.partial_ratio`` would let a short title
+                # phrase ("Hall of Heroes") match a window inside another
+                # screen's noisy OCR and flip the detected node intermittently.
+                txt_lc = txt.lower()
+                for cand in expected:
+                    if cand.lower() in txt_lc:
+                        matched = True
+                        best = {"candidate": cand, "score": 1.0}
+                        break
+            else:
+                # ``partial=True``: OCR may pick up sibling labels (multi-line
+                # popups, level badges next to the prompt). Mirrors what an
+                # author writes in ``expected: ["tap anywhere"]`` — they mean
+                # "this phrase appears somewhere in the OCR'd content", not
+                # "the OCR result equals this phrase verbatim".
+                m = fuzzy_match(txt, expected, threshold=p["threshold"], partial=True)
+                if m is not None:
+                    matched = True
+                    best = {"candidate": m.candidate, "score": m.score}
         else:
             matched = bool(txt)
 

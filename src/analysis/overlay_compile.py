@@ -66,6 +66,10 @@ class CompiledOverlayRule:
     push_tasks: list[dict[str, Any]]
     inline_steps: tuple[dict[str, Any], ...]
     expected: tuple[str, ...]
+    # When True, ``expected`` is matched as a plain case-insensitive substring
+    # (no fuzzy scoring). Screen-identity OCR rules set this so a short title
+    # phrase can't fuzzily false-match another screen's noisy title.
+    exact: bool
     screen: ScreenGate
     is_red_dot_required: bool | None
     min_match_saturation: float | None
@@ -138,6 +142,7 @@ def compile_overlay_rule(rule: dict[str, Any]) -> CompiledOverlayRule | None:
         push_tasks=optional_push_scenario_tasks(rule),
         inline_steps=inline_steps,
         expected=tuple(optional_expected_texts(rule)),
+        exact=bool(rule.get("exact")),
         screen=_screen_gate_from_rule(rule),
         is_red_dot_required=is_red_dot_required,
         min_match_saturation=optional_min_match_saturation(rule),

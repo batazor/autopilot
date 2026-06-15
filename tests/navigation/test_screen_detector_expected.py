@@ -180,6 +180,7 @@ screens:
             "region": "page.common.title",
             "threshold": 0.8,
             "expected": ["Exploration"],
+            "exact": True,
         }
     ]
     assert compiled_groups == [["test.exploration.page.common.title.ocr"]]
@@ -232,3 +233,113 @@ screens:
 
     assert str(detected) == "exploration"
     assert fake_ocr.seen_regions == [Region(10, 40, 30, 20), Region(10, 40, 30, 20)]
+
+
+@pytest.mark.asyncio
+async def test_sharded_scan_keeps_ocr_rules_in_one_batch(
+    mocker,
+    tmp_path,
+) -> None:
+    """On the parallel (sharded) path, every ``action: text`` rule must ride in
+    a single ``ocr_regions`` call so the client's within-batch patch-hash dedup
+    collapses the N screen-verify rules that all OCR the same title (e.g. 27×
+    ``page.common.title``) into ONE Tesseract run. Striping them across shards
+    would re-OCR the same bbox once per shard — concurrently, defeating both the
+    batch dedup and the TTL patch cache (a backend stampede).
+    """
+    # Eight screens, each OCR-ing the SAME bbox with a distinct ``contains`` —
+    # enough rules to cross ``_LANDMARK_PARALLEL_THRESHOLD`` and trigger sharding.
+    words = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel"]
+    cfg = tmp_path / "screen_verify.yaml"
+    cfg.write_text(
+        "screens:\n"
+        + "".join(
+            f"  s{i}:\n"
+            f"    priority: {10 + i}\n"
+            f"    landmarks:\n"
+            f"      - ocr: page.common.title\n"
+            f"        contains: {w}\n"
+            f"        threshold: 0.8\n"
+            for i, w in enumerate(words)
+        ),
+        encoding="utf-8",
+    )
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
+    import navigation.detector as detector_module
+
+    def screen_landmark_rules(screen: str) -> list[dict[str, Any]]:
+        for i, w in enumerate(words):
+            if screen == f"s{i}":
+                return [{"ocr": "page.common.title", "contains": w, "threshold": 0.8}]
+        return []
+
+    mocker.patch.object(
+        detector_module,
+        "screen_verify_screen_names",
+        new=lambda: [f"s{i}" for i in range(len(words))],
+    )
+    mocker.patch.object(
+        detector_module, "screen_landmark_rules", new=screen_landmark_rules
+    )
+    mocker.patch.object(
+        detector_module, "screen_verify_config_fingerprint", new=lambda: ("test",)
+    )
+    mocker.patch.object(detector_module, "screen_verify_parent", new=lambda _s: None)
+    # Force the sharded path regardless of the CI host's core count.
+    mocker.patch.object(detector_module, "_landmark_worker_count", new=lambda: 4)
+    detector_module.ScreenDetector._landmark_rules_cache.clear()
+    detector_module.ScreenDetector._landmark_rules_cache_fp = None
+    screen_graph.invalidate_screen_verify_config()
+
+    class _CountingOcr:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.regions_per_call: list[list[Region]] = []
+
+        async def ocr_regions(
+            self,
+            _image: np.ndarray,
+            regions: list[Region],
+            *,
+            region_ids: list[str] | None = None,
+            **_kwargs: Any,
+        ) -> list[OCRResult]:
+            self.calls += 1
+            self.regions_per_call.append(list(regions))
+            return [
+                OCRResult(
+                    region_id=region_ids[i] if region_ids is not None else f"r{i}",
+                    text="Charlie",
+                    confidence=0.99,
+                )
+                for i in range(len(regions))
+            ]
+
+    fake_ocr = _CountingOcr()
+    detector = ScreenDetector(fake_ocr)  # type: ignore[arg-type]
+    detector._area_doc = {
+        "screens": [
+            {
+                "screen_id": "",
+                "regions": [
+                    {
+                        "name": "page.common.title",
+                        "action": "text",
+                        "bbox": {"x": 10, "y": 20, "width": 30, "height": 10},
+                    }
+                ],
+            }
+        ]
+    }
+
+    try:
+        detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
+    finally:
+        screen_graph.invalidate_screen_verify_config()
+
+    # Only "Charlie" (s2) matches the OCR'd text → that screen wins.
+    assert str(detected) == "s2"
+    # The optimization invariant: ONE batched OCR call carrying all eight
+    # same-bbox rules — not one call per shard.
+    assert fake_ocr.calls == 1
+    assert len(fake_ocr.regions_per_call[0]) == len(words)

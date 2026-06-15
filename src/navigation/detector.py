@@ -196,6 +196,11 @@ class ScreenDetector:
                     "region": ocr_region_name,
                     "threshold": rule.get("threshold", 0.8),
                     "expected": expected,
+                    # Screen identity matches the title verbatim (case-insensitive
+                    # substring) — no fuzzy scoring, which intermittently flipped
+                    # the node when a short phrase fuzzy-matched another screen's
+                    # noisy OCR. Opt back into fuzzy per-rule with ``fuzzy: true``.
+                    "exact": not bool(rule.get("fuzzy", False)),
                 }
                 confidence = rule.get("confidence")
                 if confidence is not None:
@@ -681,6 +686,16 @@ async def _evaluate_overlay_rules_in_thread(
     its own ``asyncio.run`` over the engine on a subset of rules, which is safe
     because the engine's findIcon/tab_active paths don't share mutable state
     across rules — only read-only caches (template/region lookups).
+
+    OCR caveat: ``action: text`` rules must NOT be sharded. Template matching is
+    CPU-bound and parallel-friendly, but text rules spawn Tesseract and their
+    win is *batching* — :func:`evaluate_overlay_rules_async` collapses every
+    identical bbox in a single batch to one backend call (the 27 screen-verify
+    rules that all OCR ``page.common.title`` become ONE Tesseract run). Striping
+    them across shards splits that batch apart, so each shard re-OCRs the same
+    title *concurrently* — defeating both the within-batch dedup and the TTL
+    patch cache (concurrent misses stampede the backend). So on the sharded path
+    we keep all text rules in one unsharded batch and shard only the rest.
     """
 
     def _run(subset: list[dict[str, Any]]) -> dict[str, Any]:
@@ -697,22 +712,39 @@ async def _evaluate_overlay_rules_in_thread(
 
     n_workers = _landmark_worker_count()
     if n_workers <= 1 or len(rules) < _LANDMARK_PARALLEL_THRESHOLD:
+        # Small batch: one call evaluates everything. The engine already dedups
+        # identical text bboxes within a single batch, so no sharding means no
+        # OCR duplication — nothing to split.
         return await asyncio.to_thread(_run, rules)
 
-    # Stripe rules across shards so each shard sees a mix of fast/slow rules.
-    # Sequential chunking would put adjacent (likely-similar-cost) rules in the
-    # same shard, leading to long-tail stragglers.
-    shards: list[list[dict[str, Any]]] = [[] for _ in range(n_workers)]
-    for idx, rule in enumerate(rules):
-        shards[idx % n_workers].append(rule)
-    shards = [shard for shard in shards if shard]
+    # Large batch: keep every OCR rule in one unsharded batch (full bbox dedup),
+    # and stripe only the CPU-bound template/tab rules across shards. Striping
+    # interleaves likely-similar-cost rules so no shard becomes a long-tail
+    # straggler.
+    text_rules = [r for r in rules if normalize_overlay_action(r) == "text"]
+    other_rules = [r for r in rules if normalize_overlay_action(r) != "text"]
 
-    shard_outs = await asyncio.gather(
-        *(asyncio.to_thread(_run, shard) for shard in shards)
-    )
+    thunks: list[Any] = []
+    if text_rules:
+        thunks.append(lambda: _run(text_rules))
+    if other_rules:
+        if len(other_rules) < _LANDMARK_PARALLEL_THRESHOLD:
+            thunks.append(lambda: _run(other_rules))
+        else:
+            shards: list[list[dict[str, Any]]] = [[] for _ in range(n_workers)]
+            for idx, rule in enumerate(other_rules):
+                shards[idx % n_workers].append(rule)
+            thunks.extend(
+                (lambda s=shard: _run(s)) for shard in shards if shard
+            )
+
+    if len(thunks) == 1:
+        return await asyncio.to_thread(thunks[0])
+
+    outs = await asyncio.gather(*(asyncio.to_thread(t) for t in thunks))
     merged: dict[str, Any] = {}
-    for shard_out in shard_outs:
-        merged.update(shard_out)
+    for out in outs:
+        merged.update(out)
     return merged
 
 
