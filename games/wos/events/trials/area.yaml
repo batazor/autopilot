@@ -3,7 +3,6 @@ screens:
 - id: 54
   screen_id: event.trials
   ocr: references/page.trials.png
-  screen_region: trials.title
   regions:
   - name: trial.task.1
     action: exist

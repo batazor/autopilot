@@ -2,40 +2,46 @@ screens:
   backpack:
     priority: 30
     rules:
-    - match: backpack.title
+    - ocr: page.common.title
+      contains: Backpack
       threshold: 0.8
   backpack.resources:
     parent: backpack
     priority: 15
     rules:
-    - match: backpack.title
+    - ocr: page.common.title
+      contains: Backpack
       threshold: 0.8
       tab_active: page.backpack.resources
   backpack.speedup:
     parent: backpack
     priority: 15
     rules:
-    - match: backpack.title
+    - ocr: page.common.title
+      contains: Backpack
       threshold: 0.8
       tab_active: page.backpack.speedup
   backpack.bonus:
     parent: backpack
     priority: 15
     rules:
-    - match: backpack.title
+    - ocr: page.common.title
+      contains: Backpack
       threshold: 0.8
       tab_active: page.backpack.bonus
   backpack.gear:
     parent: backpack
     priority: 15
     rules:
-    - match: backpack.title
+    - ocr: page.common.title
+      contains: Backpack
       threshold: 0.8
       tab_active: page.backpack.gear
   backpack.other:
     parent: backpack
     priority: 15
     rules:
-    - match: backpack.title
+    - ocr: page.common.title
+      contains: Backpack
       threshold: 0.8
       tab_active: page.backpack.other

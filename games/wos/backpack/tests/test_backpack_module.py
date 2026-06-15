@@ -159,12 +159,13 @@ def test_backpack_screen_verify_uses_title_landmark() -> None:
 
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
-        expected_base = [{"match": "backpack.title", "threshold": 0.8}]
+        expected_base = [{"ocr": "page.common.title", "contains": "Backpack", "threshold": 0.8}]
         assert screen_graph.screen_landmark_rules("backpack") == expected_base
         assert screen_graph.screen_verify_rules("backpack") == expected_base
         expected_tab = [
             {
-                "match": "backpack.title",
+                "ocr": "page.common.title",
+                "contains": "Backpack",
                 "threshold": 0.8,
                 "tab_active": ACTIVE_TAB,
             }

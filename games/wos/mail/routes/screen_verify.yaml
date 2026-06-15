@@ -2,40 +2,46 @@ screens:
   mail:
     priority: 30
     rules:
-    - match: mail.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Mail
+      threshold: 0.8
   mail.wars:
     parent: mail
     priority: 15
     rules:
-    - match: mail.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Mail
+      threshold: 0.8
       tab_active: mail.tab.wars
   mail.alliance:
     parent: mail
     priority: 15
     rules:
-    - match: mail.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Mail
+      threshold: 0.8
       tab_active: mail.tab.alliance
   mail.system:
     parent: mail
     priority: 15
     rules:
-    - match: mail.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Mail
+      threshold: 0.8
       tab_active: mail.tab.system
   mail.reports:
     parent: mail
     priority: 15
     rules:
-    - match: mail.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Mail
+      threshold: 0.8
       tab_active: mail.tab.reports
   mail.starred:
     parent: mail
     priority: 15
     rules:
-    - match: mail.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Mail
+      threshold: 0.8
       tab_active: mail.tab.starred

@@ -64,7 +64,6 @@ screens:
   - id: 1302
     screen_id: deals.mia_fortune_hut.fortune_token_pack
     ocr: references/page.fortune_token_pack.png
-    screen_region: fortune_token_pack.title
     regions:
       - name: fortune_token_pack.title
         action: exist

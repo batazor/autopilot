@@ -258,7 +258,20 @@ def test_production_screen_verify_yaml_contains_mail_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"match": "mail.title", "threshold": 0.9}]
+    expected = [{"ocr": "page.common.title", "contains": "Mail", "threshold": 0.8}]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_deals_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        landmarks = screen_graph.screen_landmark_rules("deals")
+        rules = screen_graph.screen_verify_rules("deals")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    expected = [{"ocr": "page.common.title", "contains": "Deals", "threshold": 0.8}]
     assert landmarks == expected
     assert rules == expected
 
@@ -288,7 +301,7 @@ def test_production_screen_verify_yaml_contains_squad_settings_rule() -> None:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [
-        {"match": "squad_settings.title", "threshold": 0.9},
+        {"ocr": "page.common.title", "contains": "Squad Settings", "threshold": 0.8},
     ]
     assert landmarks == expected
     assert rules == expected
@@ -318,7 +331,35 @@ def test_production_screen_verify_yaml_contains_mail_tab_rules() -> None:
             "mail.starred": "mail.tab.starred",
         }
         for screen, tab_region in checks.items():
-            expected = [{"match": "mail.title", "threshold": 0.9, "tab_active": tab_region}]
+            expected = [
+                {
+                    "ocr": "page.common.title",
+                    "contains": "Mail",
+                    "threshold": 0.8,
+                    "tab_active": tab_region,
+                }
+            ]
+            assert screen_graph.screen_landmark_rules(screen) == expected
+            assert screen_graph.screen_verify_rules(screen) == expected
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+
+def test_production_screen_verify_yaml_contains_alliance_common_title_rules() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        checks = {
+            "alliance": [{"ocr": "page.common.title", "contains": "Alliance", "threshold": 0.8}],
+            "alliance.war": [
+                {"ocr": "page.common.title", "contains": "War", "threshold": 0.8},
+                {"from_screen": ["alliance"]},
+            ],
+            "alliance.tech": [
+                {"ocr": "page.common.title", "contains": "Tech", "threshold": 0.8},
+                {"from_screen": ["alliance"]},
+            ],
+        }
+        for screen, expected in checks.items():
             assert screen_graph.screen_landmark_rules(screen) == expected
             assert screen_graph.screen_verify_rules(screen) == expected
     finally:
@@ -332,14 +373,15 @@ def test_production_screen_verify_yaml_contains_trials_day_rules() -> None:
             screen = f"event.trials.day.{day}"
             expected = [
                 {
-                    "match": "trials.title",
-                    "threshold": 0.9,
+                    "ocr": "page.common.title",
+                    "contains": "Trials",
+                    "threshold": 0.8,
                     "tab_active": f"trial.day.{day}",
                 }
             ]
             assert screen_graph.screen_landmark_rules(screen) == expected
             assert screen_graph.screen_verify_rules(screen) == expected
-        expected_base = [{"match": "trials.title", "threshold": 0.9}]
+        expected_base = [{"ocr": "page.common.title", "contains": "Trials", "threshold": 0.8}]
         assert screen_graph.screen_landmark_rules("event.trials") == expected_base
         assert screen_graph.screen_verify_rules("event.trials") == expected_base
     finally:

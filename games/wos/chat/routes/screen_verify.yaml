@@ -1,6 +1,6 @@
 # Chat screen detection / nav-verify.
 #
-# `chat.title` is the shared landmark that confirms we're on the chat screen.
+# The shared OCR title confirms we're on the chat screen.
 # Each sub-tab additionally requires its own tab button to read as visually
 # "active" (`tab_active:` → programmatic HSV check, layout/tab_active_detector.py),
 # so the detector can tell World / Alliance / Personal apart. Sub-tabs sit at a
@@ -14,15 +14,17 @@ screens:
   chat:
     priority: 30
     rules:
-    - match: chat.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Chat
+      threshold: 0.8
 
   chat.world:
     parent: chat
     priority: 15
     rules:
-    - match: chat.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Chat
+      threshold: 0.8
       tab_active: chat.world
       max_mean_saturation: 70
 
@@ -30,8 +32,9 @@ screens:
     parent: chat
     priority: 15
     rules:
-    - match: chat.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Chat
+      threshold: 0.8
       tab_active: chat.alliance
       max_mean_saturation: 70
 
@@ -39,7 +42,8 @@ screens:
     parent: chat
     priority: 15
     rules:
-    - match: chat.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Chat
+      threshold: 0.8
       tab_active: chat.personal
       max_mean_saturation: 70

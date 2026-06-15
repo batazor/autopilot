@@ -40,14 +40,19 @@ def test_area_declares_title_and_tab_regions() -> None:
 def test_screen_verify_detects_tabs_via_tab_active() -> None:
     screens = _load_yaml("routes/screen_verify.yaml")["screens"]
 
-    # Parent screen: just the title landmark.
-    assert screens["chat"]["rules"][0]["match"] == "chat.title"
+    # Parent screen: common OCR title.
+    assert screens["chat"]["rules"][0] == {
+        "ocr": "page.common.title",
+        "contains": "Chat",
+        "threshold": 0.8,
+    }
 
     for tab in TABS:
         node = f"chat.{tab}"
         assert screens[node]["parent"] == "chat"
         rule = screens[node]["rules"][0]
-        assert rule["match"] == "chat.title"
+        assert rule["ocr"] == "page.common.title"
+        assert rule["contains"] == "Chat"
         # Active-tab is read off the tab button region itself.
         assert rule["tab_active"] == node
 

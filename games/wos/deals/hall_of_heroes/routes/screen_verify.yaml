@@ -7,5 +7,6 @@ screens:
   hall_of_heroes.witness:
     priority: 54
     rules:
-    - match: hall_of_heroes.witness.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: A Hero's Witness
+      threshold: 0.8

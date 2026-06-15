@@ -5,13 +5,15 @@ screens:
       attempts: 6
       interval_seconds: 1.0
     rules:
-      - match: page.alliance.title
-        threshold: 0.85
+      - ocr: page.common.title
+        contains: Alliance
+        threshold: 0.8
   alliance.war:
     priority: 65
     rules:
-      - match: alliance.war.title
-        threshold: 0.85
+      - ocr: page.common.title
+        contains: War
+        threshold: 0.8
       - from_screen: alliance
   alliance.war.auto_join:
     priority: 80
@@ -39,8 +41,9 @@ screens:
   alliance.tech:
     priority: 65
     rules:
-      - match: alliance.tech.title
-        threshold: 0.85
+      - ocr: page.common.title
+        contains: Tech
+        threshold: 0.8
       - from_screen: alliance
   alliance.tech.contribute:
     priority: 80

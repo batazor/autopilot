@@ -75,7 +75,6 @@ def test_fortune_token_pack_box_has_red_dot_on_reference() -> None:
 def test_fortune_token_pack_page_regions_match_fresh_reference() -> None:
     area_doc = load_area_doc(REPO_ROOT)
     entry = _screen_entry(area_doc, PACK_SCREEN)
-    assert entry["screen_region"] == PACK_TITLE_REGION
 
     ref_rel = entry["ocr"]
     frame = cv2.imread(str(REPO_ROOT / ref_rel))
@@ -141,7 +140,7 @@ def test_mia_fortune_hut_screen_verify_parent_and_routes() -> None:
         ]
         assert screen_graph.screen_verify_parent(PACK_SCREEN) is None
         assert screen_graph.screen_verify_rules(PACK_SCREEN) == [
-            {"match": PACK_TITLE_REGION, "threshold": 0.85}
+            {"ocr": "page.common.title", "contains": "Fortune Token Pack", "threshold": 0.8}
         ]
         assert screen_graph.screen_verify_parent(REWARD_WISH_SCREEN) is None
         assert screen_graph.screen_verify_rules(REWARD_WISH_SCREEN) == [

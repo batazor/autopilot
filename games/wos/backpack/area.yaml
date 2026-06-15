@@ -3,7 +3,6 @@ screens:
 - id: 53
   screen_id: backpack
   ocr: references/page.backpack.png
-  screen_region: backpack.title
   regions:
   - name: page.backpack.resources
     action: exist

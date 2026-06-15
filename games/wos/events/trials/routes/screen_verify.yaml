@@ -3,39 +3,45 @@ screens:
     parent: event.trials
     priority: 15
     rules:
-    - match: trials.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Trials
+      threshold: 0.8
       tab_active: trial.day.1
   event.trials.day.2:
     parent: event.trials
     priority: 15
     rules:
-    - match: trials.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Trials
+      threshold: 0.8
       tab_active: trial.day.2
   event.trials.day.3:
     parent: event.trials
     priority: 15
     rules:
-    - match: trials.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Trials
+      threshold: 0.8
       tab_active: trial.day.3
   event.trials.day.4:
     parent: event.trials
     priority: 15
     rules:
-    - match: trials.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Trials
+      threshold: 0.8
       tab_active: trial.day.4
   event.trials.day.5:
     parent: event.trials
     priority: 15
     rules:
-    - match: trials.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Trials
+      threshold: 0.8
       tab_active: trial.day.5
   event.trials:
     priority: 30
     rules:
-    - match: trials.title
-      threshold: 0.9
+    - ocr: page.common.title
+      contains: Trials
+      threshold: 0.8

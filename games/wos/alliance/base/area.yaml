@@ -5,7 +5,6 @@
       "id": 1600,
       "screen_id": "alliance",
       "ocr": "references/main.png",
-      "screen_region": "page.alliance.title",
       "regions": [
         {
           "name": "page.alliance.title",
@@ -389,7 +388,6 @@
       "id": 1601,
       "screen_id": "alliance.war",
       "ocr": "references/war.png",
-      "screen_region": "alliance.war.title",
       "regions": [
         {
           "name": "alliance.war.back",
@@ -592,7 +590,6 @@
       "id": 1603,
       "screen_id": "alliance.tech",
       "ocr": "references/alliance.tech.png",
-      "screen_region": "alliance.tech.title",
       "regions": [
         {
           "name": "alliance.tech.back",
