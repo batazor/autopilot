@@ -1,0 +1,5 @@
+enabled: true
+name: Exit rewards upgraded popup
+node: rewards.upgraded
+steps:
+  - click: rewards.upgraded.tap_anywhere_to_exit

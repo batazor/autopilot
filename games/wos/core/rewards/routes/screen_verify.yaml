@@ -10,4 +10,13 @@ screens:
       threshold: 0.9
     - match: rewards.title.v2
       threshold: 0.9
-
+  rewards.upgraded:
+    priority: 5
+    rules:
+    - match: rewards.upgraded.title
+      threshold: 0.9
+  claimed:
+    priority: 5
+    rules:
+    - match: claimed.title
+      threshold: 0.9

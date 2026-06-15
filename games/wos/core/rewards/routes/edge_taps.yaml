@@ -1,6 +1,12 @@
-# Generic reward popup exit. Some VIP-styled reward dialogs render
-# "Click to continue" but ignore coordinate taps; Android BACK closes them.
+# Generic reward popup exit. Prefer the visible "Click to continue" affordance
+# over Android BACK so rewards dialogs close through the same UI path the player sees.
 edges:
   rewards:
     main_city:
-      - type: system_back
+      - button.click_to_continue
+  rewards.upgraded:
+    deals:
+      - rewards.upgraded.tap_anywhere_to_exit
+  claimed:
+    shop.daily_deals:
+      - claimed.tap_anywhere_to_exit

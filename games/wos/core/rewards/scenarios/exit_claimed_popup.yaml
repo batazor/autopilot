@@ -1,0 +1,5 @@
+enabled: true
+name: Exit claimed popup
+node: claimed
+steps:
+  - click: claimed.tap_anywhere_to_exit

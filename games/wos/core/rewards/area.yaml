@@ -34,3 +34,65 @@ screens:
           original_width: 720
           original_height: 1280
         isSearch: true
+
+  - id: 78
+    screen_id: rewards.upgraded
+    ocr: references/page.rewards_upgraded.png
+    screen_region: rewards.upgraded.title
+    regions:
+      - name: rewards.upgraded.title
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 19.444444444444446
+          y: 18.125
+          width: 63.33333333333333
+          height: 6.25
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+      - name: rewards.upgraded.tap_anywhere_to_exit
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 33.88888888888889
+          y: 90.3125
+          width: 32.22222222222222
+          height: 3.125
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+        tap_hold_ms: 200
+
+  - id: 79
+    screen_id: claimed
+    ocr: references/page.claimed.png
+    screen_region: claimed.title
+    regions:
+      - name: claimed.title
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 36.94444444444444
+          y: 23.125
+          width: 26.111111111111114
+          height: 4.0625
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+      - name: claimed.tap_anywhere_to_exit
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 31.944444444444443
+          y: 88.984375
+          width: 36.11111111111111
+          height: 4.296875
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+        tap_hold_ms: 200
