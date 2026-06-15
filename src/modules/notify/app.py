@@ -81,6 +81,8 @@ class SettingsIn(BaseModel):
     adb_serial: str | None = None
     adb_path: str | None = None
     monitor_enabled: bool | None = None
+    dismiss_handled: bool | None = None
+    dismiss_snooze_ms: int | None = None
 
 
 def _validate_game(game: str) -> None:
@@ -275,6 +277,12 @@ def api_put_settings(body: SettingsIn) -> dict[str, Any]:
         db.set_setting("monitor_enabled", "1" if body.monitor_enabled else "0")
         if body.monitor_enabled:
             monitor.start()
+    if body.dismiss_handled is not None:
+        db.set_setting("dismiss_handled", "1" if body.dismiss_handled else "0")
+    if body.dismiss_snooze_ms is not None:
+        if body.dismiss_snooze_ms < 1:
+            raise HTTPException(400, "dismiss_snooze_ms must be >= 1")
+        db.set_setting("dismiss_snooze_ms", str(body.dismiss_snooze_ms))
     return {"ok": True, "settings": db.get_all_settings()}
 
 

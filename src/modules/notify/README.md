@@ -22,7 +22,25 @@ in the FastAPI lifespan hook). Open the URL and use the tabs:
 - **Players** — add/remove/toggle monitored players (also auto-discovered)
 - **Patterns** — add/edit/delete/toggle patterns, **test a regex** against sample text
 - **Unrecognized** — mark reviewed or **promote** to a new pattern
-- **Settings** — polling interval, ADB serial/path, enable/disable monitor
+- **Settings** — polling interval, ADB serial/path, enable/disable monitor,
+  dismiss-handled toggle + snooze duration
+
+### Dismissing handled notifications
+
+Once a notification is **recognized** and acted on (event stored / scenario
+pushed), the monitor marks it read on-device by snoozing it via
+`cmd notification snooze` — it leaves the shade and stops reappearing through
+`dumpsys`. Android has no public shell command to truly *cancel* another app's
+notification, so a long snooze is the closest mechanism; at the default 7 days
+the reappearance is effectively never. Unrecognized notifications are left
+visible so you can promote them to a pattern.
+
+Controlled by two settings (defaults: on, 7 days):
+
+| setting             | default            | meaning                                   |
+| ------------------- | ------------------ | ----------------------------------------- |
+| `dismiss_handled`   | `1`                | `1`=snooze recognized notifications, `0`=off |
+| `dismiss_snooze_ms` | `604800000` (7d)   | snooze duration in milliseconds           |
 
 ## API examples
 

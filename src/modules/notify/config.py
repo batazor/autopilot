@@ -68,6 +68,16 @@ EVENT_SCENARIOS: dict[str, dict[str, str]] = {
 # Priority for notification-pushed scenarios (matches the DSL default band).
 PUSH_SCENARIO_PRIORITY = 80_000
 
+# After a *recognized* notification is handled (event stored / scenario pushed),
+# remove it from the device's notification shade so it doesn't linger or get
+# re-read. Android exposes no public shell command to truly cancel another app's
+# notification, so we snooze it by key for a long duration — the closest public
+# mechanism (``cmd notification snooze``): the notification drops out of the
+# active ``dumpsys`` record list (so the parser stops seeing it) and the shade
+# until the snooze expires. At 7 days the reappearance is effectively never.
+DEFAULT_DISMISS_HANDLED = "1"                          # "1"=on, "0"=off
+DEFAULT_DISMISS_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000    # 7 days, in milliseconds
+
 
 @dataclass(frozen=True)
 class Game:

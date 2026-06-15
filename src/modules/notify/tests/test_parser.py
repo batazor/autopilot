@@ -55,6 +55,29 @@ def test_parse_maps_game_and_text():
     assert "finished training" in ks.raw_text
 
 
+def test_parses_notification_key_from_record_header():
+    # Real device header carries ``key=0|pkg|id|tag|uid:`` right before the
+    # ``Notification(...)`` block; we capture it for on-device dismissal.
+    dump = (
+        "  NotificationRecord(0x0822abd0: pkg=com.gof.global user=UserHandle{0} "
+        "id=5 tag=null importance=3 key=0|com.gof.global|5|null|10080: "
+        "Notification(channel=Default))\n"
+        "    extras={\n"
+        "      android.title=New Intel (String)\n"
+        "      android.text=New Intel in the Lighthouse (String)\n"
+        "    }\n"
+    )
+    notifs = parser.parse_dumpsys(dump)
+    assert len(notifs) == 1
+    assert notifs[0].key == "0|com.gof.global|5|null|10080"
+
+
+def test_missing_key_is_empty_string():
+    # Simplified / redacted dumps without a ``key=`` field must still parse.
+    notifs = parser.parse_dumpsys(SAMPLE_DUMPSYS)
+    assert all(n.key == "" for n in notifs)
+
+
 def test_dedup_key_stable_and_distinct():
     notifs = parser.parse_dumpsys(SAMPLE_DUMPSYS)
     keys = [n.dedup_key() for n in notifs]

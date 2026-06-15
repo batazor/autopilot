@@ -13,7 +13,7 @@ import time
 from collections import OrderedDict
 from typing import Any
 
-from . import adb_reader, db, parser, state_lookup
+from . import adb_reader, config, db, parser, state_lookup
 from .logging_setup import get_logger
 from .publisher import RedisPublisher
 
@@ -110,6 +110,14 @@ class MonitorService:
         except (TypeError, ValueError):
             return 10
 
+    def _dismiss_snooze_ms(self) -> int:
+        default = config.DEFAULT_DISMISS_SNOOZE_MS
+        try:
+            ms = int(db.get_setting("dismiss_snooze_ms", str(default)) or default)
+        except (TypeError, ValueError):
+            return default
+        return ms if ms > 0 else default
+
     def poll_once(self) -> dict[str, Any]:
         """One poll cycle. Returns a small summary (also used by manual trigger)."""
         adb_path = db.get_setting("adb_path", "adb") or "adb"
@@ -122,6 +130,9 @@ class MonitorService:
         players_by_game: dict[str, list[str]] = {}
         for p in db.list_players():
             players_by_game.setdefault(p["game"], []).append(p["nickname"])
+
+        dismiss_enabled = (db.get_setting("dismiss_handled", "1") or "1") == "1"
+        snooze_ms = self._dismiss_snooze_ms()
 
         recognized = unrecognized = skipped = 0
         cycle_keys: set[str] = set()
@@ -136,6 +147,18 @@ class MonitorService:
             recognized += recognized_one
             unrecognized += unrec_one
             skipped += skipped_one
+            # Mark handled notifications as read on-device: once we've recognized
+            # and acted on one (event stored / scenario pushed), snooze it so it
+            # leaves the shade and stops coming back through dumpsys. Recognized
+            # only — unrecognized ones stay visible so the operator can build a
+            # pattern from them. Best-effort; failures never abort the cycle.
+            if dismiss_enabled and recognized_one and n.key:
+                adb_reader.snooze_notification(
+                    n.key,
+                    duration_ms=snooze_ms,
+                    adb_path=adb_path,
+                    serial=serial,
+                )
 
         self.last_poll_ts = time.time()
         self.last_poll_human = time.strftime("%Y-%m-%d %H:%M:%S")

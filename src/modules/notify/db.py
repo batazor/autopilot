@@ -104,6 +104,8 @@ DEFAULT_SETTINGS = {
     "adb_serial": config.DEFAULT_ADB_SERIAL,
     "adb_path": config.DEFAULT_ADB_PATH,
     "monitor_enabled": "1",
+    "dismiss_handled": config.DEFAULT_DISMISS_HANDLED,
+    "dismiss_snooze_ms": str(config.DEFAULT_DISMISS_SNOOZE_MS),
 }
 
 

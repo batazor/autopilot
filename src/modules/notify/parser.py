@@ -30,6 +30,13 @@ log = get_logger("parser")
 
 # A new record starts here; capture the package id.
 _RECORD_RE = re.compile(r"NotificationRecord\([^)]*\bpkg=([A-Za-z0-9_.]+)")
+# The system-assigned notification key, on the same header line as ``pkg=``:
+#   ``... key=0|com.gof.global|5|null|10080: Notification(...)``
+# Used to snooze (dismiss) the notification on-device once it's handled. The key
+# itself contains no spaces and is terminated by the ``: Notification`` that
+# follows, so a lazy capture up to ``:<space>`` is exact. Absent in redacted /
+# simplified dumps — callers must tolerate ``""``.
+_KEY_RE = re.compile(r"\bkey=(\S+?):\s")
 # extras values look like `android.title=Foo` or `android.title=Foo (String)`.
 _EXTRA_RES = {
     "title": re.compile(r"android\.title=(.*)"),
@@ -66,6 +73,9 @@ class Notification:
     text: str = ""
     ticker: str = ""
     extras: dict[str, str] = field(default_factory=dict)
+    # System-assigned notification key (``0|pkg|id|tag|uid``) used to dismiss the
+    # notification on-device. ``""`` when the dump didn't expose it.
+    key: str = ""
 
     @property
     def raw_text(self) -> str:
@@ -119,7 +129,12 @@ def parse_dumpsys(text: str) -> list[Notification]:
         if not game:
             continue
         extras: dict[str, str] = {}
+        notif_key = ""
         for line in lines:
+            if not notif_key:
+                km = _KEY_RE.search(line)
+                if km:
+                    notif_key = km.group(1)
             for key, rex in _EXTRA_RES.items():
                 if key in extras:
                     continue
@@ -138,6 +153,7 @@ def parse_dumpsys(text: str) -> list[Notification]:
                 text=extras.get("text", ""),
                 ticker=extras.get("ticker", ""),
                 extras=extras,
+                key=notif_key,
             )
         )
     return notifs
