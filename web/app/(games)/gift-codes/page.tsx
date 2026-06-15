@@ -63,6 +63,46 @@ const STATUS_HELP: Record<string, string> = {
     "Redeem failed — often transient (e.g. Kingshot login/session expired, err_code 40009). Retried on the next run.",
 };
 
+// Compact labels so the per-player status column doesn't overflow the table;
+// the full meaning stays in the hover tooltip (STATUS_HELP + nickname).
+const STATUS_SHORT: Record<string, string> = {
+  ALREADY_RECEIVED: "RECEIVED",
+  CDK_EXPIRED: "EXPIRED",
+  CDK_NOT_FOUND: "NOT FOUND",
+  STOVE_LEVEL_TOO_LOW: "STOVE LOW",
+  VIP_LEVEL_TOO_LOW: "VIP LOW",
+};
+
+function CopyableCode({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard?.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title="Copy code"
+      aria-label={`Copy code ${code}`}
+      className="group inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
+    >
+      <code>{code}</code>
+      <span
+        aria-hidden
+        className={`text-xs ${copied ? "text-emerald-400" : "text-wos-text-muted opacity-0 transition-opacity group-hover:opacity-100"}`}
+      >
+        {copied ? "✓" : "⧉"}
+      </span>
+    </button>
+  );
+}
+
 function GiftCodesTable({
   rows,
   playerIds,
@@ -97,7 +137,7 @@ function GiftCodesTable({
                 className={r.slot_expired ? "gift-row-expired" : undefined}
               >
                 <td>
-                  <code>{r.code}</code>
+                  <CopyableCode code={r.code} />
                 </td>
                 <td>{r.expires}</td>
                 <td>{r.slot_expired ? "yes" : "no"}</td>
@@ -109,10 +149,14 @@ function GiftCodesTable({
                   const cls = STATUS_CLASS[st] ?? "pill-offline";
                   const help = STATUS_HELP[st];
                   const tip = [help, p?.label].filter(Boolean).join(" — ") || undefined;
+                  const shortLabel = STATUS_SHORT[st] ?? st;
                   return (
                     <td key={pid}>
-                      <span className={`status-pill ${cls}`} title={tip}>
-                        {st}
+                      <span
+                        className={`status-pill whitespace-nowrap ${cls}`}
+                        title={tip}
+                      >
+                        {shortLabel}
                       </span>
                     </td>
                   );
@@ -595,19 +639,31 @@ function GiftCodesContent() {
       {m ? (
         <div className="mb-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(8rem,1fr))]">
           {[
-            { label: "Active", value: m.active },
+            {
+              label: "Active",
+              value: m.active,
+              tone: m.active > 0 ? "text-emerald-300" : "text-wos-text",
+            },
             {
               label: redeemSupported ? "Needs run" : "Manual apply",
               value: redeemSupported ? m.needs_run : m.active,
+              tone:
+                (redeemSupported ? m.needs_run : m.active) > 0
+                  ? "text-amber-300"
+                  : "text-wos-text",
             },
-            { label: "Pending slots", value: m.pending_slots },
-            { label: "Expired", value: m.expired },
+            {
+              label: "Pending slots",
+              value: m.pending_slots,
+              tone: m.pending_slots > 0 ? "text-sky-300" : "text-wos-text",
+            },
+            { label: "Expired", value: m.expired, tone: "text-wos-text-muted" },
           ].map((item) => (
             <div key={item.label} className="panel !p-3">
               <div className="text-xs uppercase tracking-wide text-wos-text-muted">
                 {item.label}
               </div>
-              <div className="mt-1 text-xl font-semibold text-wos-text">
+              <div className={`mt-1 text-xl font-semibold ${item.tone}`}>
                 {item.value}
               </div>
             </div>

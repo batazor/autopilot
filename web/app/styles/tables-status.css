@@ -5,7 +5,7 @@
   }
 
   .data-table-wrap {
-    @apply overflow-x-auto rounded-lg border border-wos-border-subtle/80;
+    @apply max-h-[70vh] overflow-auto rounded-lg border border-wos-border-subtle/80;
   }
 
   .data-table {
@@ -17,8 +17,10 @@
     @apply border-b border-wos-border-subtle/70 px-3 py-2 text-left align-top;
   }
 
+  /* Keep the header visible while scrolling long tables. Solid background +
+     z-index so body rows don't bleed through as they pass under it. */
   .data-table th {
-    @apply bg-wos-surface/90 text-xs font-semibold uppercase tracking-wide text-wos-text-muted;
+    @apply sticky top-0 z-10 bg-wos-surface text-xs font-semibold uppercase tracking-wide text-wos-text-muted;
   }
 
   .data-table tr:hover td {
