@@ -524,6 +524,54 @@ class RedisQueue:
         return RedisQueue._task_types_device_level_cached(fp)
 
     @staticmethod
+    def _task_types_without_recent_debuff() -> set[str]:
+        """Task types whose scenario YAML opts out of recent-run debuff.
+
+        Navigation helpers such as tab-strip walkers are intentionally run in
+        short bursts. Penalising them for doing their job lets older unrelated
+        80k tasks pull the bot out of the current section before the visible
+        red-dot work is exhausted.
+        """
+        from dsl.registry import scenario_yaml_tree_fingerprint
+
+        root = repo_root()
+        fp = scenario_yaml_tree_fingerprint(root)
+        return RedisQueue._task_types_without_recent_debuff_cached(fp)
+
+    @staticmethod
+    @lru_cache(maxsize=8)
+    def _task_types_without_recent_debuff_cached(
+        fp: tuple[str, tuple[tuple[str, int, int], ...]]
+    ) -> set[str]:
+        from dsl import template_resolver
+
+        root = Path(fp[0])
+        out: set[str] = set()
+        for resolved in template_resolver.iter_resolved_keys(root):
+            loaded = template_resolver.load_doc(root, resolved.key)
+            if loaded is None:
+                continue
+            _path, raw = loaded
+            if not isinstance(raw, dict):
+                continue
+            ranking = raw.get("ranking")
+            if not isinstance(ranking, dict):
+                continue
+            raw_recent = ranking.get("recent_debuff")
+            disabled = raw_recent is False
+            if isinstance(raw_recent, str):
+                disabled = raw_recent.strip().lower() in {
+                    "0",
+                    "false",
+                    "no",
+                    "off",
+                    "disabled",
+                }
+            if disabled:
+                out.add(resolved.key)
+        return out
+
+    @staticmethod
     async def _iter_due_queue_raw(
         redis_client: Any,
         key: str,
@@ -1194,6 +1242,7 @@ class RedisQueue:
         Shared by ``pop_due`` and ``peek_top_due`` (cooperative preemption).
         """
         required_node_map = self._task_type_to_required_node()
+        no_recent_debuff = self._task_types_without_recent_debuff()
         out: list[tuple[tuple[int, int, int, float, float], str, dict[str, Any], dict[str, Any]]] = []
         for raw, data in due:
             base = int(data.get("priority", 0))
@@ -1217,7 +1266,13 @@ class RedisQueue:
                     graph_debuff = W_HOPS * min(hops_opt, HOPS_DEBUFF_CAP_HOPS)
 
             recent_count = recent_counts.get((ttype, pid), 0)
-            recent_debuff = min(recent_count, RECENT_RUNS_CAP) * W_RECENT
+            on_required_node = bool(required_node and current_screen == required_node)
+            recent_debuff_disabled = ttype in no_recent_debuff or on_required_node
+            recent_debuff = (
+                0
+                if recent_debuff_disabled
+                else min(recent_count, RECENT_RUNS_CAP) * W_RECENT
+            )
             effective_priority = base - graph_debuff - recent_debuff
 
             sort_key: tuple[int, int, int, float, float] = (
@@ -1236,6 +1291,8 @@ class RedisQueue:
                 "unreachable_flag": unreachable_flag,
                 "required_node": required_node,
                 "recent_count": recent_count,
+                "recent_debuff_disabled": recent_debuff_disabled,
+                "on_required_node": on_required_node,
                 "current_screen": current_screen,
             }
             out.append((sort_key, raw, data, meta))

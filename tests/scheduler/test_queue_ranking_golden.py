@@ -148,6 +148,92 @@ def test_recent_debuff_caps_at_recent_cap(monkeypatch):
     assert ranked[0][3]["recent_debuff"] == queue_mod.RECENT_RUNS_CAP * queue_mod.W_RECENT
 
 
+def test_recent_debuff_can_be_disabled_for_tab_navigation(monkeypatch):
+    """Tab-strip navigation may need several back-to-back runs inside a page
+    family; recent-run debuff must not let older outside work pull us away."""
+    _patch_required_nodes(
+        monkeypatch,
+        {
+            "shop.daily_deals": "shop.daily_deals",
+            "deals.deals": "deals",
+        },
+    )
+    _patch_hops(
+        monkeypatch,
+        {
+            ("shop.daily_deals", "shop.daily_deals"): 0,
+            ("shop.daily_deals", "deals"): 2,
+        },
+    )
+    monkeypatch.setattr(
+        RedisQueue,
+        "_task_types_without_recent_debuff",
+        staticmethod(lambda: {"tabs.strip.advance"}),
+    )
+
+    current_page_work = _due_item(task_type="shop.daily_deals", priority=80_000)
+    tab_advance = _due_item(task_type="tabs.strip.advance", priority=79_900)
+    outside_deals = _due_item(task_type="deals.deals", priority=80_000)
+
+    ranked = _rank(
+        [outside_deals, tab_advance, current_page_work],
+        current_screen="shop.daily_deals",
+        recent_counts={("tabs.strip.advance", ""): 3},
+    )
+
+    assert [r[2]["task_type"] for r in ranked] == [
+        "shop.daily_deals",
+        "tabs.strip.advance",
+        "deals.deals",
+    ]
+    assert ranked[1][3]["recent_count"] == 3
+    assert ranked[1][3]["recent_debuff"] == 0
+    assert ranked[1][3]["recent_debuff_disabled"] is True
+
+
+def test_current_screen_task_ignores_recent_debuff(monkeypatch):
+    """Visible work on the current page must finish before jumping tabs.
+
+    Regression: a red-dot task for the page we are already on could receive a
+    recent-run debuff, letting a fresh sibling tab task with the same base
+    priority pull the bot away from the actionable page.
+    """
+    _patch_required_nodes(
+        monkeypatch,
+        {
+            "deals.vault_of_enigma": "deals.vault_of_enigma",
+            "deals.hall_of_heroes": "deals.hall_of_heroes",
+        },
+    )
+    _patch_hops(
+        monkeypatch,
+        {
+            ("deals.vault_of_enigma", "deals.vault_of_enigma"): 0,
+            ("deals.vault_of_enigma", "deals.hall_of_heroes"): 1,
+        },
+    )
+    monkeypatch.setattr(
+        RedisQueue,
+        "_task_types_without_recent_debuff",
+        staticmethod(set),
+    )
+
+    vault = _due_item(task_type="deals.vault_of_enigma", priority=80_000)
+    hall = _due_item(task_type="deals.hall_of_heroes", priority=80_000)
+
+    ranked = _rank(
+        [hall, vault],
+        current_screen="deals.vault_of_enigma",
+        recent_counts={("deals.vault_of_enigma", ""): 3},
+    )
+
+    assert ranked[0][2]["task_type"] == "deals.vault_of_enigma"
+    assert ranked[0][3]["recent_count"] == 3
+    assert ranked[0][3]["recent_debuff"] == 0
+    assert ranked[0][3]["recent_debuff_disabled"] is True
+    assert ranked[0][3]["on_required_node"] is True
+
+
 def test_reachable_beats_unreachable_at_same_effective(monkeypatch):
     """ADR §3: unreachable_flag=1 sorts after reachable=0 on the second key."""
     _patch_required_nodes(
