@@ -4,7 +4,6 @@ from pathlib import Path
 
 import yaml
 
-
 MODULE_DIR = Path(__file__).resolve().parents[1]
 
 

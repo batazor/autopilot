@@ -6,8 +6,8 @@ import cv2
 import yaml
 
 from analysis.overlay import run_overlay_analysis_sync
-from layout.area_manifest import load_area_doc
 from layout.area_lookup import screen_region_by_name
+from layout.area_manifest import load_area_doc
 from layout.tab_active_detector import is_tab_active_in_bbox_percent
 
 MODULE_DIR = Path(__file__).resolve().parents[1]

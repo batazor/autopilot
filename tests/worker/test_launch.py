@@ -113,7 +113,7 @@ def test_start_web_reports_build_failure_without_traceback(tmp_path) -> None:
                 1, ["/usr/bin/npm", "run", "build"]
             ),
         ),
-        pytest.raises(SystemExit, match="Next.js build failed with exit code 1."),
+        pytest.raises(SystemExit, match=r"Next\.js build failed with exit code 1\."),
     ):
         stack.start_web(web_dir, host="127.0.0.1", port=3000)
 
