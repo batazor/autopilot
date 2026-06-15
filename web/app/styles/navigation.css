@@ -34,7 +34,7 @@
   }
 
   .nav-body {
-    @apply min-h-0 flex-1 overflow-y-auto scroll-smooth;
+    @apply min-h-0 flex-1 overflow-y-auto scroll-smooth pt-3;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
   }
