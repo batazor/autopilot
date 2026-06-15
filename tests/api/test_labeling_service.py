@@ -445,6 +445,54 @@ def test_save_labeling_regions_syncs_analyze_on_bbox_rename(labeling_repo: Path)
     assert "click: ads.natalia\n" not in scenario
 
 
+def test_save_labeling_regions_from_all_scope_writes_module_area(
+    labeling_repo: Path,
+) -> None:
+    import yaml
+
+    from api.services.labeling import save_labeling_regions
+    from config.module_discovery import _clear_module_discovery_caches
+    from layout.area_manifest import clear_area_doc_cache
+
+    mod = labeling_repo / "games" / "wos" / "events" / "icefire"
+    (mod / "references").mkdir(parents=True)
+    (mod / "module.yaml").write_text(
+        "id: icefire\ntitle: Icefire\narea: area.yaml\nreferences: references\n",
+        encoding="utf-8",
+    )
+    (mod / "area.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 2,
+                "screens": [
+                    {
+                        "screen_id": "icefire",
+                        "ocr": "references/icefire.png",
+                        "regions": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    ref_rel = "games/wos/events/icefire/references/icefire.png"
+    (labeling_repo / ref_rel).write_bytes(b"x")
+    _clear_module_discovery_caches()
+    clear_area_doc_cache()
+
+    out = save_labeling_regions(
+        ref_rel,
+        [{"name": "icefire.banner.title", "action": "exist", "bbox": {"x": 1}}],
+        scope="all",
+        screen_id="icefire",
+    )
+
+    assert out["ok"] is True
+    area = yaml.safe_load((mod / "area.yaml").read_text(encoding="utf-8"))
+    assert area["screens"][0]["ocr"] == "references/icefire.png"
+    assert area["screens"][0]["regions"][0]["name"] == "icefire.banner.title"
+
+
 def test_add_and_save_version_regions(labeling_repo: Path) -> None:
     from api.services import labeling as labeling_mod
     from api.services.labeling import add_version, get_labeling_document, save_labeling_regions

@@ -407,6 +407,7 @@ def save_labeling_regions(
     if not abs_png.is_file():
         msg = f"reference not found: {ref_rel}"
         raise FileNotFoundError(msg)
+    env = _write_env_for_reference(env, ref_rel)
 
     doc = ls.load_area_doc(env)
     screens = doc.setdefault("screens", [])
