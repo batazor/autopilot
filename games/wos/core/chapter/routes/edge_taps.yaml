@@ -1,13 +1,21 @@
 # Chapter is reachable from BOTH hubs: the chapter banner (`chapter.new`)
 # sits in the same bottom-left corner on the city view and the world map.
-# The panel closes via its own X button (`chapter.close`), not the shared
-# back arrow.
+# The panel always opens on a tab, so the hubs route straight to
+# `chapter.daily_missions` — there is no generic `chapter` node (it overlapped
+# the per-tab landmarks and won detection on a higher priority, so navigation
+# to a tab could never confirm). The panel closes via its own X button
+# (`chapter.close`), not the shared back arrow.
 edges:
   main_city:
-    chapter: [chapter.new]
+    chapter.daily_missions: [chapter.new]
 
   main_world:
-    chapter: [chapter.new]
+    chapter.daily_missions: [chapter.new]
 
-  chapter:
+  chapter.daily_missions:
     main_city: [chapter.close]
+    chapter.growth_missions: [chapter.growth_missions.title]
+
+  chapter.growth_missions:
+    main_city: [chapter.close]
+    chapter.daily_missions: [chapter.daily_missions.title]

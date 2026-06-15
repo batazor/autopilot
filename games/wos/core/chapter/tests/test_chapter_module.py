@@ -6,9 +6,11 @@ Replays the two captured frames through the real overlay engine:
   matches and the red counter badge hanging above the cropped bbox is picked
   up via the rule's ``red_dot_bbox`` probe, so the analyze rule that pushes
   ``chapter.claim_missions`` fires.
-* ``references/daily.png`` (chapter node) — every ``screen_verify`` landmark
+* ``references/daily.png`` (chapter daily node) — every ``screen_verify`` landmark
   matches, and the regions the claim scenario taps (shared ``button.claim``,
   ``chapter.button.claim_all``, the ``chapter.close`` X) are all found.
+* ``references/growth.png`` (chapter growth node) — the Growth Missions tab
+  title is a separate navigation node.
 """
 
 from __future__ import annotations
@@ -22,7 +24,9 @@ import pytest
 from analysis.overlay import load_merged_analyze_yaml
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_manifest import load_area_doc
+from navigation.detector import ScreenDetector
 from navigation.screen_graph import route_taps, screen_verify_rules
+from services import get_ocr_client
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[3]
@@ -59,9 +63,13 @@ def test_badge_overlay_rule_matches_with_red_dot(area_doc: dict) -> None:
     assert row["red_dot_present"] is True
 
 
-def test_screen_verify_landmarks_match_daily_reference(area_doc: dict) -> None:
-    rules = screen_verify_rules("chapter")
-    assert rules, "chapter screen_verify rules missing"
+def _assert_screen_verify_matches_reference(
+    screen: str,
+    reference: str,
+    area_doc: dict,
+) -> None:
+    rules = screen_verify_rules(screen)
+    assert rules, f"{screen} screen_verify rules missing"
     probes = [
         {
             "name": f"verify.{r['match']}",
@@ -73,11 +81,35 @@ def test_screen_verify_landmarks_match_daily_reference(area_doc: dict) -> None:
     ]
     out = asyncio.run(
         evaluate_overlay_rules_async(
-            _load_reference_bgr("daily.png"), area_doc, REPO_ROOT, probes, state_flat={}
+            _load_reference_bgr(reference), area_doc, REPO_ROOT, probes, state_flat={}
         )
     )
     for probe in probes:
         assert out[probe["name"]]["matched"] is True, probe["region"]
+
+
+def test_screen_verify_landmarks_match_daily_reference(area_doc: dict) -> None:
+    _assert_screen_verify_matches_reference("chapter.daily_missions", "daily.png", area_doc)
+
+
+def test_screen_verify_landmarks_match_growth_reference(area_doc: dict) -> None:
+    _assert_screen_verify_matches_reference(
+        "chapter.growth_missions",
+        "growth.png",
+        area_doc,
+    )
+
+
+@pytest.mark.asyncio
+async def test_chapter_tab_references_detect_specific_nodes() -> None:
+    detector = ScreenDetector(get_ocr_client())
+
+    assert await detector.detect_screen(_load_reference_bgr("daily.png")) == (
+        "chapter.daily_missions"
+    )
+    assert await detector.detect_screen(_load_reference_bgr("growth.png")) == (
+        "chapter.growth_missions"
+    )
 
 
 def test_claim_scenario_tap_targets_match_daily_reference(area_doc: dict) -> None:
@@ -125,9 +157,29 @@ async def test_refreshes_in_ocr_reads_reset_clock(area_doc: dict) -> None:
 
 
 def test_chapter_node_routes_from_both_hubs() -> None:
-    assert route_taps("main_city", "chapter", game="wos") == [["chapter.new"]]
-    assert route_taps("main_world", "chapter", game="wos") == [["chapter.new"]]
-    assert route_taps("chapter", "main_city", game="wos") == [["chapter.close"]]
+    # No generic `chapter` node — the hubs route straight to the daily tab.
+    assert route_taps("main_city", "chapter.daily_missions", game="wos") == [
+        ["chapter.new"]
+    ]
+    assert route_taps("main_world", "chapter.daily_missions", game="wos") == [
+        ["chapter.new"]
+    ]
+    assert route_taps(
+        "chapter.daily_missions",
+        "chapter.growth_missions",
+        game="wos",
+    ) == [["chapter.growth_missions.title"]]
+    assert route_taps(
+        "chapter.growth_missions",
+        "chapter.daily_missions",
+        game="wos",
+    ) == [["chapter.daily_missions.title"]]
+    assert route_taps("chapter.daily_missions", "main_city", game="wos") == [
+        ["chapter.close"]
+    ]
+    assert route_taps("chapter.growth_missions", "main_city", game="wos") == [
+        ["chapter.close"]
+    ]
 
 
 def test_daily_review_cron_spec_discovered() -> None:

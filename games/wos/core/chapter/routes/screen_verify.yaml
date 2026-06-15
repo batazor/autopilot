@@ -1,16 +1,15 @@
 screens:
-  chapter:
-    priority: 30
+  # No generic `chapter` screen: its "Daily" panel header overlapped the
+  # per-tab titles and outranked them, so a tab never confirmed and navigation
+  # to chapter.daily_missions/growth_missions failed. Detect the tabs directly.
+  chapter.daily_missions:
+    priority: 25
     rules:
-      # Tab strip at the bottom of the chapter panel. Crops are captured with
-      # the Daily Missions tab active (cream daily tab, blue growth tab) — the
-      # state the panel opens in. With the Growth tab active both templates
-      # shift appearance; add an inactive-daily crop from a growth-tab capture
-      # if detection there ever matters.
-      - match: chapter.tab.growth_missions
+      - match: chapter.daily_missions.title
         threshold: 0.9
-      - match: chapter.tab.daily_missions
-        threshold: 0.9
-      # Panel header ("Daily" title) as a fallback landmark.
-      - match: chapter.daily.title
+
+  chapter.growth_missions:
+    priority: 25
+    rules:
+      - match: chapter.growth_missions.title
         threshold: 0.9

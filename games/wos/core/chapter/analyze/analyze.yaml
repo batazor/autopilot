@@ -1,7 +1,7 @@
 overlay:
   # The chapter banner sits in the same bottom-left corner on both hubs and
   # shows a red counter badge when missions are claimable — push the claim
-  # scenario (it navigates to the chapter node).
+  # scenario (it navigates to the chapter.daily_missions tab).
   - name: chapter.badge.visible
     region: chapter.new
     isRedDot: true
