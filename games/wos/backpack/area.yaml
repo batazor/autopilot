@@ -4,6 +4,18 @@ screens:
   screen_id: backpack
   ocr: references/page.backpack.png
   regions:
+  - name: backpack.tabs_strip
+    action: exist
+    threshold: 0.85
+    bbox:
+      x: 0.0
+      y: 4.0
+      width: 100.0
+      height: 9.0
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
   - name: page.backpack.resources
     action: exist
     threshold: 0.9
@@ -15,7 +27,6 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
-    has_red_dot: true
   - name: page.backpack.speedup
     action: exist
     threshold: 0.9
@@ -27,7 +38,6 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
-    has_red_dot: true
   - name: page.backpack.bonus
     action: exist
     threshold: 0.9
@@ -39,7 +49,6 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
-    has_red_dot: true
   - name: page.backpack.gear
     action: exist
     threshold: 0.9
@@ -51,7 +60,6 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
-    has_red_dot: true
   - name: page.backpack.other
     action: text
     type: string
@@ -64,7 +72,6 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
-    has_red_dot: true
   - name: backpack.title
     action: exist
     threshold: 0.8

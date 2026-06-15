@@ -1,0 +1,11 @@
+overlay:
+  - name: deals.hero_rally.page
+    region: hero_rally.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - deals.hero_rally
+    steps:
+      - push_scenario:
+          name: deals.hero_rally
+          ttl: 1m

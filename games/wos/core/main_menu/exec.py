@@ -389,6 +389,19 @@ _ROW_TITLE_MAP: tuple[tuple[str, str, str], ...] = (
     ("gear forge", "labyrinth", "gear_forge"),
     ("gaia heart", "labyrinth", "gaia_heart"),
     ("tundra trek", "trek", "tundra_trek"),
+    ("children's day", "childrens_day", "childrens_day"),
+    ("childrens day", "childrens_day", "childrens_day"),
+    ("popularity king competition", "popularity_king", "popularity_king_competition"),
+    ("polar popularity", "popularity_king", "polar_popularity"),
+    ("sweet heart castle", "popularity_king", "sweet_heart_castle"),
+    ("heart belongs castle", "popularity_king", "heart_belongs_castle"),
+    ("rose defense battle", "rose_defense", "rose_defense_battle"),
+    ("bloom battle", "rose_defense", "bloom_battle"),
+    ("flower-eating beasts", "rose_defense", "flower_eating_beasts"),
+    ("flower eating beasts", "rose_defense", "flower_eating_beasts"),
+    ("honey language mall", "honey_language_mall", "honey_language_mall"),
+    ("sweet whispers shop", "honey_language_mall", "sweet_whispers_shop"),
+    ("honeymoon trip", "honeymoon_trip", "honeymoon_trip"),
 )
 
 _HEADER_SECTION_MAP: tuple[tuple[str, str], ...] = (
@@ -403,6 +416,15 @@ _HEADER_SECTION_MAP: tuple[tuple[str, str], ...] = (
     ("life essence", "life_essence"),
     ("labyrinth", "labyrinth"),
     ("trek", "trek"),
+    ("children's day", "childrens_day"),
+    ("childrens day", "childrens_day"),
+    ("popularity king", "popularity_king"),
+    ("polar popularity", "popularity_king"),
+    ("rose defense", "rose_defense"),
+    ("bloom battle", "rose_defense"),
+    ("honey language mall", "honey_language_mall"),
+    ("sweet whispers shop", "honey_language_mall"),
+    ("honeymoon trip", "honeymoon_trip"),
 )
 
 # Recruit Heroes rows keyed by title once the section is known (the bare

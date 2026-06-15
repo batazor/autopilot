@@ -232,6 +232,64 @@ screens:
     assert_startup_configs_valid(tmp_path)
 
 
+def test_startup_validation_credits_via_main_city_family_routing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A family member reachable from the hub only by bouncing through
+    ``main_city`` is NOT flagged as a route gap.
+
+    Shop documents this exact pattern ("cross-tab navigation goes
+    main_city → shop → tab") and many Deals are entered straight from
+    main_city, so the universal hub counts as a routing waypoint. Here
+    ``shop → shop.get_gems`` exists only as ``shop → main_city → shop.get_gems``.
+    """
+    monkeypatch.delenv("WOS_VALIDATION_ACK", raising=False)
+    _scenario_root(tmp_path)
+    _write_edge_taps(
+        tmp_path,
+        """
+edges:
+  shop:
+    shop.daily_deals: [shop.tabs_strip]
+    main_city: [shop.tabs_strip]
+  main_city:
+    shop.get_gems: [shop.tabs_strip]
+  shop.daily_deals:
+    shop: [shop.tabs_strip]
+  shop.get_gems:
+    shop: [shop.tabs_strip]
+""".lstrip(),
+    )
+    _write_area_regions(
+        tmp_path,
+        '{"screens":[{"regions":[{"name":"shop.tabs_strip",'
+        '"bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
+    )
+    _write_screen_verify(
+        tmp_path,
+        """
+families:
+  shop:
+    hub: shop
+    prefix: shop.
+    tab_region: shop.tabs_strip
+screens:
+  shop:
+    rules: [{match: shop.tabs_strip}]
+  shop.daily_deals:
+    rules: [{match: shop.tabs_strip}]
+  shop.get_gems:
+    rules: [{match: shop.tabs_strip}]
+""".lstrip(),
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    family_gaps = [i for i in issues if i.source.startswith("screen_family:")]
+    assert family_gaps == [], family_gaps
+
+
 def test_unknown_popup_fallback_scenario_is_resolvable() -> None:
     loaded = template_resolver.load_doc(repo_root(), "dismiss_unknown_popup")
 

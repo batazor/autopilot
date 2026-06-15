@@ -77,7 +77,11 @@ def test_area_region_probe_uses_red_dot_detector_for_red_dot_region(
     monkeypatch,
 ) -> None:
     frame = np.full((1280, 720, 3), (90, 60, 30), dtype=np.uint8)
-    cv2.circle(frame, (660, 260), 8, (40, 40, 230), thickness=-1)
+    # Anti-aliased so the synthetic badge matches how the game renders real
+    # notification dots: a hard-edged circle staircases its perimeter, which
+    # drags circularity*fill below the detector's plain-score floor on a small
+    # (r≈8) dot, whereas real AA badges clear it comfortably.
+    cv2.circle(frame, (660, 260), 8, (40, 40, 230), thickness=-1, lineType=cv2.LINE_AA)
     ok, encoded = cv2.imencode(".png", frame)
     assert ok
 

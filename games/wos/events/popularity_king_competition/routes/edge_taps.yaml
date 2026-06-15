@@ -1,0 +1,15 @@
+edges:
+  main_menu:
+    event.popularity_king_competition:
+      resolver: main_menu_panel_row
+      section: popularity_king
+      rows:
+        - popularity_king_competition
+        - polar_popularity
+        - sweet_heart_castle
+        - heart_belongs_castle
+      approval_region: main_menu.panel.popularity_king
+
+  event.popularity_king_competition:
+    main_menu: [icon.page.back]
+    main_city: [icon.page.back]

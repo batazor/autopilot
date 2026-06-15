@@ -388,83 +388,40 @@ class RedisQueue:
 
     @staticmethod
     def _task_types_requiring_node() -> set[str]:
-        """Task types from cron YAML specs that declare ``node`` — used for the
-        "don't even pop if ``current_screen`` is empty" gate in :meth:`pop_due`.
+        """Task types whose scenario declares ``node:`` — used for the
+        "don't even pop if ``current_screen`` is empty" gate in
+        :meth:`_collect_ranked_due`.
 
-        Stays cron-only on purpose: overlay-/DSL-pushed node-bound scenarios
-        get a different treatment — the worker pops them, and DSL execute
-        early-exits with ``awaiting_screen_identity`` until the rolling screen
-        detector repopulates ``current_screen``. Promoting them into
-        this set would silently leave them parked in the queue until screen
-        identity returned, which is harder to debug. The ranking-side
-        :meth:`_task_type_to_required_node` does cover all scenarios — that's
-        a separate concern (hops penalty, not a hard gate).
+        Unified across cron, overlay-, and DSL-pushed scenarios. A ``node:``
+        scenario enters through ``navigate_to``, which cannot compute a route
+        from an *unknown* source screen. Popping such a task while
+        ``current_screen`` is empty only burns it on the DSL
+        ``awaiting_screen_identity`` early-exit and re-queues it every 5s — a
+        hot failure loop that pollutes history and metrics. Gating at pop time
+        parks the task in the queue instead; it unparks automatically once the
+        rolling detector restores ``current_screen``.
+
+        Node-less recovery scenarios (``dismiss_unknown_popup``, ``who_i_am``,
+        tutorial dismissals) carry no ``node:`` and are therefore *not* in this
+        set — they remain free to run precisely when the screen is unknown,
+        which is what bridges us back to a known screen.
+
+        Backed by the same all-scenarios map as ranking
+        (:meth:`_task_type_to_required_node`); ranking uses it for the hops
+        penalty, gating uses its key set as a hard pop gate.
         """
+        from dsl.registry import scenario_yaml_tree_fingerprint
+
         root = repo_root()
-        fp = RedisQueue._cron_specs_fingerprint(root)
+        fp = scenario_yaml_tree_fingerprint(root)
         return RedisQueue._task_types_requiring_node_cached(fp)
-
-    @staticmethod
-    def _cron_specs_fingerprint(repo_root: Path) -> tuple[str, tuple[tuple[str, int, int], ...]]:
-        """Stable fingerprint for all cron YAML specs (cache invalidation)."""
-        from dsl.cron_specs import iter_cron_yaml_files_for_repo
-
-        root = repo_root.resolve()
-        items: list[tuple[str, int, int]] = []
-        for p in iter_cron_yaml_files_for_repo(root):
-            try:
-                st = p.stat()
-            except OSError:
-                continue
-            rel = p.relative_to(root).as_posix()
-            items.append((rel, int(st.st_mtime_ns), int(st.st_size)))
-        items.sort(key=lambda x: x[0])
-        return (str(root), tuple(items))
 
     @staticmethod
     @lru_cache(maxsize=8)
     def _task_types_requiring_node_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> set[str]:
-        return set(RedisQueue._task_type_to_required_node_cron_only_cached(fp).keys())
-
-    @staticmethod
-    @lru_cache(maxsize=8)
-    def _task_type_to_required_node_cron_only_cached(
-        fp: tuple[str, tuple[tuple[str, int, int], ...]]
-    ) -> dict[str, str]:
-        """Cron-only ``task_type → node`` map, used by the gating set.
-
-        Split off from :meth:`_task_type_to_required_node_cached` (which now
-        covers every scenario including templates) because gating and ranking
-        ask different questions: gating wants the smaller "must have screen
-        identity" set (cron only); ranking wants every task_type so it can
-        score hops.
-        """
-        from dsl.cron_specs import resolve_cron_task_type
-
-        root = Path(fp[0])
-        try:
-            import yaml
-        except Exception:
-            return {}
-
-        out: dict[str, str] = {}
-        for rel, _, _ in fp[1]:
-            yml = root / rel
-            try:
-                raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
-            except Exception:
-                continue
-            if not isinstance(raw, dict):
-                continue
-            node = str(raw.get("node") or "").strip()
-            if not node:
-                continue
-            t = resolve_cron_task_type(raw, yml)
-            if t:
-                out[t] = node
-        return out
+        return set(RedisQueue._task_type_to_required_node_cached(fp).keys())
 
     @staticmethod
     def _task_type_to_required_node() -> dict[str, str]:
@@ -723,6 +680,11 @@ class RedisQueue:
         if not due:
             return []
 
+        # Screen-identity gate: with an unknown ``current_screen``, navigation
+        # has no source node to route from, so any ``node:`` scenario would
+        # only early-exit on ``awaiting_screen_identity`` and re-queue in a hot
+        # loop. Park them in the queue until the rolling detector restores the
+        # screen; node-less recovery scenarios are not in the set and still run.
         if not str(current_screen or "").strip():
             gated = self._task_types_requiring_node()
             if gated:

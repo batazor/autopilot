@@ -13,4 +13,9 @@ steps:
     steps:
       - click: button.claim.big
       - wait: 1s
-      - click: tapanywhereyoexit
+      - while_match: tapanywhereyoexit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s

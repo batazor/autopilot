@@ -8,6 +8,7 @@ import cv2
 import pytest
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
+from analysis.overlay_manifest import load_analyze_yaml
 from layout.area_manifest import load_area_doc
 
 if TYPE_CHECKING:
@@ -34,18 +35,13 @@ def area_doc() -> dict:
 @pytest.mark.asyncio
 async def test_hero_rally_title_landmark_detected(area_doc: dict) -> None:
     frame = _load_bgr("hero_rally.main.png")
-    rule = {
-        "name": "deals.hero_rally.page",
-        "region": TITLE_REGION,
-        "action": "findIcon",
-        "threshold": 0.9,
-    }
+    analyze = load_analyze_yaml(MODULE_DIR / "analyze/analyze.yaml")
 
     out = await evaluate_overlay_rules_async(
         frame,
         area_doc,
         REPO_ROOT,
-        [rule],
+        analyze["overlay"],
         current_screen="deals.hero_rally",
     )
 
@@ -53,3 +49,6 @@ async def test_hero_rally_title_landmark_detected(area_doc: dict) -> None:
     assert hit["matched"] is True, (
         f"[{TITLE_REGION}] landmark not detected on hero_rally.main.png - row: {hit}"
     )
+    assert {"type": "deals.hero_rally", "priority": None, "ttl": 60, "dsl_scenario": None} in hit[
+        "pushScenario"
+    ]

@@ -17,6 +17,7 @@ from analysis.overlay_rules import (
     optional_expected_texts,
     optional_inline_steps,
     optional_min_match_saturation,
+    optional_min_patch_bright_ratio,
     optional_prefer_primary_bbox,
     optional_priority,
     optional_push_scenario_tasks,
@@ -68,6 +69,7 @@ class CompiledOverlayRule:
     screen: ScreenGate
     is_red_dot_required: bool | None
     min_match_saturation: float | None
+    min_patch_bright_ratio: float | None
     prefer_primary_bbox: bool
     search_region_explicit: str
     direct_template: str
@@ -139,6 +141,7 @@ def compile_overlay_rule(rule: dict[str, Any]) -> CompiledOverlayRule | None:
         screen=_screen_gate_from_rule(rule),
         is_red_dot_required=is_red_dot_required,
         min_match_saturation=optional_min_match_saturation(rule),
+        min_patch_bright_ratio=optional_min_patch_bright_ratio(rule),
         prefer_primary_bbox=optional_prefer_primary_bbox(rule),
         search_region_explicit=str(rule.get("search_region") or "").strip(),
         direct_template=str(rule.get("template") or "").replace("\\", "/").strip(),

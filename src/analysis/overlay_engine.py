@@ -78,7 +78,7 @@ from analysis.overlay_template_match import (
     _TEMPLATE_CACHE_MAX,  # noqa: F401
     _apply_bright_detail_gate,
     _apply_min_saturation_gate,
-    _bright_low_saturation_ratio,  # noqa: F401
+    _bright_low_saturation_ratio,
     _hybrid_sliding_matched,
     _load_template_cached,
     _load_template_with_mask_cached,
@@ -392,16 +392,20 @@ async def evaluate_overlay_rules_async(
                 tap_tab = tabs_dt[active_index]
             img_h_dt, img_w_dt = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             if tap_tab is not None:
-                tap_x_pct_dt = tap_tab.bbox_percent["x"] + tap_tab.bbox_percent["width"] / 2.0
-                tap_y_pct_dt = tap_tab.bbox_percent["y"] + tap_tab.bbox_percent["height"] / 2.0
+                # Tap the capsule-tight rectangle, not the full strip bbox — the
+                # jitter box below is sized from it, so a loose height would let
+                # taps drift into the padding above/below the tabs.
+                tap_box = tap_tab.tap_bbox_percent or tap_tab.bbox_percent
+                tap_x_pct_dt = tap_box["x"] + tap_box["width"] / 2.0
+                tap_y_pct_dt = tap_box["y"] + tap_box["height"] / 2.0
                 # Expose the chosen tab's pixel dimensions so the DSL click path
                 # treats it as a sliding-template match: it builds a synthetic
                 # bbox around (tap_x_pct, tap_y_pct) sized template_w × template_h
                 # and samples a random point inside (15 % inset). Result: clicks
                 # land anywhere within the tab, not always dead-centre — looks
                 # more like a human tap.
-                tap_template_w = max(1, int(round(tap_tab.bbox_percent["width"] / 100.0 * img_w_dt)))
-                tap_template_h = max(1, int(round(tap_tab.bbox_percent["height"] / 100.0 * img_h_dt)))
+                tap_template_w = max(1, int(round(tap_box["width"] / 100.0 * img_w_dt)))
+                tap_template_h = max(1, int(round(tap_box["height"] / 100.0 * img_h_dt)))
             else:
                 tap_x_pct_dt = float(bbox_dt.get("x", 0.0)) + float(bbox_dt.get("width", 0.0)) / 2.0
                 tap_y_pct_dt = float(bbox_dt.get("y", 0.0)) + float(bbox_dt.get("height", 0.0)) / 2.0
@@ -603,6 +607,7 @@ async def evaluate_overlay_rules_async(
                 continue
 
             min_sat = compiled.min_match_saturation
+            min_patch_bright_ratio = compiled.min_patch_bright_ratio
             push_tasks = compiled.push_tasks
 
             direct_template = compiled.direct_template
@@ -676,6 +681,7 @@ async def evaluate_overlay_rules_async(
                     template_h=th_tpl,
                     rule=rule,
                     min_sat=min_sat,
+                    min_patch_bright_ratio=min_patch_bright_ratio,
                     region_name=region_name,
                     resolved_region_name=resolved_region_name,
                     resolved_version=region_version_of(entry, reg),
@@ -732,6 +738,7 @@ async def evaluate_overlay_rules_async(
                 continue
 
             min_sat = compiled.min_match_saturation
+            min_patch_bright_ratio = compiled.min_patch_bright_ratio
             push_tasks = compiled.push_tasks
 
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
@@ -799,6 +806,7 @@ async def evaluate_overlay_rules_async(
                         template_h=th_tpl,
                         rule=rule,
                         min_sat=min_sat,
+                        min_patch_bright_ratio=min_patch_bright_ratio,
                         region_name=region_name,
                         resolved_region_name=resolved_region_name,
                         resolved_version=region_version_of(entry, reg),
@@ -883,7 +891,17 @@ async def evaluate_overlay_rules_async(
                                 ok_s, _ms, _sf = _apply_min_saturation_gate(
                                     image_bgr, tl_cand, tw_tpl, th_tpl, min_sat
                                 )
-                            if ok_b and ok_s:
+                            ok_p = True
+                            if ok_b and min_patch_bright_ratio is not None:
+                                patch = image_bgr[
+                                    tl_cand[1] : tl_cand[1] + th_tpl,
+                                    tl_cand[0] : tl_cand[0] + tw_tpl,
+                                ]
+                                ok_p = (
+                                    _bright_low_saturation_ratio(patch)
+                                    >= min_patch_bright_ratio
+                                )
+                            if ok_b and ok_s and ok_p:
                                 res = cand
 
                     if res is None:
@@ -920,6 +938,7 @@ async def evaluate_overlay_rules_async(
                         template_h=th_tpl,
                         rule=rule,
                         min_sat=min_sat,
+                        min_patch_bright_ratio=min_patch_bright_ratio,
                         region_name=region_name,
                         resolved_region_name=resolved_region_name,
                         resolved_version=region_version_of(entry, reg),
@@ -969,6 +988,7 @@ async def evaluate_overlay_rules_async(
                 template_h=th_tpl,
                 rule=rule,
                 min_sat=min_sat,
+                min_patch_bright_ratio=min_patch_bright_ratio,
                 region_name=region_name,
                 resolved_region_name=resolved_region_name,
                 resolved_version=region_version_of(entry, reg),

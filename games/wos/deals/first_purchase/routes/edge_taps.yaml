@@ -1,4 +1,0 @@
-edges:
-  deals.first_purchase:
-    deals: [icon.page.back]
-    main_city: [icon.page.back]

@@ -7,7 +7,11 @@ import cv2
 import pytest
 
 from layout.area_manifest import load_area_doc
-from navigation import screen_graph, tab_index_resolver  # noqa: F401
+from navigation import (  # noqa: F401
+    screen_graph,
+    tab_identify_resolver,
+    tab_index_resolver,
+)
 from tests.navigation.conftest_nav import make_navigator
 
 if TYPE_CHECKING:
@@ -56,7 +60,97 @@ async def test_navigation_hop_can_click_detected_tab_index(
     )
 
     assert result == "ok"
-    assert taps == [("deals.tabs_strip", 134, 132)]
+    # Y is the centre of the capsule-tight tap bbox (142), not the full strip
+    # region centre (132) — the top ~20 px of the strip is padding above the tab.
+    assert taps == [("deals.tabs_strip", 134, 142)]
+
+
+@pytest.mark.asyncio
+async def test_tab_identify_clicks_template_matched_shop_tab(
+    mocker,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
+    """``tab_identify`` segments the shop strip, identifies the target tab by its
+    per-page icon template, and clicks it — no fixed slot index required.
+
+    On ``page.shop.daily_deals.png`` the ``weekly_monthly_cards`` tab is the
+    third visible slot; the resolver must land the tap on its centre (~78.1 %),
+    matching the segmentation/identification golden in the shop nav suite.
+    """
+    frame = cv2.imread(
+        str(REPO_ROOT / "games/wos/core/shop/references/page.shop.daily_deals.png")
+    )
+    assert frame is not None
+    taps: list[tuple[str | None, int, int]] = []
+
+    def capture(_instance_id: str) -> np.ndarray:
+        return frame
+
+    def tap(_instance_id: str, point: Any, **kwargs: Any) -> bool:
+        taps.append((kwargs.get("approval_region"), int(point.x), int(point.y)))
+        return True
+
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client)
+    mocker.patch.object(nav, "_load_area_doc", new=lambda: load_area_doc(REPO_ROOT))
+
+    ok = await nav._tap_tab_identify_async(
+        "bs1",
+        {
+            "type": "tab_identify",
+            "region": "shop.tabs_strip",
+            "page": "shop.weekly_monthly_cards",
+        },
+        from_screen="shop.daily_deals",
+        to_screen="shop.weekly_monthly_cards",
+    )
+
+    assert ok is True
+    assert len(taps) == 1
+    region, x, _y = taps[0]
+    assert region == "shop.tabs_strip"
+    cx_pct = x / 720.0 * 100.0
+    assert abs(cx_pct - 78.1) <= 1.5, cx_pct
+
+
+@pytest.mark.asyncio
+async def test_tab_identify_clicks_deals_bank_tab(
+    mocker,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
+    """Bank is reached by ``tab_identify`` on the deals strip (it sits at the
+    far-right end, so the old fixed ``bank.tab`` tap missed until scrolled).
+
+    On ``bank.collect_ready.png`` the Bank tab is already visible, so the
+    resolver identifies and clicks it without advancing.
+    """
+    frame = cv2.imread(
+        str(REPO_ROOT / "games/wos/deals/bank/references/bank.collect_ready.png")
+    )
+    assert frame is not None
+    taps: list[tuple[str | None, int, int]] = []
+
+    def capture(_instance_id: str) -> np.ndarray:
+        return frame
+
+    def tap(_instance_id: str, point: Any, **kwargs: Any) -> bool:
+        taps.append((kwargs.get("approval_region"), int(point.x), int(point.y)))
+        return True
+
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client)
+    mocker.patch.object(nav, "_load_area_doc", new=lambda: load_area_doc(REPO_ROOT))
+
+    ok = await nav._tap_tab_identify_async(
+        "bs1",
+        {"type": "tab_identify", "region": "deals.tabs_strip", "page": "deals.bank"},
+        from_screen="deals",
+        to_screen="deals.bank",
+    )
+
+    assert ok is True
+    assert len(taps) == 1
+    assert taps[0][0] == "deals.tabs_strip"
 
 
 @pytest.mark.asyncio

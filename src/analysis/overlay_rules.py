@@ -139,6 +139,17 @@ def optional_min_match_saturation(rule: dict[str, Any]) -> float | None:
         return None
 
 
+def optional_min_patch_bright_ratio(rule: dict[str, Any]) -> float | None:
+    """YAML ``min_patch_bright_ratio`` (0–1): reject dim/disabled matches."""
+    v = rule.get("min_patch_bright_ratio")
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def optional_prefer_primary_bbox(rule: dict[str, Any]) -> bool:
     """YAML ``prefer_primary_bbox`` (findIcon-only): try cheap 1:1 match at the
     primary bbox before the sliding search inside ``search_region``.

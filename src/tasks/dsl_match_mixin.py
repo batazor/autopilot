@@ -392,6 +392,9 @@ class DslMatchMixin(_Base):
             min_sat = step.get("min_match_saturation")
             if min_sat is not None:
                 rule["min_match_saturation"] = min_sat
+            min_patch_bright_ratio = step.get("min_patch_bright_ratio")
+            if min_patch_bright_ratio is not None:
+                rule["min_patch_bright_ratio"] = min_patch_bright_ratio
             template = str(step.get("template") or "").replace("\\", "/").strip()
             if template:
                 rule["template"] = template

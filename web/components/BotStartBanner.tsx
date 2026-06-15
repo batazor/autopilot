@@ -399,29 +399,6 @@ function InstanceStatusChip({
   );
 }
 
-function InstanceStatusLine({
-  row,
-  approval,
-}: {
-  row: FleetInstanceRow | null;
-  approval: ClickApprovalStatus | null;
-}) {
-  if (!row && !approval) return null;
-  const node = row?.node && row.node !== "—" ? row.node : approval?.current_screen;
-  const player =
-    row?.active_player && row.active_player !== "—"
-      ? row.active_player
-      : approval?.active_player_in_game_id || approval?.active_player || "";
-  const task = row?.task && row.task !== "—" ? row.task : "";
-  const parts = [
-    node ? `Node ${node}` : "",
-    player ? `Player ${player}` : "",
-    task ? `Task ${task}` : "",
-  ].filter(Boolean);
-  if (!parts.length) return null;
-  return <p className="nav-bot-banner__desc">{parts.join(" · ")}</p>;
-}
-
 export function BotStartBanner() {
   const qc = useQueryClient();
   const deviceSwitcher = useDeviceSwitcher();
@@ -782,7 +759,6 @@ export function BotStartBanner() {
             gameMutation.mutate({ instanceId, game })
           }
         />
-        <InstanceStatusLine row={currentRow} approval={approvalStatus} />
         <div className="nav-bot-banner__chips" aria-label="Bot details">
           <span className="nav-bot-banner__chip">
             Mode {formatMode(effectiveMode)}

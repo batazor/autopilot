@@ -1,20 +1,25 @@
 edges:
   main_city:
     shop: [main_city.to.shop]
+  # Hub → tab: resolve dynamically. The navigator segments shop.tabs_strip,
+  # identifies each tab by its per-page icon template (discover_tab_templates
+  # still reads the labeled shop.to.* / page.shop.*.title crops), clicks the
+  # match, and scrolls (next_region) when the target tab isn't on screen.
+  # ``page`` defaults to the edge destination; ``namespace`` to the strip prefix.
   shop:
     main_city: [icon.page.back]
-    shop.dawn_market:          [shop.to.dawn_market]
-    shop.mix_match:            [shop.to.mix_match]
-    shop.chief_stamina:        [shop.to.chief_stamina]
-    shop.ice_conqueror:        [shop.to.ice_conqueror]
-    shop.construction_queue:   [shop.to.construction_queue]
-    shop.daily_deals:          [page.to.daily_deals]
-    shop.weekly_monthly_cards: [shop.to.weekly_monthly_cards]
-    shop.regular_pack:         [shop.to.regular_pack]
-    shop.dawn_fund:            [shop.to.dawn_fund]
-    shop.get_gems:             [shop.to.get_gems]
-    shop.artisans_trove:       [shop.to.artisans_trove]
-    shop.custom_artistry_chest: [shop.to.custom_artistry_chest]
+    shop.dawn_market:           { resolver: tab_identify, region: shop.tabs_strip }
+    shop.mix_match:             { resolver: tab_identify, region: shop.tabs_strip }
+    shop.chief_stamina:         { resolver: tab_identify, region: shop.tabs_strip }
+    shop.ice_conqueror:         { resolver: tab_identify, region: shop.tabs_strip }
+    shop.construction_queue:    { resolver: tab_identify, region: shop.tabs_strip }
+    shop.daily_deals:           { resolver: tab_identify, region: shop.tabs_strip }
+    shop.weekly_monthly_cards:  { resolver: tab_identify, region: shop.tabs_strip }
+    shop.regular_pack:          { resolver: tab_identify, region: shop.tabs_strip }
+    shop.dawn_fund:             { resolver: tab_identify, region: shop.tabs_strip }
+    shop.get_gems:              { resolver: tab_identify, region: shop.tabs_strip }
+    shop.artisans_trove:        { resolver: tab_identify, region: shop.tabs_strip }
+    shop.custom_artistry_chest: { resolver: tab_identify, region: shop.tabs_strip }
 
   # Shop tabs close directly to main_city via icon.page.back — there is no
   # tab → hub edge (cross-tab navigation goes main_city → shop → tab).

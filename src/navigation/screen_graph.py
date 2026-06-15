@@ -396,9 +396,15 @@ def invalidate_screen_verify_config() -> None:
     """Drop the frozen fingerprint + parsed config cache + path lists.
 
     Wired to the dashboard reload button and to tests that mutate config files.
+    The path list is derived from module discovery, so its process-cache is
+    dropped too — otherwise a stale (tier/game/root-scoped) module set survives
+    here and the rebuilt config silently omits whole modules' screens.
     """
+    from config.module_discovery import _clear_module_discovery_caches
+
     global _cached_combined_fingerprint
     _cached_combined_fingerprint = None
+    _clear_module_discovery_caches()
     _screen_verify_yaml_paths_cached.cache_clear()
     _load_screen_verify_config_cached.cache_clear()
     invalidate_edge_taps_cache()

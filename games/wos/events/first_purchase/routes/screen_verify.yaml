@@ -1,5 +1,0 @@
-screens:
-  event.first_purchase:
-    rules:
-      - match: event.first_purchase
-        threshold: 0.9

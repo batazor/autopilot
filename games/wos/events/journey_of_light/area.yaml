@@ -3,18 +3,18 @@
   "screens": [
     {
       "id": 1,
-      "screen_id": "event.journey_of_light",
+      "screen_id": "journey_of_light.journey_of_light",
       "ocr": "references/main.png",
       "regions": [
         {
-          "name": "journey_of_light.title",
+          "name": "journey_of_light.journey_of_light.title",
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
-            "x": 4.722222222222222,
-            "y": 22.34375,
-            "width": 40.55555555555556,
-            "height": 4.0625,
+            "x": 6.9599456426099175,
+            "y": 16.823129978828625,
+            "width": 42.88944723618083,
+            "height": 4.084771170747498,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -79,6 +79,126 @@
             "y": 19.756084808939573,
             "width": 21.1095505617977,
             "height": 3.623747412688502,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "journey_of_light.my_treasures",
+      "ocr": "references/my_treasures.png",
+      "regions": [
+        {
+          "name": "journey_of_light.my_treasures.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.935130573309884,
+            "y": 16.607877185777937,
+            "width": 43.655030682173646,
+            "height": 4.296405161517903,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "journey_of_light.my_treasures.enable.common",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.333333333333334,
+            "y": 56.5625,
+            "width": 19.166666666666668,
+            "height": 4.765625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "journey_of_light.my_treasures.enable.premium",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 53.333333333333336,
+            "y": 56.5625,
+            "width": 19.166666666666668,
+            "height": 4.765625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/my_treasures_enable_popup.png",
+      "regions": [
+        {
+          "name": "journey_of_light.my_treasures.enable.popup",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.47222222222222,
+            "y": 62.1875,
+            "width": 42.77777777777778,
+            "height": 6.796875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/my_treasures_assemble_popup.png",
+      "regions": [
+        {
+          "name": "journey_of_light.my_treasures.assemble_popup.checkbox",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.083333333333332,
+            "y": 54.21875,
+            "width": 5.555555555555555,
+            "height": 3.28125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "journey_of_light.my_treasures.assemble_popup.assemble_now",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.555555555555555,
+            "y": 58.359375,
+            "width": 36.666666666666664,
+            "height": 6.640625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "journey_of_light.my_treasures.assemble_popup.start",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.638888888888886,
+            "y": 58.359375,
+            "width": 36.80555555555556,
+            "height": 6.640625,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

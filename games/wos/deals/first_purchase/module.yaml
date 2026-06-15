@@ -2,6 +2,7 @@ id: deals_first_purchase
 title: Deals — 1st Purchase
 description: 1st Purchase deals sub-tab.
 scenarios: scenarios
+analyze: analyze/analyze.yaml
 references: references
 icon: first_purchase
 wiki: false

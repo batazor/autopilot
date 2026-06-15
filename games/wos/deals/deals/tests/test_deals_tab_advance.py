@@ -96,6 +96,10 @@ def test_deals_tab_templates_are_discovered(area_doc: dict) -> None:
 
     assert "deals.hero_rally" in templates
     assert "deals.home_and_beyond" in templates
+    # Namespace membership is by screen id, not module directory: vault_of_enigma
+    # lives under games/wos/events/ yet its screen id is ``deals.vault_of_enigma``
+    # so its tab template is still discovered for the deals strip.
+    assert "deals.vault_of_enigma" in templates
 
 
 @pytest.mark.asyncio
@@ -244,7 +248,6 @@ DEALS_SCREENS = {
     "deals.hall_of_heroes",
     "deals.vault_of_enigma",
     "deals.hero_rally",
-    "deals.first_purchase",
     "deals.bank",
     "deals.dead_shot",
     "deals.endless_wayfarer",

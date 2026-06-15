@@ -30,7 +30,6 @@ nodes:
   - deals.hall_of_heroes
   - deals.vault_of_enigma
   - deals.hero_rally
-  - deals.first_purchase
   - deals.bank
   - deals.dead_shot
   - deals.endless_wayfarer

@@ -1,6 +1,0 @@
-enabled: true
-name: "Deals: 1st Purchase"
-priority: 80_000
-nodes:
-  - deals.first_purchase
-steps: []

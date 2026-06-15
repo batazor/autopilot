@@ -1,0 +1,13 @@
+overlay:
+  - name: childrens_day.main_menu.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.childrens_day.childrens_day.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.childrens_day
+          ttl: 1m

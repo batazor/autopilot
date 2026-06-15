@@ -377,20 +377,25 @@ def test_required_node_map_covers_template_keys():
     assert mapping.get("check_main_city") == "main_city"
 
 
-def test_requiring_node_gating_stays_cron_only():
-    """The gating set (``_task_types_requiring_node``) is intentionally narrower
-    than the ranking map — overlay-pushed node-bound scenarios use the DSL's
-    own ``awaiting_screen_identity`` early-exit path, not queue-level gating.
+def test_requiring_node_gating_covers_all_node_scenarios():
+    """The pop-time screen-identity gate (``_task_types_requiring_node``) now
+    mirrors the full ranking map: *every* ``node:`` scenario is gated, not just
+    cron ones. A ``node:`` scenario routes through ``navigate_to`` and cannot
+    start from an unknown screen, so overlay-/DSL-pushed node-bound scenarios
+    must be parked in the queue too — not popped and burned on the DSL
+    ``awaiting_screen_identity`` early-exit.
     """
     gating = RedisQueue._task_types_requiring_node()
     ranking = RedisQueue._task_type_to_required_node()
+    # Cron scenario still gated.
     assert "check_main_city" in gating
-    # ``ahmose`` is in ranking (template-derived) but NOT in gating
-    # (no ``cron:`` on the template).
+    # Template-derived / overlay-pushed node scenarios are now gated too.
     assert "ahmose" in ranking
-    assert "ahmose" not in gating
+    assert "ahmose" in gating
     assert "heroes.bahiti.wiki" in ranking
-    assert "heroes.bahiti.wiki" not in gating
+    assert "heroes.bahiti.wiki" in gating
+    # Gating set is exactly the key set of the ranking map.
+    assert gating == set(ranking.keys())
 
 
 def test_overlay_push_wins_locality_over_older_far_push(monkeypatch):

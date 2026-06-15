@@ -12,6 +12,10 @@ from config.paths import repo_root
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
 from layout.bbox_percent import bbox_percent_random_point_to_device_point
+from layout.tabs_strip_identifier import (
+    discover_tab_templates,
+    identify_tabs_by_template,
+)
 from layout.tabs_strip_segmenter import detect_tabs_in_strip
 from layout.types import Point, Region
 
@@ -21,6 +25,7 @@ from navigation import (
     calendar_go_resolver,  # noqa: F401
     hero_grid_resolver,  # noqa: F401
     main_menu_panel_resolver,  # noqa: F401
+    tab_identify_resolver,  # noqa: F401
     tab_index_resolver,  # noqa: F401
     template_icon_resolver,  # noqa: F401
 )
@@ -60,6 +65,11 @@ most recent entry."""
 # intervals; these sleeps only cover animation/transition lag.
 _NAV_TAP_SETTLE_S = 0.4
 _NAV_HOP_SETTLE_S = 0.8
+_TAB_IDENTIFY_MAX_ADVANCE = 8
+"""Max strip ``advance`` scrolls while hunting a tab by template before giving
+up (the navigator then falls back to main_city and re-enters the family fresh,
+which resets the strip to its leftmost position). Generous enough to walk a
+~12-tab Shop strip that shows 3-4 tabs per view."""
 _NAV_UNKNOWN_RETRY_SETTLE_S = 0.8
 
 
@@ -503,7 +513,9 @@ class Navigator:
             )
             return False
 
-        b = tab.bbox_percent
+        # Click the capsule-tight rectangle so the tap centre lands on the tab
+        # body, not the padding the full strip bbox includes above/below it.
+        b = tab.tap_bbox_percent or tab.bbox_percent
         h, w = int(image.shape[0]), int(image.shape[1])
         point = Point(
             int(round((float(b["x"]) + float(b["width"]) / 2.0) / 100.0 * w)),
@@ -527,6 +539,120 @@ class Navigator:
         return bool(
             await asyncio.to_thread(self._tap, instance_id, point, **tap_kwargs)  # type: ignore[arg-type]
         )
+
+    async def _tap_tab_identify_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        """Navigate to a family tab found by template, scrolling the strip.
+
+        Detect → identify each tab by its per-page icon → click the tab whose
+        identified page matches the target. When the target is not on screen,
+        tap the family ``next_region`` advance arrow and retry, up to
+        :data:`_TAB_IDENTIFY_MAX_ADVANCE` times. Returning ``False`` lets the
+        navigator fall back through main_city (which re-enters the family fresh,
+        resetting the strip), so a target that scrolled past is still reachable.
+        """
+        region_name = str(spec.get("region") or "").strip()
+        target_page = str(spec.get("page") or to_screen or "").strip()
+        namespace = str(spec.get("namespace") or "").strip()
+        if not namespace and "." in region_name:
+            namespace = region_name.split(".", 1)[0]
+        if not region_name or not target_page:
+            logger.info("Navigator: tab_identify spec incomplete: %s", spec)
+            return False
+
+        area_doc = self._load_area_doc()
+        pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
+        bbox = pair[1].get("bbox") if pair and isinstance(pair[1], dict) else None
+        if not isinstance(bbox, dict):
+            logger.info("Navigator: tab_identify region unavailable: %s", spec)
+            return False
+
+        # Advance arrow comes from the target's screen-family config (single
+        # source of truth shared with the analyzer's tab-scan scenario).
+        next_region = ""
+        fam = screen_family_for(target_page)
+        if fam is not None:
+            next_region = str(fam[1].get("next_region") or "").strip()
+
+        templates = discover_tab_templates(
+            area_doc, self._repo_root, bbox, namespace=namespace
+        )
+        if not templates:
+            logger.info(
+                "Navigator: tab_identify found no templates for namespace=%s",
+                namespace,
+            )
+            return False
+
+        for attempt in range(_TAB_IDENTIFY_MAX_ADVANCE + 1):
+            image: np.ndarray = await asyncio.to_thread(self._capture, instance_id)  # type: ignore[arg-type]
+            tabs = detect_tabs_in_strip(image, bbox)
+            ids = identify_tabs_by_template(image, tabs, templates)
+            target_tab = next(
+                (t for t in tabs if ids.get(t.index) == target_page), None
+            )
+            if target_tab is not None:
+                b = target_tab.tap_bbox_percent or target_tab.bbox_percent
+                h, w = int(image.shape[0]), int(image.shape[1])
+                point = Point(
+                    int(round((float(b["x"]) + float(b["width"]) / 2.0) / 100.0 * w)),
+                    int(round((float(b["y"]) + float(b["height"]) / 2.0) / 100.0 * h)),
+                )
+                approval_context: dict[str, Any] = {}
+                if from_screen:
+                    approval_context["from_screen"] = from_screen
+                if to_screen:
+                    approval_context["to_screen"] = to_screen
+                if path_csv:
+                    approval_context["path"] = path_csv
+                if hop_index is not None:
+                    approval_context["hop_index"] = str(hop_index)
+                approval_context["tab_page"] = target_page
+                tap_kwargs: dict[str, Any] = {"approval_region": region_name}
+                if self._tap_supports_approval_source():
+                    tap_kwargs["approval_source"] = "navigation"
+                    tap_kwargs["approval_context"] = approval_context
+                return bool(
+                    await asyncio.to_thread(self._tap, instance_id, point, **tap_kwargs)  # type: ignore[arg-type]
+                )
+
+            # Target not on screen — scroll the strip if an advance arrow shows.
+            if not next_region or not await self._region_visible_async(
+                image, next_region, state_flat=state_flat
+            ):
+                logger.info(
+                    "Navigator: tab_identify %r not found in %s (identified=%s); "
+                    "no further advance",
+                    target_page,
+                    region_name,
+                    sorted(set(ids.values())),
+                )
+                return False
+            logger.info(
+                "Navigator: tab_identify advancing %s to find %r (attempt %d)",
+                next_region,
+                target_page,
+                attempt + 1,
+            )
+            if not await self._tap_region_name_async(
+                instance_id,
+                next_region,
+                state_flat=state_flat,
+                from_screen=from_screen,
+                to_screen=to_screen,
+            ):
+                return False
+            await asyncio.sleep(_NAV_TAP_SETTLE_S)
+        return False
 
     async def _tap_calendar_go_async(
         self,
@@ -1526,6 +1652,16 @@ class Navigator:
                     )
                 elif isinstance(point, dict) and point.get("type") == "tab_index":
                     tapped = await self._tap_tab_index_async(
+                        instance_id,
+                        point,
+                        from_screen=src_screen,
+                        to_screen=str(dst_screen),
+                        state_flat=state_flat,
+                        path_csv=path_csv,
+                        hop_index=hop_idx,
+                    )
+                elif isinstance(point, dict) and point.get("type") == "tab_identify":
+                    tapped = await self._tap_tab_identify_async(
                         instance_id,
                         point,
                         from_screen=src_screen,

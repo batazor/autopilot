@@ -11,7 +11,7 @@ from licensing.plans import (
 
 
 def test_tier_order_is_low_to_high() -> None:
-    assert TIER_ORDER == ("r2", "r3", "r4")
+    assert TIER_ORDER == ("r2", "r3", "r4", "r5")
 
 
 def test_r2_is_free() -> None:

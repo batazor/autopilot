@@ -3,7 +3,7 @@
   "screens": [
     {
       "id": 1,
-      "screen_id": "deals",
+      "screen_id": "deals.hero_rally",
       "ocr": "references/hero_rally.main.png",
       "regions": [
         {

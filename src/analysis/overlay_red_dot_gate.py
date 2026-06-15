@@ -12,6 +12,7 @@ from analysis.overlay_geometry import _relative_bbox_percent_from_top_left
 from analysis.overlay_template_match import (
     _apply_bright_detail_gate,
     _apply_min_saturation_gate,
+    _bright_low_saturation_ratio,
 )
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
 
@@ -179,6 +180,7 @@ def _finalize_findicon_hit(
     template_h: int,
     rule: dict[str, Any],
     min_sat: float | None,
+    min_patch_bright_ratio: float | None,
     region_name: str,
     resolved_region_name: str,
     resolved_version: Any,
@@ -210,6 +212,17 @@ def _finalize_findicon_hit(
             image_bgr, template_bgr, tl_tuple
         )
         matched = ok
+    if matched and min_patch_bright_ratio is not None:
+        patch = image_bgr[
+            tl_tuple[1] : tl_tuple[1] + int(template_h),
+            tl_tuple[0] : tl_tuple[0] + int(template_w),
+        ]
+        if tpl_bright is None:
+            tpl_bright = _bright_low_saturation_ratio(template_bgr)
+        patch_bright = _bright_low_saturation_ratio(patch)
+        if patch_bright < float(min_patch_bright_ratio):
+            bright_fail = "low_patch_bright_ratio"
+            matched = False
     if matched and min_sat is not None:
         ok, mean_sat, sat_fail = _apply_min_saturation_gate(
             image_bgr, tl_tuple, template_w, template_h, min_sat
@@ -267,6 +280,8 @@ def _finalize_findicon_hit(
         hit["priority"] = priority
     if min_sat is not None:
         hit["min_match_saturation"] = min_sat
+    if min_patch_bright_ratio is not None:
+        hit["min_patch_bright_ratio"] = min_patch_bright_ratio
     if tpl_bright is not None:
         hit["template_bright_ratio"] = tpl_bright
         hit["patch_bright_ratio"] = patch_bright

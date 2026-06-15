@@ -142,8 +142,14 @@ def _discover_namespace_active_tab_templates(
 
     This is useful for modules such as Deals where tab icons have not been
     annotated as explicit ``<namespace>.to.<page>`` regions yet. The active tab
-    is linked to a page via the module path, then its inner icon area becomes a
+    is linked to a page via its screen id, then its inner icon area becomes a
     template that can identify the same page on other strip frames.
+
+    Membership is by **screen id / family** (``screen_id == ns`` or
+    ``screen_id`` starts with ``"<ns>."``), not by the module's directory: a
+    deals-family page contributes its tab template even when the module lives
+    under ``games/wos/events/`` rather than ``games/wos/deals/`` (e.g.
+    ``vault_of_enigma``, whose screen id is ``deals.vault_of_enigma``).
     """
     import cv2  # local import; keeps module import cheap for non-detection paths
 
@@ -156,18 +162,21 @@ def _discover_namespace_active_tab_templates(
     ns = str(namespace or "").strip()
     if not ns:
         return templates
-    path_fragment = f"/{ns}/"
+    ns_prefix = f"{ns}."
 
     for screen in area_doc.get("screens", []) or []:
         if not isinstance(screen, dict):
             continue
+        screen_id = str(screen.get("screen_id") or "").strip()
+        if not (screen_id == ns or screen_id.startswith(ns_prefix)):
+            continue
         ocr_rel = str(screen.get("ocr", "")).strip()
-        if path_fragment not in f"/{ocr_rel}":
+        if not ocr_rel:
             continue
         page_id = _canonical_page_id_from_ocr(
             namespace=ns,
             ocr_rel=ocr_rel,
-            screen_id=str(screen.get("screen_id") or ""),
+            screen_id=screen_id,
         )
         if not page_id or page_id in templates:
             continue
@@ -220,15 +229,16 @@ def discover_tab_templates(
         strip_y_lo = float(strip_bbox.get("y", 0.0))
         strip_y_hi = strip_y_lo + float(strip_bbox.get("height", 0.0))
 
-        from config.games import MODULES_DIR_NAME
-
-        shop_path_fragment = f"{MODULES_DIR_NAME}/core/shop"
         for screen in area_doc.get("screens", []) or []:
             if not isinstance(screen, dict):
                 continue
-            ocr_rel = str(screen.get("ocr", "")).strip()
-            if shop_path_fragment not in ocr_rel:
+            # Namespace by screen id / family, not module directory: the shop
+            # tab regions are owned by shop-family screens (``shop`` / ``shop.*``)
+            # wherever the module physically lives.
+            screen_id = str(screen.get("screen_id") or "").strip()
+            if not (screen_id == "shop" or screen_id.startswith("shop.")):
                 continue
+            ocr_rel = str(screen.get("ocr", "")).strip()
             for reg in screen.get("regions", []) or []:
                 if not isinstance(reg, dict):
                     continue

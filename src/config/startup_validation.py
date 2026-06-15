@@ -894,6 +894,10 @@ def _collect_edge_pairs(repo_root: Path) -> set[tuple[str, str]]:
     return out
 
 
+_UNIVERSAL_HUB = "main_city"
+"""Screen every family can fall back through: ``member → main_city → sibling``."""
+
+
 def _validate_screen_family_route_gaps(
     repo_root: Path,
     issues: list[StartupValidationIssue],
@@ -928,10 +932,17 @@ def _validate_screen_family_route_gaps(
         ]
         if len(members) < 2:
             continue
-        member_set = set(members)
-        local_graph: dict[str, set[str]] = {screen: set() for screen in members}
+        # ``main_city`` is the universal hub: leaving a family member out to
+        # main_city (``icon.page.back``) and re-entering a sibling/hub from there
+        # is a first-class, intentional fallback — Shop documents exactly this
+        # ("cross-tab navigation goes main_city → shop → tab") and many Deals are
+        # entered straight from main_city rather than from the deals hub. Credit
+        # it as a routing waypoint so this check flags only members that are
+        # genuinely unreachable, not the deliberate via-hub pattern.
+        waypoints = set(members) | {_UNIVERSAL_HUB}
+        local_graph: dict[str, set[str]] = {screen: set() for screen in waypoints}
         for src, dst in edge_pairs:
-            if src in member_set and dst in member_set:
+            if src in waypoints and dst in waypoints:
                 local_graph.setdefault(src, set()).add(dst)
 
         gaps: list[tuple[str, str]] = []

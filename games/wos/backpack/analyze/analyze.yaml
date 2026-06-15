@@ -11,53 +11,26 @@ overlay:
       - push_scenario:
           name: backpack
           ttl: 5m
-  - name: page.backpack.resources.has_red_dot
-    region: page.backpack.resources
-    isRedDot: true
+  # One dynamic tab-strip scan replaces the five hard-coded per-tab red-dot
+  # regions. The segmenter re-anchors the grid every tick (the active capsule
+  # is wider and shifts its neighbours), so a notification dot is attributed to
+  # the correct tab regardless of which tab is currently open.
+  # ``push_red_dot_pages`` enqueues the matching ``backpack.tab.<page>``
+  # scenario for every dotted, non-active tab, left-to-right; the active tab
+  # clears its own dot. ``ttl`` is inherited from the placeholder step below.
+  - name: backpack.tabs.visible_red_dot
+    region: backpack.tabs_strip
+    action: detectTabs
+    push_red_dot_pages: true
+    tab_pages:
+      - backpack.tab.resources
+      - backpack.tab.speedup
+      - backpack.tab.bonus
+      - backpack.tab.gear
+      - backpack.tab.other
     screens:
       - backpack*
     steps:
       - push_scenario:
           name: backpack.tab.resources
-          priority: 80_000
-          ttl: 5m
-  - name: page.backpack.speedup.has_red_dot
-    region: page.backpack.speedup
-    isRedDot: true
-    screens:
-      - backpack*
-    steps:
-      - push_scenario:
-          name: backpack.tab.speedup
-          priority: 80_000
-          ttl: 5m
-  - name: page.backpack.bonus.has_red_dot
-    region: page.backpack.bonus
-    isRedDot: true
-    screens:
-      - backpack*
-    steps:
-      - push_scenario:
-          name: backpack.tab.bonus
-          priority: 80_000
-          ttl: 5m
-  - name: page.backpack.gear.has_red_dot
-    region: page.backpack.gear
-    isRedDot: true
-    screens:
-      - backpack*
-    steps:
-      - push_scenario:
-          name: backpack.tab.gear
-          priority: 80_000
-          ttl: 5m
-  - name: page.backpack.other.has_red_dot
-    region: page.backpack.other
-    isRedDot: true
-    screens:
-      - backpack*
-    steps:
-      - push_scenario:
-          name: backpack.tab.other
-          priority: 80_000
           ttl: 5m

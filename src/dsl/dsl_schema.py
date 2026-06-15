@@ -129,6 +129,7 @@ class DslStep(BaseModel):
 
     threshold: float | None = None
     min_match_saturation: int | None = None
+    min_patch_bright_ratio: float | None = None
     min_digits: int | None = None
     max: int | None = None
     min: int | None = None

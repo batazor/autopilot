@@ -124,10 +124,39 @@ def test_shop_blue_run_fallback_keeps_click_inside_red_dot_tab(strip_bbox: dict)
 
     assert len(tabs) == 4
     assert [t.has_red_dot for t in tabs] == [False, False, True, False]
-    assert {t.segment_source for t in tabs} == {"blue_runs"}
+    assert {t.segment_source for t in tabs} == {"capsule_runs"}
     assert tabs[2].color_state == "inactive_blue"
     assert pick_next_strip_action(tabs) == StripAction("click_tab", tab_index=2)
 
     daily = tabs[2].bbox_percent
     center_x = (daily["x"] + daily["width"] / 2.0) / 100.0 * 720
     assert 330 <= center_x <= 380
+
+
+def test_tap_bbox_is_capsule_tight(strip_bbox: dict) -> None:
+    """Each tab exposes a ``tap_bbox_percent`` narrowed to the capsule rows.
+
+    Clicks use it instead of the full strip bbox so the tap (and its jitter box)
+    stays on the tab body rather than the padding above/below the strip. The
+    tightening is vertical only — x/width are untouched so template-identification
+    crops, which need the full-height region, keep using ``bbox_percent``.
+    """
+    img = _load("page.shop.dawn_fund.png")
+    tabs = detect_tabs_in_strip(img, strip_bbox)
+    assert tabs
+
+    for t in tabs:
+        assert t.tap_bbox_percent is not None, t
+        tap, full = t.tap_bbox_percent, t.bbox_percent
+        # vertical-only tightening
+        assert abs(tap["x"] - full["x"]) < 1e-6
+        assert abs(tap["width"] - full["width"]) < 1e-6
+        # tap box is contained within, and no taller than, the full bbox
+        assert tap["height"] <= full["height"] + 1e-6
+        assert tap["y"] >= full["y"] - 1e-6
+        assert tap["y"] + tap["height"] <= full["y"] + full["height"] + 1e-6
+
+    # The padding really is trimmed — at least one tab is meaningfully tighter.
+    assert any(
+        t.tap_bbox_percent["height"] < t.bbox_percent["height"] - 0.5 for t in tabs
+    )

@@ -14,8 +14,12 @@ steps:
         steps:
           - click: fortune_token_pack.free
           - wait: 1s
-          - click: tapanywhereyoexit
-          - wait: 1s
+          - while_match: tapanywhereyoexit
+            expected: ["tap anywhere"]
+            max: 1
+            steps:
+              - click: tapanywhereyoexit
+              - wait: 1s
       - click: icon.page.back
       - wait: 1s
       - click: mia_fortune_hut.select_reward_wish

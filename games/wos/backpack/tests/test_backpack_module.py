@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from analysis.overlay import run_overlay_analysis_sync
+from analysis.overlay_area import default_area_doc_for_overlay
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from analysis.overlay_manifest import load_analyze_yaml
 from dsl import template_resolver
@@ -229,81 +231,43 @@ async def test_overlay_main_city_entry_pushes_backpack_scenario() -> None:
     assert push[0].get("type") == "backpack"
 
 
-@pytest.mark.asyncio
-async def test_overlay_bonus_tab_has_no_red_dot() -> None:
-    """Bonus tab has no notification dot on the reference (within-zone search)."""
+def test_backpack_tab_strip_red_dot_pushes_tab_scenarios() -> None:
+    """The dynamic tab-strip scan replaces the five hard-coded per-tab red-dot
+    rules: it re-anchors the grid every tick and enqueues a claim scenario for
+    every dotted, non-active tab (left-to-right), skipping the active one whose
+    own scenario clears its dot.
+
+    On the reference, ``Resources`` is active and ``Speedup`` + ``Other`` carry
+    dots, so exactly those two pages are pushed.
+    """
     image_bgr = _load_reference_bgr(BACKPACK_PAGE_FIXTURE.name)
-    area = load_area_doc(REPO_ROOT)
-    rule = _overlay_rule("page.backpack.bonus.has_red_dot")
 
-    out = await evaluate_overlay_rules_async(
-        image_bgr, area, REPO_ROOT, [rule], current_screen="backpack",
-    )
-    row = out.get("page.backpack.bonus.has_red_dot")
-    assert isinstance(row, dict), out
-    assert row.get("red_dot_search_mode") == "within_zone"
-    assert row.get("matched") is False, row
-    assert row.get("red_dot_present") is False
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("rule_name", "scenario_type"),
-    [
-        ("page.backpack.speedup.has_red_dot", "backpack.tab.speedup"),
-        ("page.backpack.other.has_red_dot", "backpack.tab.other"),
-    ],
-)
-async def test_overlay_tab_red_dot_rules_match_and_push(
-    rule_name: str,
-    scenario_type: str,
-) -> None:
-    image_bgr = _load_reference_bgr(BACKPACK_PAGE_FIXTURE.name)
-    area = load_area_doc(REPO_ROOT)
-    rule = _overlay_rule(rule_name)
-
-    out = await evaluate_overlay_rules_async(
+    out = run_overlay_analysis_sync(
         image_bgr,
-        area,
-        REPO_ROOT,
-        [rule],
+        repo_root=REPO_ROOT,
+        area_doc=default_area_doc_for_overlay(REPO_ROOT),
         current_screen="backpack",
     )
 
-    row = out.get(rule_name)
+    row = out.get("backpack.tabs.visible_red_dot")
     assert isinstance(row, dict), out
-    assert row.get("matched") is True, row
-    assert row.get("red_dot_present") is True
-    push = row.get("pushScenario")
-    assert isinstance(push, list) and push
-    assert push[0].get("type") == scenario_type
-    assert push[0].get("priority") == 80_000
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "rule_name",
-    [
-        "page.backpack.resources.has_red_dot",
-        "page.backpack.gear.has_red_dot",
-    ],
-)
-async def test_overlay_tab_red_dot_rules_miss_when_tab_has_no_dot(rule_name: str) -> None:
-    image_bgr = _load_reference_bgr(BACKPACK_PAGE_FIXTURE.name)
-    area = load_area_doc(REPO_ROOT)
-    rule = _overlay_rule(rule_name)
-
-    out = await evaluate_overlay_rules_async(
-        image_bgr,
-        area,
-        REPO_ROOT,
-        [rule],
-        current_screen="backpack",
-    )
-
-    row = out.get(rule_name)
-    assert isinstance(row, dict), out
-    assert row.get("matched") is False, row
+    assert row["matched"] is True
+    assert row["active_page_id"] == "backpack.tab.resources"
+    assert row["red_dot_pages"] == ["backpack.tab.speedup", "backpack.tab.other"]
+    assert row["pushScenario"] == [
+        {
+            "type": "backpack.tab.speedup",
+            "priority": None,
+            "ttl": 300,
+            "dsl_scenario": None,
+        },
+        {
+            "type": "backpack.tab.other",
+            "priority": None,
+            "ttl": 300,
+            "dsl_scenario": None,
+        },
+    ]
 
 
 @pytest.mark.asyncio

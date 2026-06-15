@@ -1,6 +1,13 @@
 screens:
-  event.journey_of_light:
+  journey_of_light.journey_of_light:
     priority: 50
     rules:
-      - match: journey_of_light.title
-        threshold: 0.9
+    - match: journey_of_light.journey_of_light.title
+      tab_active: journey_of_light.journey_of_light.title
+      threshold: 0.9
+  journey_of_light.my_treasures:
+    priority: 50
+    rules:
+    - match: journey_of_light.my_treasures.title
+      tab_active: journey_of_light.my_treasures.title
+      threshold: 0.9

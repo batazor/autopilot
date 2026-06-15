@@ -9,5 +9,5 @@ overlay:
       - main_city
     steps:
       - push_scenario:
-          name: event.first_purchase
+          name: event.7-day
           ttl: 1m

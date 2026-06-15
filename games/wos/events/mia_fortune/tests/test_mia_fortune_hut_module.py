@@ -172,6 +172,9 @@ def test_mia_fortune_hut_scenario_opens_pack_and_clicks_free() -> None:
     assert inner[0] == {"click": "mia_fortune_hut.fortune_token_pack_box"}
     assert inner[2]["while_match"] == PACK_FREE_REGION
     assert inner[2]["steps"][0] == {"click": PACK_FREE_REGION}
-    assert inner[2]["steps"][2] == {"click": "tapanywhereyoexit"}
+    dismiss_step = inner[2]["steps"][2]
+    assert dismiss_step["while_match"] == "tapanywhereyoexit"
+    assert dismiss_step["expected"] == ["tap anywhere"]
+    assert dismiss_step["steps"][0] == {"click": "tapanywhereyoexit"}
     assert inner[3] == {"click": "icon.page.back"}
     assert inner[5] == {"click": "mia_fortune_hut.select_reward_wish"}

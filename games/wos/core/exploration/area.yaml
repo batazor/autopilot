@@ -135,6 +135,20 @@
       "ocr": "references/exploration.png",
       "regions": [
         {
+          "name": "exploration.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.45491676500577,
+            "y": 1.378823497546959,
+            "width": 32.953667953667946,
+            "height": 3.7705429158853137,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "exploration.to.squad_settings",
           "action": "exist",
           "threshold": 0.9,
