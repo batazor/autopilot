@@ -385,6 +385,30 @@ class DslScenarioExecuteMixin(
                         exc_info=True,
                     )
                     cur_screen_at_entry = ""
+                # Blind detection just failed, but the device is usually still
+                # sitting on the screen we last confirmed — ``current_screen``
+                # was only transiently blanked by an in-flight transition or a
+                # prior verify miss. Re-confirm the head of ``screen_history``
+                # against the live frame (expected-hinted detect) before burning
+                # the task. ``recover_screen_from_history`` republishes
+                # ``current_screen`` on a match, so navigation below can route
+                # from a real source node instead of early-exiting into the 5s
+                # re-queue hot loop (the awaiting_screen_identity churn this
+                # gate is meant to avoid, not feed).
+                if not cur_screen_at_entry:
+                    try:
+                        cur_screen_at_entry = (
+                            await navigator.recover_screen_from_history(instance_id)
+                        )
+                    except Exception:
+                        logger.debug(
+                            "dsl_scenario: screen-history recovery failed before "
+                            "node navigation (scenario=%s instance=%s)",
+                            _scen(key),
+                            instance_id,
+                            exc_info=True,
+                        )
+                        cur_screen_at_entry = ""
             if not cur_screen_at_entry:
                 _trace_row(
                     0,

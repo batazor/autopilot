@@ -428,6 +428,64 @@ def test_overlay_push_wins_locality_over_older_far_push(monkeypatch):
     )
 
 
+def _notify_item(
+    *,
+    dsl_scenario: str,
+    priority: int = 80_000,
+    run_at: float = 1000.0,
+    created_at: float = 1000.0,
+    player_id: str = "",
+) -> tuple[str, dict[str, Any]]:
+    """A notify/optimizer-shaped push: generic ``task_type='dsl_scenario'``
+    with the real scenario key carried in the ``dsl_scenario`` field."""
+    data: dict[str, Any] = {
+        "task_id": f"notify:{dsl_scenario}",
+        "player_id": player_id,
+        "task_type": "dsl_scenario",
+        "dsl_scenario": dsl_scenario,
+        "priority": priority,
+        "run_at": run_at,
+        "instance_id": "bs1",
+        "created_at": created_at,
+    }
+    return json.dumps(data), data
+
+
+def test_effective_task_type_resolves_dsl_scenario_field():
+    """``task_type='dsl_scenario'`` resolves to the field-carried key; cron-style
+    payloads (key in ``task_type``) and missing fields pass through unchanged."""
+    assert (
+        RedisQueue._effective_task_type(
+            {"task_type": "dsl_scenario", "dsl_scenario": "intel_lighthouse"}
+        )
+        == "intel_lighthouse"
+    )
+    # Cron-style: scenario key already in task_type.
+    assert (
+        RedisQueue._effective_task_type({"task_type": "check_main_city"})
+        == "check_main_city"
+    )
+    # Generic dsl_scenario with no field → leave as-is (nothing to resolve).
+    assert RedisQueue._effective_task_type({"task_type": "dsl_scenario"}) == "dsl_scenario"
+
+
+def test_notify_push_resolves_required_node_via_dsl_scenario_field(monkeypatch):
+    """A notify-pushed ``node:`` scenario (``task_type='dsl_scenario'``) must be
+    ranked with its real ``required_node`` / hops, not silently degrade to the
+    0-hop FIFO band that hid its navigation cost (and let it pop on an
+    unreachable screen, churning ``awaiting_screen_identity``)."""
+    _patch_required_nodes(monkeypatch, {"intel_lighthouse": "intel"})
+    _patch_hops(monkeypatch, {("main_city", "intel"): 2})
+
+    item = _notify_item(dsl_scenario="intel_lighthouse")
+    ranked = _rank([item], current_screen="main_city")
+
+    meta = ranked[0][3]
+    assert meta["required_node"] == "intel"
+    assert meta["hops"] == 2
+    assert meta["graph_debuff"] == 2 * queue_mod.W_HOPS
+
+
 def test_pop_candidates_log_includes_ranking_breakdown(monkeypatch, caplog):
     """The queue pop log should explain why one due task beat another."""
     _patch_required_nodes(

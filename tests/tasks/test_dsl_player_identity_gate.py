@@ -220,6 +220,56 @@ async def test_node_bound_scenario_retries_when_screen_identity_empty(
 
 
 @pytest.mark.asyncio
+async def test_node_bound_scenario_recovers_screen_from_history(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """When ``current_screen`` is transiently blank but the device is still on
+    the screen we last confirmed, the preflight must recover identity from
+    ``screen_history`` instead of burning the task on
+    ``awaiting_screen_identity``. Recovery republishes the screen, so when the
+    recovered node is one of the scenario's allowed nodes the steps run in
+    place — no 5s re-queue hot loop."""
+
+    _write_scenario(
+        tmp_path, {"node": "event.trials.day.1", "steps": [{"exec": "do_work"}]}
+    )
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+
+    from navigation.navigator import Navigator
+
+    async def _no_detect(_self: Any, *_args: Any, **_kwargs: Any) -> str:
+        return ""
+
+    async def _recover(_self: Any, *_args: Any, **_kwargs: Any) -> str:
+        return "event.trials.day.1"
+
+    mocker.patch.object(Navigator, "detect_current_screen", new=_no_detect)
+    mocker.patch.object(Navigator, "recover_screen_from_history", new=_recover)
+
+    fired = {"count": 0}
+
+    async def _do_work(_ctx: Any) -> None:
+        fired["count"] += 1
+
+    import tasks.dsl_exec as dsl_exec
+
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"do_work": _do_work})
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="765502864",
+        scenario_key="scn",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.metadata.get("reason") != "awaiting_screen_identity"
+    assert fired["count"] == 1
+
+
+@pytest.mark.asyncio
 async def test_device_level_node_bound_scenario_retries_when_screen_identity_empty(
     tmp_path: Path,
     mocker,

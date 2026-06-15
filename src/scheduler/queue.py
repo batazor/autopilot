@@ -424,6 +424,35 @@ class RedisQueue:
         return set(RedisQueue._task_type_to_required_node_cached(fp).keys())
 
     @staticmethod
+    def _effective_task_type(data: dict[str, Any]) -> str:
+        """Scenario key to use for node / gating / ranking lookups.
+
+        Cron-scheduled scenarios enqueue with ``task_type`` set to the scenario
+        key (``resolve_cron_task_type`` → file stem), so a plain ``task_type``
+        read matches the ``required_node`` / device-level / no-debuff maps,
+        which are all keyed by scenario key.
+
+        Notify pushes (``notify.publisher.enqueue_scenario``) and the optimizer
+        dispatcher instead enqueue ``task_type="dsl_scenario"`` with the real
+        key in the ``dsl_scenario`` field — the generic worker-dispatch shape.
+        Reading ``task_type`` for those yields the literal string
+        ``"dsl_scenario"``, which is in none of the per-scenario maps, so the
+        screen-identity park gate skipped them and ranking saw no
+        ``required_node`` (0 hops, no unreachable penalty). A notify-pushed
+        ``node:`` scenario therefore got popped while ``current_screen`` was
+        empty and burned on the DSL ``awaiting_screen_identity`` early-exit,
+        re-queued every 5s — the exact hot loop the gate exists to prevent.
+        Resolve the field-carried key so those pushes are gated/ranked like
+        their cron equivalents.
+        """
+        ttype = str(data.get("task_type") or "").strip()
+        if ttype == "dsl_scenario":
+            ds = str(data.get("dsl_scenario") or "").strip()
+            if ds:
+                return ds
+        return ttype
+
+    @staticmethod
     def _task_type_to_required_node() -> dict[str, str]:
         """Map ``task_type → required_node`` for **every** runnable scenario.
 
@@ -691,7 +720,7 @@ class RedisQueue:
                 due = [
                     x for x in due
                     if bool(x[1].get("debug"))
-                    or str(x[1].get("task_type") or "") not in gated
+                    or self._effective_task_type(x[1]) not in gated
                 ]
                 if not due:
                     return []
@@ -701,7 +730,7 @@ class RedisQueue:
             due = [
                 x for x in due
                 if bool(x[1].get("debug"))
-                or str(x[1].get("task_type") or "") in device_level
+                or self._effective_task_type(x[1]) in device_level
             ]
             if not due:
                 return []
@@ -1209,8 +1238,15 @@ class RedisQueue:
         for raw, data in due:
             base = int(data.get("priority", 0))
             ttype = str(data.get("task_type", ""))
+            # Node / debuff maps are keyed by scenario key; notify and optimizer
+            # pushes carry the key in ``dsl_scenario`` under a generic
+            # ``task_type="dsl_scenario"``. Resolve it so a notify-pushed
+            # ``node:`` scenario is ranked with its real hops instead of
+            # silently degrading to 0-hops FIFO. ``recent_count`` still keys on
+            # the literal ``task_type`` — that's what ``recent_runs`` records.
+            ttype_eff = self._effective_task_type(data)
             pid = str(data.get("player_id", ""))
-            required_node = required_node_map.get(ttype, "")
+            required_node = required_node_map.get(ttype_eff, "")
 
             if not required_node or not current_screen:
                 unreachable_flag = 0
@@ -1229,7 +1265,7 @@ class RedisQueue:
 
             recent_count = recent_counts.get((ttype, pid), 0)
             on_required_node = bool(required_node and current_screen == required_node)
-            recent_debuff_disabled = ttype in no_recent_debuff or on_required_node
+            recent_debuff_disabled = ttype_eff in no_recent_debuff or on_required_node
             recent_debuff = (
                 0
                 if recent_debuff_disabled
