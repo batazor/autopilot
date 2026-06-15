@@ -373,12 +373,12 @@
      the sidebar shows the whole two-tier hierarchy instead of pointing the
      user at the top tab strip. */
   .nav-sublist {
-    @apply m-0 mt-0.5 list-none space-y-0.5 border-l border-wos-border-subtle p-0 pl-2;
+    @apply m-0 mb-1 mt-1.5 list-none space-y-1 border-l border-wos-border-subtle p-0 py-0.5 pl-2.5;
     margin-left: 1.4rem;
   }
 
   .nav-sublist__link {
-    @apply px-2 py-1 text-wos-text-muted;
+    @apply px-2 py-1.5 text-wos-text-muted;
   }
 
   .nav-sublist__link--active {
