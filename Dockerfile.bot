@@ -161,7 +161,13 @@ RUN mkdir -p /app/license-data
 ARG BUILD_VERSION=""
 ARG BUILD_REVISION=""
 
+# ``games/`` ships as files under /app but is not part of the installed wheel
+# (only ``src/*`` packages are). The supervisor's spawned scheduler/worker
+# subprocesses don't run with cwd=/app on sys.path, so ``import games`` (used by
+# the stamina/MARCH planners) fails with ModuleNotFoundError. Put /app on the
+# path so ``games`` resolves as a namespace package in every subprocess.
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
     PATH="/app/.venv/bin:$PATH" \
     WOS_BUILD_VERSION=${BUILD_VERSION} \
     WOS_BUILD_REVISION=${BUILD_REVISION}
