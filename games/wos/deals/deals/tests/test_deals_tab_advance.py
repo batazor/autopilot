@@ -99,7 +99,9 @@ def test_deals_tab_templates_are_discovered(area_doc: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_deals_detect_tabs_pushes_identified_red_dot_pages(area_doc: dict) -> None:
+async def test_deals_detect_tabs_falls_back_when_red_dot_pages_are_unidentified(
+    area_doc: dict,
+) -> None:
     frame = _load_bgr("games/wos/deals/hero_rally/references/hero_rally.main.png")
     rules = [
         {
@@ -131,20 +133,57 @@ async def test_deals_detect_tabs_pushes_identified_red_dot_pages(area_doc: dict)
 
     hit = out["deals.tabs.visible_red_dot"]
     assert hit["active_page_id"] == "deals.hero_rally"
-    assert hit["red_dot_pages"] == ["deals.hall_of_heroes", "deals.sign_in"]
+    assert hit["red_dot_pages"] == []
     assert hit["pushScenario"] == [
         {
-            "type": "deals.hall_of_heroes",
+            "type": "tabs.strip.advance",
             "dsl_scenario": None,
             "priority": None,
             "ttl": 15,
+            "args": {"region": "deals.tabs_strip"},
         },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_deals_detect_tabs_can_push_identified_red_dot_pages_when_opted_in(
+    area_doc: dict,
+) -> None:
+    frame = _load_bgr("games/wos/deals/hero_rally/references/hero_rally.main.png")
+    rules = [
         {
-            "type": "deals.sign_in",
-            "dsl_scenario": None,
-            "priority": None,
-            "ttl": 15,
-        },
+            "name": "deals.tabs.visible_red_dot",
+            "region": "deals.tabs_strip",
+            "action": "detectTabs",
+            "namespace": "deals",
+            "template_min_score": 0.45,
+            "push_red_dot_pages": True,
+            "screens": ["deals.hero_rally"],
+            "steps": [
+                {
+                    "push_scenario": {
+                        "name": "tabs.strip.advance",
+                        "ttl": "15s",
+                        "args": {"region": "deals.tabs_strip"},
+                    }
+                }
+            ],
+        }
+    ]
+
+    out = await evaluate_overlay_rules_async(
+        frame,
+        area_doc,
+        REPO_ROOT,
+        rules,
+        current_screen="deals.hero_rally",
+    )
+
+    hit = out["deals.tabs.visible_red_dot"]
+    assert hit["red_dot_pages"] == ["deals.hall_of_heroes", "deals.sign_in"]
+    assert hit["pushScenario"] == [
+        {"type": "deals.hall_of_heroes", "dsl_scenario": None, "priority": None, "ttl": 15},
+        {"type": "deals.sign_in", "dsl_scenario": None, "priority": None, "ttl": 15},
     ]
 
 
