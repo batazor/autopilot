@@ -10,6 +10,7 @@ from __future__ import annotations
 from .adapters import (
     from_build_slate,
     from_hero_plan,
+    from_intel_plan,
     from_pet_plan,
     from_research_plan,
 )
@@ -45,6 +46,7 @@ from .feedback import (
     record_many,
     tuning,
 )
+from .march import march_channels, plan_march
 from .model import (
     CONSTRUCTION,
     HERO,
@@ -121,10 +123,13 @@ __all__ = [
     "economy_bias",
     "from_build_slate",
     "from_hero_plan",
+    "from_intel_plan",
     "from_pet_plan",
     "from_research_plan",
     "gather_candidates",
+    "march_channels",
     "merge_boosts",
+    "plan_march",
     "recommend_orders",
     "recommend_speedups",
     "record",

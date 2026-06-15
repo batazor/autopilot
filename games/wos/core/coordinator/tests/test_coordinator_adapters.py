@@ -11,12 +11,15 @@ from games.wos.core.building.planner import (
 from games.wos.core.coordinator import (
     CONSTRUCTION,
     HERO,
+    MARCH,
     PET,
     RESEARCH,
+    CandidateAction,
     Channel,
     coordinate,
     from_build_slate,
     from_hero_plan,
+    from_intel_plan,
     from_pet_plan,
     from_research_plan,
 )
@@ -25,6 +28,8 @@ from games.wos.core.heroes.planner import plan_next as hero_plan_next
 from games.wos.core.pets.planner import PetSpec
 from games.wos.core.pets.planner import plan_next as pet_plan_next
 from games.wos.core.research.planner import load_research_graph, plan_next
+from games.wos.intel.planner import IntelEvent
+from games.wos.intel.planner import plan_next as intel_plan_next
 
 
 def _build_graph():
@@ -108,3 +113,34 @@ def test_end_to_end_building_and_research_share_the_tick():
     kinds = {c.action.channel_kind for c in dec.commits}
     assert kinds == {CONSTRUCTION, RESEARCH}        # both domains run this tick
     assert len(dec.commits) == 2
+
+
+def test_from_intel_plan_builds_stamina_priced_march_candidates():
+    board = [IntelEvent("skull_horned", "gold"), IntelEvent("fight", "purple")]
+    plan = intel_plan_next(board, stamina=100, cost_per_event=10)
+    cands = from_intel_plan(plan)
+    assert len(cands) == 2
+    assert all(c.channel_kind == MARCH for c in cands)
+    assert all(c.domain == "intel" for c in cands)
+    assert all(c.cost == {"stamina": 10} for c in cands)
+    # Value order preserved across march slots (gold special first).
+    assert cands[0].priority > cands[1].priority
+    assert "gold" in cands[0].detail
+
+
+def test_intel_takes_a_march_slot_before_a_long_gather():
+    plan = intel_plan_next([IntelEvent("skull", "gold")], stamina=100, cost_per_event=10)
+    intel = from_intel_plan(plan)
+    gather = [CandidateAction("gather", MARCH, "gather_coal", 720)]   # boosted gather
+    dec = coordinate([Channel("m1", MARCH)], [*intel, *gather], {"stamina": 100})
+    assert len(dec.commits) == 1
+    assert dec.commits[0].action.domain == "intel"   # quick intel run wins the slot
+    assert dec.remaining["stamina"] == 90            # stamina spent from the shared pool
+
+
+def test_intel_starves_on_the_shared_stamina_pool_when_drained():
+    plan = intel_plan_next([IntelEvent("skull", "gold")], stamina=100, cost_per_event=10)
+    intel = from_intel_plan(plan)
+    dec = coordinate([Channel("m1", MARCH)], intel, {"stamina": 5})
+    assert dec.commits == ()
+    assert "stamina" in dec.bottleneck_resources

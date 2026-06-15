@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .model import CONSTRUCTION, HERO, PET, RESEARCH, CandidateAction
+from .model import CONSTRUCTION, HERO, MARCH, PET, RESEARCH, CandidateAction
 from .objective import TRACK_DOMAIN, domain_priority
 
 if TYPE_CHECKING:
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from games.wos.core.pets.planner import PetPlan
     from games.wos.core.research.planner import ResearchGraph, ResearchPlan
     from games.wos.core.roles import RoleProfile
+    from games.wos.intel.planner import IntelPlan
 
 
 def from_build_slate(
@@ -135,3 +136,33 @@ def from_pet_plan(
         cost=dict(step.cost),
         detail=f"{step.pet_id} {step.kind} -> {step.to_level}",
     )]
+
+
+def from_intel_plan(
+    plan: IntelPlan,
+    *,
+    role: RoleProfile | None = None,
+    boosts: Mapping[str, float] | None = None,
+) -> list[CandidateAction]:
+    """One MARCH candidate per marker the Intel planner queued this pass.
+
+    Intel events deploy a (short) march and cost the shared stamina pool, so each
+    candidate contends on the MARCH channel with cost ``{"stamina": n}``. The intel
+    band sits above gather/raids (see :mod:`objective`) so a quick, expiring Intel
+    run is taken before a long gather. ``rank_nudge`` preserves the planner's
+    value order across the available march slots; stamina balance + the daily quota
+    are already applied inside the planner's batch.
+    """
+    boost = (boosts or {}).get("intel", 1.0)
+    out: list[CandidateAction] = []
+    for i, cand in enumerate(plan.batch):
+        ev = cand.event
+        out.append(CandidateAction(
+            domain="intel",
+            channel_kind=MARCH,
+            key=f"intel:{ev.color}:{ev.kind}:{ev.x},{ev.y}",
+            priority=domain_priority("intel", role, rank_nudge=-float(i), boost=boost),
+            cost={"stamina": int(cand.cost)},
+            detail=f"intel {ev.color} {ev.kind}",
+        ))
+    return out

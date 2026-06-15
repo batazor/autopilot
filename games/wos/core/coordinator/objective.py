@@ -23,6 +23,12 @@ if TYPE_CHECKING:
 DOMAIN_BAND: dict[str, float] = {
     "research": 900.0,
     "building_progression": 850.0,
+    # Intel events share the MARCH channel with raids + gather. They're quick
+    # (the march frees in minutes) and time-limited (the board refreshes on a
+    # timer), so they're banded above ordinary raids AND above the boosted-gather
+    # ceiling (gather 450 × economy gather_boost 1.6 = 720): clear the quick,
+    # expiring Intel run before committing a slot to a long gather.
+    "intel": 760.0,
     "raids": 600.0,
     "heroes": 580.0,
     "pets": 560.0,
@@ -44,6 +50,7 @@ DOMAIN_CATEGORY: dict[str, str] = {
     "troops": "battle",
     "heroes": "growth",          # role tilt already baked into the hero planner's value
     "pets": "growth",            # role tilt already baked into the pet planner's value
+    "intel": "growth",           # time-limited free loot — valuable to every role
 }
 
 # Map a building planner track to a coordinator domain.

@@ -1,0 +1,80 @@
+"""MARCH-channel arbitration — who gets a march slot this tick.
+
+The march slots are the bot's most contended channel: intel runs, resource
+gathers and (later) raids all want them. Each domain proposes its own
+:class:`CandidateAction`s; this module assembles the ones that compete for MARCH
+and hands them to :func:`coordinator.coordinate`, which fills each idle slot with
+the highest-priority action the shared budget (stamina + resources) still covers.
+
+The priority bands (see :mod:`objective`) put a quick, expiring intel run above a
+boosted gather, so a free-loot intel marker preempts a long gather — but intel
+costs stamina, so when the pool is short it *starves* at the coordinator and the
+slot falls through to the (free) gather instead, with stamina reported as the
+bottleneck for the economy loop.
+
+Pure composition over the existing pieces (``from_intel_plan`` + ``economy_bias``
+/ ``gather_candidates`` + ``coordinate``); no IO. Live readers (idle-slot count,
+resource balances) and dispatch of the winning commits are the caller's job.
+"""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from .adapters import from_intel_plan
+from .coordinator import coordinate
+from .economy import economy_bias, gather_candidates
+from .model import MARCH, Channel
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
+    from games.wos.core.roles import RoleProfile
+    from games.wos.intel.planner import IntelPlan
+
+    from .model import CandidateAction, CoordinatorDecision
+
+
+def march_channels(idle_slots: int) -> list[Channel]:
+    """``idle_slots`` free MARCH lanes with stable ids (``march_1`` …)."""
+    return [Channel(id=f"march_{i + 1}", kind=MARCH) for i in range(max(0, int(idle_slots)))]
+
+
+def plan_march(
+    *,
+    idle_slots: int,
+    balances: Mapping[str, int],
+    intel_plan: IntelPlan | None = None,
+    role: RoleProfile | None = None,
+    bottleneck: Sequence[str] = (),
+    caps: Mapping[str, int] | None = None,
+    min_buffer: Mapping[str, int] | None = None,
+    boosts: Mapping[str, float] | None = None,
+    extra_candidates: Sequence[CandidateAction] = (),
+) -> CoordinatorDecision:
+    """Arbitrate the idle MARCH slots across intel + gather (+ ``extra``).
+
+    Builds the competing MARCH candidates — the intel batch (priced in stamina)
+    and economy-driven gather targets (free, lifted while a resource is short) —
+    plus any ``extra_candidates`` (e.g. raids, once a raids planner exists), then
+    runs :func:`coordinate` over ``idle_slots`` lanes and the shared ``balances``.
+
+    ``bottleneck`` / ``caps`` / ``min_buffer`` shape the gather targets via
+    :func:`economy_bias`; ``boosts`` is the calendar bias applied to the intel
+    band. Returns the full decision (commits to dispatch, what starved, the
+    bottleneck resources) — the caller turns each MARCH commit into a queued
+    scenario.
+    """
+    candidates: list[CandidateAction] = []
+    if intel_plan is not None:
+        candidates.extend(from_intel_plan(intel_plan, role=role, boosts=boosts))
+
+    bias = economy_bias(
+        balances,
+        bottleneck=bottleneck,
+        caps=caps,
+        min_buffer=min_buffer,
+    )
+    candidates.extend(gather_candidates(bias, role=role))
+    candidates.extend(extra_candidates)
+
+    return coordinate(march_channels(idle_slots), candidates, balances)
