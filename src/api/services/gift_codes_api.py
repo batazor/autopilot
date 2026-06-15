@@ -253,6 +253,37 @@ def build_gift_codes_view(*, query: str = "", game: str = "wos") -> dict[str, An
     }
 
 
+async def poll_status(game: str) -> dict[str, Any]:
+    """Seconds until the next global scrape cycle for ``game``.
+
+    The scheduler claims a per-game cadence key with a 6h TTL on each cycle
+    (see ``SchedulerRunner._run_gift_codes_polling``); the remaining TTL is the
+    countdown to the next poll. A missing key means the window elapsed and the
+    next scheduler tick (~30s) will poll, so we report 0 ("due now"). Redis
+    being unavailable yields ``None`` (unknown).
+    """
+    spec = _gift_code_game(game)
+    next_poll_seconds: int | None
+    try:
+        async with _api_gift_code_redis() as redis_client:
+            ttl = await redis_client.ttl(_poll_cadence_key(spec.game))
+    except Exception:
+        logger.debug("gift-code poll-status: redis unavailable", exc_info=True)
+        ttl = None
+    if ttl is None:
+        next_poll_seconds = None
+    elif ttl < 0:
+        # -2 = key missing (window elapsed; next tick polls), -1 = no expiry set.
+        next_poll_seconds = 0
+    else:
+        next_poll_seconds = int(ttl)
+    return {
+        "game": spec.game,
+        "interval_seconds": _GIFT_CODE_POLL_INTERVAL_SECONDS,
+        "next_poll_seconds": next_poll_seconds,
+    }
+
+
 def build_discord_config_view() -> dict[str, Any]:
     token_source = discord_source.discord_token_source()
     return {

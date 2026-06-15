@@ -32,6 +32,14 @@ async def post_scrape(game: str = Query(default="wos")) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.get("/poll-status")
+async def get_poll_status(game: str = Query(default="wos")) -> dict[str, Any]:
+    try:
+        return await svc.poll_status(game)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/redeem")
 async def post_redeem(game: str = Query(default="wos")) -> dict[str, Any]:
     try:

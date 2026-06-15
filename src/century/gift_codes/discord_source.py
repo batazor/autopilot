@@ -49,6 +49,24 @@ _CODE_LIST_HEADING_RE = re.compile(
 )
 _LINE_CODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{3,47}$")
 
+_USER_AGENT = "autopilot-gift-codes (https://github.com/openai/codex)"
+
+# Discord accepts ``Bot <token>`` for bot tokens and a bare ``<token>`` for
+# user tokens. We don't know which kind the operator saved, so we probe the
+# bot scheme first and fall back to the raw user-token scheme on 401, caching
+# whichever worked so subsequent polls skip the extra request.
+_AUTH_SCHEME_CACHE: dict[str, str] = {}
+
+
+def _candidate_auth_headers(token: str) -> list[str]:
+    bot = f"Bot {token}"
+    cached = _AUTH_SCHEME_CACHE.get(token)
+    if cached == "raw":
+        return [token]
+    if cached == "bot":
+        return [bot]
+    return [bot, token]
+
 
 @dataclass
 class NullGiftRedeemSummary:
@@ -226,23 +244,32 @@ class DiscordMessageClient:
         limit: int = _DEFAULT_LIMIT,
     ) -> list[dict[str, Any]]:
         limit = max(1, min(int(limit), _MAX_LIMIT))
-        headers = {
-            "Authorization": f"Bot {self._token}",
-            "User-Agent": "autopilot-gift-codes (https://github.com/openai/codex)",
-        }
         params = {"limit": str(limit)}
         url = f"{_DISCORD_API_BASE}/channels/{channel_id}/messages"
+        candidates = _candidate_auth_headers(self._token)
         async with httpx.AsyncClient(
             timeout=30,
             follow_redirects=True,
             transport=self._transport,
         ) as client:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code == 429:
-                delay = _retry_after_seconds(resp)
-                logger.warning("Discord gift-code source rate-limited; retrying after %.1fs", delay)
-                await asyncio.sleep(delay)
+            resp: httpx.Response | None = None
+            for idx, auth in enumerate(candidates):
+                headers = {"Authorization": auth, "User-Agent": _USER_AGENT}
                 resp = await client.get(url, headers=headers, params=params)
+                if resp.status_code == 429:
+                    delay = _retry_after_seconds(resp)
+                    logger.warning("Discord gift-code source rate-limited; retrying after %.1fs", delay)
+                    await asyncio.sleep(delay)
+                    resp = await client.get(url, headers=headers, params=params)
+                # Wrong auth scheme for this token kind: try the next candidate.
+                if resp.status_code == 401 and idx + 1 < len(candidates):
+                    continue
+                if resp.status_code < 400:
+                    _AUTH_SCHEME_CACHE[self._token] = (
+                        "bot" if auth.startswith("Bot ") else "raw"
+                    )
+                break
+            assert resp is not None  # candidates is never empty
             resp.raise_for_status()
             data = resp.json()
         return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []

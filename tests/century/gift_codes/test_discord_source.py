@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from century.gift_codes import discord_source
 from century.gift_codes.discord_source import (
     DISCORD_TOKEN_SETTING_KEY,
     extract_codes_from_message,
@@ -110,6 +111,47 @@ async def test_poll_discord_channel_once_upserts_new_codes(
     assert again == []
     assert code_exists("BETA123", game=game)
     assert code_exists("BETA456", game=game)
+
+
+@pytest.mark.asyncio
+async def test_poll_discord_channel_once_falls_back_to_user_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user token (rejected as ``Bot <token>``) is retried bare and cached."""
+    channel_env = "KINGSHOT_BETA_GIFT_CODES_DISCORD_CHANNEL_ID"
+    user_token = "user-token-xyz"
+    discord_source._AUTH_SCHEME_CACHE.pop(user_token, None)
+    set_gift_code_setting(DISCORD_TOKEN_SETTING_KEY, user_token)
+
+    seen_auth: list[str] = []
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        auth = request.headers["Authorization"]
+        seen_auth.append(auth)
+        if auth.startswith("Bot "):
+            return httpx.Response(401, json={"message": "401: Unauthorized", "code": 0})
+        return httpx.Response(200, json=[{"id": "1", "content": "code: USERTOK1"}])
+
+    added = await poll_discord_channel_once(
+        game="kingshot_beta",
+        channel_env=channel_env,
+        transport=httpx.MockTransport(_handler),
+    )
+
+    # First poll probes the bot scheme, then the raw user-token scheme.
+    assert seen_auth == [f"Bot {user_token}", user_token]
+    assert added == ["USERTOK1"]
+    assert code_exists("USERTOK1", game="kingshot_beta")
+    assert discord_source._AUTH_SCHEME_CACHE[user_token] == "raw"
+
+    # A subsequent poll skips the failing bot probe thanks to the cache.
+    seen_auth.clear()
+    await poll_discord_channel_once(
+        game="kingshot_beta",
+        channel_env=channel_env,
+        transport=httpx.MockTransport(_handler),
+    )
+    assert seen_auth == [user_token]
 
 
 @pytest.mark.asyncio
