@@ -13,6 +13,12 @@ screens:
     - ocr: page.common.title
       contains: Squad Settings
       threshold: 0.8
+  exploration.squad_fight:
+    priority: 25
+    terminal: true
+    rules:
+    - match: page.squad_fight.title
+      threshold: 0.9
   exploration.victory:
     priority: 20
     # Transient result screen; squad_fight scenario taps `next` to dismiss.

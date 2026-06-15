@@ -6,6 +6,7 @@ from unittest.mock import ANY, call
 
 import cv2
 import pytest
+import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
@@ -39,6 +40,10 @@ def _load_rehearsal_fixture_bgr(name: str) -> np.ndarray:
     return frame
 
 
+def _load_yaml(rel: str) -> dict:
+    return yaml.safe_load((MODULE_DIR / rel).read_text(encoding="utf-8")) or {}
+
+
 def test_claim_exploration_rewards_scenario_is_registered_with_expected_shape(snapshot) -> None:
     loaded = template_resolver.load_doc(REPO_ROOT, "claim_exploration_rewards")
     assert loaded is not None
@@ -63,6 +68,54 @@ def test_squad_fight_victory_repush_waits_until_squad_settings() -> None:
         {"wait_screen": {"any": ["squad_settings"], "max": 5, "interval": "500ms"}},
         {"push_scenario": "squad_fight"},
     ]
+
+
+def test_squad_fight_screen_analyzer_sets_exploration_fight_node() -> None:
+    analyze = _load_yaml("analyze/analyze.yaml")
+    rules = {rule["name"]: rule for rule in analyze["overlay"]}
+
+    rule = rules["exploration.squad_fight.visible"]
+    assert rule["region"] == "page.squad_fight.title"
+    assert rule["action"] == "findIcon"
+    assert rule["threshold"] == 0.9
+    assert rule["screens"] == ["squad_settings", "exploration.squad_fight"]
+    assert rule["set_node"] == "exploration.squad_fight"
+
+
+def test_squad_fight_auto_and_speed_are_analyzer_inline_clicks() -> None:
+    analyze = _load_yaml("analyze/analyze.yaml")
+    rules = {rule["name"]: rule for rule in analyze["overlay"]}
+
+    auto = rules["exploration.squad_fight.auto.inactive"]
+    assert auto["region"] == "page.squad_fight.auto"
+    assert auto["screens"] == ["exploration.squad_fight"]
+    assert auto["cond"] == "exploration.level >= 5"
+    assert auto["steps"] == [
+        {"click": "page.squad_fight.auto"},
+        {"wait": "1s"},
+    ]
+
+    speed = rules["exploration.squad_fight.speed.inactive"]
+    assert speed["region"] == "page.squad_fight.speed"
+    assert speed["screens"] == ["exploration.squad_fight"]
+    assert speed["cond"] == "exploration.level >= 10"
+    assert speed["steps"] == [{"click": "page.squad_fight.speed"}]
+
+    loaded = template_resolver.load_doc(REPO_ROOT, "squad_fight")
+    assert loaded is not None
+    _path, scenario = loaded
+    scenario_blob = str(scenario["steps"])
+    assert "while_match" not in scenario_blob
+    assert "page.squad_fight.auto" not in scenario_blob
+    assert "page.squad_fight.speed" not in scenario_blob
+
+
+@pytest.mark.asyncio
+async def test_squad_fight_reference_detects_exploration_fight_node() -> None:
+    detector = ScreenDetector(get_ocr_client())
+    assert await detector.detect_screen(_load_reference_bgr("page.squad_fight.png")) == (
+        "exploration.squad_fight"
+    )
 
 
 @pytest.mark.asyncio

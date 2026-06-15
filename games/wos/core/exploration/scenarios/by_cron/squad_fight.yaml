@@ -20,17 +20,6 @@ steps:
   - wait: 200ms
   - click: squad_settings.fight
   - wait: 2s
-  
-  - while_match: page.squad_fight.auto
-    cond: exploration.level >= 5
-    steps:
-      - click: page.squad_fight.auto
-      - wait: 1s
-  
-  - while_match: page.squad_fight.speed
-    cond: exploration.level >= 10
-    steps:
-      - click: page.squad_fight.speed
 
   - wait_screen:
       any: [exploration.victory, exploration.defeat]

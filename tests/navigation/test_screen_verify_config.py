@@ -307,6 +307,19 @@ def test_production_screen_verify_yaml_contains_squad_settings_rule() -> None:
     assert rules == expected
 
 
+def test_production_screen_verify_yaml_contains_exploration_squad_fight_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        landmarks = screen_graph.screen_landmark_rules("exploration.squad_fight")
+        rules = screen_graph.screen_verify_rules("exploration.squad_fight")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    expected = [{"match": "page.squad_fight.title", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
+
+
 def test_production_screen_verify_yaml_contains_exploration_defeat_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
