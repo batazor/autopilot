@@ -1,3 +1,12 @@
+families:
+  deals:
+    hub: deals
+    prefix: deals.
+    tab_region: deals.tabs_strip
+    namespace: deals
+    advance_scenario: tabs.strip.advance
+    next_region: deals.next.left
+
 screens:
   deals:
     priority: 60
