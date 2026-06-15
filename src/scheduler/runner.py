@@ -89,6 +89,8 @@ class SchedulerRunner:
         # Last stamina decision signature per player — lets the planner skip
         # rewriting the trace when its decision hasn't changed tick-to-tick.
         self._stamina_last_sig: dict[str, str] = {}
+        # Same, for the resource-world (march slots / troops / heroes) planner.
+        self._resource_last_sig: dict[str, str] = {}
 
     async def _connect(self) -> None:
         from config.redis_metrics import instrument_redis_client
@@ -759,6 +761,7 @@ class SchedulerRunner:
                 )
 
         await self._run_stamina_planner(player_states, player_instance_map, now)
+        await self._run_resource_planner(player_states, player_instance_map, now)
 
     async def _run_stamina_planner(
         self,
@@ -825,6 +828,71 @@ class SchedulerRunner:
             except Exception:
                 logger.warning(
                     "stamina planner failed for player=%s", player_id, exc_info=True
+                )
+
+    async def _run_resource_planner(
+        self,
+        player_states: dict[str, dict[str, object]],
+        player_instance_map: dict[str, str],
+        now: float,
+    ) -> None:
+        """Allocate the shared resource world across competing raids/marches.
+
+        Dormant unless ``games/wos/core/resources/actions.yaml`` sets
+        ``enabled: true``. Until the troop-pool + hero-roster readers exist, the
+        ``observed: false`` + ``unobserved_policy: block`` config holds every
+        action back, so enabling early cannot fire a march we can't staff. Each
+        player is isolated by try/except so one bad snapshot can't stall the tick.
+        """
+        assert self._queue is not None and self._redis is not None
+        from games.wos.core.resources import adapter as resources
+
+        try:
+            table = resources.load_table()   # mtime-cached; no disk read per tick
+        except Exception:
+            logger.warning("resource action table load failed", exc_info=True)
+            return
+        if not table.enabled:
+            return
+
+        for player_id, state in player_states.items():
+            instance_id = player_instance_map.get(player_id, "")
+            if not instance_id:
+                continue
+            try:
+                # The ledger holds each chosen action's whole cost vector with a
+                # TTL — read (and prune) it so the plan sees resources already
+                # promised this tick (closes the dispatch→OCR over-allocation gap).
+                ledger = await resources.read_ledger(self._redis, player_id, now)
+                result = resources.plan(table, state, now, ledger)
+                dec = result.decision
+                sig = resources.decision_signature(dec)
+                if self._resource_last_sig.get(player_id) != sig:
+                    await resources.write_decision_trace(
+                        self._redis, player_id, result, now
+                    )
+                    self._resource_last_sig[player_id] = sig
+                if dec.action != resources.CONSUME:
+                    continue
+                if await self._task_already_running(
+                    instance_id=instance_id,
+                    player_id=player_id,
+                    task_type=dec.task_type or "",
+                ):
+                    continue
+                reservation = await resources.reserve(self._redis, player_id, dec, now)
+                await resources.enqueue_decision(
+                    self._queue,
+                    instance_id=instance_id,
+                    player_id=player_id,
+                    decision=dec,
+                    period=result.period,
+                    reservation=reservation,
+                    now=now,
+                )
+            except Exception:
+                logger.warning(
+                    "resource planner failed for player=%s", player_id, exc_info=True
                 )
 
     async def _drain_wake_queue(self) -> bool:
