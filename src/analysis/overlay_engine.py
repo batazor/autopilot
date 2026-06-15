@@ -327,8 +327,6 @@ async def evaluate_overlay_rules_async(
             if not tab_namespace_dt and "." in region_name_dt:
                 tab_namespace_dt = region_name_dt.split(".", 1)[0].strip()
             min_score_raw_dt = rule.get("template_min_score")
-            if min_score_raw_dt is None and tab_namespace_dt == "deals":
-                min_score_raw_dt = 0.45
             try:
                 min_score_dt = (
                     float(min_score_raw_dt)
