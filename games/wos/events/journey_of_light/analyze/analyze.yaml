@@ -1,0 +1,10 @@
+overlay:
+  - name: journey_of_light.add.has_red_dot
+    region: journey_of_light.add
+    action: red_dot
+    screens:
+      - event.journey_of_light
+    steps:
+      - push_scenario:
+          name: journey_of_light
+          ttl: 1m

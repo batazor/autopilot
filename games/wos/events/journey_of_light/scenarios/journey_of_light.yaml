@@ -2,7 +2,7 @@ enabled: true
 name: Journey of Light
 priority: 80_000
 
-node: deals
+node: event.journey_of_light
 icon: journey_of_light
 
 steps:

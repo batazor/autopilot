@@ -1,0 +1,6 @@
+screens:
+  event.journey_of_light:
+    priority: 50
+    rules:
+      - match: journey_of_light.title
+        threshold: 0.9
