@@ -25,6 +25,15 @@ from typing import Any
 ScheduleEvent = tuple[str, datetime, datetime]
 
 
+# Events whose *imminent* window should pre-arm a strategy flag, so a consumer
+# can start hoarding the resource before the window opens (not only once it's
+# live). Maps an event slug → the player-state flag it raises; ``RESERVE_LEAD``
+# is how early "imminent" begins. Read by the calendar fan-out and, via that
+# flag, by the stamina budget's ``active_when`` conditions + the intel reserve.
+RESERVE_EVENT_FLAGS: dict[str, str] = {"crazy_joe": "joe_event_active"}
+RESERVE_LEAD_HOURS = 12.0
+
+
 def slug(name: str) -> str:
     """Stable identifier from an event name: ``"Foundry Battle" → "foundry_battle"``."""
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
@@ -62,6 +71,32 @@ def schedule_flags(events: list[ScheduleEvent], now: datetime) -> dict[str, int]
             continue
         active = start <= now < end
         flags[flag] = 1 if active else flags.get(flag, 0)
+    return flags
+
+
+def reserve_flags(
+    events: list[ScheduleEvent],
+    now: datetime,
+    *,
+    mapping: dict[str, str] | None = None,
+    lead_hours: float = RESERVE_LEAD_HOURS,
+) -> dict[str, int]:
+    """``flag -> 1|0`` for events that are live **or** start within ``lead_hours``.
+
+    Unlike :func:`schedule_flags` (strictly live), these pre-arm ``lead_hours``
+    before the window opens so a stamina reserve can be built up ahead of it.
+    Every mapped flag is emitted (0 when its event is absent / past), so a stale
+    1 is actively cleared once the window closes.
+    """
+    table = RESERVE_EVENT_FLAGS if mapping is None else mapping
+    lead = timedelta(hours=lead_hours)
+    flags: dict[str, int] = dict.fromkeys(table.values(), 0)
+    for name, start, end in events:
+        flag = table.get(slug(name))
+        if not flag:
+            continue
+        armed = start <= now + lead and end > now
+        flags[flag] = 1 if armed else flags.get(flag, 0)
     return flags
 
 

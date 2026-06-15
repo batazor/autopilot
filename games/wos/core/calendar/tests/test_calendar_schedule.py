@@ -26,6 +26,24 @@ def test_schedule_flags_active_and_inactive():
     assert flags == {"event_live": 1, "event_later": 0}
 
 
+def test_reserve_flags_active_or_imminent():
+    # NOW = 2026-06-15 12:00; default lead 12h → arms through 2026-06-16 00:00.
+    live = _ev("Crazy Joe", 15, 8, 15, 20)          # open right now
+    imminent = _ev("Crazy Joe", 15, 20, 16, 4)      # starts in 8h (within lead)
+    far = _ev("Crazy Joe", 16, 12, 16, 20)          # starts in 24h (beyond lead)
+    ended = _ev("Crazy Joe", 14, 0, 15, 8)          # already over
+    other = _ev("Foundry Battle", 15, 8, 15, 20)    # unrelated, live
+
+    assert schedule.reserve_flags([live], NOW) == {"joe_event_active": 1}
+    assert schedule.reserve_flags([imminent], NOW) == {"joe_event_active": 1}
+    assert schedule.reserve_flags([far], NOW) == {"joe_event_active": 0}
+    assert schedule.reserve_flags([ended], NOW) == {"joe_event_active": 0}
+    # The mapped flag is always emitted (0 when its event is absent), so a stale
+    # 1 is cleared once the window closes.
+    assert schedule.reserve_flags([other], NOW) == {"joe_event_active": 0}
+    assert schedule.reserve_flags([], NOW) == {"joe_event_active": 0}
+
+
 def test_build_view_active_upcoming_digest():
     events = [_ev("Live All Day", 15, 0, 16, 0), _ev("Tomorrow", 16, 8, 16, 10)]
     view = schedule.build_view(events, NOW, days=3)

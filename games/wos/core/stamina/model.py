@@ -204,6 +204,27 @@ def is_triggered(supply: Supply, context: dict[str, Any]) -> bool:
     return _eval(supply.trigger_when, context)
 
 
+def reserve_for(budget: Budget, demand_id: str, context: dict[str, Any]) -> int:
+    """Stamina ``demand_id`` should hold back for higher-priority *active* demands.
+
+    Mirrors the allocator's reserve rule: a consumer defers each higher-priority
+    demand's ``reserve_floor`` while that demand is active (its ``active_when``
+    holds in ``context``). Lets a standalone consumer — e.g. the intel tap handler
+    — honour the same reserve the allocator would, driven by the calendar-fed event
+    flags in player state (e.g. ``joe_event_active``). Unknown ``demand_id`` → 0.
+    """
+    target = budget.demand(demand_id)
+    if target is None:
+        return 0
+    total = 0
+    for d in budget.demands:
+        if d.id == demand_id or d.reserve_floor <= 0:
+            continue
+        if d.priority > target.priority and is_active(d, context):
+            total += d.reserve_floor
+    return total
+
+
 def _eval(expr: str, context: dict[str, Any]) -> bool:
     from layout.area_versions import eval_cond
 

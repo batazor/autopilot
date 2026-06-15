@@ -91,6 +91,27 @@ def test_is_active_no_condition_is_always_active():
     assert model.is_active(intel, {}) is True
 
 
+def test_reserve_for_holds_higher_priority_active_demands():
+    budget = Budget(
+        demands=(
+            Demand(
+                id="joe", task_type="t", priority=100, cost=10,
+                reserve_floor=50, active_when="joe_event_active",
+            ),
+            Demand(id="intel", task_type="t", priority=60, cost=10),
+            # Lower priority than intel → never reserved against, even with a floor.
+            Demand(id="beast", task_type="t", priority=10, cost=10, reserve_floor=99),
+        )
+    )
+    # Joe's window open (calendar-fed flag) → hold its floor back from intel.
+    assert model.reserve_for(budget, "intel", {"joe_event_active": "1"}) == 50
+    # Window closed / flag absent → nothing held.
+    assert model.reserve_for(budget, "intel", {"joe_event_active": "0"}) == 0
+    assert model.reserve_for(budget, "intel", {}) == 0
+    # Unknown demand id → 0.
+    assert model.reserve_for(budget, "missing", {"joe_event_active": "1"}) == 0
+
+
 def test_is_triggered_resolves_condition():
     pet = Supply(id="pet", task_type="t", gives=50, trigger_when="stamina < cost")
     assert model.is_triggered(pet, {"stamina": 5, "cost": 10}) is True

@@ -2,12 +2,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import cv2  # type: ignore[import-untyped]
 import numpy as np
+from games.wos.core.resources import adapter as resource_adapter
+from games.wos.intel.planner import (
+    DEFAULT_COST_PER_EVENT,
+    IntelEvent,
+    from_marker,
+    plan_next,
+)
 
 from layout.types import Point
 from tasks import dsl_runtime
@@ -40,6 +50,9 @@ _MARKER_COLOR_PRIORITY = {
 }
 _DEFAULT_THRESHOLD = 0.72
 _DEFAULT_NMS_DISTANCE_PX = 40
+_DEFAULT_MARCH_TTL_FIELD = "intel.march_ttl"
+_DEFAULT_MARCH_ROUND_TRIP_MULTIPLIER = 2.0
+_DEFAULT_MARCH_EXTRA_SECONDS = 15
 
 
 class IntelMarker:
@@ -83,6 +96,57 @@ def _as_float_arg(args: dict[str, Any], key: str, default: float) -> float:
     except (TypeError, ValueError):
         return default
     return value if value > 0 else default
+
+
+def _as_bool_arg(args: dict[str, Any], key: str, *, default: bool = False) -> bool:
+    value = args.get(key)
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _as_quota_arg(args: dict[str, Any], key: str) -> int | None:
+    """Daily-quota-left arg: a non-negative int, or ``None`` (unlimited/unknown)."""
+    value = args.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _decode_redis_text(raw: Any) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace").strip()
+    return str(raw).strip()
+
+
+def parse_march_ttl_seconds(raw: Any) -> int | None:
+    """Parse deploy-screen TTL text into seconds.
+
+    Accepts the raw OCR forms used by the game (``MM:SS`` / ``HH:MM:SS``) plus
+    bare integer seconds as a fallback for tests or pre-parsed state.
+    """
+    text = _decode_redis_text(raw)
+    if not text:
+        return None
+    groups = [int(part) for part in re.findall(r"\d+", text)]
+    if not groups:
+        return None
+    if ":" in text:
+        if len(groups) >= 3:
+            h, m, s = groups[-3], groups[-2], groups[-1]
+            return h * 3600 + m * 60 + s
+        if len(groups) == 2:
+            m, s = groups
+            return m * 60 + s
+        return None
+    return groups[-1]
 
 
 def _load_gray_template(path: Path) -> np.ndarray | None:
@@ -244,13 +308,359 @@ def _pick_marker(markers: list[IntelMarker], strategy: str) -> IntelMarker | Non
     return min(markers, key=lambda m: (*_marker_base_priority(m), -m.score))
 
 
+def select_planned_marker(
+    markers: list[IntelMarker],
+    *,
+    stamina: float | None,
+    reserve: int = 0,
+    cost: int = DEFAULT_COST_PER_EVENT,
+    daily_quota_left: int | None = None,
+    min_value: float = 0.0,
+    priority_only: bool = False,
+    fallback_strategy: str = "best_score",
+) -> tuple[IntelMarker | None, dict[str, Any]]:
+    """Choose which marker to clear this pass under the shared stamina budget.
+
+    Bridges the cv2 detector to the pure value-greedy planner (the "brain"). With
+    no live stamina signal we can't budget, so we fall back to the deterministic
+    :func:`_pick_marker` (the previous behaviour — never worse). With a stamina
+    estimate the planner ranks markers by loot value and may *decline* the run —
+    insufficient stamina, daily quota exhausted, or nothing worth taking —
+    returning ``(None, trace)`` so the caller skips instead of burning a march on
+    a low-value pin. The ``trace`` dict is surfaced on the scenario result.
+    """
+    if not markers:
+        return None, {"reason": "no_markers", "detected": 0}
+    if stamina is None:
+        return _pick_marker(markers, fallback_strategy), {
+            "reason": "no_stamina_signal",
+            "detected": len(markers),
+        }
+
+    events: list[IntelEvent] = []
+    by_event: dict[int, IntelMarker] = {}
+    for marker in markers:
+        event = from_marker(marker)
+        events.append(event)
+        by_event[id(event)] = marker
+    plan = plan_next(
+        events,
+        stamina=stamina,
+        cost_per_event=cost,
+        reserve=reserve,
+        daily_quota_left=daily_quota_left,
+        min_value=min_value,
+        priority_only=priority_only,
+    )
+    trace: dict[str, Any] = {
+        "reason": plan.reason,
+        "detected": len(markers),
+        "stamina": stamina,
+        "reserve": plan.reserve,
+        "batch_cost": plan.total_cost,
+        "stamina_short": plan.stamina_short,
+    }
+    step = plan.step
+    if step is None:
+        return None, trace
+    trace["value"] = round(step.value, 4)
+    trace["rank"] = step.rank
+    return by_event.get(id(step.event)), trace
+
+
+async def _read_player_stamina(ctx: DslExecContext) -> float | None:
+    """Latest stamina estimate for this player (written by ``read_stamina_bar``)."""
+    if ctx.redis_client is None or not ctx.player_id:
+        return None
+    try:
+        raw = await ctx.redis_client.hget(
+            f"wos:player:{ctx.player_id}:state", "stamina"
+        )
+    except Exception:
+        logger.debug(
+            "intel: stamina read failed player=%s", ctx.player_id, exc_info=True
+        )
+        return None
+    if raw is None:
+        return None
+    text = raw.decode() if isinstance(raw, bytes) else str(raw)
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _intel_reserve(ctx: DslExecContext) -> int:
+    """Stamina to hold back for higher-priority *active* events (e.g. Crazy Joe).
+
+    Reads the player's flat state and reuses the stamina budget's reserve rule
+    (:func:`stamina.model.reserve_for`): higher-priority demands hold their
+    ``reserve_floor`` while their ``active_when`` flag is set. Those flags are fed
+    by the calendar fan-out (``joe_event_active`` = Crazy Joe live-or-imminent), so
+    the intel reserve tracks the event window with no hardcoded schedule.
+    """
+    if ctx.redis_client is None or not ctx.player_id:
+        return 0
+    try:
+        raw = await ctx.redis_client.hgetall(f"wos:player:{ctx.player_id}:state")
+    except Exception:
+        logger.debug(
+            "intel: reserve state read failed player=%s", ctx.player_id, exc_info=True
+        )
+        return 0
+    state = {_decode_redis_text(k): _decode_redis_text(v) for k, v in (raw or {}).items()}
+    try:
+        from games.wos.core.stamina.adapter import load_budget
+        from games.wos.core.stamina.model import reserve_for
+
+        return reserve_for(load_budget(), "intel_events", state)
+    except Exception:
+        logger.debug("intel: reserve derivation failed", exc_info=True)
+        return 0
+
+
+async def _read_player_state_field(
+    ctx: DslExecContext,
+    field: str,
+) -> str:
+    if ctx.redis_client is None or not ctx.player_id or not field:
+        return ""
+    try:
+        raw = await ctx.redis_client.hget(f"wos:player:{ctx.player_id}:state", field)
+    except Exception:
+        logger.debug(
+            "intel: player state read failed player=%s field=%s",
+            ctx.player_id,
+            field,
+            exc_info=True,
+        )
+        return ""
+    return _decode_redis_text(raw)
+
+
+async def _write_manual_march_lease(
+    ctx: DslExecContext,
+    *,
+    now: float,
+    lease_seconds: int,
+    ttl_seconds: int,
+) -> str | None:
+    """Fallback ledger write when the scenario was launched without a reservation."""
+    if ctx.redis_client is None or not ctx.player_id:
+        return None
+    res_id = f"intel_run:manual:{int(now)}"
+    entry = {
+        "id": res_id,
+        "action_id": str(ctx.args.get("resource_action_id") or "intel_run"),
+        "slots": 1,
+        "stamina": 0,
+        "troops": dict(ctx.args.get("assign_troops") or {}),
+        "heroes": list(ctx.args.get("assign_heroes") or []),
+        "created_at": now,
+        "confirm_by": now,
+        "expires_at": now + lease_seconds,
+        "lease_seconds": lease_seconds,
+        "confirmed": True,
+        "source": "intel.deploy",
+        "ttl_seconds": ttl_seconds,
+    }
+    await ctx.redis_client.hset(
+        f"wos:player:{ctx.player_id}:resource_reservations",
+        res_id,
+        json.dumps(entry),
+    )
+    return res_id
+
+
+async def _annotate_confirmed_march_lease(
+    ctx: DslExecContext,
+    *,
+    reservation: str,
+    ends_at: float,
+    lease_seconds: int,
+    ttl_seconds: int,
+) -> None:
+    if ctx.redis_client is None or not ctx.player_id or not reservation:
+        return
+    key = f"wos:player:{ctx.player_id}:resource_reservations"
+    raw = await ctx.redis_client.hget(key, reservation)
+    if not raw:
+        return
+    text = _decode_redis_text(raw)
+    try:
+        entry = json.loads(text)
+    except (TypeError, ValueError):
+        return
+    entry.update(
+        {
+            "confirmed": True,
+            "expires_at": ends_at,
+            "lease_seconds": lease_seconds,
+            "source": "intel.deploy",
+            "ttl_seconds": ttl_seconds,
+        }
+    )
+    await ctx.redis_client.hset(key, reservation, json.dumps(entry))
+
+
+async def _write_march_lease_state(
+    ctx: DslExecContext,
+    *,
+    ttl_seconds: int,
+    lease_seconds: int,
+    ends_at: float,
+) -> None:
+    if ctx.redis_client is None or not ctx.player_id:
+        return
+    await ctx.redis_client.hset(
+        f"wos:player:{ctx.player_id}:state",
+        mapping={
+            "intel.march_ttl_seconds": str(ttl_seconds),
+            "intel.march_lease_seconds": str(lease_seconds),
+            "intel.march_ends_at": str(ends_at),
+            "intel.march_lease_at": str(time.time()),
+        },
+    )
+
+
+async def _exec_confirm_intel_march_lease(ctx: DslExecContext) -> None:
+    """Confirm an intel march slot lease from the deploy-screen TTL.
+
+    The resource planner creates a short unconfirmed reservation before pushing
+    ``intel_run``. Once the Deploy button is pressed, this handler stretches that
+    reservation to the real round-trip duration: outbound TTL * 2 + event slack.
+    If no reservation is present (manual run), it creates an equivalent confirmed
+    one-slot lease so 2..6 march-slot capacity is still respected.
+    """
+    ttl_field = str(ctx.args.get("ttl_field") or _DEFAULT_MARCH_TTL_FIELD).strip()
+    ttl_raw = await _read_player_state_field(ctx, ttl_field)
+    if not ttl_raw:
+        ttl_raw = await _read_player_state_field(ctx, f"{ttl_field}_text")
+    ttl_seconds = parse_march_ttl_seconds(ttl_raw)
+    if ttl_seconds is None or ttl_seconds <= 0:
+        ctx.result.update(
+            {
+                "action": "lease_skipped",
+                "reason": "ttl_parse_failed",
+                "ttl_field": ttl_field,
+                "ttl_raw": ttl_raw,
+            }
+        )
+        return
+
+    multiplier = _as_float_arg(
+        ctx.args,
+        "round_trip_multiplier",
+        _DEFAULT_MARCH_ROUND_TRIP_MULTIPLIER,
+    )
+    extra_seconds = _as_int_arg(
+        ctx.args,
+        "extra_seconds",
+        _DEFAULT_MARCH_EXTRA_SECONDS,
+    )
+    lease_seconds = int(round(ttl_seconds * multiplier + extra_seconds))
+    now = time.time()
+    ends_at = now + lease_seconds
+
+    reservation = str(ctx.args.get("resource_reservation") or "").strip()
+    confirmed = False
+    if reservation and ctx.redis_client is not None and ctx.player_id:
+        try:
+            confirmed = await resource_adapter.confirm_reservation(
+                ctx.redis_client,
+                ctx.player_id,
+                reservation,
+                ends_at=ends_at,
+            )
+        except Exception:
+            logger.debug(
+                "intel: resource reservation confirm failed player=%s reservation=%s",
+                ctx.player_id,
+                reservation,
+                exc_info=True,
+            )
+            confirmed = False
+
+    if confirmed:
+        try:
+            await _annotate_confirmed_march_lease(
+                ctx,
+                reservation=reservation,
+                ends_at=ends_at,
+                lease_seconds=lease_seconds,
+                ttl_seconds=ttl_seconds,
+            )
+        except Exception:
+            logger.debug(
+                "intel: resource reservation annotate failed player=%s reservation=%s",
+                ctx.player_id,
+                reservation,
+                exc_info=True,
+            )
+
+    fallback_reservation = ""
+    if not confirmed:
+        try:
+            fallback_reservation = (
+                await _write_manual_march_lease(
+                    ctx,
+                    now=now,
+                    lease_seconds=lease_seconds,
+                    ttl_seconds=ttl_seconds,
+                )
+                or ""
+            )
+        except Exception:
+            logger.debug(
+                "intel: fallback march lease write failed player=%s",
+                ctx.player_id,
+                exc_info=True,
+            )
+
+    try:
+        await _write_march_lease_state(
+            ctx,
+            ttl_seconds=ttl_seconds,
+            lease_seconds=lease_seconds,
+            ends_at=ends_at,
+        )
+    except Exception:
+        logger.debug(
+            "intel: march lease state write failed player=%s",
+            ctx.player_id,
+            exc_info=True,
+        )
+
+    ctx.result.update(
+        {
+            "action": "lease_confirmed" if confirmed else "lease_recorded",
+            "reservation": reservation if confirmed else fallback_reservation,
+            "ttl_field": ttl_field,
+            "ttl_raw": ttl_raw,
+            "ttl_seconds": ttl_seconds,
+            "lease_seconds": lease_seconds,
+            "ends_at": ends_at,
+        }
+    )
+
+
 async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
-    """Tap one visible Intel action marker.
+    """Tap the most valuable affordable Intel marker, or skip the run.
+
+    Selection runs through the value-greedy Intel planner (the "brain"): it ranks
+    visible markers by loot value and spends ``stamina - reserve`` on the best
+    one, declining when the run isn't worth it. Without a live stamina estimate it
+    falls back to the deterministic colour/kind pick (previous behaviour).
 
     Args:
       threshold: grayscale template score floor, default 0.72.
       nms_distance_px: merge nearby duplicate matches, default 40.
-      strategy: best_score | center | topmost | bottommost, default best_score.
+      strategy: best_score | center | topmost | bottommost — the no-stamina
+        fallback pick, default best_score.
+      reserve: stamina to hold back for higher-priority demands (e.g. Joe), default 0.
+      cost: stamina per marker, default 10 (mirrors budget.yaml intel_events).
+      daily_quota_left: remaining intel runs today; omit for unlimited.
+      min_value / priority_only: drop low-value / non-gold-purple markers.
     """
     threshold = _as_float_arg(ctx.args, "threshold", _DEFAULT_THRESHOLD)
     nms_distance_px = _as_int_arg(
@@ -276,14 +686,35 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
         threshold=threshold,
         nms_distance_px=nms_distance_px,
     )
-    marker = _pick_marker(markers, strategy)
+    stamina = await _read_player_stamina(ctx)
+    explicit_reserve = ctx.args.get("reserve")
+    reserve = (
+        _as_int_arg(ctx.args, "reserve", 0)
+        if explicit_reserve is not None
+        else await _intel_reserve(ctx)
+    )
+    marker, plan_trace = select_planned_marker(
+        markers,
+        stamina=stamina,
+        reserve=reserve,
+        cost=_as_int_arg(ctx.args, "cost", DEFAULT_COST_PER_EVENT),
+        daily_quota_left=_as_quota_arg(ctx.args, "daily_quota_left"),
+        min_value=_as_float_arg(ctx.args, "min_value", 0.0),
+        priority_only=_as_bool_arg(ctx.args, "priority_only"),
+        fallback_strategy=strategy,
+    )
     if marker is None:
-        ctx.result.update(
-            {
-                "action": "not_found",
-                "threshold": threshold,
-                "markers": [],
-            }
+        # Nothing detected, or the planner declined the budget — skip the run
+        # rather than clear a low-value pin or overspend the shared stamina pool.
+        action = "not_found" if not markers else "skipped"
+        ctx.result.update({"action": action, "threshold": threshold, **plan_trace})
+        logger.info(
+            "dsl exec tap_intel_fight: action=%s instance=%s reason=%s stamina=%s detected=%d",
+            action,
+            ctx.instance_id,
+            plan_trace.get("reason"),
+            stamina,
+            len(markers),
         )
         return
 
@@ -318,6 +749,11 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
             "score": marker.score,
             "kind": marker.kind,
             "color": marker.color,
+            "stamina": stamina,
+            "reserve": plan_trace.get("reserve"),
+            "reason": plan_trace.get("reason"),
+            "value": plan_trace.get("value"),
+            "rank": plan_trace.get("rank"),
             "detected": len(markers),
             "markers": [
                 {
@@ -346,5 +782,6 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
 
 
 DSL_EXEC_HANDLERS = {
+    "confirm_intel_march_lease": _exec_confirm_intel_march_lease,
     "tap_intel_fight": _exec_tap_intel_fight,
 }

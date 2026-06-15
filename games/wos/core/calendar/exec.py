@@ -65,7 +65,14 @@ async def _publish_schedule(
     moment = datetime.fromtimestamp(now, tz=UTC)
     view = schedule.build_view(events, moment, days=days)
     await write_shared(ctx.redis_client, state, view, now)
-    await apply_flags_to_player(ctx.redis_client, ctx.player_id, view["flags"])
+    # Live event_<slug> flags + the live-or-imminent reserve flags (e.g.
+    # joe_event_active) the stamina budget + intel reserve gate on. Reserve
+    # flags only when the schedule is actually read — an empty schedule means
+    # "not read yet", so we assert nothing rather than clear to 0 blindly.
+    flags = dict(view["flags"])
+    if events:
+        flags.update(schedule.reserve_flags(events, moment))
+    await apply_flags_to_player(ctx.redis_client, ctx.player_id, flags)
     return view
 
 
