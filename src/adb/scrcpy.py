@@ -159,9 +159,20 @@ def _run_adb(
     return subprocess.run(cmd, capture_output=True, timeout=timeout, check=check)
 
 
-def _adb_shell_text(args: Iterable[str], *, serial: str, adb_bin: str) -> str:
-    proc = _run_adb(["shell", *args], serial=serial, adb_bin=adb_bin)
-    return proc.stdout.decode(errors="replace").strip()
+def _proc_output(proc: subprocess.CompletedProcess[bytes]) -> str:
+    chunks = []
+    for data in (proc.stderr, proc.stdout):
+        text = (data or b"").decode(errors="replace").strip()
+        if text and text not in chunks:
+            chunks.append(text)
+    return "\n".join(chunks)
+
+
+def _adb_proc_error(proc: subprocess.CompletedProcess[bytes]) -> str:
+    detail = _proc_output(proc)
+    if detail:
+        return f"adb exited {proc.returncode}: {detail}"
+    return f"adb exited {proc.returncode}"
 
 
 def _parse_wc_size(out: str) -> int | None:
@@ -175,16 +186,35 @@ def get_scrcpy_status(serial: str, adb_bin: str) -> ScrcpyStatus:
     """Probe the device for installed scrcpy-server jar."""
     status = ScrcpyStatus(serial=serial)
     try:
-        status.abi = _adb_shell_text(
-            ["getprop", "ro.product.cpu.abi"], serial=serial, adb_bin=adb_bin
-        ) or None
-        status.sdk = _adb_shell_text(
-            ["getprop", "ro.build.version.sdk"], serial=serial, adb_bin=adb_bin
-        ) or None
+        abi_proc = _run_adb(
+            ["shell", "getprop", "ro.product.cpu.abi"],
+            serial=serial,
+            adb_bin=adb_bin,
+        )
+        if abi_proc.returncode != 0:
+            status.last_error = _adb_proc_error(abi_proc)
+            return status
+        status.abi = abi_proc.stdout.decode(errors="replace").strip() or None
+
+        sdk_proc = _run_adb(
+            ["shell", "getprop", "ro.build.version.sdk"],
+            serial=serial,
+            adb_bin=adb_bin,
+        )
+        if sdk_proc.returncode != 0:
+            status.last_error = _adb_proc_error(sdk_proc)
+            return status
+        status.sdk = sdk_proc.stdout.decode(errors="replace").strip() or None
+
         proc = _run_adb(
             ["shell", "ls", "-l", DEVICE_JAR], serial=serial, adb_bin=adb_bin
         )
         out = proc.stdout.decode(errors="replace").strip()
+        detail = _proc_output(proc)
+        if proc.returncode != 0:
+            if "No such file" not in detail:
+                status.last_error = _adb_proc_error(proc)
+            return status
         if proc.returncode == 0 and out and "No such" not in out:
             status.jar_installed = True
             # `ls -l` format varies across Android builds/toybox versions.
@@ -193,14 +223,19 @@ def get_scrcpy_status(serial: str, adb_bin: str) -> ScrcpyStatus:
             size_proc = _run_adb(
                 ["shell", "wc", "-c", DEVICE_JAR], serial=serial, adb_bin=adb_bin
             )
+            size_error = None
             if size_proc.returncode == 0:
                 status.jar_size = _parse_wc_size(
                     size_proc.stdout.decode(errors="replace")
                 )
+            else:
+                size_error = _adb_proc_error(size_proc)
             parts = out.split()
             if status.jar_size is None and len(parts) >= 5:
                 with contextlib.suppress(ValueError):
                     status.jar_size = int(parts[4])
+            if status.jar_size is None and size_error:
+                status.last_error = size_error
     except subprocess.TimeoutExpired as exc:
         status.last_error = f"adb timed out: {exc}"
     except Exception as exc:
@@ -262,6 +297,8 @@ def _ensure_cache_jar(jar_cache: Path) -> None:
 def install_scrcpy(serial: str, adb_bin: str) -> ScrcpyStatus:
     """Download scrcpy-server jar (cached locally) and push to /data/local/tmp."""
     status = get_scrcpy_status(serial, adb_bin)
+    if status.last_error:
+        return status
     jar_cache = _DOWNLOAD_CACHE / f"scrcpy-server-v{SCRCPY_SERVER_VERSION}.jar"
     try:
         _ensure_cache_jar(jar_cache)
@@ -491,6 +528,9 @@ class ScrcpyClient:
             return
 
         status = get_scrcpy_status(self.serial, self.adb_bin)
+        if status.last_error:
+            msg = f"scrcpy status failed for {self.serial}: {status.last_error}"
+            raise RuntimeError(msg)
         if not _server_status_current(status):
             logger.info(
                 "scrcpy: server jar missing/outdated on %s (size=%s) — installing v%s",

@@ -47,6 +47,16 @@ _DISPLAY_SETTLE_AFTER_WM_S = 5.0
 _SWIPE_EDGE_MARGIN_PX = 24
 
 
+def _is_adb_unavailable_error(exc: BaseException) -> bool:
+    s = str(exc).lower()
+    return (
+        ("device '" in s and "' not found" in s)
+        or "device not found" in s
+        or "no devices/emulators found" in s
+        or "device offline" in s
+    )
+
+
 def _directional_swipe_points(
     frame_w: int,
     frame_h: int,
@@ -437,11 +447,17 @@ class BotActions:
                     )
                 return self._capture_screen_bgr_scrcpy_fast(instance_id)
             except Exception as scrcpy_exc:
-                logger.warning(
-                    "scrcpy capture unavailable for %s; falling back to ADB: %s",
-                    instance_id,
-                    scrcpy_exc,
-                )
+                if _is_adb_unavailable_error(scrcpy_exc):
+                    logger.debug(
+                        "scrcpy capture skipped for offline %s; falling back to ADB",
+                        instance_id,
+                    )
+                else:
+                    logger.warning(
+                        "scrcpy capture unavailable for %s; falling back to ADB: %s",
+                        instance_id,
+                        scrcpy_exc,
+                    )
                 return self.capture_screen_bgr_adb(instance_id)
 
         await_next = self._pop_next_frame_boundary(instance_id) is not None

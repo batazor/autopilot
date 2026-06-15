@@ -36,8 +36,17 @@ from adb.scrcpy import (
 _FAKE_JAR = b"\x00" * _MIN_SERVER_JAR_SIZE
 
 
-def _completed(stdout: bytes = b"", returncode: int = 0) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=b"")
+def _completed(
+    stdout: bytes = b"",
+    returncode: int = 0,
+    stderr: bytes = b"",
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.CompletedProcess(
+        args=[],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -102,6 +111,50 @@ def test_status_missing_jar() -> None:
 
     assert not status.installed
     assert status.abi == "arm64-v8a"
+
+
+def test_status_reports_unavailable_adb_serial() -> None:
+    def fake_run(_cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        return _completed(
+            returncode=1,
+            stderr=b"adb: device '127.0.0.1:5625' not found\n",
+        )
+
+    with patch("adb.scrcpy.subprocess.run", side_effect=fake_run):
+        status = get_scrcpy_status("127.0.0.1:5625", "/usr/local/bin/adb")
+
+    assert not status.installed
+    assert status.jar_size is None
+    assert status.last_error is not None
+    assert "not found" in status.last_error
+
+
+def test_install_does_not_push_when_adb_serial_unavailable(tmp_path) -> None:
+    pushes: list[list[str]] = []
+    downloads: list[str] = []
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if "push" in cmd:
+            pushes.append(cmd)
+        return _completed(
+            returncode=1,
+            stderr=b"adb: device '127.0.0.1:5625' not found\n",
+        )
+
+    def fake_download(url: str, _dest) -> None:
+        downloads.append(url)
+
+    with (
+        patch("adb.scrcpy.subprocess.run", side_effect=fake_run),
+        patch("adb.scrcpy._download", side_effect=fake_download),
+        patch("adb.scrcpy._DOWNLOAD_CACHE", tmp_path),
+    ):
+        status = install_scrcpy("127.0.0.1:5625", "/usr/local/bin/adb")
+
+    assert pushes == []
+    assert downloads == []
+    assert status.last_error is not None
+    assert "not found" in status.last_error
 
 
 def _fake_run_jar_on_device(jar_size: int):
@@ -284,6 +337,25 @@ def test_start_reinstalls_when_device_server_is_old() -> None:
         client.start()
 
     install.assert_called_once_with("RF8RC00M8MF", "/usr/local/bin/adb")
+
+
+def test_start_does_not_install_when_adb_serial_unavailable() -> None:
+    client = ScrcpyClient(serial="127.0.0.1:5625", adb_bin="/usr/local/bin/adb")
+
+    with (
+        patch(
+            "adb.scrcpy.get_scrcpy_status",
+            return_value=ScrcpyStatus(
+                serial="127.0.0.1:5625",
+                last_error="adb exited 1: adb: device '127.0.0.1:5625' not found",
+            ),
+        ),
+        patch("adb.scrcpy.install_scrcpy") as install,
+        pytest.raises(RuntimeError, match="not found"),
+    ):
+        client.start()
+
+    install.assert_not_called()
 
 
 def test_status_dict_includes_installed() -> None:
