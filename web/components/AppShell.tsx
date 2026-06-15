@@ -89,6 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         collapsed={navCollapsed}
         onNavigate={() => setNavOpen(false)}
         onCollapse={toggleNavCollapsed}
+        onOpenPalette={() => setPaletteOpen(true)}
       />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">

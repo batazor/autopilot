@@ -43,6 +43,23 @@
     @apply min-h-0;
   }
 
+  /* Search affordance that opens the command palette; doubles as a Cmd+K hint. */
+  .nav-search {
+    @apply mb-1 mt-1 flex w-full cursor-pointer items-center gap-2 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text-muted transition-colors hover:border-sky-400/50 hover:text-wos-text;
+  }
+
+  .nav-search__icon {
+    @apply flex shrink-0 items-center;
+  }
+
+  .nav-search__label {
+    @apply min-w-0 flex-1 truncate text-left;
+  }
+
+  .nav-search__kbd {
+    @apply shrink-0 rounded border border-wos-border-subtle bg-wos-panel-raised px-1.5 py-0 font-sans text-[10px] font-semibold tracking-wide text-wos-text-secondary;
+  }
+
   .nav-block-label {
     @apply mb-1.5 mt-3 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-wos-text-muted;
   }

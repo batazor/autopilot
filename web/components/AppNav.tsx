@@ -44,6 +44,8 @@ type AppNavProps = {
   collapsed?: boolean;
   /** Desktop-only: collapse the whole sidebar. */
   onCollapse?: () => void;
+  /** Open the command palette (also bound to Cmd/Ctrl+K globally). */
+  onOpenPalette?: () => void;
 };
 
 function isActivePath(pathname: string, href: string): boolean {
@@ -58,10 +60,13 @@ export function AppNav({
   onNavigate,
   collapsed = false,
   onCollapse,
+  onOpenPalette,
 }: AppNavProps) {
   const pathname = usePathname();
   const [recent, setRecent] = useState<RecentNavItem[]>([]);
   const [quickCollapsed, setQuickCollapsed] = useState(false);
+  // Resolved after mount to avoid an SSR/client hydration mismatch.
+  const [shortcut, setShortcut] = useState("");
 
   const [tier, setTier] = useState<string | null>(null);
 
@@ -70,6 +75,10 @@ export function AppNav({
   useEffect(() => {
     setRecent(loadRecent());
     setQuickCollapsed(loadQuickAccessCollapsed());
+    const isMac = /Mac|iPhone|iPad/.test(
+      navigator.platform || navigator.userAgent,
+    );
+    setShortcut(isMac ? "⌘K" : "Ctrl K");
   }, []);
 
   const toggleQuickAccess = () => {
@@ -183,6 +192,21 @@ export function AppNav({
         <OnboardingChecklist />
 
         <nav className="nav-scroll px-2 pb-4">
+          {onOpenPalette ? (
+            <button
+              type="button"
+              className="nav-search"
+              onClick={onOpenPalette}
+              title="Search pages & actions"
+            >
+              <span className="nav-search__icon" aria-hidden>
+                <Icon name="search" size="sm" />
+              </span>
+              <span className="nav-search__label">Search…</span>
+              {shortcut ? <kbd className="nav-search__kbd">{shortcut}</kbd> : null}
+            </button>
+          ) : null}
+
           <div className="nav-pinned">
             <button
               type="button"
