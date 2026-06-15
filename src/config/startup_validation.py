@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -844,6 +845,119 @@ def _validate_edge_taps(
                     break
 
 
+def _collect_screen_families(repo_root: Path) -> dict[str, dict[str, str]]:
+    out: dict[str, dict[str, str]] = {}
+    for path in _screen_verify_yaml_paths(repo_root):
+        doc = _load_yaml_dict(path)
+        if "__load_error__" in doc:
+            continue
+        families = doc.get("families")
+        if not isinstance(families, dict):
+            continue
+        for raw_name, raw_cfg in families.items():
+            name = str(raw_name).strip()
+            if not name or not isinstance(raw_cfg, dict):
+                continue
+            cfg: dict[str, str] = {"hub": name, "prefix": f"{name}.", "namespace": name}
+            for key in (
+                "hub",
+                "prefix",
+                "tab_region",
+                "namespace",
+                "advance_scenario",
+                "next_region",
+            ):
+                value = raw_cfg.get(key)
+                if isinstance(value, str) and value.strip():
+                    cfg[key] = value.strip()
+            out[name] = cfg
+    return out
+
+
+def _collect_edge_pairs(repo_root: Path) -> set[tuple[str, str]]:
+    out: set[tuple[str, str]] = set()
+    for path in _edge_taps_yaml_paths(repo_root):
+        doc = _load_yaml_dict(path)
+        if "__load_error__" in doc:
+            continue
+        edges = doc.get("edges")
+        if not isinstance(edges, dict):
+            continue
+        for src, dsts in edges.items():
+            if not isinstance(dsts, dict):
+                continue
+            src_s = str(src).strip()
+            for dst in dsts:
+                dst_s = str(dst).strip()
+                if src_s and dst_s:
+                    out.add((src_s, dst_s))
+    return out
+
+
+def _validate_screen_family_route_gaps(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    def _has_local_path(graph: dict[str, set[str]], src: str, dst: str) -> bool:
+        seen = {src}
+        queue = [src]
+        while queue:
+            node = queue.pop(0)
+            for nb in sorted(graph.get(node, set())):
+                if nb == dst:
+                    return True
+                if nb in seen:
+                    continue
+                seen.add(nb)
+                queue.append(nb)
+        return False
+
+    families = _collect_screen_families(repo_root)
+    if not families:
+        return
+    entries = _collect_screen_verify_entries(repo_root)
+    edge_pairs = _collect_edge_pairs(repo_root)
+    screen_names = sorted(entries)
+    for name, cfg in sorted(families.items()):
+        hub = str(cfg.get("hub") or name).strip()
+        prefix = str(cfg.get("prefix") or f"{name}.").strip()
+        members = [
+            screen
+            for screen in screen_names
+            if screen == hub or (prefix and screen.startswith(prefix))
+        ]
+        if len(members) < 2:
+            continue
+        member_set = set(members)
+        local_graph: dict[str, set[str]] = {screen: set() for screen in members}
+        for src, dst in edge_pairs:
+            if src in member_set and dst in member_set:
+                local_graph.setdefault(src, set()).add(dst)
+
+        gaps: list[tuple[str, str]] = []
+        for src in members:
+            for dst in members:
+                if src == dst:
+                    continue
+                if src != hub and dst != hub:
+                    continue
+                if not _has_local_path(local_graph, src, dst):
+                    gaps.append((src, dst))
+        if not gaps:
+            continue
+        examples = ", ".join(f"{src}->{dst}" for src, dst in gaps[:5])
+        more = "" if len(gaps) <= 5 else f", +{len(gaps) - 5} more"
+        issues.append(
+            StartupValidationIssue(
+                "warning",
+                f"screen_family:{name}",
+                f"{len(gaps)} sibling route gap(s) inside family {name!r} "
+                f"(tab_region={cfg.get('tab_region', '-')!r}); examples: "
+                f"{examples}{more}",
+            )
+        )
+
+
 def _screen_verify_yaml_paths(repo_root: Path) -> list[Path]:
     """Every per-module ``screen_verify.yaml`` / ``routes/screen_verify.yaml``
     across all registered games.
@@ -999,6 +1113,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     text_search_regions = _area_regions_text_action_with_search_sibling(area_doc)
 
     _validate_edge_taps(root, issues)
+    _validate_screen_family_route_gaps(root, issues)
     _validate_dead_end_screens(root, issues)
     _validate_cron_specs(root, issues)
     _validate_analyze_manifest(
@@ -1022,13 +1137,71 @@ def log_startup_config_validation(repo_root: Path | None = None) -> list[Startup
     issues = validate_startup_configs(repo_root)
     if not issues:
         logger.info("startup config validation: ok")
+        _publish_startup_validation_failures([])
         return []
 
-    logger.error("startup config validation: %d issue(s) found", len(issues))
+    error_count = sum(1 for issue in issues if issue.severity == "error")
+    warning_count = sum(1 for issue in issues if issue.severity != "error")
+    log_summary = logger.error if error_count else logger.warning
+    log_summary(
+        "startup config validation: %d error(s), %d warning(s) found",
+        error_count,
+        warning_count,
+    )
     for issue in issues:
         log = logger.error if issue.severity == "error" else logger.warning
         log("startup config validation: [%s] %s: %s", issue.severity, issue.source, issue.message)
+    _publish_startup_validation_failures(issues)
     return issues
+
+
+def _format_startup_validation_trace(issues: list[StartupValidationIssue]) -> str:
+    error_count = sum(1 for issue in issues if issue.severity == "error")
+    warning_count = sum(1 for issue in issues if issue.severity != "error")
+    lines = [
+        "startup config validation: "
+        f"{error_count} error(s), {warning_count} warning(s) found"
+    ]
+    lines.extend(
+        f"[{issue.severity}] {issue.source}: {issue.message}" for issue in issues
+    )
+    if error_count:
+        lines.append(f"override: set {_ACK_ENV_VAR}=1")
+    return "\n".join(lines)
+
+
+def _publish_startup_validation_failures(issues: list[StartupValidationIssue]) -> None:
+    """Expose startup validation failures to the dashboard attention banner."""
+    try:
+        import redis
+
+        from config.loader import load_settings
+        from dashboard.load_failures import record_load_failures
+
+        settings = load_settings()
+        client = redis.Redis.from_url(
+            settings.redis.url,
+            decode_responses=True,
+            socket_connect_timeout=1.0,
+            socket_timeout=1.0,
+        )
+        try:
+            trace = _format_startup_validation_trace(issues) if issues else ""
+            failures = [
+                {
+                    "file": issue.source,
+                    "error": issue.message,
+                    "severity": issue.severity,
+                    "ts": time.time(),
+                    "trace": trace,
+                }
+                for issue in issues
+            ]
+            record_load_failures(client, "startup_validation", failures)
+        finally:
+            client.close()
+    except Exception:
+        logger.debug("startup validation dashboard publish skipped", exc_info=True)
 
 
 _ACK_ENV_VAR = "WOS_VALIDATION_ACK"
@@ -1048,19 +1221,21 @@ def assert_startup_configs_valid(repo_root: Path | None = None) -> None:
     immediately instead of running with a half-functional scenario set.
     """
     issues = log_startup_config_validation(repo_root)
-    if not issues:
+    errors = [issue for issue in issues if issue.severity == "error"]
+    if not errors:
         return
 
     if _validation_ack_via_env():
         logger.warning(
-            "startup config validation: %d issue(s) acknowledged via %s — continuing",
-            len(issues),
+            "startup config validation: %d error(s) acknowledged via %s — continuing",
+            len(errors),
             _ACK_ENV_VAR,
         )
         return
 
     msg = (
-        f"startup config validation failed: {len(issues)} issue(s). "
+        f"startup config validation failed: {len(errors)} error(s), "
+        f"{len(issues) - len(errors)} warning(s). "
         f"Fix the modules above or set {_ACK_ENV_VAR}=1 to override."
     )
     raise RuntimeError(msg)

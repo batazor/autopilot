@@ -27,6 +27,22 @@ def _write_edge_taps(root: Path, text: str = "edges: {}\n", *, game: str = "wos"
     (mod / "routes" / "edge_taps.yaml").write_text(text, encoding="utf-8")
 
 
+def _write_screen_verify(
+    root: Path,
+    text: str,
+    *,
+    game: str = "wos",
+    module_id: str = "_screen_verify_fixture",
+) -> None:
+    mod = root / "games" / game / "core" / module_id
+    (mod / "routes").mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text(
+        f"id: {module_id}\ntitle: screen verify fixture\nwiki: false\n",
+        encoding="utf-8",
+    )
+    (mod / "routes" / "screen_verify.yaml").write_text(text, encoding="utf-8")
+
+
 def _write_area_regions(root: Path, area_json_text: str, *, game: str = "wos") -> None:
     """Stash test-fixture area data as a per-module ``area.yaml`` manifest.
 
@@ -129,7 +145,7 @@ overlay:
 """.lstrip(),
     )
 
-    with pytest.raises(RuntimeError, match="1 issue"):
+    with pytest.raises(RuntimeError, match="1 error"):
         assert_startup_configs_valid(tmp_path)
 
 
@@ -167,6 +183,55 @@ overlay:
     ), caplog.text
 
 
+def test_startup_validation_screen_family_gap_is_warning_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("WOS_VALIDATION_ACK", raising=False)
+    _scenario_root(tmp_path)
+    _write_edge_taps(
+        tmp_path,
+        """
+edges:
+  shop:
+    shop.daily_deals: [shop.tabs_strip]
+  shop.daily_deals:
+    shop: [shop.tabs_strip]
+  shop.get_gems:
+    shop: [shop.tabs_strip]
+""".lstrip(),
+    )
+    _write_area_regions(
+        tmp_path,
+        '{"screens":[{"regions":[{"name":"shop.tabs_strip",'
+        '"bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
+    )
+    _write_screen_verify(
+        tmp_path,
+        """
+families:
+  shop:
+    hub: shop
+    prefix: shop.
+    tab_region: shop.tabs_strip
+screens:
+  shop:
+    rules: [{match: shop.tabs_strip}]
+  shop.daily_deals:
+    rules: [{match: shop.tabs_strip}]
+  shop.get_gems:
+    rules: [{match: shop.tabs_strip}]
+""".lstrip(),
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert len(issues) == 1
+    assert issues[0].severity == "warning"
+    assert issues[0].source == "screen_family:shop"
+    assert_startup_configs_valid(tmp_path)
+
+
 def test_unknown_popup_fallback_scenario_is_resolvable() -> None:
     loaded = template_resolver.load_doc(repo_root(), "dismiss_unknown_popup")
 
@@ -174,6 +239,22 @@ def test_unknown_popup_fallback_scenario_is_resolvable() -> None:
     _path, doc = loaded
     assert doc.get("enabled") is True
     assert doc.get("device_level") is True
+
+
+def test_unknown_popup_prefers_labeled_tap_anywhere_before_smart_detector() -> None:
+    loaded = template_resolver.load_doc(repo_root(), "dismiss_unknown_popup")
+
+    assert loaded is not None
+    _path, doc = loaded
+    steps = doc.get("steps") or []
+    flattened = str(steps)
+
+    tap_idx = flattened.find("button.tap_anywhere_to_exit")
+    exec_idx = flattened.find("'exec': 'dismiss_popup'")
+
+    assert tap_idx >= 0
+    assert exec_idx >= 0
+    assert tap_idx < exec_idx
 
 
 def test_startup_validation_reports_missing_red_dot_capability_on_overlay_rule(
