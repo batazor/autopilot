@@ -133,6 +133,22 @@ def test_pending_approval_is_not_an_attention_item(fleet) -> None:
     assert _view()["items"] == []
 
 
+def test_pending_approval_suppresses_stale_worker_attention(fleet) -> None:
+    fleet.states["bs1"] = {
+        "worker_started_at": str(fleet.now - 9000),
+        "last_seen_at": str(fleet.now - 9000),
+        "state": "busy",
+        "current_scenario": "deals.sign_in",
+        "current_task_started_at": str(fleet.now - 9000),
+    }
+    fleet.approvals["bs1"] = {
+        "context": {"scenario": "deals.sign_in"},
+        "region": "button.claim",
+    }
+
+    assert _view()["items"] == []
+
+
 def test_device_offline_supersedes_worker_down_and_queue_stuck(fleet) -> None:
     fleet.states["bs2"] = {
         "worker_started_at": str(fleet.now - 9000),

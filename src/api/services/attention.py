@@ -247,6 +247,7 @@ def _instance_items(
     last_error = (row.get("last_error") or "").strip()
     blocked = (row.get("queue_blocked_reason") or "").strip()
     nav_error = (row.get("nav_error") or "").strip()
+    approval_pending = _approval_pending(client, instance_id)
 
     device_offline = is_device_offline(row)
     if device_offline:
@@ -273,7 +274,11 @@ def _instance_items(
     else:
         _clear_dismissed(client, "device_offline", instance_id)
 
-    if not device_offline and status in {"stale", "crashed", "restarting"}:
+    if (
+        not device_offline
+        and not approval_pending
+        and status in {"stale", "crashed", "restarting"}
+    ):
         items.append(
             _item(
                 kind="worker_down",
@@ -297,7 +302,7 @@ def _instance_items(
             )
         )
 
-    if live and not _approval_pending(client, instance_id):
+    if live and not approval_pending:
         # A task running past the worker's own timeout. Only possible in
         # approval mode (the timeout is disabled there) or with zombie state.
         # While an approval is pending the wait is expected, so skip it.
