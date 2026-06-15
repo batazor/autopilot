@@ -16,15 +16,18 @@ import {
 import {
   fetchAllianceTech,
   fetchBuildings,
+  fetchBuildPlan,
   fetchPlayers,
   fetchResearch,
   fetchTreeProgress,
   type TreeProgress,
 } from "@/lib/api";
+import { BuildPlanGantt } from "@/components/buildings/BuildPlanGantt";
 import wosIcons from "@/lib/generated/wos-icons.json";
 import type {
   BuildingDef,
   BuildingsView,
+  BuildPlanView,
   ResearchBranchView,
   ResearchGameView,
   ResearchResource,
@@ -711,13 +714,103 @@ function BuildingCatalog({ buildings }: { buildings: BuildingDef[] }) {
   );
 }
 
+function fmtPlanDuration(sec: number): string {
+  if (sec <= 0) return "—";
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  return [d ? `${d}d` : "", h ? `${h}h` : ""].filter(Boolean).join(" ") || "<1h";
+}
+
+// Build schedule as a Gantt. The order/timing come from the real planner
+// (`/api/buildings/plan` → planner.project_schedule / project_multi_schedule),
+// so this is "what the bot would build" — from scratch or the picked player's
+// levels, on one queue (furnace-first critical path) or two (parallel).
+function BuildScheduleView({ playerId }: { playerId: string }) {
+  const [queues, setQueues] = useState(2);
+  const plan = useQuery<BuildPlanView>({
+    queryKey: ["build-plan", playerId, queues],
+    queryFn: () => fetchBuildPlan(playerId || undefined, queues),
+  });
+
+  const p = plan.data;
+  return (
+    <div className="flex flex-col gap-3">
+      <AppTabs
+        variant="toolbar"
+        renderPanels={false}
+        selectedKey={String(queues)}
+        onChange={(k) => setQueues(Number(k))}
+        tabs={[
+          { key: "1", label: "1 queue", title: "Single queue — the furnace-first critical path" },
+          { key: "2", label: "2 queues", title: "Two queues in parallel — economy/camps fill the idle queue" },
+        ]}
+      />
+      {plan.isLoading ? <p className="muted">Planning the build order…</p> : null}
+      {plan.error ? (
+        <div className="error-banner">
+          {plan.error instanceof Error ? plan.error.message : String(plan.error)}
+        </div>
+      ) : null}
+      {p ? (
+        <>
+          <div className="cost-summary">
+            <div className="cost-summary__title">
+              Road to {p.goal} {p.goal_cap}
+              {p.start_from.startsWith("player:")
+                ? ` — from ${p.start_from.slice("player:".length)}'s current levels`
+                : " — from scratch"}
+            </div>
+            <div className="cost-summary__stats">
+              <span className="cost-stat" title="Upgrades on this path">
+                <span className="cost-stat__icon">🏗️</span>
+                {p.step_count} steps
+              </span>
+              <span className="cost-stat cost-stat--time" title="Total construction time">
+                <span className="cost-stat__icon">⏱</span>
+                {fmtPlanDuration(p.total_time_s)}
+              </span>
+            </div>
+            <div className="cost-summary__note">
+              {p.queues > 1
+                ? `Furnace-first on the critical chain, ${p.queues} queues in parallel (economy/camps fill the idle one), no speedups.`
+                : "Furnace-first order, one construction queue, no speedups — the spine of how the bot advances."}
+              {p.truncated ? " (truncated at the step cap.)" : ""}
+            </div>
+          </div>
+          <BuildPlanGantt plan={p} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+type BuildView = "tree" | "schedule";
+
 function BuildingsPanel({
   view,
   progress,
+  playerId,
 }: {
   view: BuildingsView;
   progress?: TreeProgress;
+  playerId: string;
 }) {
+  // Tree (dependency graph) ⇄ Schedule (furnace-first Gantt). Kept in ?bmode=.
+  const [mode, setMode] = useState<BuildView>(
+    () =>
+      (typeof window !== "undefined" &&
+      new URL(window.location.href).searchParams.get("bmode") === "schedule"
+        ? "schedule"
+        : "tree"),
+  );
+  const onMode = (next: string) => {
+    const m = next === "schedule" ? "schedule" : "tree";
+    setMode(m);
+    const url = new URL(window.location.href);
+    if (m === "schedule") url.searchParams.set("bmode", "schedule");
+    else url.searchParams.delete("bmode");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  };
   // Toggle: full graph ⇄ the Furnace ladder (Furnace/FC-Furnace levels plus
   // everything transitively required to advance them). Kept in ?bview=ladder.
   const [ladder, setLadder] = useState<boolean>(
@@ -848,27 +941,45 @@ function BuildingsPanel({
 
   return (
     <>
-      <SourceLine
-        url="https://www.whiteoutsurvival.wiki/buildings/"
-        label="whiteoutsurvival.wiki/buildings"
+      <AppTabs
+        variant="toolbar"
+        renderPanels={false}
+        selectedKey={mode}
+        onChange={onMode}
+        tabs={[
+          { key: "tree", label: "Tree" },
+          { key: "schedule", label: "Schedule (Gantt)" },
+        ]}
       />
-      <div className="flex flex-col gap-4">
-        <AppSwitch
-          inline
-          checked={ladder}
-          onChange={onLadder}
-          label="Furnace ladder"
-          title="Show only the Furnace chain (incl. FC) and everything required to advance it"
-        />
-        <TechTreeFlow
-          key={ladder ? "ladder" : "full"}
-          nodes={nodes}
-          height={720}
-          defaultDirection="TB"
-          renderDetail={renderDetail}
-          exportName={`buildings-${view.game}${ladder ? "-ladder" : ""}`}
-        />
-        <BuildingCatalog buildings={view.buildings} />
+      <div className="mt-3">
+        {mode === "schedule" ? (
+          <BuildScheduleView playerId={playerId} />
+        ) : (
+          <>
+            <SourceLine
+              url="https://www.whiteoutsurvival.wiki/buildings/"
+              label="whiteoutsurvival.wiki/buildings"
+            />
+            <div className="flex flex-col gap-4">
+              <AppSwitch
+                inline
+                checked={ladder}
+                onChange={onLadder}
+                label="Furnace ladder"
+                title="Show only the Furnace chain (incl. FC) and everything required to advance it"
+              />
+              <TechTreeFlow
+                key={ladder ? "ladder" : "full"}
+                nodes={nodes}
+                height={720}
+                defaultDirection="TB"
+                renderDetail={renderDetail}
+                exportName={`buildings-${view.game}${ladder ? "-ladder" : ""}`}
+              />
+              <BuildingCatalog buildings={view.buildings} />
+            </div>
+          </>
+        )}
       </div>
     </>
   );
@@ -1051,7 +1162,11 @@ function TreesContent() {
                 <p className="muted">No alliance tech data for {game.label} yet.</p>
               )
             ) : buildings.data && game.id === buildingsGameId ? (
-              <BuildingsPanel view={buildings.data} progress={progress.data} />
+              <BuildingsPanel
+                view={buildings.data}
+                progress={progress.data}
+                playerId={playerId}
+              />
             ) : (
               <p className="muted">No building data for {game.label} yet.</p>
             )}

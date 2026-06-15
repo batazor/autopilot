@@ -59,6 +59,7 @@ import type {
   AvatarReferenceResult,
   BuildingLevelRow,
   BuildingsView,
+  BuildPlanView,
   ResearchView,
   HeroStateRow,
   InstanceUnchangedResponse,
@@ -313,6 +314,16 @@ export async function dismissAttention(
 
 export async function fetchBuildings(): Promise<BuildingsView> {
   return apiFetch<BuildingsView>("/api/buildings");
+}
+
+export async function fetchBuildPlan(
+  player?: string,
+  queues = 2,
+): Promise<BuildPlanView> {
+  const p = new URLSearchParams();
+  if (player) p.set("player", player);
+  p.set("queues", String(queues));
+  return apiFetch<BuildPlanView>(`/api/buildings/plan?${p.toString()}`);
 }
 
 export async function fetchResearch(): Promise<ResearchView> {

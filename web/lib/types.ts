@@ -939,6 +939,46 @@ export type BuildingsView = {
   buildings: BuildingDef[];
 };
 
+// --- Build plan (/buildings/plan) — furnace-first schedule for the Gantt view ---
+
+/** One upgrade on the timeline; `*_s` are seconds offset from t=0 (no speedups). */
+export type BuildScheduleStep = {
+  seq: number;
+  /** 0-based construction queue this build runs on. */
+  queue: number;
+  /** progression | economy | camp | bottleneck. */
+  track: string;
+  building_id: string;
+  /** Plot id ("shelter_3"); equals building_id for single-plot buildings. */
+  instance_id: string;
+  building_name: string;
+  from_level: string;
+  to_level: string;
+  to_rank: number;
+  duration_s: number;
+  start_s: number;
+  end_s: number;
+  power: number | null;
+};
+
+export type BuildPlanView = {
+  game: string;
+  goal: string;
+  goal_cap: number;
+  /** Construction queues modelled (1 = furnace-first critical path, 2 = parallel). */
+  queues: number;
+  /** "scratch" or "player:<id>". */
+  start_from: string;
+  /** Terminal planner reason: "goal_reached" | "blocked" | "goal_unknown". */
+  reason: string;
+  truncated: boolean;
+  total_time_s: number;
+  step_count: number;
+  /** Buildings in first-touch order — the Gantt's group rows. */
+  buildings: { id: string; name: string }[];
+  steps: BuildScheduleStep[];
+};
+
 // --- Research trees (/research-tree) — served from games/<game>/db/research.yaml ---
 
 export type ResearchResource =

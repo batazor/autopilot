@@ -93,3 +93,89 @@ def get_buildings_payload() -> dict[str, Any]:
         "hub_id": "furnace",
         "buildings": buildings,
     }
+
+
+def get_build_plan_payload(
+    *,
+    player: str | None = None,
+    goal: str = "furnace",
+    cap: float = 30.0,
+    queues: int = 2,
+    max_steps: int = 1000,
+) -> dict[str, Any]:
+    """Build schedule for the Next.js /buildings Gantt.
+
+    With ``queues <= 1`` this is the single-queue furnace-first critical path
+    (``planner.project_schedule``). With ``queues >= 2`` it's the parallel
+    multi-queue sim (``planner.project_multi_schedule``): one queue rides the
+    furnace chain while the rest fill with economy/camps. ``player`` starts the
+    unroll from that player's recorded building levels; otherwise from scratch.
+    Resources/speedups are not modelled — this is the build *order* and its raw
+    game-time cost.
+    """
+    from games.wos.core.building.planner import (
+        load_graph,
+        project_multi_schedule,
+        project_schedule,
+    )
+
+    levels: dict[str, Any] = {}
+    start_from = "scratch"
+    if player:
+        from api.services import players as players_svc
+
+        try:
+            progress = players_svc.get_tree_progress(player)
+            levels = dict(progress.get("buildings") or {})
+            start_from = f"player:{player}"
+        except KeyError:
+            levels, start_from = {}, "scratch"
+
+    queues = max(1, int(queues))
+    graph = load_graph()
+    if queues <= 1:
+        sched = project_schedule(graph, levels, goal_id=goal, goal_cap=cap, max_steps=max_steps)
+    else:
+        sched = project_multi_schedule(
+            graph, levels, queues=queues, goal_id=goal, goal_cap=cap, max_steps=max_steps
+        )
+
+    # First-touch order of buildings → the by-building Gantt grouping.
+    order: list[dict[str, str]] = []
+    seen: set[str] = set()
+    steps: list[dict[str, Any]] = []
+    for s in sched.steps:
+        if s.building_id not in seen:
+            seen.add(s.building_id)
+            order.append({"id": s.building_id, "name": s.building_name})
+        steps.append(
+            {
+                "seq": s.seq,
+                "queue": s.queue,
+                "track": s.track,
+                "building_id": s.building_id,
+                "instance_id": s.instance_id or s.building_id,
+                "building_name": s.building_name,
+                "from_level": s.from_level,
+                "to_level": s.to_level,
+                "to_rank": s.to_rank,
+                "duration_s": s.duration_s,
+                "start_s": s.start_s,
+                "end_s": s.end_s,
+                "power": s.power,
+            }
+        )
+
+    return {
+        "game": "wos",
+        "goal": goal,
+        "goal_cap": cap,
+        "queues": sched.queues,
+        "start_from": start_from,
+        "reason": sched.reason,
+        "truncated": sched.truncated,
+        "total_time_s": sched.total_time_s,
+        "step_count": len(steps),
+        "buildings": order,
+        "steps": steps,
+    }
