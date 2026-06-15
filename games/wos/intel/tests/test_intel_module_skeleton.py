@@ -222,3 +222,52 @@ def test_pick_marker_prioritizes_gold_intel_icons() -> None:
 
     assert picked is not None
     assert picked.kind in {"skull_horned", "camp"}
+    assert picked.color == "gold"
+
+
+def test_pick_marker_prioritizes_color_before_type_and_score() -> None:
+    mod = _load_exec_module()
+    gold_fight = mod.IntelMarker(
+        x=0,
+        y=0,
+        w=10,
+        h=10,
+        score=0.70,
+        kind="fight",
+        color="gold",
+    )
+    purple_special = mod.IntelMarker(
+        x=20,
+        y=0,
+        w=10,
+        h=10,
+        score=1.00,
+        kind="skull_horned",
+        color="purple",
+    )
+
+    assert mod._pick_marker([purple_special, gold_fight], "best_score") is gold_fight
+
+
+def test_pick_marker_prioritizes_type_before_score_inside_color() -> None:
+    mod = _load_exec_module()
+    gold_special = mod.IntelMarker(
+        x=0,
+        y=0,
+        w=10,
+        h=10,
+        score=0.70,
+        kind="skull_horned",
+        color="gold",
+    )
+    gold_regular = mod.IntelMarker(
+        x=20,
+        y=0,
+        w=10,
+        h=10,
+        score=1.00,
+        kind="fight",
+        color="gold",
+    )
+
+    assert mod._pick_marker([gold_regular, gold_special], "best_score") is gold_special

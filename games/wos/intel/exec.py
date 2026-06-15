@@ -25,18 +25,25 @@ _MARKER_TEMPLATES = {
     "camp": _MODULE_DIR / "references" / "crop" / "camp_intel.camp.png",
 }
 _MARKER_KIND_PRIORITY = {
-    # Gold intel markers should be consumed before regular fight/skull markers.
+    # Within the same color tier, prefer the rarer/special intel types first.
     "skull_horned": 0,
     "camp": 0,
     "fight": 1,
     "skull": 1,
+}
+_MARKER_COLOR_PRIORITY = {
+    "gold": 0,
+    "purple": 1,
+    "blue": 2,
+    "green": 2,
+    "unknown": 3,
 }
 _DEFAULT_THRESHOLD = 0.72
 _DEFAULT_NMS_DISTANCE_PX = 40
 
 
 class IntelMarker:
-    __slots__ = ("h", "kind", "score", "w", "x", "y")
+    __slots__ = ("color", "h", "kind", "score", "w", "x", "y")
 
     def __init__(
         self,
@@ -47,6 +54,7 @@ class IntelMarker:
         h: int,
         score: float,
         kind: str,
+        color: str = "unknown",
     ) -> None:
         self.x = x
         self.y = y
@@ -54,6 +62,7 @@ class IntelMarker:
         self.h = h
         self.score = score
         self.kind = kind
+        self.color = color
 
     @property
     def center(self) -> Point:
@@ -109,6 +118,34 @@ def _is_far_enough(
     return True
 
 
+def _marker_color_from_hsv(frame_hsv: np.ndarray, marker: IntelMarker) -> str:
+    """Classify the marker pin color from its saturated pixels."""
+    height, width = frame_hsv.shape[:2]
+    x0 = max(0, marker.x - 8)
+    y0 = max(0, marker.y - 8)
+    x1 = min(width, marker.x + marker.w + 8)
+    y1 = min(height, marker.y + marker.h + 8)
+    if x0 >= x1 or y0 >= y1:
+        return "unknown"
+
+    roi = frame_hsv[y0:y1, x0:x1]
+    saturated = (roi[:, :, 1] > 60) & (roi[:, :, 2] > 80)
+    hues = roi[:, :, 0][saturated]
+    if hues.size == 0:
+        return "unknown"
+
+    counts = {
+        "gold": int(((hues >= 10) & (hues <= 38)).sum()),
+        "green": int(((hues > 38) & (hues <= 85)).sum()),
+        "blue": int(((hues > 85) & (hues <= 125)).sum()),
+        "purple": int(((hues > 125) & (hues <= 165)).sum()),
+    }
+    color, count = max(counts.items(), key=lambda item: item[1])
+    if count < 25 or count / float(hues.size) < 0.10:
+        return "unknown"
+    return color
+
+
 def detect_intel_markers(
     image_bgr: np.ndarray,
     *,
@@ -124,6 +161,7 @@ def detect_intel_markers(
         return []
 
     frame_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    frame_hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
     raw: list[IntelMarker] = []
     for kind, template in templates.items():
         th, tw = template.shape[:2]
@@ -132,8 +170,8 @@ def detect_intel_markers(
 
         result = cv2.matchTemplate(frame_gray, template, cv2.TM_CCOEFF_NORMED)
         ys, xs = np.where(result >= float(threshold))
-        raw.extend(
-            IntelMarker(
+        for y, x in zip(ys, xs, strict=False):
+            marker = IntelMarker(
                 x=int(x),
                 y=int(y),
                 w=int(tw),
@@ -141,8 +179,8 @@ def detect_intel_markers(
                 score=float(result[y, x]),
                 kind=kind,
             )
-            for y, x in zip(ys, xs, strict=False)
-        )
+            marker.color = _marker_color_from_hsv(frame_hsv, marker)
+            raw.append(marker)
     raw.sort(key=lambda marker: marker.score, reverse=True)
 
     accepted: list[IntelMarker] = []
@@ -178,24 +216,32 @@ def _kind_priority(marker: IntelMarker) -> int:
     return _MARKER_KIND_PRIORITY.get(marker.kind, 1)
 
 
+def _color_priority(marker: IntelMarker) -> int:
+    return _MARKER_COLOR_PRIORITY.get(marker.color, _MARKER_COLOR_PRIORITY["unknown"])
+
+
+def _marker_base_priority(marker: IntelMarker) -> tuple[int, int]:
+    return (_color_priority(marker), _kind_priority(marker))
+
+
 def _pick_marker(markers: list[IntelMarker], strategy: str) -> IntelMarker | None:
     if not markers:
         return None
     strategy_lc = strategy.strip().lower()
     if strategy_lc == "topmost":
-        return min(markers, key=lambda m: (_kind_priority(m), m.y, -m.score))
+        return min(markers, key=lambda m: (*_marker_base_priority(m), m.y, -m.score))
     if strategy_lc == "bottommost":
-        return min(markers, key=lambda m: (_kind_priority(m), -m.y, -m.score))
+        return min(markers, key=lambda m: (*_marker_base_priority(m), -m.y, -m.score))
     if strategy_lc == "center":
         return min(
             markers,
             key=lambda m: (
-                _kind_priority(m),
+                *_marker_base_priority(m),
                 (m.center.x - 360) ** 2 + (m.center.y - 640) ** 2,
                 -m.score,
             ),
         )
-    return min(markers, key=lambda m: (_kind_priority(m), -m.score))
+    return min(markers, key=lambda m: (*_marker_base_priority(m), -m.score))
 
 
 async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
@@ -252,6 +298,7 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
                 "score": round(marker.score, 4),
                 "strategy": strategy,
                 "kind": marker.kind,
+                "color": marker.color,
             },
         )
     except Exception:
@@ -270,10 +317,12 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
             "tap_y": point.y,
             "score": marker.score,
             "kind": marker.kind,
+            "color": marker.color,
             "detected": len(markers),
             "markers": [
                 {
                     "kind": m.kind,
+                    "color": m.color,
                     "x": m.x,
                     "y": m.y,
                     "w": m.w,
