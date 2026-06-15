@@ -762,6 +762,7 @@ class SchedulerRunner:
 
         await self._run_stamina_planner(player_states, player_instance_map, now)
         await self._run_resource_planner(player_states, player_instance_map, now)
+        await self._run_march_planner(player_states, player_instance_map, now)
 
     async def _run_stamina_planner(
         self,
@@ -893,6 +894,62 @@ class SchedulerRunner:
             except Exception:
                 logger.warning(
                     "resource planner failed for player=%s", player_id, exc_info=True
+                )
+
+    async def _run_march_planner(
+        self,
+        player_states: dict[str, dict[str, object]],
+        player_instance_map: dict[str, str],
+        now: float,
+    ) -> None:
+        """Fill idle march slots with the best MARCH-spending candidate.
+
+        Dispatch-blind: per player, the coordinator picks a blind intel run and
+        any active timed events (Romance Season, …) for the free march slots and
+        queues them. Runs AFTER the resource planner so it sees that tick's slot
+        holds (``build_world`` subtracts the ledger). Gated by its OWN switch
+        (``coordinator/march.yaml`` ``enabled``) — independent of
+        ``resources/actions.yaml`` ``enabled``, since intel/events need only the
+        slot count + stamina, not the troop/hero readers. Each player is isolated
+        by try/except so one bad snapshot can't stall the tick.
+        """
+        assert self._queue is not None and self._redis is not None
+        from games.wos.core.coordinator.dispatch import load_march_config, run_march_tick
+        from games.wos.core.resources import adapter as resources
+
+        try:
+            cfg = load_march_config()       # mtime-cached; no disk read per tick
+        except Exception:
+            logger.warning("march config load failed", exc_info=True)
+            return
+        if not cfg.enabled:
+            return
+        try:
+            table = resources.load_table()  # for build_world's slot accounting only
+        except Exception:
+            logger.warning("march planner: resource table load failed", exc_info=True)
+            return
+
+        for player_id, state in player_states.items():
+            instance_id = player_instance_map.get(player_id, "")
+            if not instance_id:
+                continue
+            try:
+                ledger = await resources.read_ledger(self._redis, player_id, now)
+                world = resources.build_world(table, state, now, ledger)
+                await run_march_tick(
+                    queue=self._queue,
+                    redis=self._redis,
+                    instance_id=instance_id,
+                    player_id=player_id,
+                    now=now,
+                    idle_slots=world.slots_free,
+                    state=state,
+                    cooldown_s=cfg.intel_cooldown_s,
+                )
+            except Exception:
+                logger.warning(
+                    "march planner failed for player=%s", player_id, exc_info=True
                 )
 
     async def _drain_wake_queue(self) -> bool:

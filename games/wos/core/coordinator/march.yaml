@@ -1,0 +1,18 @@
+# Autonomous MARCH-channel planner (scheduler `_run_march_planner` →
+# coordinator.run_march_tick).
+#
+# Dispatch-blind: each scheduler tick, per player, the coordinator fills idle
+# march slots with the best MARCH-spending candidate — a blind intel run and any
+# active timed events (Romance Season, …) — under the shared budget. It contends
+# on the slot count from the resource world (marches.capacity/active_count, read
+# by sync_main_menu_marching_status) but is INDEPENDENT of resources/actions.yaml
+# `enabled` (that gates troop/hero/gather actions, which intel doesn't need).
+#
+# Dormant until flipped on — enabling only ever queues real, runnable scenarios
+# (intel_run / event.romance_season), bounded by skip_if_duplicate + slots_free.
+enabled: false
+
+# Min seconds between blind intel dispatches. The intel board refreshes on a
+# multi-hour timer, so re-running right after a clear just burns a navigation.
+# Placeholder — tune to the real refresh cadence.
+intel_cooldown_s: 900

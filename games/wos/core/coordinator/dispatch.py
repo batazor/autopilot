@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .march import intel_intent, plan_march, timed_event_intent
@@ -46,6 +47,50 @@ DISPATCH_PRIORITY_BASE = 80_000
 # timer, so re-running right after a clear just burns a navigation. Placeholder —
 # tune to the real refresh cadence once known.
 INTEL_RUN_COOLDOWN_S = 900.0
+
+_MARCH_CONFIG_PATH = Path(__file__).resolve().parent / "march.yaml"
+_MARCH_CONFIG_CACHE: dict[str, tuple[float, MarchConfig]] = {}
+
+
+@dataclass(frozen=True, slots=True)
+class MarchConfig:
+    """The autonomous MARCH planner's switch + knobs (``march.yaml``)."""
+
+    enabled: bool = False
+    intel_cooldown_s: float = INTEL_RUN_COOLDOWN_S
+
+
+def _parse_march_config(path: Path) -> MarchConfig:
+    import yaml
+
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning("march config read failed at %s", path, exc_info=True)
+        return MarchConfig()
+    if not isinstance(raw, dict):
+        return MarchConfig()
+    return MarchConfig(
+        enabled=bool(raw.get("enabled", False)),
+        intel_cooldown_s=float(raw.get("intel_cooldown_s", INTEL_RUN_COOLDOWN_S)),
+    )
+
+
+def load_march_config(path: str | Path | None = None) -> MarchConfig:
+    """``march.yaml`` parsed + cached by mtime (no disk read per scheduler tick;
+    edits still picked up). Independent of resources/actions.yaml ``enabled``."""
+    p = Path(path) if path else _MARCH_CONFIG_PATH
+    key = str(p)
+    try:
+        mtime = p.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    hit = _MARCH_CONFIG_CACHE.get(key)
+    if hit is not None and hit[0] == mtime:
+        return hit[1]
+    cfg = _parse_march_config(p)
+    _MARCH_CONFIG_CACHE[key] = (mtime, cfg)
+    return cfg
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,6 +272,7 @@ async def run_march_tick(
     role: RoleProfile | None = None,
     cooldown_s: float = INTEL_RUN_COOLDOWN_S,
     boosts: Mapping[str, float] | None = None,
+    state: Mapping[str, str] | None = None,
 ) -> MarchDispatch:
     """Dispatch-blind MARCH tick: decide + queue without reading the intel board.
 
@@ -235,12 +281,15 @@ async def run_march_tick(
     through :func:`plan_march` (so it still contends with gather on the channel)
     and dispatches the winners. ``idle_slots`` and ``resource_balances`` are
     injected — the caller's live readers (the march-lease slot ledger and resource
-    OCR); with no resource balances, gather simply doesn't compete yet.
+    OCR); with no resource balances, gather simply doesn't compete yet. ``state``
+    may be passed (the scheduler already decoded the player-state hash) to skip a
+    redundant read.
 
     Returns the dispatch trace. No-op (empty dispatch) when stamina is unknown,
     the reserve eats the budget, or the cooldown hasn't elapsed.
     """
-    state = await _read_player_state(redis, player_id)
+    if state is None:
+        state = await _read_player_state(redis, player_id)
     stamina = _to_float(state.get("stamina", ""))
     reserve = _intel_reserve(state)
     secs_since = await _seconds_since_last_intel(

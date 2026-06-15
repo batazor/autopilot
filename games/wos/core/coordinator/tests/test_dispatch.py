@@ -7,8 +7,10 @@ import pytest
 from games.wos.core.coordinator import MARCH, CandidateAction, Commit, CoordinatorDecision
 from games.wos.core.coordinator.dispatch import (
     DISPATCH_PRIORITY_BASE,
+    MarchConfig,
     MarchScenario,
     dispatch_march,
+    load_march_config,
     run_march_tick,
 )
 
@@ -36,8 +38,10 @@ class _FakeQueue:
 class _FakeRedis:
     def __init__(self, state: dict[str, str] | None = None) -> None:
         self._state = state or {}
+        self.hgetall_calls = 0
 
     async def hgetall(self, key: str) -> dict[str, str]:
+        self.hgetall_calls += 1
         return dict(self._state)
 
 
@@ -298,3 +302,28 @@ async def test_tick_two_slots_run_intel_and_romance():
     )
 
     assert sorted(e.task_type for e in result.enqueued) == ["event.romance_season", "intel_run"]
+
+
+# --- config + injected-state plumbing ----------------------------------------
+
+
+def test_load_march_config_dormant_by_default():
+    cfg = load_march_config()
+    assert isinstance(cfg, MarchConfig)
+    assert cfg.enabled is False           # ships off; flip march.yaml to go live
+    assert cfg.intel_cooldown_s == 900
+
+
+@pytest.mark.asyncio
+async def test_run_march_tick_uses_injected_state_without_reading_redis():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis({})  # empty: if read, stamina is unknown → no intel dispatch
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1, state={"stamina": "100"},
+    )
+
+    # Dispatched from the injected state, and the redis hash was never read.
+    assert [e.task_type for e in result.enqueued] == ["intel_run"]
+    assert redis.hgetall_calls == 0
