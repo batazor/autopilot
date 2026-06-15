@@ -8,7 +8,7 @@ screens:
         threshold: 0.85
   event.bear_hunt:
     # World-map view focused on the bear: gate detection on main_world's
-    # anchor (button.to_main_city) and outrank the hub (priority 10) so the
+    # city-return anchor and outrank the hub (priority 10) so the
     # child wins first-match resolution when the title is on screen.
     parent: main_world
     priority: 9

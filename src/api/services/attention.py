@@ -167,31 +167,19 @@ def _load_failure_items(client: redis.Redis) -> list[dict[str, Any]]:
     return items
 
 
-def _approval_pending_item(
-    client: redis.Redis, instance_id: str
-) -> dict[str, Any] | None:
+def _approval_pending(client: redis.Redis, instance_id: str) -> bool:
+    """Is a click approval waiting for the operator?
+
+    This is *not* an attention item: a pending approval is normal in
+    click-approval mode and is already surfaced in the bot control panel. We
+    detect it here only to suppress the stuck-task item below, since a task
+    parked on an approval would otherwise look like it is running past its
+    timeout.
+    """
     try:
-        payload = click_approval_store.get_pending(client, instance_id)
+        return click_approval_store.get_pending(client, instance_id) is not None
     except Exception:
-        return None
-    if payload is None:
-        return None
-    detail = ""
-    ctx = payload.get("context")
-    if isinstance(ctx, dict):
-        scenario_key = str(ctx.get("scenario") or "").strip()
-        if scenario_key:
-            detail = click_approval_store.scenario_display_name(scenario_key)
-    region = str(payload.get("region") or "").strip()
-    if region:
-        detail = f"{detail} · {region}" if detail else region
-    return _item(
-        kind="approval_pending",
-        severity=SEVERITY_CRITICAL,
-        instance_id=instance_id,
-        title=f"{instance_id} is waiting for click approval",
-        detail=detail,
-    )
+        return False
 
 
 def _overdue_item(
@@ -309,13 +297,10 @@ def _instance_items(
             )
         )
 
-    approval = _approval_pending_item(client, instance_id)
-    if approval is not None:
-        items.append(approval)
-    elif live:
+    if live and not _approval_pending(client, instance_id):
         # A task running past the worker's own timeout. Only possible in
-        # approval mode (the timeout is disabled there) or with zombie state —
-        # and when an approval is pending, that item already explains the wait.
+        # approval mode (the timeout is disabled there) or with zombie state.
+        # While an approval is pending the wait is expected, so skip it.
         stuck = _stuck_task_item(row, instance_id, now=now)
         if stuck is not None:
             items.append(stuck)

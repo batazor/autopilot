@@ -174,6 +174,17 @@ function FarmInner() {
   const [deleteTarget, setDeleteTarget] = useState<FarmAccount | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [logsCopied, setLogsCopied] = useState(false);
+  // Character sub-tables are collapsed by default; track which rows are open.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = useCallback((username: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(username)) next.delete(username);
+      else next.add(username);
+      return next;
+    });
+  }, []);
 
   const refreshAccounts = useCallback(() => {
     fetch("/api/farm/accounts")
@@ -373,6 +384,10 @@ function FarmInner() {
   }));
   const shown =
     filter === "all" ? accounts : accounts.filter((a) => a.status === filter);
+  const allExpanded =
+    shown.length > 0 && shown.every((a) => expanded.has(a.username));
+  const toggleAll = () =>
+    setExpanded(allExpanded ? new Set() : new Set(shown.map((a) => a.username)));
   const registrationFailed =
     !pending &&
     registrationStatus?.exit_code !== null &&
@@ -395,18 +410,46 @@ function FarmInner() {
   const canStartRegistration = !busy && !pending && !registrationRunning;
   const accountColumns: ColumnDef<FarmAccount>[] = [
     {
+      id: "expander",
+      header: () => null,
+      cell: ({ row }) => {
+        const a = row.original;
+        const open = expanded.has(a.username);
+        return (
+          <button
+            type="button"
+            className="farm-expander"
+            aria-expanded={open}
+            aria-label={`${open ? "Hide" : "Show"} characters for ${a.username}`}
+            onClick={() => toggleExpanded(a.username)}
+          >
+            <Icon
+              name="chevron-right"
+              size="sm"
+              className={`farm-expander__icon${open ? " farm-expander__icon--open" : ""}`}
+            />
+          </button>
+        );
+      },
+    },
+    {
       accessorKey: "username",
       header: "Username",
       cell: ({ row }) => {
         const a = row.original;
         return (
-          <>
-            <div className="flex items-center gap-1.5 font-semibold text-wos-text">
+          <button
+            type="button"
+            className="farm-username"
+            onClick={() => toggleExpanded(a.username)}
+            title={activeTitle(a.active) ?? "Toggle characters"}
+          >
+            <span className="flex items-center gap-1.5 font-semibold text-wos-text">
               {a.active ? <ActiveMarker active={a.active} /> : null}
               <span>{a.username}</span>
-            </div>
-            <div className="text-xs text-wos-text-muted">{a.server}</div>
-          </>
+            </span>
+            <span className="text-xs text-wos-text-muted">{a.server}</span>
+          </button>
         );
       },
     },
@@ -449,12 +492,24 @@ function FarmInner() {
     {
       id: "characters",
       header: "Characters",
-      cell: ({ row }) => (
-        <span className="status-pill status-idle">
-          <span className="status-pill__dot" />
-          {row.original.characters.length}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const a = row.original;
+        const n = a.characters.length;
+        const open = expanded.has(a.username);
+        const hasActive = a.characters.some((c) => c.active);
+        return (
+          <button
+            type="button"
+            className={`farm-char-count${hasActive ? " farm-char-count--active" : ""}`}
+            aria-expanded={open}
+            onClick={() => toggleExpanded(a.username)}
+            title={`${open ? "Hide" : "Show"} ${n} character${n === 1 ? "" : "s"}`}
+          >
+            <strong>{n}</strong>
+            <span>{n === 1 ? "character" : "characters"}</span>
+          </button>
+        );
+      },
     },
     {
       id: "device",
@@ -569,15 +624,6 @@ function FarmInner() {
               <AutomationChip label="Stage" value={pending?.stage} />
             </div>
           </div>
-          <button
-            type="button"
-            className="btn-secondary inline-flex items-center gap-1.5"
-            disabled={!canStartRegistration}
-            onClick={() => startRegistration()}
-          >
-            <Icon name="plus" size="sm" />
-            Create character
-          </button>
         </div>
         {pending ? (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-wos-border-subtle bg-wos-panel-raised/40 p-3">
@@ -693,26 +739,23 @@ function FarmInner() {
 
       {/* Accounts */}
       <section className="panel">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="m-0 text-base font-semibold text-wos-text">
-            Accounts ({accounts.length})
-          </h2>
-          <button
-            type="button"
-            className="btn-primary ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"
-            disabled={!canStartRegistration}
-            onClick={() => startRegistration()}
-            title={pending ? "Registration is already waiting for confirmation" : "Create character"}
-          >
-            <Icon name="plus" size="sm" />
-            Create character
-          </button>
-          <span
-            className={`status-pill ${registrationTone}`}
-          >
-            <span className="status-pill__dot" />
-            {registrationLabel}
-          </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h2 className="m-0 text-base font-semibold text-wos-text">Accounts</h2>
+          <span className="farm-count-badge">{accounts.length}</span>
+          {shown.length > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary inline-flex items-center gap-1.5 px-2.5 py-1 text-xs"
+              onClick={toggleAll}
+            >
+              <Icon
+                name="chevron-right"
+                size="sm"
+                className={`farm-expander__icon${allExpanded ? " farm-expander__icon--open" : ""}`}
+              />
+              {allExpanded ? "Collapse all" : "Expand all"}
+            </button>
+          ) : null}
           <div className="ml-auto flex flex-wrap gap-1 text-xs">
             <FilterChip label="all" active={filter === "all"} onClick={() => setFilter("all")} />
             {counts.map((c) => (
@@ -753,6 +796,7 @@ function FarmInner() {
             <tbody>
               {accountsTable.getRowModel().rows.map((row) => {
                 const a = row.original;
+                const open = expanded.has(a.username);
                 const edit = characterEdits[a.username] ?? {
                   server: "",
                   fid: "",
@@ -761,13 +805,24 @@ function FarmInner() {
                 return (
                   <Fragment key={a.username}>
                     <tr
-                      className={a.active ? "farm-row--active" : undefined}
+                      className={[
+                        a.active ? "farm-row--active" : "",
+                        open ? "farm-row--open" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined}
                       title={activeTitle(a.active)}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <td
                           key={cell.id}
-                          className={cell.column.id === "actions" ? "text-right" : undefined}
+                          className={
+                            cell.column.id === "actions"
+                              ? "text-right"
+                              : cell.column.id === "expander"
+                                ? "farm-expander-cell"
+                                : undefined
+                          }
                         >
                           {flexRender(
                             cell.column.columnDef.cell,
@@ -776,6 +831,7 @@ function FarmInner() {
                         </td>
                       ))}
                     </tr>
+                    {open ? (
                     <tr className="sub-row">
                       <td colSpan={accountsTable.getAllLeafColumns().length}>
                         <div className="flex flex-col gap-2 rounded-md border border-wos-border-subtle/50 bg-wos-surface/35 p-2">
@@ -884,6 +940,7 @@ function FarmInner() {
                         </div>
                       </td>
                     </tr>
+                    ) : null}
                   </Fragment>
                 );
               })}

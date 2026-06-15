@@ -36,6 +36,41 @@ from tasks.dsl_scenario_step_loops_mixin import DslScenarioStepLoopsMixin
 
 logger = logging.getLogger(__name__)
 
+
+def _select_nav_target(
+    allowed_nodes: tuple[str, ...], args: dict[str, Any] | None
+) -> str:
+    """Pick the FSM node to navigate to before a multi-node scenario runs.
+
+    Defaults to the first allowed node (the historical behaviour). But when the
+    scenario carries a ``region`` / ``next_region`` arg whose namespace prefix
+    (e.g. ``deals`` in ``deals.tabs_strip``) matches one of the *other* allowed
+    nodes, prefer a node in that namespace.
+
+    This keeps shared cross-namespace helpers like ``tabs.strip.advance``
+    (``nodes: [shop, …, deals, …]``) from routing a Deals-region push to the
+    Shop hub — the first listed node — when the bot is momentarily off any
+    listed node. Without it, a deals push would navigate into Shop and then
+    no-op there (the exec handler's ``region``/``current_screen`` namespace
+    guard rejects it), stranding the bot on a Shop page with no pending work.
+
+    Single-namespace scenarios are unaffected: their region prefix already
+    matches ``allowed_nodes[0]``, and scenarios without a region arg fall back
+    to it.
+    """
+    if not allowed_nodes:
+        return ""
+    region = ""
+    if isinstance(args, dict):
+        region = str(args.get("region") or args.get("next_region") or "").strip()
+    prefix = region.split(".", 1)[0].strip() if "." in region else ""
+    if prefix:
+        for node in allowed_nodes:
+            if node.split(".", 1)[0].strip() == prefix:
+                return node
+    return allowed_nodes[0]
+
+
 # TYPE_CHECKING-only base: gives ty visibility into every host attribute and
 # sibling-mixin method without changing the runtime MRO of DslScenarioTask.
 # See ``tasks/_dsl_task_host.py`` for the rationale.
@@ -295,7 +330,10 @@ class DslScenarioExecuteMixin(
         from dsl.dsl_schema import scenario_allowed_nodes
 
         allowed_nodes = scenario_allowed_nodes(doc)
-        target_node = allowed_nodes[0] if allowed_nodes else ""
+        # Namespace-aware nav target: a shared cross-namespace helper
+        # (``tabs.strip.advance``, ``nodes: [shop, …, deals, …]``) must route a
+        # Deals-region push toward a Deals node, not the first-listed Shop hub.
+        target_node = _select_nav_target(allowed_nodes, self.args)
         # `device_level: true` opts a scenario out of identity gating (see
         # `RedisQueue.pop_due`).  Reused here as the default mode for `while_match`:
         # device-level scenarios (popup dismissals, identity probes) keep the

@@ -6,6 +6,7 @@ from unittest.mock import ANY, call
 import cv2
 import numpy as np
 import pytest
+import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
@@ -69,6 +70,86 @@ def _clear_region(frame: np.ndarray, region_name: str) -> None:
     w = int(width * float(bbox["width"]) / 100)
     h = int(height * float(bbox["height"]) / 100)
     cv2.rectangle(frame, (x0, y0), (x0 + w, y0 + h), (80, 80, 80), -1)
+
+
+def test_vip_screen_red_dots_push_vip_daily() -> None:
+    """The vip screen must produce vip.daily itself.
+
+    The ``main_city`` badge rule only fires from main_city, so a red dot lit
+    while the bot already stands on the vip screen would otherwise never queue
+    any work — the scheduler would navigate away (deals/etc.) and skip it. One
+    on-screen producer per claimable region keeps vip.daily at hops=0 so the
+    queue's hop debuff ranks it above any navigate-away task.
+    """
+    doc = yaml.safe_load((MODULE_DIR / "analyze" / "analyze.yaml").read_text())
+    rules = {r["name"]: r for r in doc["overlay"]}
+
+    for region in ("page.vip.box", "page.vip.add", "page.vip.unlock"):
+        name = f"vip.page.{region.removeprefix('page.vip.')}.red_dot"
+        rule = rules.get(name)
+        assert rule is not None, f"missing on-screen vip producer {name!r}"
+        assert rule["region"] == region
+        assert rule["screens"] == ["vip"]
+        assert rule["isRedDot"] is True
+        assert rule.get("ttl"), "throttle ttl required so a stuck red dot can't spam"
+        pushes = [s.get("push_scenario") for s in rule.get("steps", [])]
+        assert "vip.daily" in pushes
+
+
+def test_increase_level_use_all_region_is_wired() -> None:
+    """`button.use_all` must exist as a full-frame search region with its crop."""
+    from layout.area_lookup import screen_region_by_name
+    from layout.crop_paths import exported_crop_png
+
+    area_doc = load_area_doc(REPO_ROOT)
+    pair = screen_region_by_name(
+        area_doc, "button.use_all", state_flat={"current_screen": "increase_level"}
+    )
+    assert pair is not None, "button.use_all missing from area.yaml"
+    screen, region = pair
+    assert screen.get("screen_id") == "increase_level"
+    assert region.get("action") == "exist"
+    assert region.get("isSearch") is True
+    crop = exported_crop_png(REPO_ROOT, screen["ocr"], "button.use_all")
+    assert crop.is_file(), f"missing crop {crop}"
+
+
+def test_use_all_template_matches_pills_not_use_buttons() -> None:
+    """The `×N` pill template must catch every stack pill yet reject `Use`.
+
+    The pill and `Use` are near-identical green capsules; only the white `×`
+    glyph (cropped digit-free) separates them. This locks that separation so a
+    future re-crop that reintroduces ambiguity fails loudly instead of making
+    the bot tap `Use` once per item again.
+    """
+    frame = cv2.cvtColor(
+        _load_reference_bgr("increase_level.png"), cv2.COLOR_BGR2GRAY
+    )
+    tpl = cv2.cvtColor(
+        _load_reference_bgr(
+            "crop/increase_level_button.use_all.png"
+        ),
+        cv2.COLOR_BGR2GRAY,
+    )
+    res = cv2.matchTemplate(frame, tpl, cv2.TM_CCOEFF_NORMED)
+
+    # Walk down the peaks; suppress a window around each so we get distinct hits.
+    work = res.copy()
+    peaks: list[tuple[float, int, int]] = []
+    for _ in range(6):
+        _, score, _, loc = cv2.minMaxLoc(work)
+        if score < 0.5:
+            break
+        peaks.append((float(score), loc[0], loc[1]))
+        x, y = loc
+        work[max(0, y - 30) : y + 30, max(0, x - 30) : x + 30] = -1.0
+
+    threshold = 0.85  # matches area.yaml
+    # Both green stack pills sit at x≈299; Use buttons at x≈493.
+    pill_hits = [s for s, x, _ in peaks if 280 < x < 320 and s >= threshold]
+    over_thresh_use = [s for s, x, _ in peaks if 480 < x < 510 and s >= threshold]
+    assert len(pill_hits) >= 2, f"expected both pills ≥{threshold}, got {peaks}"
+    assert not over_thresh_use, f"a Use button crossed {threshold}: {peaks}"
 
 
 def test_vip_daily_scenario_is_registered_with_expected_shape(snapshot) -> None:
@@ -149,7 +230,7 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
     rewards_popup = _load_reference_bgr(
         "page.rewards_popup.png", base=REWARDS_REFERENCES_DIR
     )
-    increase_level = _load_reference_bgr("page.increase_level.png")
+    increase_level = _load_reference_bgr("increase_level.png")
     increase_after_use = increase_level.copy()
     _clear_region(increase_after_use, "button.use")
 

@@ -1,6 +1,10 @@
 id: romance_season
 title: Romance Season
 description: Limited-time Romance Season event.
+enabled: true
+area: area.yaml
+scenarios: scenarios
+analyze: analyze/analyze.yaml
 references: references
 icon: romance_season
 wiki: false

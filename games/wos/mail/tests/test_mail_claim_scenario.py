@@ -40,6 +40,14 @@ def test_tab_template_renders_explicit_mail_pages(snapshot, scenario_key: str) -
     assert doc == snapshot
 
 
+@pytest.mark.parametrize("scenario_key", TAB_SCENARIO_KEYS)
+def test_tab_template_does_not_delete_all_mail(scenario_key: str) -> None:
+    loaded = template_resolver.load_doc(REPO_ROOT, scenario_key)
+    assert loaded is not None
+    _path, doc = loaded
+    assert "mail.delete.all" not in str(doc)
+
+
 def test_mail_tab_strip_red_dot_pushes_tab_claim_scenario() -> None:
     image_bgr = cv2.imread(str(MODULE_DIR / "references" / "mail_page.png"))
     assert image_bgr is not None

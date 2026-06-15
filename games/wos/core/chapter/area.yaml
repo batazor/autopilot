@@ -23,7 +23,6 @@
         {
           "name": "chapter.daily.refreshes_in",
           "action": "text",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 24.166666666666668,
@@ -33,12 +32,12 @@
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         },
         {
           "name": "chapter.daily.tasks",
           "action": "text",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.3333333333333335,
@@ -48,7 +47,8 @@
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         },
         {
           "name": "chapter.close",
@@ -65,27 +65,13 @@
           }
         },
         {
-          "name": "chapter.tab.growth_missions",
+          "name": "chapter.daily_missions.title",
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
-            "x": 19.444444444444443,
-            "y": 86.5625,
-            "width": 29.166666666666668,
-            "height": 2.96875,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "chapter.tab.daily_missions",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 52.77777777777778,
-            "y": 85.9375,
-            "width": 24.305555555555557,
+            "x": 53.56171314604929,
+            "y": 86.59411478599228,
+            "width": 24.877762640024198,
             "height": 3.4375,
             "rotation": 0,
             "original_width": 720,
@@ -127,6 +113,28 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/growth.png",
+      "regions": [
+        {
+          "name": "chapter.growth_missions.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 19.163786053297777,
+            "y": 87.15661472967645,
+            "width": 29.376708049046364,
+            "height": 2.5107005017360584,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
         }
       ]
     }

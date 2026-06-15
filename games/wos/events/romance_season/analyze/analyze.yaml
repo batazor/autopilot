@@ -1,0 +1,13 @@
+overlay:
+  - name: romance_season.go.has_red_dot
+    region: romance_season.go
+    action: findIcon
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - event.romance_season
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.romance_season
+          ttl: 1m

@@ -14,6 +14,7 @@ from tasks.dsl_exec.sync_state import (
     _exec_sync_building_name,
     _exec_sync_hero_unit,
 )
+from tasks.dsl_exec.use_all import _exec_drain_use_all
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -29,6 +30,7 @@ _CORE_DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "advance_tab_strip": _exec_click_next_red_dot_tab,
     "put_all_red_dots": _exec_put_all_red_dots,
     "dismiss_popup": _exec_dismiss_popup,
+    "drain_use_all": _exec_drain_use_all,
 }
 
 

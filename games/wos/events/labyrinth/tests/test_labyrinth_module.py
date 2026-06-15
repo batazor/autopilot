@@ -7,11 +7,15 @@ import cv2
 import pytest
 import yaml
 
+from analysis.overlay_engine import evaluate_overlay_rules_async
+from layout.area_manifest import load_area_doc
 from layout.white_border_detector import (
     find_white_border_match_in_search_roi,
     has_white_border_in_bbox_percent,
 )
 from navigation import main_menu_panel_resolver, screen_graph  # noqa: F401
+from navigation.detector import ScreenDetector
+from ocr.client import OCRResult
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[3]
@@ -238,9 +242,62 @@ def test_labyrinth_screen_verify_uses_title() -> None:
                 {
                     "ocr": "labyrinth.cave.title",
                     "contains": cave["title"],
+                    "match": "labyrinth.cave.challenge",
                     "threshold": 0.85,
                 }
             ]
+    finally:
+        screen_graph.invalidate_screen_verify_config()
+
+
+@pytest.mark.asyncio
+async def test_research_center_verify_does_not_match_rewards_page() -> None:
+    class _FakeResearchCenterOcr:
+        async def ocr_regions(
+            self,
+            _image,
+            regions,
+            *,
+            region_ids=None,
+            **_kwargs,
+        ) -> list[OCRResult]:
+            ids = region_ids or [f"r{i}" for i, _region in enumerate(regions)]
+            return [
+                OCRResult(region_id=region_id, text="Research Center", confidence=0.99)
+                for region_id in ids
+            ]
+
+    frame = cv2.imread(str(REPO_ROOT / "games/wos/core/rewards/references/page.rewards.png"))
+    assert frame is not None
+
+    screen_graph.invalidate_screen_verify_config()
+    try:
+        rules, groups = ScreenDetector._landmark_overlay_rules_for_screen(
+            "event.labyrinth.research_center",
+            name_prefix="test",
+        )
+        assert groups == [
+            [
+                "test.event.labyrinth.research_center.labyrinth.cave.challenge",
+                "test.event.labyrinth.research_center.labyrinth.cave.title.ocr",
+            ]
+        ]
+
+        out = await evaluate_overlay_rules_async(
+            frame,
+            load_area_doc(REPO_ROOT),
+            REPO_ROOT,
+            rules,
+            current_screen="rewards",
+            ocr_client=_FakeResearchCenterOcr(),
+        )
+        assert out["test.event.labyrinth.research_center.labyrinth.cave.title.ocr"][
+            "matched"
+        ]
+        assert not out[
+            "test.event.labyrinth.research_center.labyrinth.cave.challenge"
+        ]["matched"]
+        assert not ScreenDetector._first_matching_landmark_group(out, groups)
     finally:
         screen_graph.invalidate_screen_verify_config()
 

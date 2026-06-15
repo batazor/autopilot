@@ -1,0 +1,8 @@
+screens:
+  heroes.deploy:
+    priority: 20
+    terminal: true
+    rules:
+    - ocr: page.common.title
+      contains: Deploy
+      threshold: 0.8

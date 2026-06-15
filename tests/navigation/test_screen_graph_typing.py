@@ -79,6 +79,12 @@ def test_exploration_routes_squad_settings() -> None:
     assert route_taps("squad_settings", "exploration") == [["icon.page.back"]]
 
 
+def test_main_world_routes_to_city_with_world_scoped_button() -> None:
+    assert route_taps("main_world", "main_city", game="wos") == [
+        ["main_world.to.main_city"]
+    ]
+
+
 def test_exploration_defeat_routes_main_city() -> None:
     assert route_taps("exploration.defeat", "main_city") == [["button.to_main_city"]]
 
@@ -217,6 +223,34 @@ async def test_trials_routes_from_main_city_by_template_icon() -> None:
 
 
 @pytest.mark.asyncio
+async def test_deals_routes_from_main_world_by_template_icon() -> None:
+    hops = await route_hops_async(
+        "main_world",
+        "deals",
+        instance_id="bs1",
+        redis_client=None,
+        game="wos",
+    )
+
+    assert hops == [
+        (
+            "deals",
+            [
+                {
+                    "type": "template_icon",
+                    "region": "main_city.icon_search",
+                    "template": (
+                        "games/wos/deals/deals/references/crop/"
+                        "main_city_main_city.to.deals.png"
+                    ),
+                    "threshold": 0.85,
+                }
+            ],
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_7_day_routes_from_main_city_by_template_icon() -> None:
     hops = await route_hops_async(
         "main_city",
@@ -237,6 +271,15 @@ async def test_7_day_routes_from_main_city_by_template_icon() -> None:
                 }
             ],
         )
+    ]
+
+
+def test_romance_season_routes_from_main_city_by_labeled_icon() -> None:
+    assert route_taps("main_city", "event.romance_season", game="wos") == [
+        ["main_city.to.romance_season"]
+    ]
+    assert route_taps("event.romance_season", "main_city", game="wos") == [
+        ["icon.page.back"]
     ]
 
 

@@ -1,4 +1,4 @@
-import { approvalsHref, instanceHref, queueHref } from "@/lib/fleet-links";
+import { instanceHref, queueHref } from "@/lib/fleet-links";
 import type { AttentionItem } from "@/lib/types";
 
 /** Where the operator goes to act on an item. Null → nowhere useful to link. */
@@ -7,8 +7,6 @@ export function attentionAction(
 ): { href: string; label: string } | null {
   const iid = item.instance_id;
   switch (item.kind) {
-    case "approval_pending":
-      return iid ? { href: approvalsHref(iid), label: "Review" } : null;
     case "device_offline":
       return { href: "/adb", label: "Devices" };
     case "queue_stuck":

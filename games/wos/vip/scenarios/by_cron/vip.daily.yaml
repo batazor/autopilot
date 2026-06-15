@@ -48,13 +48,9 @@ steps:
     steps:
       - click: page.vip.add
       - wait: 0.5s
-      - while_match: button.use
-        retry:
-          attempts: 3
-          interval: 500ms
-        steps:
-          - long_click: button.use
-          - wait: 1s
+      # Spend whole stacks via the green "×N" pill (reusable consume-popup
+      # drainer), falling back to per-item "Use".
+      - exec: drain_use_all
       - while_match: increase_level.icon.close
         max: 1
         steps:
@@ -71,13 +67,7 @@ steps:
     steps:
       - click: page.vip.unlock
       - wait: 0.5s
-      - while_match: button.use
-        retry:
-          attempts: 3
-          interval: 500ms
-        steps:
-          - click: button.use
-          - wait: 1s
+      - exec: drain_use_all
       - while_match: increase_level.icon.close
         max: 1
         steps:

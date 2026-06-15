@@ -52,6 +52,12 @@ def test_area_declares_intel_screen_and_fight_region() -> None:
     assert claim_regions["intel.claim_all"]["action"] == "exist"
     assert by_id["intel.fight"]["screen_region"] == "intel.fight.view"
     assert by_id["intel.explore"]["screen_region"] == "intel.explore"
+    attack_regions = {
+        r["name"]: r
+        for r in by_id["main_world"]["regions"]
+        if r["name"].startswith("intel.")
+    }
+    assert attack_regions["intel.attack"]["action"] == "exist"
 
 
 def test_analyze_has_no_overlay_rules() -> None:
@@ -74,11 +80,40 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     assert steps[1]["threshold"] == 0.72
     assert steps[2]["wait_screen"]["any"] == ["intel.fight"]
     assert steps[3] == {"click": "intel.fight.view"}
-    assert steps[4]["wait_screen"]["any"] == ["intel.explore"]
-    assert steps[5] == {"click": "intel.explore"}
-    assert steps[6]["wait_screen"]["any"] == ["squad_settings"]
-    assert {"click": "squad_settings.quick_deploy"} in steps
-    assert {"click": "squad_settings.fight"} in steps
+    assert steps[4]["wait_screen"]["any"] == ["intel.explore", "main_world"]
+    assert steps[5] == {
+        "cond": "currentNode == intel.explore",
+        "steps": [{"click": "intel.explore"}],
+    }
+    assert steps[6] == {
+        "cond": "currentNode == main_world",
+        "steps": [{"click": "intel.attack"}],
+    }
+    assert steps[7]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
+    deploy_branch = steps[8]
+    assert deploy_branch["cond"] == "currentNode == heroes.deploy"
+    assert deploy_branch["steps"] == [
+        {"click": "heroes.deploy.equalize"},
+        {"wait": "500ms"},
+        {
+            "ocr": "heroes.deploy.ttl",
+            "type": "string",
+            "store": "intel.march_ttl",
+        },
+        {"click": "heroes.deploy.deploy"},
+        {"wait": "1s"},
+        {
+            "exec": "confirm_intel_march_lease",
+            "ttl_field": "intel.march_ttl",
+            "round_trip_multiplier": 2,
+            "extra_seconds": 15,
+        },
+    ]
+    squad_branch = steps[9]
+    assert squad_branch["cond"] == "currentNode == squad_settings"
+    squad_steps = squad_branch["steps"]
+    assert {"click": "squad_settings.quick_deploy"} in squad_steps
+    assert {"click": "squad_settings.fight"} in squad_steps
     assert not any("push_scenario" in str(step) for step in steps)
 
 
@@ -99,7 +134,7 @@ def test_intel_route_is_reachable_from_world_map() -> None:
     ]
     assert route_taps("intel", "main_city", game="wos") == [
         ["icon.page.back"],
-        ["button.to_main_city"],
+        ["main_world.to.main_city"],
     ]
     assert route_taps("announcements", "intel", game="wos") == [
         ["announcements.back"],
@@ -128,6 +163,29 @@ async def test_claim_all_region_detected_on_claim_reference() -> None:
     )
 
     assert out["intel.claim_all.visible"]["matched"] is True
+
+
+@pytest.mark.asyncio
+async def test_attack_region_detected_on_attack_reference() -> None:
+    area_doc = load_area_doc(REPO_ROOT)
+    image = cv2.imread(str(MODULE_DIR / "references" / "attack.png"))
+    assert image is not None
+
+    rule = {
+        "name": "intel.attack.visible",
+        "region": "intel.attack",
+        "action": "findIcon",
+        "threshold": 0.9,
+    }
+    out = await evaluate_overlay_rules_async(
+        image,
+        area_doc,
+        REPO_ROOT,
+        [rule],
+        current_screen="main_world",
+    )
+
+    assert out["intel.attack.visible"]["matched"] is True
 
 
 def _load_exec_module() -> Any:

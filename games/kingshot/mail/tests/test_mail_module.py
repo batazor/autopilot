@@ -134,18 +134,11 @@ def test_kingshot_mail_delete_confirm_popup_matches_confirm_button() -> None:
     assert row["matched"] is True
 
 
-def test_kingshot_mail_delete_all_confirms_popup() -> None:
+def test_kingshot_mail_claim_scenario_does_not_delete_all() -> None:
     scenario = yaml.safe_load(
         (MODULE_DIR / "scenarios" / "mail.claim.{tab}.yaml").read_text(
             encoding="utf-8"
         )
     )
 
-    delete_step = scenario["steps"][2]
-    assert delete_step["while_match"] == "mail.delete.all"
-    assert delete_step["steps"][0]["click"] == "mail.delete.all"
-
-    confirm_step = delete_step["steps"][2]
-    assert confirm_step["while_match"] == "mail.delete.confirm"
-    assert confirm_step["retry"] == {"attempts": 3, "interval": "500ms"}
-    assert confirm_step["steps"][0]["click"] == "mail.delete.confirm"
+    assert "mail.delete.all" not in str(scenario)

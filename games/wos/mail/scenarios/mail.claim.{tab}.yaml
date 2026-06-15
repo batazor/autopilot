@@ -61,14 +61,3 @@ steps:
         steps:
           - click: button.claim
           - wait: 0.5s
-
-  - while_match: mail.delete.all
-    max: 1
-    steps:
-      - click: mail.delete.all
-      - wait: 1s
-      - while_match: ui.button.confirm_blue
-        max: 3
-        steps:
-          - click: ui.button.confirm_blue
-          - wait: 0.5s

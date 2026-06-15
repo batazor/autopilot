@@ -19,4 +19,4 @@ edges:
   # The event view is the world map itself, so the parent's "return to city"
   # button is the reliable way out (there is no icon.page.back here).
   event.bear_hunt:
-    main_city: [button.to_main_city]
+    main_city: [main_world.to.main_city]

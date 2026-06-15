@@ -123,16 +123,14 @@ def test_startup_validation_warning_is_warning_with_trace(fleet) -> None:
     assert item["debug_log"].startswith("[warning]")
 
 
-def test_approval_pending_names_scenario(fleet) -> None:
+def test_pending_approval_is_not_an_attention_item(fleet) -> None:
+    # A click approval waiting for the operator is normal in approval mode and
+    # is surfaced in the bot control panel — not as an error/attention item.
     fleet.approvals["bs1"] = {
         "context": {"scenario": "deals.sign_in"},
         "region": "main_city",
     }
-    view = _view()
-    assert _kinds(view) == ["approval_pending"]
-    item = view["items"][0]
-    assert item["instance_id"] == "bs1"
-    assert item["detail"] == "Deals.Sign_In · main_city"
+    assert _view()["items"] == []
 
 
 def test_device_offline_supersedes_worker_down_and_queue_stuck(fleet) -> None:
@@ -271,7 +269,7 @@ def test_task_under_timeout_is_not_stuck(fleet) -> None:
     assert _view()["items"] == []
 
 
-def test_pending_approval_explains_the_long_task(fleet) -> None:
+def test_pending_approval_suppresses_the_long_task(fleet) -> None:
     fleet.states["bs1"].update(
         {
             "state": "busy",
@@ -280,7 +278,8 @@ def test_pending_approval_explains_the_long_task(fleet) -> None:
         }
     )
     fleet.approvals["bs1"] = {"context": {}, "region": "main_city"}
-    assert _kinds(_view()) == ["approval_pending"]
+    # The long-running task is the approval wait, not a hang — stay quiet.
+    assert _view()["items"] == []
 
 
 def test_dead_worker_long_task_reports_worker_down_only(fleet) -> None:
@@ -302,8 +301,11 @@ def test_nav_error_is_warning(fleet) -> None:
 
 
 def test_critical_sorts_before_warning(fleet) -> None:
-    fleet.states["bs1"]["nav_error"] = "boom"
-    fleet.approvals["bs2"] = {"context": {}, "region": "main_city"}
+    fleet.states["bs1"]["nav_error"] = "boom"  # warning, bs1 stays live
+    fleet.states["bs2"] = {
+        "worker_started_at": str(fleet.now - 9000),
+        "last_seen_at": str(fleet.now - 9000),
+    }  # stale → worker_down (critical)
     view = _view()
-    assert _kinds(view) == ["approval_pending", "nav_error"]
+    assert _kinds(view) == ["worker_down", "nav_error"]
     assert view["counts"] == {"critical": 1, "warning": 1, "total": 2}

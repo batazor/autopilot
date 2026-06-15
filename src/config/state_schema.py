@@ -196,10 +196,16 @@ class RecruitmentEvent(BaseModel):
     free_recruitments_today: int = 0
 
 
+class RomanceSeasonEvent(BaseModel):
+    attack_count: int = 0
+    ttl_remaining_s: int = 0
+
+
 class Events(BaseModel):
     tundraAdventure: TundraAdventure = Field(default_factory=TundraAdventure)
     frostyFortune: FrostyFortune = Field(default_factory=FrostyFortune)
     recruitment: RecruitmentEvent = Field(default_factory=RecruitmentEvent)
+    romanceSeason: RomanceSeasonEvent = Field(default_factory=RomanceSeasonEvent)
 
 
 class TroopState(BaseModel):

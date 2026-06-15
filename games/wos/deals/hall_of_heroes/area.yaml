@@ -4,17 +4,18 @@
     {
       "id": 1207,
       "screen_id": "deals.hall_of_heroes",
-      "ocr": "references/deals.hall_of_heroes.png",
+      "ocr": "references/main.png",
       "regions": [
         {
           "name": "deals.hall_of_heroes.title",
-          "action": "exist",
+          "action": "text",
+          "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 4.787644787644788,
-            "y": 15.434782608695652,
-            "width": 18.6003861003861,
-            "height": 4.7,
+            "x": 5.047924724397072,
+            "y": 16.3926152619947,
+            "width": 38.507841791083855,
+            "height": 3.7692568723901494,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

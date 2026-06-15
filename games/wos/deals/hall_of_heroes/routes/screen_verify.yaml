@@ -2,7 +2,8 @@ screens:
   deals.hall_of_heroes:
     priority: 53
     rules:
-    - match: deals.hall_of_heroes.title
+    - ocr: deals.hall_of_heroes.title
+      contains: Hall of Heroes
       threshold: 0.9
   hall_of_heroes.witness:
     priority: 54

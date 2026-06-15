@@ -125,30 +125,6 @@
         ]),
         'while_match': 'mail.claim.all',
       }),
-      dict({
-        'max': 1,
-        'steps': list([
-          dict({
-            'click': 'mail.delete.all',
-          }),
-          dict({
-            'wait': '1s',
-          }),
-          dict({
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'ui.button.confirm_blue',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'while_match': 'ui.button.confirm_blue',
-          }),
-        ]),
-        'while_match': 'mail.delete.all',
-      }),
     ]),
   })
 # ---
@@ -277,30 +253,6 @@
           }),
         ]),
         'while_match': 'mail.claim.all',
-      }),
-      dict({
-        'max': 1,
-        'steps': list([
-          dict({
-            'click': 'mail.delete.all',
-          }),
-          dict({
-            'wait': '1s',
-          }),
-          dict({
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'ui.button.confirm_blue',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'while_match': 'ui.button.confirm_blue',
-          }),
-        ]),
-        'while_match': 'mail.delete.all',
       }),
     ]),
   })
@@ -431,30 +383,6 @@
         ]),
         'while_match': 'mail.claim.all',
       }),
-      dict({
-        'max': 1,
-        'steps': list([
-          dict({
-            'click': 'mail.delete.all',
-          }),
-          dict({
-            'wait': '1s',
-          }),
-          dict({
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'ui.button.confirm_blue',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'while_match': 'ui.button.confirm_blue',
-          }),
-        ]),
-        'while_match': 'mail.delete.all',
-      }),
     ]),
   })
 # ---
@@ -584,30 +512,6 @@
         ]),
         'while_match': 'mail.claim.all',
       }),
-      dict({
-        'max': 1,
-        'steps': list([
-          dict({
-            'click': 'mail.delete.all',
-          }),
-          dict({
-            'wait': '1s',
-          }),
-          dict({
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'ui.button.confirm_blue',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'while_match': 'ui.button.confirm_blue',
-          }),
-        ]),
-        'while_match': 'mail.delete.all',
-      }),
     ]),
   })
 # ---
@@ -736,30 +640,6 @@
           }),
         ]),
         'while_match': 'mail.claim.all',
-      }),
-      dict({
-        'max': 1,
-        'steps': list([
-          dict({
-            'click': 'mail.delete.all',
-          }),
-          dict({
-            'wait': '1s',
-          }),
-          dict({
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'ui.button.confirm_blue',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'while_match': 'ui.button.confirm_blue',
-          }),
-        ]),
-        'while_match': 'mail.delete.all',
       }),
     ]),
   })

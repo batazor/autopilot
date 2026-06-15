@@ -5,14 +5,14 @@ priority: 80_000
 # Pushed by the chapter.new red-dot overlay rule on main_city and re-pushed
 # via chapter.daily.review right after the game-day reset; the node hop
 # (main_city/main_world → chapter) is handled by navigation via edge_taps.
-node: chapter
+node: chapter.daily_missions
 cond: "active_player != null"
 
 steps:
   # The panel opens on the Daily Missions tab, but tap it explicitly so a
   # remembered Growth tab cannot skew the pass (tapping the active tab is a
   # no-op).
-  - click: chapter.tab.daily_missions
+  - click: chapter.daily_missions.title
   - wait: 1s
 
   # Snapshot the daily reset clock ("Refreshes In: hh:mm:ss") as a durable
@@ -36,7 +36,7 @@ steps:
         max: 3
         steps:
           - click: button.tap_anywhere_to_exit
-          - wait: 0.3s
+          - wait: 1s
 
   # Then sweep any per-row Claim buttons left over.
   - while_match: button.claim
@@ -44,9 +44,14 @@ steps:
     steps:
       - click: button.claim
       - wait: 0.8s
+      - while_match: button.tap_anywhere_to_exit
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
 
   # Same pass on the Growth Missions tab.
-  - click: chapter.tab.growth_missions
+  - click: chapter.growth_missions.title
   - wait: 1s
 
   - while_match: chapter.button.claim_all

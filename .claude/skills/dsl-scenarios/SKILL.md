@@ -12,7 +12,7 @@ This skill is the stable semantics + idioms + gotchas. For exact paths, file nam
 ## Where things live
 
 - **Runnable YAML** lives under each module's `scenarios/` tree (per-game module layout — see CLAUDE.md). Filename (sans `.yaml`) is the scenario key; `by_cron/` subdirs are cron-only; `drafts/` is ignored by the resolver. `{placeholder}.yaml` is the template form (resolved per-target, e.g. `level_up_{hero}.yaml` → `level_up_chenko`).
-- **Regions** (bbox + per-region action metadata) live in each module's `area.yaml`, with reference crops under `references/crop/`. Region names are **globally unique**; `screen_id` is for screen detection, not a namespace for DSL lookup. **NEVER hand-edit `area.yaml` or its crops — only via the Labeling UI** (rule in CLAUDE.md). Hand-editing desyncs the bbox from its crop and causes format churn.
+- **Regions** (bbox + per-region action metadata) live in each module's `area.yaml`, with reference crops under `references/crop/`. Region names are **globally unique**; `screen_id` is for screen detection, not a namespace for DSL lookup. Hand-editing `area.yaml` (and its crops) is fine — keep each region's `bbox` consistent with its crop. The Labeling UI is a convenience for capture/crop, not a gatekeeper.
 - **Overlay rules** live in module-local `analyze/analyze.yaml` (merged at runtime). Analyzer YAML uses `findIcon`; `area.yaml` uses editor action `exist` — same overlay action internally.
 - **Schema is the authority:** `dsl/dsl_schema.py` (`DslScenario`, `DslStep`; models use `extra="allow"`, so unknown keys round-trip unvalidated). The `dsl_*_mixin.py` executors are runtime truth — **if runtime and schema disagree, the runtime wins.** When unsure about a key or modifier, grep the schema/executor rather than guessing.
 
@@ -162,7 +162,7 @@ Used at scenario-level and step-level (`cond: ...`).
 
 1. Classify the shape: overlay-triggered, cron/player-bound, device-level popup, or navigation/helper.
 2. Write the YAML under the right module's `scenarios/`; the filename (sans `.yaml`) is the scenario key.
-3. Label any new regions via the Labeling UI (never hand-edit `area.yaml`). Reuse an existing `node:` when navigation already knows it.
+3. Add any new regions to `area.yaml` (hand-edit or via the Labeling UI), keeping each `bbox` in sync with its crop. Reuse an existing `node:` when navigation already knows it.
 4. Compose with **guards**: `match + steps` or `while_match / max: 1` for optional UI. Never use bare `match:` for a maybe-absent element.
 5. Add a regression test next to the module (fake-actions replay). Verify with a manual trigger before relying on it.
 
@@ -174,7 +174,7 @@ Module tests live **next to the module** they protect (`<module>/tests/test_*.py
 
 ## Common pitfalls
 
-- **Hand-editing `area.yaml` / crops** — forbidden. Always via the Labeling UI (CLAUDE.md).
+- **Editing `area.yaml` / crops without keeping them in sync** — a bbox that no longer matches its crop silently breaks template matching. Hand-edit freely, but update both together.
 - **Bare `match:` for a "maybe-visible" element** — aborts the whole scenario on miss. Add a `steps:` block (or `while_match / max: 1`).
 - **Forgetting `enabled`** — a disabled scenario silently never runs.
 - **`ocr:` as a dict** — schema rejects it; `ocr:` is a scalar region name with sibling `store:`/`type:`/etc.

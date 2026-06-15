@@ -100,7 +100,8 @@
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         }
       ]
     },
@@ -167,6 +168,27 @@
             "y": 44.61982258583245,
             "width": 6.8969849246230766,
             "height": 4.084771170747522,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "screen_id": "main_world",
+      "ocr": "references/attack.png",
+      "regions": [
+        {
+          "name": "intel.attack",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 36.10824061943961,
+            "y": 46.86935733724932,
+            "width": 28.75628140703512,
+            "height": 2.2121608118827316,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

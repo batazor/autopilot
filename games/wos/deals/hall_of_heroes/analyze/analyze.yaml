@@ -1,9 +1,7 @@
 overlay:
   # The ``+`` button in the rewards panel renders with a tiny red dot when
-  # there is something new to claim on the Witness sub-page. The dot is too
-  # small for ``find_red_dots`` HSV/circularity gates, so we use the labeled
-  # bbox as a template instead — ``findIcon`` only fires when the button is
-  # drawn in the "with red dot" variant.
+  # there is something new to claim on the Witness sub-page. Gate the template
+  # match with ``isRedDot`` so the analyzer does not push on the plain ``+``.
   #
   # When matched, push ``deals.hall_of_heroes``: it reads the hub (dismiss the
   # tips overlay, OCR the event score), then taps ``deals.hall_of_heroes.add`` to
@@ -14,6 +12,7 @@ overlay:
     region: deals.hall_of_heroes.add
     action: findIcon
     threshold: 0.9
+    isRedDot: true
     screens:
       - deals.hall_of_heroes
     steps:

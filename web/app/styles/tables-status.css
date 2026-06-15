@@ -47,6 +47,55 @@
     @apply rounded border border-emerald-400/35 bg-emerald-500/10 px-2 py-1;
   }
 
+  /* Collapsible character sub-tables: chevron, row affordances, count pill. */
+  .data-table td.farm-expander-cell {
+    @apply w-9 pr-0 align-middle;
+  }
+
+  .farm-expander {
+    @apply inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-transparent text-wos-text-muted transition-colors hover:border-wos-border-subtle hover:bg-wos-panel-raised hover:text-wos-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40;
+  }
+
+  .farm-expander__icon {
+    @apply transition-transform duration-150;
+  }
+
+  .farm-expander__icon--open {
+    @apply rotate-90;
+  }
+
+  .farm-username {
+    @apply flex cursor-pointer flex-col items-start gap-0.5 rounded-md border-0 bg-transparent p-0 text-left transition-colors hover:text-sky-200;
+  }
+
+  .farm-count-badge {
+    @apply inline-flex min-w-6 justify-center rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-xs font-semibold tabular-nums text-wos-text-secondary;
+  }
+
+  .farm-char-count {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2.5 py-0.5 text-xs font-medium text-wos-text-secondary transition-colors hover:border-sky-400/50 hover:text-wos-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40;
+  }
+
+  .farm-char-count strong {
+    @apply font-semibold tabular-nums text-wos-text;
+  }
+
+  .farm-char-count--active {
+    @apply border-emerald-400/40 text-emerald-200;
+  }
+
+  .farm-char-count--active strong {
+    @apply text-emerald-100;
+  }
+
+  .data-table tr.farm-row--open td {
+    @apply bg-wos-panel-raised/35;
+  }
+
+  .data-table tr.farm-row--open.farm-row--active td {
+    @apply bg-emerald-950/30;
+  }
+
   .data-table tr.fleet-row {
     @apply cursor-pointer transition-colors;
   }

@@ -4,5 +4,5 @@ screens:
     rules:
       # The "return to city" button is only present on the world map (mutually
       # exclusive with icon.world, which detects main_city).
-      - match: button.to_main_city
+      - match: main_world.to.main_city
         threshold: 0.9

@@ -50,17 +50,3 @@ steps:
         steps:
           - click: button.tap_anywhere_to_exit
           - wait: 0.5s
-
-  - while_match: mail.delete.all
-    max: 1
-    steps:
-      - click: mail.delete.all
-      - wait: 1s
-      - while_match: mail.delete.confirm
-        max: 1
-        retry:
-          attempts: 3
-          interval: 500ms
-        steps:
-          - click: mail.delete.confirm
-          - wait: 0.5s

@@ -276,6 +276,19 @@ def test_production_screen_verify_yaml_contains_deals_rule() -> None:
     assert rules == expected
 
 
+def test_production_screen_verify_yaml_contains_vip_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        landmarks = screen_graph.screen_landmark_rules("vip")
+        rules = screen_graph.screen_verify_rules("vip")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    expected = [{"ocr": "page.common.title", "contains": "VIP", "threshold": 0.8}]
+    assert landmarks == expected
+    assert rules == expected
+
+
 def test_production_screen_verify_yaml_contains_exploration_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:

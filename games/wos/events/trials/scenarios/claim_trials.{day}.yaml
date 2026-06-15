@@ -71,4 +71,4 @@ steps:
             steps:
               - click: button.claim
               - wait: 2s
-              - click: page.vip.increase.close
+              - click: increase_level.icon.close

@@ -199,7 +199,6 @@ export type AttentionKind =
   | "worker_down"
   | "device_offline"
   | "instance_error"
-  | "approval_pending"
   | "nav_error"
   | "queue_stuck"
   | "task_stuck";

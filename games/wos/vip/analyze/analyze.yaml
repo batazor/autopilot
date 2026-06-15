@@ -8,3 +8,41 @@ overlay:
       - main_city
     steps:
       - push_scenario: vip.daily
+
+  # Standing ON the vip screen with unclaimed work lit (claim boxes, the "+"
+  # buy button, or a level-unlock badge): push vip.daily so the bot finishes
+  # the on-screen VIP work before it navigates elsewhere. vip.daily targets
+  # ``node: vip``, so at hops=0 it outranks any navigate-away task under the
+  # queue's hop debuff (graph_debuff = 500 × hops). The ``main_city`` badge
+  # rule above only fires from main_city, so it never covers this case.
+  # rule-level ``ttl`` throttles re-evaluation so a stuck red dot can't push
+  # vip.daily every tick.
+  - name: vip.page.box.red_dot
+    region: page.vip.box
+    isRedDot: true
+    device_level: true
+    ttl: 1m
+    screens:
+      - vip
+    steps:
+      - push_scenario: vip.daily
+
+  - name: vip.page.add.red_dot
+    region: page.vip.add
+    isRedDot: true
+    device_level: true
+    ttl: 1m
+    screens:
+      - vip
+    steps:
+      - push_scenario: vip.daily
+
+  - name: vip.page.unlock.red_dot
+    region: page.vip.unlock
+    isRedDot: true
+    device_level: true
+    ttl: 1m
+    screens:
+      - vip
+    steps:
+      - push_scenario: vip.daily

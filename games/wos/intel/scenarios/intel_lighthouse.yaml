@@ -36,50 +36,71 @@ steps:
 
   - click: intel.fight.view
   - wait_screen:
-      any: [intel.explore]
+      any: [intel.explore, main_world]
       max: 5
       interval: 500ms
 
-  - click: intel.explore
+  - cond: currentNode == intel.explore
+    steps:
+      - click: intel.explore
+  - cond: currentNode == main_world
+    steps:
+      - click: intel.attack
   - wait_screen:
-      any: [squad_settings]
+      any: [heroes.deploy, squad_settings]
       max: 10
       interval: 500ms
 
-  - click: squad_settings.quick_deploy
-  - wait: 200ms
-  - click: squad_settings.fight
-  - wait: 2s
-
-  - while_match: page.squad_fight.auto
-    max: 1
+  - cond: currentNode == heroes.deploy
     steps:
-      - click: page.squad_fight.auto
+      - click: heroes.deploy.equalize
+      - wait: 500ms
+      - ocr: heroes.deploy.ttl
+        type: string
+        store: intel.march_ttl
+      - click: heroes.deploy.deploy
       - wait: 1s
+      - exec: confirm_intel_march_lease
+        ttl_field: intel.march_ttl
+        round_trip_multiplier: 2
+        extra_seconds: 15
 
-  - while_match: page.squad_fight.speed
-    max: 1
+  - cond: currentNode == squad_settings
     steps:
-      - click: page.squad_fight.speed
+      - click: squad_settings.quick_deploy
+      - wait: 200ms
+      - click: squad_settings.fight
+      - wait: 2s
 
-  - wait_screen:
-      any: [exploration.victory, exploration.defeat]
-      max: 90
-      interval: 2s
-
-  - cond: currentNode == exploration.victory
-    steps:
-      - click: page.exploration.victory.next
-      - wait_screen:
-          any: [squad_settings, intel, main_city]
-          max: 8
-          interval: 500ms
-      - cond: currentNode == squad_settings
+      - while_match: page.squad_fight.auto
+        max: 1
         steps:
-          - click: icon.page.back
+          - click: page.squad_fight.auto
           - wait: 1s
 
-  - cond: currentNode == exploration.defeat
-    steps:
-      - click: button.to_main_city
-      - wait: 2s
+      - while_match: page.squad_fight.speed
+        max: 1
+        steps:
+          - click: page.squad_fight.speed
+
+      - wait_screen:
+          any: [exploration.victory, exploration.defeat]
+          max: 90
+          interval: 2s
+
+      - cond: currentNode == exploration.victory
+        steps:
+          - click: page.exploration.victory.next
+          - wait_screen:
+              any: [squad_settings, intel, main_city]
+              max: 8
+              interval: 500ms
+          - cond: currentNode == squad_settings
+            steps:
+              - click: icon.page.back
+              - wait: 1s
+
+      - cond: currentNode == exploration.defeat
+        steps:
+          - click: button.to_main_city
+          - wait: 2s
