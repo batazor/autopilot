@@ -7,9 +7,12 @@ import {
   type ExternalAccountsGame,
 } from "@/components/gift-codes/ExternalAccountsPanel";
 import { AppTabs } from "@/components/headless";
+import { ErrorBanner } from "@/components/feedback";
 import { PageHeader } from "@/components/PageHeader";
 import {
+  fetchBotStatus,
   fetchGiftCodeDiscordConfig,
+  fetchGiftCodePollStatus,
   fetchGiftCodes,
   redeemGiftCodes,
   scrapeGiftCodes,
@@ -140,6 +143,7 @@ function DiscordConfigPanel({
   onSave: () => void;
   onClearToken: () => void;
 }) {
+  const tokenMissing = !config?.token_configured;
   return (
     <section className="panel panel--spaced">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -175,7 +179,14 @@ function DiscordConfigPanel({
         </div>
       </div>
 
-      {error ? <div className="error-banner">{error}</div> : null}
+      <ErrorBanner
+        message={
+          error ??
+          (tokenMissing
+            ? "A Discord token is required before beta gift codes can be scraped. Add a token below and click Save Discord."
+            : null)
+        }
+      />
 
       <div className="grid gap-3 md:grid-cols-3">
         <label className="form-field">
@@ -189,8 +200,10 @@ function DiscordConfigPanel({
             className={INPUT_CLASS}
           />
           <span className="text-xs leading-snug text-wos-text-muted">
-            Use a bot token from Discord Developer Portal. Do not paste a
-            browser Authorization/user token from DevTools.
+            A Discord bot token (Developer Portal) or a personal
+            Authorization/user token both work. Note: using a user token with
+            the Discord API is against Discord&rsquo;s ToS and can get the
+            account flagged.
           </span>
         </label>
         <label className="form-field">
@@ -213,6 +226,102 @@ function DiscordConfigPanel({
         </label>
       </div>
     </section>
+  );
+}
+
+function formatDuration(totalSeconds: number): string {
+  const total = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+// Live countdown to the next scheduler-driven scrape for `game`. The backend
+// returns the remaining TTL of the cadence key; we anchor it to an absolute
+// target so a 1s tick stays accurate, and re-fetch every 30s (the scheduler
+// tick cadence) to resync and pick up a reset after a cycle fires.
+function NextPollTimer({ game }: { game: string }) {
+  const [intervalSeconds, setIntervalSeconds] = useState<number | null>(null);
+  const [targetMs, setTargetMs] = useState<number | null>(null);
+  const [unknown, setUnknown] = useState(false);
+  // The scheduler that drives auto-scrape runs inside the bot worker, so its
+  // running state is what makes the countdown meaningful. null = unknown yet.
+  const [schedulerRunning, setSchedulerRunning] = useState<boolean | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const s = await fetchGiftCodePollStatus(game);
+        if (!alive) return;
+        setIntervalSeconds(s.interval_seconds);
+        if (s.next_poll_seconds === null) {
+          setUnknown(true);
+          setTargetMs(null);
+        } else {
+          setUnknown(false);
+          setTargetMs(Date.now() + s.next_poll_seconds * 1000);
+        }
+      } catch {
+        if (!alive) return;
+        setUnknown(true);
+        setTargetMs(null);
+      }
+      try {
+        const bot = await fetchBotStatus();
+        if (alive) setSchedulerRunning(bot.running);
+      } catch {
+        if (alive) setSchedulerRunning(null);
+      }
+    };
+    load();
+    const refetch = setInterval(load, 30_000);
+    const tick = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => {
+      alive = false;
+      clearInterval(refetch);
+      clearInterval(tick);
+    };
+  }, [game]);
+
+  const everyLabel =
+    intervalSeconds !== null
+      ? `Auto-scrape every ${Math.round(intervalSeconds / 3600)}h · `
+      : "";
+
+  let countdown: string;
+  if (unknown) {
+    countdown = "next run: unknown";
+  } else if (targetMs === null) {
+    countdown = "next run: due now";
+  } else {
+    const remaining = Math.max(0, (targetMs - Date.now()) / 1000);
+    countdown =
+      remaining < 1 ? "next run: due now" : `next run in ${formatDuration(remaining)}`;
+  }
+
+  return (
+    <p className="mb-3 flex flex-wrap items-center gap-2 text-sm text-wos-text-muted">
+      <span>
+        {everyLabel}
+        {countdown}
+      </span>
+      {schedulerRunning === false ? (
+        <span
+          className="status-pill pill-paused"
+          title="The bot worker (which runs the scheduler) is stopped, so auto-scrape won't fire until it's started."
+        >
+          scheduler stopped
+        </span>
+      ) : schedulerRunning === true ? (
+        <span className="status-pill pill-live" title="Scheduler is running.">
+          scheduler active
+        </span>
+      ) : null}
+    </p>
   );
 }
 
@@ -330,6 +439,14 @@ function GiftCodesContent() {
   };
 
   const runAction = async (action: "scrape" | "redeem") => {
+    if (
+      action === "scrape" &&
+      BETA_GIFT_CODE_GAME_IDS.has(game) &&
+      !discordConfig?.token_configured
+    ) {
+      setError("A Discord token is required to scrape beta gift codes.");
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -354,6 +471,10 @@ function GiftCodesContent() {
 
   const m = data?.metrics;
   const redeemSupported = data?.redeem_supported ?? !BETA_GIFT_CODE_GAME_IDS.has(game);
+  // Beta games scrape from Discord, which needs a token. Block the scrape
+  // action (and explain why) until one is configured.
+  const isBetaGame = BETA_GIFT_CODE_GAME_IDS.has(game);
+  const betaTokenMissing = isBetaGame && !discordConfig?.token_configured;
 
   return (
     <>
@@ -407,20 +528,20 @@ function GiftCodesContent() {
         ]}
       />
 
-      {error ? <div className="error-banner">{error}</div> : null}
+      <ErrorBanner message={error} onRetry={load} />
       {message ? (
         <div className="success-banner">{message}</div>
       ) : null}
 
       {data?.parse_error ? (
-        <div className="error-banner">YAML error: {data.parse_error}</div>
+        <ErrorBanner message={`YAML error: ${data.parse_error}`} />
       ) : null}
       {data?.missing_codes_file ? (
         <p className="muted">Codes file missing — run Scrape.</p>
       ) : null}
 
       {!redeemSupported ? (
-        <section className="panel panel--spaced">
+        <section className="panel panel--spaced mb-4">
           <h2 className="m-0">Manual beta apply</h2>
           <p className="muted m-0">
             Beta gift codes are applied inside the beta game client for the
@@ -429,11 +550,18 @@ function GiftCodesContent() {
         </section>
       ) : null}
 
+      <NextPollTimer game={game} />
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
           className="btn-secondary"
-          disabled={busy}
+          disabled={busy || betaTokenMissing}
+          title={
+            betaTokenMissing
+              ? "A Discord token is required to scrape beta codes"
+              : undefined
+          }
           onClick={() => runAction("scrape")}
         >
           Scrape now

@@ -1303,6 +1303,20 @@ export async function redeemGiftCodes(
   return apiFetch(`/api/gift-codes/redeem?${q}`, { method: "POST" });
 }
 
+export type GiftCodePollStatus = {
+  game: string;
+  interval_seconds: number;
+  /** Seconds until the next scheduler scrape; 0 = due now, null = unknown. */
+  next_poll_seconds: number | null;
+};
+
+export async function fetchGiftCodePollStatus(
+  game = "wos",
+): Promise<GiftCodePollStatus> {
+  const q = new URLSearchParams({ game }).toString();
+  return apiFetch<GiftCodePollStatus>(`/api/gift-codes/poll-status?${q}`);
+}
+
 export type GiftCodeDiscordConfig = {
   token_configured: boolean;
   token_source: "ui" | "none";
