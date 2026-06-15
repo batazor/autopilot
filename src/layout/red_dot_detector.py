@@ -76,6 +76,17 @@ when a compact red candidate contains enough bright low-saturation pixels inside
 its bbox to explain the hollow shape as a white counter, not as a banner.
 """
 
+RED_DOT_MIN_PLAIN_SCORE = 0.50
+"""Minimum ``circularity * fill_ratio`` for a plain red badge.
+
+Red notification badges without white counter text are compact, smooth discs;
+real captures sit comfortably above this floor. Red resource icons and item art
+can expose small circular-ish red fragments, but their masks are jagged or
+partially merged with icon detail and score lower. Those low-score candidates
+are still allowed through when the white-counter fallback proves they are a
+numbered badge.
+"""
+
 RED_DOT_MIN_MEDIAN_SATURATION = 180
 RED_DOT_MIN_MEDIAN_VALUE = 200
 """Median S/V (HSV) of the matched red pixels inside the contour. Real
@@ -326,8 +337,13 @@ def find_red_dots(
             continue
 
         circularity = 4.0 * pi * area / (perimeter * perimeter)
+        score = float(min(1.0, circularity * fill_ratio))
         counter_like = False
-        if circularity < RED_DOT_MIN_CIRCULARITY or fill_ratio < RED_DOT_MIN_FILL_RATIO:
+        if (
+            circularity < RED_DOT_MIN_CIRCULARITY
+            or fill_ratio < RED_DOT_MIN_FILL_RATIO
+            or score < RED_DOT_MIN_PLAIN_SCORE
+        ):
             bbox_hsv = hsv[y : y + h, x : x + w]
             if bbox_hsv.size == 0:
                 continue
@@ -383,7 +399,6 @@ def find_red_dots(
 
         cx = float(x) + bw / 2.0
         cy = float(y) + bh / 2.0
-        score = float(min(1.0, circularity * fill_ratio))
         out.append(RedDotDetection(cx=cx, cy=cy, radius=float(radius), score=score))
 
     out.sort(key=lambda d: d.score, reverse=True)

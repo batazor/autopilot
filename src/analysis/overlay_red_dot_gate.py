@@ -27,6 +27,81 @@ def _probe_red_dot_within_zone(image_bgr: np.ndarray, bbox: dict[str, float]) ->
     )
 
 
+def build_static_red_dot_hit(
+    *,
+    region: str,
+    region_def: dict[str, Any],
+    image_bgr: np.ndarray,
+    requirement: bool,
+    tap_delta: tuple[str, float, float] | None = None,
+) -> dict[str, Any]:
+    """Build the shared standalone red-dot probe row.
+
+    This is the one model for ``isRedDot`` / ``action: red_dot`` when the badge
+    is searched inside a labeled static bbox. Dynamic badge checks after a
+    moving template match still go through ``findIcon + isRedDot``.
+    """
+    want_present = bool(requirement)
+    hit: dict[str, Any] = {
+        "matched": False,
+        "action": "red_dot",
+        "region": region,
+        "want_dot_present": want_present,
+        "red_dot_required": want_present,
+    }
+    if not bool(region_def.get("has_red_dot")):
+        hit["reason"] = "red_dot_capability_disabled"
+        return hit
+    if bool(region_def.get("isSearch")):
+        hit["reason"] = "red_dot_within_zone_only"
+        hit["detail"] = (
+            "isSearch is dynamic findIcon search; use findIcon+isRedDot "
+            "for badge probes relative to the match, not standalone isRedDot"
+        )
+        return hit
+
+    bbox = region_def.get("bbox") if isinstance(region_def.get("bbox"), dict) else None
+    if bbox is None:
+        hit["reason"] = "missing_bbox_for_red_dot"
+        return hit
+
+    present = _probe_red_dot_within_zone(image_bgr, bbox)
+    matched = present if want_present else not present
+
+    try:
+        cx = float(bbox.get("x") or 0.0) + float(bbox.get("width") or 0.0) / 2.0
+        cy = float(bbox.get("y") or 0.0) + float(bbox.get("height") or 0.0) / 2.0
+    except (TypeError, ValueError):
+        cx = cy = 0.0
+
+    tap_x = cx
+    tap_y = cy
+    if tap_delta is not None:
+        _tap_region, dx_pct, dy_pct = tap_delta
+        tap_x = cx + dx_pct
+        tap_y = cy + dy_pct
+
+    hit.update(
+        {
+            "matched": matched,
+            "red_dot_present": present,
+            "red_dot_search_mode": "within_zone",
+            "tap_x_pct": tap_x,
+            "tap_y_pct": tap_y,
+            "tap_match_x_pct": cx,
+            "tap_match_y_pct": cy,
+        }
+    )
+    if tap_delta is not None:
+        tap_region, dx_pct, dy_pct = tap_delta
+        hit["tap_region"] = tap_region
+        hit["tap_delta_x_pct"] = dx_pct
+        hit["tap_delta_y_pct"] = dy_pct
+    if present != want_present:
+        hit["reason"] = "red_dot_missing" if want_present else "red_dot_unexpected"
+    return hit
+
+
 def _probe_red_dot_at_template_match(
     image_bgr: np.ndarray,
     top_left: tuple[int, int],
@@ -206,4 +281,3 @@ def _finalize_findicon_hit(
         if red_dot_bbox is not None:
             hit["red_dot_bbox"] = red_dot_bbox
     return hit
-

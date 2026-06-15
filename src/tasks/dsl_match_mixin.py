@@ -28,9 +28,9 @@ if TYPE_CHECKING:
     from tasks._dsl_task_host import _DslTaskHost as _Base
 else:
     _Base = object
+from analysis.overlay_red_dot_gate import build_static_red_dot_hit
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
-from layout.red_dot_detector import has_red_dot_in_bbox_percent
 from layout.tab_active_detector import (
     TAB_ACTIVE_MAX_MEAN_SATURATION,
     TAB_ACTIVE_MIN_MEAN_VALUE,
@@ -446,48 +446,12 @@ class DslMatchMixin(_Base):
         the row populates ``tap_x_pct`` / ``tap_y_pct`` from the bbox center so
         a follow-up ``click:`` on the same region still has coords.
         """
-        base: dict[str, Any] = {
-            "matched": False,
-            "action": "red_dot",
-            "region": region,
-            "red_dot_required": bool(requirement),
-        }
-        if not bool(region_def.get("has_red_dot")):
-            base["reason"] = "red_dot_capability_disabled"
-            return base
-        bbox = region_def.get("bbox") if isinstance(region_def.get("bbox"), dict) else None
-        if bbox is None:
-            base["reason"] = "missing_bbox_for_red_dot"
-            return base
-
-        # Strict-bbox search: when a region declares ``has_red_dot: true`` the
-        # author already drew the rectangle around where the badge appears, so
-        # the detector should honour that exact rectangle — no upward padding
-        # for unread-counter overflow, no sideways pad for edge taps. Mirrors
-        # the overlay engine's red_dot handler. Without this, a wipe of the
-        # labeled bbox in tests still triggers on neighbouring badges and the
-        # ``while_match`` loop never exits.
-        present = bool(
-            has_red_dot_in_bbox_percent(
-                image_bgr, bbox, pad_px=0, edge_badge_pad_ratio=0.0
-            )
+        return build_static_red_dot_hit(
+            region=region,
+            region_def=region_def,
+            image_bgr=image_bgr,
+            requirement=requirement,
         )
-        base["red_dot_present"] = present
-        if present != bool(requirement):
-            base["reason"] = "red_dot_missing" if requirement else "red_dot_unexpected"
-            return base
-
-        base["matched"] = True
-        try:
-            cx = float(bbox.get("x") or 0.0) + float(bbox.get("width") or 0.0) / 2.0
-            cy = float(bbox.get("y") or 0.0) + float(bbox.get("height") or 0.0) / 2.0
-        except (TypeError, ValueError):
-            cx = cy = 0.0
-        base["tap_x_pct"] = cx
-        base["tap_y_pct"] = cy
-        base["tap_match_x_pct"] = cx
-        base["tap_match_y_pct"] = cy
-        return base
 
     @staticmethod
     def _build_yellow_glow_only_row(

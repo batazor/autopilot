@@ -74,6 +74,22 @@ CONTENT_MIN_COL_RATIO = 0.20
 """Stop walking outward when a slot's mean column-content ratio drops below
 this — signals we walked off the visible tab strip."""
 
+FALLBACK_BLUE_HUE_LO = 85
+FALLBACK_BLUE_HUE_HI = 120
+FALLBACK_BLUE_MIN_SAT = 80
+FALLBACK_BLUE_MIN_VAL = 100
+FALLBACK_BAND_Y_HI = 0.25
+FALLBACK_COL_RATIO = 0.10
+FALLBACK_SMOOTH_KERNEL_W = 9
+"""Fallback segmentation for shop-like strips with no reliable active capsule.
+
+Some shop pages render all visible top-strip tabs as blue capsules while the
+actual active product page is represented by the content panel, not by a white
+tab. The active-blob anchor then latches onto a tiny piece of white text and
+produces many skinny slots. In that case, segment visible blue tab bodies in
+the top quarter of the strip instead.
+"""
+
 
 @dataclass(frozen=True)
 class TabDetection:
@@ -90,6 +106,8 @@ class TabDetection:
     bbox_percent: dict[str, float]
     active: bool
     has_red_dot: bool
+    color_state: str = "unknown"
+    segment_source: str = "unknown"
 
 
 def _largest_white_blob(band: np.ndarray, min_area: float) -> tuple[int, int] | None:
@@ -202,6 +220,110 @@ def _walk_slots(
     return slots
 
 
+def _blue_tab_runs(strip_hsv: np.ndarray) -> list[tuple[int, int]]:
+    """Return visible blue tab-body runs from the strip top band."""
+    sh, sw = strip_hsv.shape[:2]
+    y1 = max(1, int(sh * FALLBACK_BAND_Y_HI))
+    band = strip_hsv[:y1, :]
+    h_plane = band[..., 0]
+    s_plane = band[..., 1]
+    v_plane = band[..., 2]
+    blue = (
+        (h_plane > FALLBACK_BLUE_HUE_LO)
+        & (h_plane < FALLBACK_BLUE_HUE_HI)
+        & (s_plane > FALLBACK_BLUE_MIN_SAT)
+        & (v_plane > FALLBACK_BLUE_MIN_VAL)
+    )
+    col = blue.mean(axis=0)
+    kernel_w = max(1, min(FALLBACK_SMOOTH_KERNEL_W, sw))
+    kernel = np.ones(kernel_w, dtype=np.float32) / float(kernel_w)
+    smoothed = np.convolve(col, kernel, mode="same")
+    mask = smoothed > FALLBACK_COL_RATIO
+
+    min_width = max(20, int(round(sw * 0.03)))
+    runs: list[tuple[int, int]] = []
+    start: int | None = None
+    for i, value in enumerate(mask):
+        if bool(value) and start is None:
+            start = i
+        if (not bool(value) or i == len(mask) - 1) and start is not None:
+            end = i if not bool(value) else i + 1
+            if end - start >= min_width:
+                runs.append((start, end))
+            start = None
+    return runs
+
+
+def _tabs_from_runs(
+    *,
+    image_bgr: np.ndarray,
+    patch: np.ndarray,
+    px: int,
+    py: int,
+    strip_h: int,
+    runs: list[tuple[int, int]],
+) -> list[TabDetection]:
+    """Build tab detections from explicit run boundaries."""
+    img_h, img_w = image_bgr.shape[:2]
+    strip_dots = find_red_dots(patch, image_h_for_norm=img_h)
+    dot_xs = [float(d.cx) for d in strip_dots]
+
+    out: list[TabDetection] = []
+    for idx, (x0, x1) in enumerate(runs):
+        abs_x0 = px + x0
+        abs_w = x1 - x0
+        bbox_pct = {
+            "x": (abs_x0 / img_w) * 100.0,
+            "y": (py / img_h) * 100.0,
+            "width": (abs_w / img_w) * 100.0,
+            "height": (strip_h / img_h) * 100.0,
+        }
+        dot_pad = max(8.0, float(abs_w) * 0.08)
+        has_dot = any((x0 - dot_pad) <= dx < (x1 + dot_pad) for dx in dot_xs)
+        active = is_tab_active_in_bbox_percent(image_bgr, bbox_pct)
+        out.append(
+            TabDetection(
+                index=idx,
+                bbox_percent=bbox_pct,
+                active=active,
+                has_red_dot=has_dot,
+                color_state=_tab_color_state(image_bgr, bbox_pct, active=active),
+                segment_source="blue_runs",
+            )
+        )
+    return out
+
+
+def _tab_blue_ratio(image_bgr: np.ndarray, bbox_pct: dict[str, float]) -> float:
+    patch, _ = patch_bgr_from_bbox_percent(image_bgr, bbox_pct)
+    if patch.size == 0:
+        return 0.0
+    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
+    h_plane = hsv[..., 0]
+    s_plane = hsv[..., 1]
+    v_plane = hsv[..., 2]
+    blue = (
+        (h_plane > FALLBACK_BLUE_HUE_LO)
+        & (h_plane < FALLBACK_BLUE_HUE_HI)
+        & (s_plane > FALLBACK_BLUE_MIN_SAT)
+        & (v_plane > FALLBACK_BLUE_MIN_VAL)
+    )
+    return float(np.count_nonzero(blue)) / float(blue.size)
+
+
+def _tab_color_state(
+    image_bgr: np.ndarray,
+    bbox_pct: dict[str, float],
+    *,
+    active: bool,
+) -> str:
+    if active:
+        return "active_light"
+    if _tab_blue_ratio(image_bgr, bbox_pct) >= 0.05:
+        return "inactive_blue"
+    return "inactive_unknown"
+
+
 def detect_tabs_in_strip(
     image_bgr: np.ndarray,
     strip_bbox_percent: dict[str, float],
@@ -226,7 +348,17 @@ def detect_tabs_in_strip(
 
     hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
     active = _find_active_blob(hsv)
-    if active is None:
+    if active is None or active[1] < sw * MIN_ACTIVE_WIDTH_RATIO:
+        runs = _blue_tab_runs(hsv)
+        if runs:
+            return _tabs_from_runs(
+                image_bgr=image_bgr,
+                patch=patch,
+                px=px,
+                py=py,
+                strip_h=sh,
+                runs=runs,
+            )
         return []
     active_x, active_w = active
     active_cx = active_x + active_w // 2
@@ -282,6 +414,8 @@ def detect_tabs_in_strip(
                 bbox_percent=bbox_pct,
                 active=is_active,
                 has_red_dot=has_dot,
+                color_state=_tab_color_state(image_bgr, bbox_pct, active=is_active),
+                segment_source="active_anchor",
             )
         )
 

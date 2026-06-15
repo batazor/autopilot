@@ -71,7 +71,8 @@ from analysis.overlay_red_dot_gate import (
     _direct_template_red_dot_bbox,  # noqa: F401
     _finalize_findicon_hit,
     _probe_red_dot_at_template_match,  # noqa: F401
-    _probe_red_dot_within_zone,
+    _probe_red_dot_within_zone,  # noqa: F401
+    build_static_red_dot_hit,
 )
 from analysis.overlay_template_match import (
     _TEMPLATE_CACHE_MAX,  # noqa: F401
@@ -170,55 +171,10 @@ async def evaluate_overlay_rules_async(
                     "region": region_name_rd,
                     "action": "red_dot",
                     "want_dot_present": want_present,
+                    "red_dot_required": want_present,
                 }
                 continue
             _entry_rd, reg_rd = pair_rd
-            if not bool(reg_rd.get("has_red_dot")):
-                out[logical_name] = {
-                    "matched": False,
-                    "reason": "red_dot_capability_disabled",
-                    "region": region_name_rd,
-                    "action": "red_dot",
-                    "want_dot_present": want_present,
-                }
-                continue
-            bbox_rd = reg_rd.get("bbox")
-            if not isinstance(bbox_rd, dict):
-                out[logical_name] = {
-                    "matched": False,
-                    "reason": "missing_bbox",
-                    "region": region_name_rd,
-                    "action": "red_dot",
-                    "want_dot_present": want_present,
-                }
-                continue
-            # Within-zone search: honour the labeled rectangle exactly (same as
-            # DSL ``_build_red_dot_only_row``). Do not mix with dynamic/isSearch
-            # badge slots — those run only after ``findIcon`` locates a template.
-            if bool(reg_rd.get("isSearch")):
-                out[logical_name] = {
-                    "matched": False,
-                    "reason": "red_dot_within_zone_only",
-                    "region": region_name_rd,
-                    "action": "red_dot",
-                    "want_dot_present": want_present,
-                    "detail": (
-                        "isSearch is dynamic findIcon search; use findIcon+isRedDot "
-                        "for badge probes relative to the match, not standalone isRedDot"
-                    ),
-                }
-                continue
-            present_rd = _probe_red_dot_within_zone(image_bgr, bbox_rd)
-            matched_rd = present_rd if want_present else not present_rd
-
-            bx = float(bbox_rd.get("x") or 0.0)
-            by = float(bbox_rd.get("y") or 0.0)
-            bw = float(bbox_rd.get("width") or 0.0)
-            bh = float(bbox_rd.get("height") or 0.0)
-            mx_pct_rd = bx + bw / 2.0
-            my_pct_rd = by + bh / 2.0
-            tap_x_pct_rd = mx_pct_rd
-            tap_y_pct_rd = my_pct_rd
             tap_delta_rd = _tap_region_delta_pct(
                 area_doc,
                 region_name_rd,
@@ -226,28 +182,13 @@ async def evaluate_overlay_rules_async(
                 state_flat=state_flat,
                 screen_id=cur_screen_norm or None,
             )
-            if tap_delta_rd is not None:
-                _tap_reg_rd, dx_pct_rd, dy_pct_rd = tap_delta_rd
-                tap_x_pct_rd = mx_pct_rd + dx_pct_rd
-                tap_y_pct_rd = my_pct_rd + dy_pct_rd
-
-            hit_rd: dict[str, Any] = {
-                "matched": matched_rd,
-                "action": "red_dot",
-                "region": region_name_rd,
-                "want_dot_present": want_present,
-                "red_dot_present": present_rd,
-                "red_dot_search_mode": "within_zone",
-                "tap_x_pct": tap_x_pct_rd,
-                "tap_y_pct": tap_y_pct_rd,
-                "tap_match_x_pct": mx_pct_rd,
-                "tap_match_y_pct": my_pct_rd,
-            }
-            if tap_delta_rd is not None:
-                tap_reg_rd, dx_pct_rd, dy_pct_rd = tap_delta_rd
-                hit_rd["tap_region"] = tap_reg_rd
-                hit_rd["tap_delta_x_pct"] = dx_pct_rd
-                hit_rd["tap_delta_y_pct"] = dy_pct_rd
+            hit_rd = build_static_red_dot_hit(
+                region=region_name_rd,
+                region_def=reg_rd,
+                image_bgr=image_bgr,
+                requirement=want_present,
+                tap_delta=tap_delta_rd,
+            )
             push_tasks_rd = compiled.push_tasks
             if push_tasks_rd:
                 hit_rd["pushScenario"] = push_tasks_rd
@@ -428,6 +369,8 @@ async def evaluate_overlay_rules_async(
                     "bbox": t.bbox_percent,
                     "active": t.active,
                     "has_red_dot": t.has_red_dot,
+                    "color_state": t.color_state,
+                    "segment_source": t.segment_source,
                     "page_id": tab_ids_dt.get(t.index),
                 }
                 for t in tabs_dt

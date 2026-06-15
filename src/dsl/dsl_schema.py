@@ -265,6 +265,7 @@ class DslScenario(BaseModel):
     node: str | None = None
     cond: str | None = None
     icon: str | None = None
+    ranking: dict[str, Any] | None = None
     steps: list[DslStep] = Field(default_factory=list)
 
 

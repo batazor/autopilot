@@ -41,6 +41,15 @@ PLUS5_BOOSTER_PILL_FIXTURE = (
 BACKPACK_PASS_GEM_FALSE_POSITIVE = (
     REPO_ROOT / "tests" / "fixtures" / "red_dot_backpack_pass_gem_false_positive.png"
 )
+SHOP_CUSTOM_ARTISTRY_REFERENCE = (
+    REPO_ROOT
+    / "games"
+    / "wos"
+    / "core"
+    / "shop"
+    / "references"
+    / "page.shop.custom_artistry_chest.png"
+)
 
 REFERENCE_W = 720
 REFERENCE_H = REFERENCE_IMAGE_HEIGHT
@@ -343,6 +352,17 @@ def test_backpack_pass_gems_are_not_red_dots() -> None:
     h, w = img.shape[:2]
     gem_bbox = _bbox_percent(252, 580, 90, 90, frame_w=w, frame_h=h)
     assert has_red_dot_in_bbox_percent(img, gem_bbox) is False
+
+
+def test_shop_fire_crystal_tab_icon_is_not_a_red_dot() -> None:
+    """Shop tab item art can contain circular-ish saturated red fragments.
+    Those are resource icons, not notification badges."""
+    img = cv2.imread(str(SHOP_CUSTOM_ARTISTRY_REFERENCE))
+    assert img is not None, f"failed to load fixture: {SHOP_CUSTOM_ARTISTRY_REFERENCE}"
+    h, w = img.shape[:2]
+    # Tight bbox around the red Fire Crystal Energy icon in the top tab strip.
+    resource_icon_bbox = _bbox_percent(468, 126, 84, 62, frame_w=w, frame_h=h)
+    assert has_red_dot_in_bbox_percent(img, resource_icon_bbox) is False
 
 
 # ---------------------------------------------------------------------------

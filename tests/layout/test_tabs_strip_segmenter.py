@@ -18,6 +18,7 @@ import cv2
 import pytest
 
 from layout.area_manifest import load_area_doc
+from layout.tabs_strip_navigator import StripAction, pick_next_strip_action
 from layout.tabs_strip_segmenter import detect_tabs_in_strip
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -74,6 +75,10 @@ def test_shop_tab_segmentation(
     assert actual_dots == expected_dots, (
         f"{screenshot}: red_dot mismatch — got {actual_dots}, expected {expected_dots}"
     )
+    assert tabs[expected_active_idx].color_state == "active_light"
+    for t in tabs:
+        if not t.active:
+            assert t.color_state in {"inactive_blue", "inactive_unknown"}
 
 
 def test_indices_are_left_to_right(strip_bbox: dict) -> None:
@@ -105,3 +110,24 @@ def test_exactly_one_active_per_strip(strip_bbox: dict) -> None:
         tabs = detect_tabs_in_strip(img, strip_bbox)
         n_active = sum(1 for t in tabs if t.active)
         assert n_active == 1, f"{name}: expected 1 active tab, got {n_active}"
+
+
+def test_shop_blue_run_fallback_keeps_click_inside_red_dot_tab(strip_bbox: dict) -> None:
+    """Some Shop product pages have no reliable white active tab in the strip.
+
+    The segmenter must fall back to visible blue tab bodies rather than using a
+    tiny text fragment as pitch; otherwise it creates many skinny slots and
+    clicks the border just right of ``Daily Deals``.
+    """
+    img = _load("page.shop.fire_crystal_pack.png")
+    tabs = detect_tabs_in_strip(img, strip_bbox)
+
+    assert len(tabs) == 4
+    assert [t.has_red_dot for t in tabs] == [False, False, True, False]
+    assert {t.segment_source for t in tabs} == {"blue_runs"}
+    assert tabs[2].color_state == "inactive_blue"
+    assert pick_next_strip_action(tabs) == StripAction("click_tab", tab_index=2)
+
+    daily = tabs[2].bbox_percent
+    center_x = (daily["x"] + daily["width"] / 2.0) / 100.0 * 720
+    assert 330 <= center_x <= 380

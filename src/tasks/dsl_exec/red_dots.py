@@ -125,6 +125,8 @@ async def _exec_click_next_red_dot_tab(ctx: DslExecContext) -> None:
             "tab_count": len(tabs),
             "red_dot_indices": [t.index for t in tabs if t.has_red_dot],
             "active_indices": [t.index for t in tabs if t.active],
+            "tab_color_states": [t.color_state for t in tabs],
+            "tab_segment_sources": [t.segment_source for t in tabs],
         }
     )
     if decision.kind != "click_tab" or decision.tab_index is None:
