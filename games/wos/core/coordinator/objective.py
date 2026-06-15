@@ -29,6 +29,10 @@ DOMAIN_BAND: dict[str, float] = {
     # ceiling (gather 450 × economy gather_boost 1.6 = 720): clear the quick,
     # expiring Intel run before committing a slot to a long gather.
     "intel": 760.0,
+    # Time-limited events that spend a march (e.g. Romance Season: a daily-capped,
+    # TTL'd attack). Use-it-or-lose-it like intel, banded just below it and above
+    # ordinary raids/gather. One band shared by such events; tune per-event via boost.
+    "romance_season": 750.0,
     "raids": 600.0,
     "heroes": 580.0,
     "pets": 560.0,
@@ -51,6 +55,7 @@ DOMAIN_CATEGORY: dict[str, str] = {
     "heroes": "growth",          # role tilt already baked into the hero planner's value
     "pets": "growth",            # role tilt already baked into the pet planner's value
     "intel": "growth",           # time-limited free loot — valuable to every role
+    "romance_season": "growth",  # time-limited event reward — valuable to every role
 }
 
 # Map a building planner track to a coordinator domain.

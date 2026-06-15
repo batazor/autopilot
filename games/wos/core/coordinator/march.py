@@ -81,6 +81,39 @@ def intel_intent(
     )
 
 
+def timed_event_intent(
+    domain: str,
+    *,
+    active: bool,
+    attempts_left: int | None,
+    cost: Mapping[str, int] | None = None,
+    key: str | None = None,
+    role: RoleProfile | None = None,
+    boost: float = 1.0,
+) -> CandidateAction | None:
+    """A MARCH candidate for a time-limited event that spends a march.
+
+    Generic over events like Romance Season: eligible only while the event is
+    ``active`` (its TTL window is open) and it still has ``attempts_left`` for the
+    day (``None`` = unknown → allow; ``<= 0`` = exhausted → skip). The attack
+    spends a march slot but not the shared resource pool, so ``cost`` defaults to
+    empty (it never starves on resources — it just needs a free slot). Returns
+    ``None`` to skip the event this tick.
+    """
+    if not active:
+        return None
+    if attempts_left is not None and attempts_left <= 0:
+        return None
+    return CandidateAction(
+        domain=domain,
+        channel_kind=MARCH,
+        key=key or f"{domain}:run",
+        priority=domain_priority(domain, role, boost=boost),
+        cost=dict(cost or {}),
+        detail=f"{domain} (event)",
+    )
+
+
 def plan_march(
     *,
     idle_slots: int,

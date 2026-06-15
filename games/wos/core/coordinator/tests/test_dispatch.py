@@ -209,3 +209,92 @@ async def test_tick_no_idle_slots_dispatches_nothing():
     )
 
     assert result.enqueued == ()
+
+
+# --- Romance Season: a second time-limited MARCH-spending event --------------
+
+
+def _romance_state(*, ttl: str, attempts: str, **extra: str) -> dict[str, str]:
+    return {
+        "events.romanceSeason.ttl_remaining_s": ttl,
+        "events.romanceSeason.attack_count": attempts,
+        **extra,
+    }
+
+
+@pytest.mark.asyncio
+async def test_dispatches_committed_romance_as_event_scenario():
+    queue = _FakeQueue()
+    decision = _decision(Commit("march_1", _march_action("romance_season", priority=750.0)))
+
+    result = await dispatch_march(
+        decision, queue=queue, instance_id="i1", player_id="p1", now=1000.0
+    )
+
+    assert queue.calls[0]["task_type"] == "event.romance_season"
+    assert [e.task_type for e in result.enqueued] == ["event.romance_season"]
+
+
+@pytest.mark.asyncio
+async def test_tick_dispatches_romance_when_active_with_attempts():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(_romance_state(ttl="3600", attempts="5"))  # no stamina → isolate romance
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert [e.task_type for e in result.enqueued] == ["event.romance_season"]
+
+
+@pytest.mark.asyncio
+async def test_tick_skips_romance_when_window_expired():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(_romance_state(ttl="0", attempts="5"))
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert result.enqueued == ()
+
+
+@pytest.mark.asyncio
+async def test_tick_skips_romance_when_attempts_exhausted():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(_romance_state(ttl="3600", attempts="0"))
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert result.enqueued == ()
+
+
+@pytest.mark.asyncio
+async def test_tick_intel_outranks_romance_for_one_slot():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(_romance_state(ttl="3600", attempts="5", stamina="100"))
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert [e.task_type for e in result.enqueued] == ["intel_run"]
+
+
+@pytest.mark.asyncio
+async def test_tick_two_slots_run_intel_and_romance():
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(_romance_state(ttl="3600", attempts="5", stamina="100"))
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=2,
+    )
+
+    assert sorted(e.task_type for e in result.enqueued) == ["event.romance_season", "intel_run"]

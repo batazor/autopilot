@@ -21,7 +21,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .march import intel_intent, plan_march
+from .march import intel_intent, plan_march, timed_event_intent
 from .model import MARCH
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from scheduler.queue import RedisQueue
 
-    from .model import CoordinatorDecision
+    from .model import CandidateAction, CoordinatorDecision
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,9 @@ class MarchScenario:
 # skipped rather than silently dropped.
 MARCH_SCENARIOS: dict[str, MarchScenario] = {
     "intel": MarchScenario(task_type="intel_run", dsl_scenario="intel_run"),
+    "romance_season": MarchScenario(
+        task_type="event.romance_season", dsl_scenario="event.romance_season"
+    ),
 }
 
 
@@ -147,6 +150,37 @@ def _to_float(text: str) -> float | None:
         return None
 
 
+def _to_int(text: str) -> int | None:
+    f = _to_float(text)
+    return int(f) if f is not None else None
+
+
+def _romance_intent(
+    state: Mapping[str, str],
+    *,
+    role: RoleProfile | None,
+    boost: float,
+) -> CandidateAction | None:
+    """Romance Season MARCH candidate from the scenario's read-and-cached state.
+
+    The ``event.romance_season`` scenario writes ``ttl_remaining_s`` (window open
+    while > 0) and ``attack_count`` (attempts left today, capped at 5) into the
+    player-state hash. Active + attempts → it competes for a march slot, banded
+    just below intel. NOTE: ``ttl_remaining_s`` is the last on-screen read (it
+    doesn't decay between reads); the durable ``event_timer`` (config.event_timers,
+    ``event_timer: romance_season``) is the authoritative TTL for a follow-up.
+    """
+    ttl = _to_float(state.get("events.romanceSeason.ttl_remaining_s", ""))
+    attempts = _to_int(state.get("events.romanceSeason.attack_count", ""))
+    return timed_event_intent(
+        "romance_season",
+        active=ttl is not None and ttl > 0,
+        attempts_left=attempts,
+        role=role,
+        boost=boost,
+    )
+
+
 async def _read_player_state(redis: Redis, player_id: str) -> dict[str, str]:
     try:
         raw = await redis.hgetall(f"wos:player:{player_id}:state")
@@ -213,21 +247,29 @@ async def run_march_tick(
         queue, instance_id=instance_id, player_id=player_id, now=now
     )
 
-    intent = intel_intent(
-        stamina=stamina,
-        seconds_since_last_run=secs_since,
-        reserve=reserve,
-        cooldown_s=cooldown_s,
-        role=role,
-        boost=(boosts or {}).get("intel", 1.0),
-    )
+    # MARCH-spending candidates whose eligibility isn't a live board read:
+    # the blind intel run + any time-limited events (Romance Season, …). They
+    # compete with gather inside plan_march; coordinate() fills the idle slots.
+    candidates = [
+        intel_intent(
+            stamina=stamina,
+            seconds_since_last_run=secs_since,
+            reserve=reserve,
+            cooldown_s=cooldown_s,
+            role=role,
+            boost=(boosts or {}).get("intel", 1.0),
+        ),
+        _romance_intent(state, role=role, boost=(boosts or {}).get("romance_season", 1.0)),
+    ]
+    extras = tuple(c for c in candidates if c is not None)
+
     balances: dict[str, int] = {"stamina": int(stamina or 0), **(resource_balances or {})}
     decision = plan_march(
         idle_slots=idle_slots,
         balances=balances,
         role=role,
         boosts=boosts,
-        extra_candidates=(intent,) if intent else (),
+        extra_candidates=extras,
     )
     return await dispatch_march(
         decision,

@@ -46,7 +46,7 @@ from .feedback import (
     record_many,
     tuning,
 )
-from .march import intel_intent, march_channels, plan_march
+from .march import intel_intent, march_channels, plan_march, timed_event_intent
 from .model import (
     CONSTRUCTION,
     HERO,
@@ -135,5 +135,6 @@ __all__ = [
     "recommend_speedups",
     "record",
     "record_many",
+    "timed_event_intent",
     "tuning",
 ]

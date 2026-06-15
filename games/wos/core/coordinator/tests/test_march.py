@@ -6,7 +6,12 @@ batch (via ``from_intel_plan``) and economy gather targets through
 """
 from __future__ import annotations
 
-from games.wos.core.coordinator import MARCH, intel_intent, plan_march
+from games.wos.core.coordinator import (
+    MARCH,
+    intel_intent,
+    plan_march,
+    timed_event_intent,
+)
 from games.wos.intel.planner import IntelEvent, plan_next
 
 
@@ -114,3 +119,34 @@ def test_intel_intent_cooldown_blocks_then_clears():
     assert intel_intent(
         stamina=100, seconds_since_last_run=1000, cost=10, cooldown_s=900
     ) is not None
+
+
+# --- timed_event_intent: a generic time-limited march-spending event ---------
+
+
+def test_timed_event_intent_active_with_attempts():
+    c = timed_event_intent("romance_season", active=True, attempts_left=5)
+    assert c is not None
+    assert c.domain == "romance_season"
+    assert c.channel_kind == MARCH
+    assert c.cost == {}  # spends a march slot, not the shared resource pool
+
+
+def test_timed_event_intent_skips_when_inactive():
+    assert timed_event_intent("romance_season", active=False, attempts_left=5) is None
+
+
+def test_timed_event_intent_skips_when_attempts_exhausted():
+    assert timed_event_intent("romance_season", active=True, attempts_left=0) is None
+
+
+def test_timed_event_intent_allows_unknown_attempts():
+    # Never read yet (None) → optimistically run so the scenario can read it.
+    assert timed_event_intent("romance_season", active=True, attempts_left=None) is not None
+
+
+def test_timed_event_intent_banded_below_intel_above_gather():
+    romance = timed_event_intent("romance_season", active=True, attempts_left=5)
+    intel = intel_intent(stamina=100, seconds_since_last_run=None)
+    assert intel is not None and romance is not None
+    assert intel.priority > romance.priority > 450  # gather base
