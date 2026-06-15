@@ -2,6 +2,9 @@ screens:
   exploration:
     priority: 30
     rules:
+    - ocr: page.common.title
+      contains: Exploration
+      threshold: 0.8
     - match: exploration.to.squad_settings
       threshold: 0.9
   squad_settings:

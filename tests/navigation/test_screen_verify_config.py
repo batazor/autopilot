@@ -188,7 +188,21 @@ def test_production_screen_verify_yaml_contains_hero_recruitment_route_nodes() -
     assert route == ["shop.dawn_market", "main_city", "heroes", "hero.recrutment"]
 
 
-def test_production_screen_verify_yaml_active_rules_are_template_matches() -> None:
+def test_production_screen_verify_yaml_active_rules_are_recognised_forms() -> None:
+    """Every active verification rule must be a recognised, deterministic form:
+
+    * ``match`` — template / icon match (the default, fast path);
+    * ``from_screen`` — navigation-history check (synthesised for per-hero wiki
+      nodes), no pixels;
+    * ``tab_active`` — tab-capsule active-state check;
+    * ``ocr`` **paired with** ``contains`` — a specific text check, the only
+      way to tell apart screens that share one region and differ solely by
+      title text (e.g. the Labyrinth caves all reuse ``labyrinth.cave.title``
+      and are distinguished by the cave name).
+
+    A bare ``ocr`` without ``contains`` is rejected — it would assert "some text
+    is here" without pinning which screen.
+    """
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         screens = screen_graph.load_screen_verify_config().get("screens")
@@ -199,11 +213,13 @@ def test_production_screen_verify_yaml_active_rules_are_template_matches() -> No
     for entry in screens.values():
         assert isinstance(entry, dict)
         for rule in [*(entry.get("landmarks") or []), *(entry.get("rules") or [])]:
-            # ``from_screen`` rules (synthesized for per-hero wiki nodes) check
-            # navigation history instead of pixels and are exempt from the
-            # "template match only" policy this test enforces.
-            assert "match" in rule or "from_screen" in rule or "tab_active" in rule
-            assert "ocr" not in rule
+            is_template = (
+                "match" in rule or "from_screen" in rule or "tab_active" in rule
+            )
+            is_text_content = "ocr" in rule and "contains" in rule
+            assert is_template or is_text_content, rule
+            if "ocr" in rule:
+                assert "contains" in rule, rule
 
 
 def test_production_screen_verify_yaml_contains_welcome_back_rule() -> None:
@@ -255,7 +271,10 @@ def test_production_screen_verify_yaml_contains_exploration_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"match": "exploration.to.squad_settings", "threshold": 0.9}]
+    expected = [
+        {"ocr": "page.common.title", "contains": "Exploration", "threshold": 0.8},
+        {"match": "exploration.to.squad_settings", "threshold": 0.9},
+    ]
     assert landmarks == expected
     assert rules == expected
 

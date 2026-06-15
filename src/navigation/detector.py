@@ -165,8 +165,9 @@ class ScreenDetector:
         groups: list[list[str]] = []
         for rule in screen_landmark_rules(screen_s):
             region_name = str(rule.get("match") or "").strip()
+            ocr_region_name = str(rule.get("ocr") or "").strip()
             tab_region_name = str(rule.get("tab_active") or "").strip()
-            if not region_name and not tab_region_name:
+            if not region_name and not ocr_region_name and not tab_region_name:
                 continue
             group_names: list[str] = []
             if region_name:
@@ -179,6 +180,26 @@ class ScreenDetector:
                 min_sat = rule.get("min_match_saturation")
                 if min_sat is not None:
                     overlay_rule["min_match_saturation"] = min_sat
+                rules.append(overlay_rule)
+                group_names.append(str(overlay_rule["name"]))
+            if ocr_region_name:
+                contains_raw = rule.get("contains")
+                if isinstance(contains_raw, str):
+                    expected = [contains_raw]
+                elif isinstance(contains_raw, list):
+                    expected = [str(x).strip() for x in contains_raw if str(x).strip()]
+                else:
+                    expected = []
+                overlay_rule = {
+                    "name": f"{name_prefix}.{screen_s}.{ocr_region_name}.ocr",
+                    "action": "text",
+                    "region": ocr_region_name,
+                    "threshold": rule.get("threshold", 0.8),
+                    "expected": expected,
+                }
+                confidence = rule.get("confidence")
+                if confidence is not None:
+                    overlay_rule["confidence"] = confidence
                 rules.append(overlay_rule)
                 group_names.append(str(overlay_rule["name"]))
             if tab_region_name:
@@ -315,6 +336,7 @@ class ScreenDetector:
                     root,
                     list(phase1.values()),
                     frame_gray=frame_gray,
+                    ocr_client=self._client,
                 )
             except Exception:
                 logger.debug(
@@ -367,6 +389,7 @@ class ScreenDetector:
                     root,
                     list(phase2.values()),
                     frame_gray=frame_gray,
+                    ocr_client=self._client,
                 )
             except Exception:
                 logger.debug(
@@ -437,6 +460,7 @@ class ScreenDetector:
                 repo_root(),
                 overlay_rules,
                 frame_gray=frame_gray,
+                ocr_client=self._client,
             )
         except Exception:
             logger.debug(
@@ -596,7 +620,7 @@ class ScreenDetector:
         return matched
 
 
-def _dedup_key(rule: dict[str, Any]) -> tuple[str, str, float]:
+def _dedup_key(rule: dict[str, Any]) -> tuple[Any, ...]:
     """Identity for a landmark rule, sharable across screens.
 
     Two rules with the same ``(action, region, threshold)`` produce the same
@@ -609,6 +633,15 @@ def _dedup_key(rule: dict[str, Any]) -> tuple[str, str, float]:
         threshold = float(rule.get("threshold", 0.9))
     except (TypeError, ValueError):
         threshold = 0.9
+    if action == "text":
+        expected_raw = rule.get("expected")
+        if isinstance(expected_raw, list):
+            expected = tuple(str(x).strip().lower() for x in expected_raw if str(x).strip())
+        elif expected_raw is not None and str(expected_raw).strip():
+            expected = (str(expected_raw).strip().lower(),)
+        else:
+            expected = ()
+        return (action, region, threshold, expected)
     return (action, region, threshold)
 
 
@@ -634,6 +667,7 @@ async def _evaluate_overlay_rules_in_thread(
     rules: list[dict[str, Any]],
     *,
     frame_gray: np.ndarray | None = None,
+    ocr_client: OcrClient | None = None,
 ) -> dict[str, Any]:
     """Run the overlay engine off the event loop, optionally in parallel.
 
@@ -657,6 +691,7 @@ async def _evaluate_overlay_rules_in_thread(
                 root,
                 subset,
                 frame_gray=frame_gray,
+                ocr_client=ocr_client,
             )
         )
 

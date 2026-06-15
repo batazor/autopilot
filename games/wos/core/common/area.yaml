@@ -2,6 +2,28 @@
   "version": 2,
   "screens": [
     {
+      "id": 1399,
+      "screen_id": "",
+      "regions": [
+        {
+          "name": "page.common.title",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 11.5,
+            "y": 0.9,
+            "width": 64.0,
+            "height": 4.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "preprocess": "fast_line"
+        }
+      ]
+    },
+    {
       "id": 1400,
       "screen_id": "",
       "ocr": "references/claim.png",
