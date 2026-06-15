@@ -6,7 +6,7 @@ screens:
     priority: 25
     rules:
       - match: chapter.daily_missions.title
-        threshold: 0.9
+        threshold: 0.8
 
   chapter.growth_missions:
     priority: 25

@@ -16,6 +16,7 @@ steps:
           - wait: 1s
 
       - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         max: 1
         steps:
           - click: button.tap_anywhere_to_exit

@@ -34,8 +34,7 @@
             "original_width": 720,
             "original_height": 1280
           },
-          "type": "integer",
-          "preprocess": "fast_digits"
+          "type": "integer"
         },
         {
           "name": "player.power",
@@ -53,21 +52,6 @@
           "type": "integer"
         },
         {
-          "name": "text.kills_0_q",
-          "action": "text",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 38.472972972972975,
-            "y": 80.07826086956521,
-            "width": 16.666023166023166,
-            "height": 2.5,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "type": "string"
-        },
-        {
           "name": "player.state",
           "action": "text",
           "threshold": 0.9,
@@ -80,8 +64,7 @@
             "original_width": 720,
             "original_height": 1280
           },
-          "type": "integer",
-          "preprocess": "fast_digits"
+          "type": "integer"
         },
         {
           "name": "icon.settingse",
@@ -154,20 +137,6 @@
           }
         },
         {
-          "name": "icon.alliance_none",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 38.472972972972975,
-            "y": 83.3054347826087,
-            "width": 28.023166023166024,
-            "height": 3.0663043478260867,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
           "name": "icon.a_lock_or_padlock_symbol_indicating_the_skins_ap",
           "action": "exist",
           "threshold": 0.9,
@@ -228,10 +197,10 @@
           "action": "exist",
           "threshold": 0.85,
           "bbox": {
-            "x": 12.316602316602317,
+            "x": 12.3318723552357,
             "y": 0.5434782608695652,
-            "width": 27.3996138996139,
-            "height": 4.9,
+            "width": 29.12004658499305,
+            "height": 4.899999999999997,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -242,32 +211,30 @@
           "action": "text",
           "threshold": 0.7,
           "bbox": {
-            "x": 15.833333333333332,
-            "y": 86.71875,
-            "width": 5.138888888888888,
+            "x": 15.638780804150453,
+            "y": 86.28100680933854,
+            "width": 5.138888888888889,
             "height": 2.34375,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
-          "type": "integer",
-          "preprocess": "fast_digits"
+          "type": "integer"
         },
         {
           "name": "chief_profile.stamina.max",
           "action": "text",
           "threshold": 0.7,
           "bbox": {
-            "x": 21.944444444444443,
-            "y": 86.71875,
+            "x": 21.55533938607869,
+            "y": 86.28100680933854,
             "width": 5.277777777777778,
             "height": 2.34375,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
-          "type": "integer",
-          "preprocess": "fast_digits"
+          "type": "integer"
         }
       ],
       "screen_region": "chief_profile.title"

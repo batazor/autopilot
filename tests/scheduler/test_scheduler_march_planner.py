@@ -7,16 +7,11 @@ Uses fakes for Redis + the queue (no testcontainer needed).
 """
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from games.wos.core.coordinator import dispatch as march_dispatch
 
-from dsl.cron_specs import scenario_loader_paths
-from dsl.evaluator import ScenarioEvaluator
-from dsl.loader import ScenarioLoader
-from scheduler.optimizer import TaskOptimizer
 from scheduler.runner import SchedulerRunner
 
 if TYPE_CHECKING:
@@ -24,13 +19,7 @@ if TYPE_CHECKING:
 
 
 def _make_scheduler_runner(settings: Settings) -> SchedulerRunner:
-    repo_root = Path(__file__).resolve().parents[2]
-    return SchedulerRunner(
-        settings,
-        ScenarioLoader(scenario_loader_paths(repo_root)),
-        TaskOptimizer(settings),
-        ScenarioEvaluator(),
-    )
+    return SchedulerRunner(settings)
 
 
 class _FakeQueue:

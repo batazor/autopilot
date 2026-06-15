@@ -6,7 +6,10 @@ tokens minted before the claim existed.
 """
 from __future__ import annotations
 
+import pytest
+
 from licensing.issue import issue_license
+from licensing.models import LicenseError
 from licensing.verify import _claims_from_payload, verify_license
 
 
@@ -35,8 +38,13 @@ def test_verify_round_trips_cap(keypair_paths: object) -> None:
 
 
 def test_verify_falls_back_to_tier_for_legacy_tokens() -> None:
-    """A payload without the claim resolves the cap from its tier."""
+    """A payload without the cap claim resolves from a valid tier."""
     legacy = {"sub": "a@b.c", "machine_id": "MID", "tier": "r3"}
     assert _claims_from_payload(legacy).max_external_accounts == 5
-    legacy_unknown = {"sub": "a@b.c", "machine_id": "MID", "tier": "free"}
-    assert _claims_from_payload(legacy_unknown).max_external_accounts == 0
+
+
+def test_verify_rejects_legacy_tier_names() -> None:
+    for tier in ("free", "trial", "pro"):
+        with pytest.raises(LicenseError) as exc_info:
+            _claims_from_payload({"sub": "a@b.c", "machine_id": "MID", "tier": tier})
+        assert exc_info.value.code == "unsupported_tier"

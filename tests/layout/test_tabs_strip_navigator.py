@@ -69,13 +69,29 @@ def test_skips_active_even_if_dot_still_present() -> None:
 
 
 def test_no_dotted_inactive_tabs_advances_page() -> None:
-    """When only the active tab carries (or carried) a dot, move to next page."""
+    """When the strip is fully clear (active included), move to next page."""
     tabs = [
         _tab(0, active=True, dot=False),
         _tab(1, active=False, dot=False),
         _tab(2, active=False, dot=False),
     ]
     assert pick_next_strip_action(tabs) == StripAction("advance_page")
+
+
+def test_active_dot_with_no_inactive_dots_holds() -> None:
+    """Active tab still dotted + no inactive dots → hold, don't page away.
+
+    This is the deals.home_and_beyond bug: the page scenario hasn't claimed the
+    (white-bordered) rewards yet, so its tab still carries a red dot. Advancing
+    here taps ``deals.next.left`` and skips unclaimed rewards. The navigator must
+    yield so the higher-priority page scenario runs first.
+    """
+    tabs = [
+        _tab(0, active=True, dot=True),    # page scenario hasn't cleared it yet
+        _tab(1, active=False, dot=False),
+        _tab(2, active=False, dot=False),
+    ]
+    assert pick_next_strip_action(tabs) == StripAction("hold")
 
 
 def test_empty_strip_signals_done() -> None:

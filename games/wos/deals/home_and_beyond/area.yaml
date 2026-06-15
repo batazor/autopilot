@@ -33,6 +33,20 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "deals.home_and_beyound.rewards",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.0,
+            "y": 33.0,
+            "width": 90.0,
+            "height": 58.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

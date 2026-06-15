@@ -94,7 +94,7 @@ def test_healthy_fleet_is_empty(fleet) -> None:
 
 def test_load_failure_is_critical(fleet) -> None:
     fleet.failures.append(
-        {"source": "scenario_loader", "file": "games/wos/x/broken.yaml", "error": "boom", "ts": 1.0}
+        {"source": "dsl_validation", "file": "games/wos/x/broken.yaml", "error": "boom", "ts": 1.0}
     )
     view = _view()
     assert _kinds(view) == ["load_failure"]

@@ -14,22 +14,16 @@ import redis.asyncio as aioredis
 from config.devices import player_ids_for_device_candidates
 from config.paths import repo_root
 from config.redis_health import ping_async_redis_or_exit
-from dashboard.load_failures import record_load_failures, record_load_failures_async
 from dsl.cron_specs import (
     iter_cron_yaml_files_for_repo,
     resolve_cron_priority,
     resolve_cron_task_type,
 )
-from scheduler.optimizer import OptimizationInput, TaskOptimizer
-from scheduler.ortools_executor import run_in_ortools_executor, shutdown_ortools_executor
 from scheduler.queue import RedisQueue
-from scheduler.wake import WAKE_CHANNEL, wake_scheduler
+from scheduler.wake import WAKE_CHANNEL
 
 if TYPE_CHECKING:
     from config.loader import Settings
-    from dsl.evaluator import ScenarioEvaluator
-    from dsl.loader import ScenarioLoader
-    from dsl.models import Scenario
 
 logger = logging.getLogger(__name__)
 
@@ -69,23 +63,17 @@ class SchedulerRunner:
     def __init__(
         self,
         settings: Settings,
-        scenario_loader: ScenarioLoader,
-        optimizer: TaskOptimizer,
-        evaluator: ScenarioEvaluator,
         *,
         redis: aioredis.Redis | None = None,  # type: ignore[type-arg]
         queue: RedisQueue | None = None,
         wake_sync: _redis_sync.Redis | None = None,
     ) -> None:
         self._settings = settings
-        self._scenario_loader = scenario_loader
         self._redis = redis
         self._wake_sync = wake_sync
         self._queue = queue
         self._owns_redis = redis is None
         self._owns_wake_sync = wake_sync is None
-        self._optimizer = optimizer
-        self._evaluator = evaluator
         # Last stamina decision signature per player — lets the planner skip
         # rewriting the trace when its decision hasn't changed tick-to-tick.
         self._stamina_last_sig: dict[str, str] = {}
@@ -105,30 +93,6 @@ class SchedulerRunner:
         if self._wake_sync is None:
             self._wake_sync = _redis_sync.Redis.from_url(url, socket_connect_timeout=5.0)
             instrument_redis_client(self._wake_sync, component="scheduler")
-        self._scenario_loader.set_on_reload(self._on_scenarios_reloaded)
-        # The initial load ran in ScenarioLoader.__init__, before Redis was
-        # up — publish its failures now so boot-time YAML errors hit the
-        # dashboard banner too, not just the log.
-        record_load_failures(
-            self._wake_sync, "scenario_loader", self._scenario_loader.load_failures()
-        )
-
-    def _on_scenarios_reloaded(self) -> None:
-        """Fired after an explicit ``ScenarioLoader.reload()`` (UI button).
-
-        Publishes a wake so cron yaml edits trigger immediate re-optimization
-        instead of waiting up to ``interval_seconds`` for the heartbeat tick.
-        """
-        client = self._wake_sync
-        if client is None:
-            return
-        record_load_failures(
-            client, "scenario_loader", self._scenario_loader.load_failures()
-        )
-        try:
-            wake_scheduler(client, {"cmd": "wake", "reason": "scenarios_reloaded"})
-        except Exception:
-            logger.debug("wake on scenarios reload failed", exc_info=True)
 
     async def _disconnect_redis(self) -> None:
         client = self._redis
@@ -502,35 +466,6 @@ class SchedulerRunner:
                 mapping[player_id] = inst.instance_id
         return mapping
 
-    async def _active_scenario_id(self, player_id: str) -> str | None:
-        assert self._redis is not None
-        raw = await self._redis.get(f"wos:player:{player_id}:scenario")
-        if raw is None:
-            return None
-        s = raw.decode() if isinstance(raw, bytes) else raw
-        return s.strip() or None
-
-    @staticmethod
-    def _filter_scenarios_for_player(
-        player_id: str,
-        active_sid: str | None,
-        all_scenarios: list[Scenario],
-    ) -> list[Scenario]:
-        if not active_sid:
-            return all_scenarios
-        # NOTE: `Scenario` exposes ``name`` (not ``id``); ``getattr`` keeps current
-        # runtime semantics (no match → fallback to all_scenarios via the warning
-        # branch below) until the active-scenario override key is reconciled.
-        filtered = [s for s in all_scenarios if getattr(s, "id", None) == active_sid]
-        if not filtered:
-            logger.warning(
-                "Player %s: scenario %r not found — using all scenarios",
-                player_id,
-                active_sid,
-            )
-            return all_scenarios
-        return filtered
-
     async def _ensure_daily_snapshot(self) -> None:
         """Snapshot every persisted gamer once per UTC day, regardless of worker activity.
 
@@ -699,67 +634,8 @@ class SchedulerRunner:
         await self._run_gift_codes_polling()
         await self._run_cron_specs()
         player_states = await self._load_player_states()
-        scenarios = self._scenario_loader.load_all()
         player_instance_map = await self._build_player_instance_map()
-
-        player_tasks: dict[str, list] = {}
-        for player_id, state in player_states.items():
-            active_sid = await self._active_scenario_id(player_id)
-            scenario_list = self._filter_scenarios_for_player(
-                player_id, active_sid, scenarios
-            )
-            all_tasks = []
-            for scenario in scenario_list:
-                tasks = self._evaluator.expand_to_tasks(scenario, state)
-                all_tasks.extend(tasks)
-            player_tasks[player_id] = all_tasks
-
-        # Publish (or clear) expand failures every tick: an unknown task type
-        # re-registers on the next tick while it persists, and the banner
-        # disappears one tick after the scenario is fixed.
-        await record_load_failures_async(
-            self._redis, "evaluator", self._evaluator.drain_expand_failures()
-        )
-
-        inp = OptimizationInput(
-            player_tasks=player_tasks,
-            player_instance_map=player_instance_map,
-        )
-        # OR-Tools solve is synchronous. Use a dedicated single-worker pool (not the default
-        # asyncio thread pool) so solves are serialized and the rest of the app stays responsive.
-        loop = asyncio.get_running_loop()
-        assigned = await run_in_ortools_executor(
-            loop,
-            self._optimizer.optimize,
-            inp,
-        )
-
         now = time.time()
-        for player_id, tasks in assigned.items():
-            instance_id = player_instance_map.get(player_id, "")
-            for task in tasks:
-                # ``skip_if_duplicate`` only inspects the pending sorted set.
-                # If the worker has already popped this logical task and is
-                # mid-execution, the queue is empty and a fresh tick would
-                # enqueue a second copy that runs back-to-back. Filter those
-                # out by checking the per-instance running key as well.
-                if await self._task_already_running(
-                    instance_id=instance_id,
-                    player_id=player_id,
-                    task_type=task.task_type,
-                ):
-                    continue
-                await self._queue.schedule(
-                    task_id=task.task_id,
-                    player_id=player_id,
-                    task_type=task.task_type,
-                    priority=task.priority,
-                    run_at=now,
-                    instance_id=instance_id,
-                    skip_if_duplicate=True,
-                    dedup_ignore_region=True,
-                )
-
         await self._run_stamina_planner(player_states, player_instance_map, now)
         await self._run_resource_planner(player_states, player_instance_map, now)
         await self._run_march_planner(player_states, player_instance_map, now)
@@ -1006,7 +882,6 @@ class SchedulerRunner:
                 except Exception:
                     logger.exception("Scheduler loop error")
         finally:
-            shutdown_ortools_executor(wait=False, cancel_futures=True)
             await self._drain_background_tasks()
             await self._disconnect_redis()
 

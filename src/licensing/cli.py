@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--tier",
         default=None,
-        help="tier label (default: 'pro' for regular, 'trial' under --trial)",
+        help="tier label (default: 'r2'; valid: r2/r3/r4/r5)",
     )
     parser.add_argument(
         "--max-devices",
@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--stdout",
         action="store_true",
-        help="emit raw JWT to stdout instead of writing a file (legacy mode)",
+        help="emit raw JWT to stdout instead of writing a file",
     )
     parser.add_argument(
         "--json",
@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     machine_id = args.machine_id
     if args.trial:
         machine_id = machine_id or "*"
-        tier = args.tier or "trial"
+        tier = args.tier or "r2"
         max_devices = args.max_devices if args.max_devices is not None else 2
         max_players_per_device = (
             args.max_players_per_device if args.max_players_per_device is not None else 3
@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         if not machine_id:
             parser.error("--machine-id is required unless --trial is set")
-        tier = args.tier or "pro"
+        tier = args.tier or "r2"
         max_devices = args.max_devices if args.max_devices is not None else 1
         max_players_per_device = (
             args.max_players_per_device if args.max_players_per_device is not None else 3

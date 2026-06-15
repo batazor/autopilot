@@ -9,15 +9,10 @@ so the next run lines up with the natural cadence.
 from __future__ import annotations
 
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
-from dsl.cron_specs import scenario_loader_paths
-from dsl.evaluator import ScenarioEvaluator
-from dsl.loader import ScenarioLoader
-from scheduler.optimizer import TaskOptimizer
 from scheduler.queue import RedisQueue
 from scheduler.runner import SchedulerRunner
 
@@ -28,13 +23,7 @@ if TYPE_CHECKING:
 
 
 def _make_runner(settings: Settings) -> SchedulerRunner:
-    repo_root = Path(__file__).resolve().parents[2]
-    return SchedulerRunner(
-        settings,
-        ScenarioLoader(scenario_loader_paths(repo_root)),
-        TaskOptimizer(settings),
-        ScenarioEvaluator(),
-    )
+    return SchedulerRunner(settings)
 
 
 @pytest.mark.asyncio

@@ -8,7 +8,7 @@ import jwt
 
 from licensing.keys import load_public_key
 from licensing.models import LicenseClaims, LicenseError
-from licensing.plans import external_accounts_limit_for_tier
+from licensing.plans import TIER_ORDER, external_accounts_limit_for_tier, plan_by_id
 
 ALGORITHM = "EdDSA"
 ISSUER = "wos-autopilot"
@@ -28,7 +28,13 @@ def _coerce_datetime(value: object) -> datetime | None:
 
 
 def _claims_from_payload(payload: dict[str, Any]) -> LicenseClaims:
-    tier = str(payload.get("tier") or "free")
+    tier = str(payload.get("tier") or "").strip().lower()
+    if plan_by_id(tier) is None:
+        msg = (
+            f"license tier {tier!r} is no longer supported; "
+            f"reissue as one of: {', '.join(TIER_ORDER)}"
+        )
+        raise LicenseError(msg, code="unsupported_tier")
     # Any legacy ``features`` claim on existing tokens is ignored (capabilities
     # are gated by tier now); ``raw`` still retains it for forward-compat.
     # Tokens issued before the cap existed lack the claim — fall back to the
@@ -95,7 +101,7 @@ def verify_license(
 
     claims = _claims_from_payload(payload)
 
-    # ``*`` is a wildcard machine_id used by trial tokens that any host can run.
+    # ``*`` is a wildcard machine_id used by host-agnostic tokens.
     if (
         expected_machine_id is not None
         and claims.machine_id != "*"

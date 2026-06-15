@@ -7,7 +7,7 @@ Replays the two captured frames through the real overlay engine:
   up via the rule's ``red_dot_bbox`` probe, so the analyze rule that pushes
   ``chapter.claim_missions`` fires.
 * ``references/daily.png`` (chapter daily node) — every ``screen_verify`` landmark
-  matches, and the regions the claim scenario taps (shared ``button.claim``,
+  matches, and the regions the claim scenario taps (``chapter.button.claim``,
   ``chapter.button.claim_all``, the ``chapter.close`` X) are all found.
 * ``references/growth.png`` (chapter growth node) — the Growth Missions tab
   title is a separate navigation node.
@@ -63,6 +63,46 @@ def test_badge_overlay_rule_matches_with_red_dot(area_doc: dict) -> None:
     assert row["red_dot_present"] is True
 
 
+def test_claim_all_overlay_rule_matches_on_page(area_doc: dict) -> None:
+    """On-page rule: a lit Claim All on the chapter panel pushes the claim pass
+    even when the bot enters the page without the main_city badge having fired."""
+    cfg = load_merged_analyze_yaml(REPO_ROOT)
+    rule = next(
+        r for r in cfg["overlay"] if r.get("name") == "chapter.claim_all.visible"
+    )
+    assert set(rule["screens"]) == {"chapter.daily_missions", "chapter.growth_missions"}
+    push = rule["steps"][0]["push_scenario"]
+    assert (push["name"] if isinstance(push, dict) else push) == "chapter.claim_missions"
+
+    probe = {**rule, "action": "findIcon", "threshold": 0.9}
+    probe.pop("screens", None)
+    out = asyncio.run(
+        evaluate_overlay_rules_async(
+            _load_reference_bgr("daily.png"), area_doc, REPO_ROOT, [probe], state_flat={}
+        )
+    )
+    assert out[rule["name"]]["matched"] is True
+
+
+def test_claim_overlay_rule_matches_growth_row_button(area_doc: dict) -> None:
+    """Per-row Claim buttons are dynamic and should also push the claim pass."""
+    cfg = load_merged_analyze_yaml(REPO_ROOT)
+    rule = next(r for r in cfg["overlay"] if r.get("name") == "chapter.claim.visible")
+    assert rule["region"] == "chapter.button.claim"
+    assert set(rule["screens"]) == {"chapter.daily_missions", "chapter.growth_missions"}
+    push = rule["steps"][0]["push_scenario"]
+    assert push["name"] == "chapter.claim_missions"
+
+    probe = {**rule}
+    probe.pop("screens", None)
+    out = asyncio.run(
+        evaluate_overlay_rules_async(
+            _load_reference_bgr("growth.png"), area_doc, REPO_ROOT, [probe], state_flat={}
+        )
+    )
+    assert out[rule["name"]]["matched"] is True
+
+
 def _assert_screen_verify_matches_reference(
     screen: str,
     reference: str,
@@ -115,7 +155,7 @@ async def test_chapter_tab_references_detect_specific_nodes() -> None:
 def test_claim_scenario_tap_targets_match_daily_reference(area_doc: dict) -> None:
     probes = [
         {"name": f"p.{region}", "action": "findIcon", "region": region, "threshold": 0.9}
-        for region in ("button.claim", "chapter.button.claim_all", "chapter.close")
+        for region in ("chapter.button.claim", "chapter.button.claim_all", "chapter.close")
     ]
     out = asyncio.run(
         evaluate_overlay_rules_async(

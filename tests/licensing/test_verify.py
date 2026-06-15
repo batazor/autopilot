@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import jwt
 import pytest
 
 from licensing.issue import issue_license
+from licensing.keys import load_private_key
 from licensing.models import LicenseError
-from licensing.verify import verify_license
+from licensing.verify import ALGORITHM, ISSUER, verify_license
 
 
 def test_verify_happy_path(keypair_paths: object) -> None:
@@ -32,11 +34,32 @@ def test_verify_rejects_wrong_machine(keypair_paths: object) -> None:
 
 
 def test_verify_accepts_wildcard_machine_id(keypair_paths: object) -> None:
-    """Trial tokens carry machine_id='*' and bypass the host-binding check."""
-    token, _ = issue_license(sub="trial@autopilot", machine_id="*")
+    """Wildcard tokens carry machine_id='*' and bypass the host-binding check."""
+    token, _ = issue_license(sub="trial@autopilot", machine_id="*", tier="r2")
     claims = verify_license(token, expected_machine_id="ANY-HOST-FINGERPRINT")
     assert claims.machine_id == "*"
     assert claims.sub == "trial@autopilot"
+    assert claims.tier == "r2"
+
+
+def test_verify_rejects_legacy_trial_tier(keypair_paths: object) -> None:
+    now = datetime.now(UTC)
+    token = jwt.encode(
+        {
+            "iss": ISSUER,
+            "sub": "trial@autopilot",
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(days=60)).timestamp()),
+            "machine_id": "*",
+            "tier": "trial",
+            "jti": "legacy-trial",
+        },
+        load_private_key(),
+        algorithm=ALGORITHM,
+    )
+    with pytest.raises(LicenseError) as exc_info:
+        verify_license(token, expected_machine_id="ANY-HOST-FINGERPRINT")
+    assert exc_info.value.code == "unsupported_tier"
 
 
 def test_verify_rejects_expired(keypair_paths: object) -> None:

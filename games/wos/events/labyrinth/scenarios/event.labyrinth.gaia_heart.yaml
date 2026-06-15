@@ -22,6 +22,7 @@ steps:
           - click: labyrinth.gaia.raid_claim
           - wait: 1s
       - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         max: 2
         steps:
           - click: button.tap_anywhere_to_exit
@@ -36,6 +37,7 @@ steps:
       - click: labyrinth.gaia.quick_challenge
       - wait: 2s
       - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         max: 5
         steps:
           - click: button.tap_anywhere_to_exit

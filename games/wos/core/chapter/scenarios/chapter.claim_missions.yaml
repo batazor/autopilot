@@ -33,18 +33,20 @@ steps:
       - click: chapter.button.claim_all
       - wait: 1s
       - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         max: 3
         steps:
           - click: button.tap_anywhere_to_exit
           - wait: 1s
 
   # Then sweep any per-row Claim buttons left over.
-  - while_match: button.claim
+  - while_match: chapter.button.claim
     max: 6
     steps:
-      - click: button.claim
+      - click: chapter.button.claim
       - wait: 0.8s
       - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         max: 3
         steps:
           - click: button.tap_anywhere_to_exit
@@ -60,15 +62,16 @@ steps:
       - click: chapter.button.claim_all
       - wait: 1s
       - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         max: 3
         steps:
           - click: button.tap_anywhere_to_exit
           - wait: 0.3s
 
-  - while_match: button.claim
+  - while_match: chapter.button.claim
     max: 6
     steps:
-      - click: button.claim
+      - click: chapter.button.claim
       - wait: 0.8s
 
   # --- Mission → automation routing -------------------------------------

@@ -10,6 +10,7 @@ steps:
       - click: bank.withdraw.button
       - wait: 1s
       - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         max: 2
         steps:
           - click: button.tap_anywhere_to_exit

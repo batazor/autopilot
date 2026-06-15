@@ -38,6 +38,7 @@ steps:
           - click: button.free.small
           - wait: 1.5s
           - while_match: button.tap_anywhere_to_exit
+            expected: ["tap anywhere"]
             steps:
               - click: button.tap_anywhere_to_exit
               - wait: 1s

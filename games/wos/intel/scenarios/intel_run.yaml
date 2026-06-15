@@ -19,6 +19,7 @@ steps:
           - click: button.click_to_continue
           - wait: 500ms
       - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         max: 1
         steps:
           - click: button.tap_anywhere_to_exit

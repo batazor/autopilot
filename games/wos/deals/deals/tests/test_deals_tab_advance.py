@@ -354,3 +354,29 @@ async def test_click_next_red_dot_tab_advances_via_left_arrow(mocker) -> None:
     assert actions.tap.call_args_list == [
         call("bs1", ANY, approval_region=NEXT_LEFT_REGION)
     ]
+
+
+@pytest.mark.asyncio
+async def test_click_next_red_dot_tab_holds_without_paging_away(mocker) -> None:
+    """Active tab still dotted → ``hold``: the helper must NOT tap the arrow, so
+    the higher-priority page scenario gets to claim before the bot pages away."""
+    from layout.tabs_strip_navigator import StripAction
+
+    frame = _load_bgr("games/wos/deals/home_and_beyond/references/deals.home_and_beyound.png")
+    actions = make_actions([frame])
+    patch_dsl(mocker, actions, repo_root=REPO_ROOT)
+    mocker.patch(
+        "tasks.dsl_exec.red_dots.pick_next_strip_action",
+        return_value=StripAction(kind="hold"),
+    )
+
+    ctx = dsl_exec.DslExecContext(
+        redis_client=None,
+        player_id="",
+        instance_id="bs1",
+        args={"region": "deals.tabs_strip", "next_region": NEXT_LEFT_REGION},
+    )
+    await dsl_exec.DSL_EXEC_REGISTRY["click_next_red_dot_tab"](ctx)
+
+    assert ctx.result["action"] == "hold"
+    assert actions.tap.call_args_list == []

@@ -92,7 +92,7 @@ export default function LicenseAdminPage() {
     loadStatus();
   }, [loadStatus]);
 
-  // Paid tiers (R3/R4) are bound to one host, so the machine fingerprint is
+  // Paid tiers (R3/R4/R5) are bound to one host, so the machine fingerprint is
   // mandatory. The free tier (R2) is host-agnostic (issued as machine_id "*"),
   // so the fingerprint is optional there.
   const tier = form.tier.trim() || "r3";
@@ -122,9 +122,9 @@ export default function LicenseAdminPage() {
       } catch {
         /* ignore */
       }
-      // Trial licenses are host-agnostic: fall back to the wildcard machine id
-      // when the fingerprint is left blank. Pro requires a real fingerprint
-      // (enforced by canSubmit), so it always carries one here.
+      // R2 licenses are host-agnostic: fall back to the wildcard machine id
+      // when the fingerprint is left blank. Higher tiers require a real
+      // fingerprint (enforced by canSubmit), so they always carry one here.
       const machineId =
         form.machineId.trim() || (tier === "r2" ? "*" : "");
       const out = await issueLicense(
@@ -214,10 +214,12 @@ export default function LicenseAdminPage() {
             <span>
               Machine fingerprint{" "}
               {requiresFingerprint ? (
-                <em className="text-amber-300 not-italic">(required for pro)</em>
+                <em className="text-amber-300 not-italic">
+                  (required above R2)
+                </em>
               ) : (
                 <em className="text-wos-text-muted not-italic">
-                  (optional — trial is host-agnostic)
+                  (optional — R2 is host-agnostic)
                 </em>
               )}
             </span>

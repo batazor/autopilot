@@ -44,6 +44,34 @@ def test_tier_r3_resolves_external_account_cap(
     assert payload["max_external_accounts"] == 5
 
 
+def test_trial_flag_defaults_to_r2_wildcard(
+    keypair_paths: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    payload = _issue_payload(
+        capsys,
+        ["--email", "trial@example.com", "--trial", "--days", "60"],
+    )
+    assert payload["tier"] == "r2"
+    assert payload["machine_id"] == "*"
+    assert payload["max_external_accounts"] == 0
+
+
+def test_legacy_tier_names_are_rejected(
+    keypair_paths: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    for tier in ("trial", "pro", "free"):
+        assert cli.main(
+            [
+                "--email", "legacy@example.com",
+                "--trial",
+                "--tier", tier,
+                "--json",
+            ]
+        ) == 1
+        captured = capsys.readouterr()
+        assert "tier must be one of: r2, r3, r4, r5" in captured.err
+
+
 def test_explicit_external_account_cap_overrides_tier_default(
     keypair_paths: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
 ) -> None:

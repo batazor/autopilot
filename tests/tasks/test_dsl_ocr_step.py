@@ -832,7 +832,9 @@ async def test_exec_fetch_player_role_not_exist_clears_active_player(
     )
     await redis_async.hset(  # type: ignore[attr-defined]
         "wos:instance:bs2:state",
-        mapping={"active_player": "2721690"},
+        # Canonical (prod) build → a 40001 means the OCR'd id is genuinely
+        # invalid, so clearing to re-trigger who_i_am is the intended self-heal.
+        mapping={"active_player": "2721690", "last_game_is_beta": "0"},
     )
     calls = {"count": 0}
 
@@ -883,6 +885,116 @@ async def test_exec_fetch_player_role_not_exist_clears_active_player(
     ap2 = await redis_async.hget("wos:instance:bs2:state", "active_player")  # type: ignore[attr-defined]
     assert ap2 in {None, ""}
     assert get_last_active_player("bs2") == ""
+
+
+@pytest.mark.asyncio
+async def test_exec_fetch_player_skips_century_on_beta_build(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """Beta build → Century is never called and the OCR-bound active_player
+    survives. Century can't see beta accounts (40001), so the sync is pointless
+    and would otherwise clear a perfectly valid identity."""
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (scenario_root / "onboarding" / "sync_century.yaml").write_text(
+        yaml.dump({"enabled": True, "steps": [{"exec": "fetch_player"}]}),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text("{}", encoding="utf-8")
+
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:2721690:state", mapping={"player_id": "2721690"}
+    )
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs3:state",
+        mapping={"active_player": "2721690", "last_game_is_beta": "1"},
+    )
+    calls = {"count": 0}
+
+    async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
+        calls["count"] += 1
+        msg = "should never be called on beta"
+        raise AssertionError(msg)
+
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+
+    from century.api import CenturyClient
+
+    mocker.patch.object(CenturyClient, "fetch_player", new=fake_fetch_player)
+
+    task = dsl.DslScenarioTask(
+        task_id="t-exec-beta",
+        player_id="2721690",
+        scenario_key="sync_century",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs3")
+
+    assert result.success is True
+    assert calls["count"] == 0
+    ap = await redis_async.hget("wos:instance:bs3:state", "active_player")  # type: ignore[attr-defined]
+    assert ap == "2721690"
+    final = await redis_async.hgetall("wos:player:2721690:state")  # type: ignore[attr-defined]
+    assert "century_player_sync_failed_at" not in final
+
+
+@pytest.mark.asyncio
+async def test_exec_fetch_player_role_not_exist_keeps_active_player_when_build_unknown(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """40001 on an *unknown* build (controller hasn't written last_game_is_beta
+    yet) must NOT clear active_player — the account may be a beta alias whose
+    OCR identity is valid. We record the failure but keep the binding."""
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (scenario_root / "onboarding" / "sync_century.yaml").write_text(
+        yaml.dump({"enabled": True, "steps": [{"exec": "fetch_player"}]}),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text("{}", encoding="utf-8")
+
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:2721690:state", mapping={"player_id": "2721690"}
+    )
+    # No last_game_is_beta field → build unknown.
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs4:state", mapping={"active_player": "2721690"}
+    )
+
+    async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
+        msg = "role not exist. err_code=40001"
+        raise CenturyAPIError(
+            msg,
+            err_code=40001,
+            api_msg="role not exist",
+            endpoint="player",
+        )
+
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+
+    from century.api import CenturyClient
+
+    mocker.patch.object(CenturyClient, "fetch_player", new=fake_fetch_player)
+
+    task = dsl.DslScenarioTask(
+        task_id="t-exec-unknown",
+        player_id="2721690",
+        scenario_key="sync_century",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs4")
+
+    assert result.success is True
+    ap = await redis_async.hget("wos:instance:bs4:state", "active_player")  # type: ignore[attr-defined]
+    assert ap == "2721690"  # binding preserved
+    invalid = await redis_async.hget("wos:instance:bs4:state", "invalid_player_id")  # type: ignore[attr-defined]
+    assert invalid in {None, ""}
+    final = await redis_async.hgetall("wos:player:2721690:state")  # type: ignore[attr-defined]
+    assert final["century_player_sync_err_code"] == "40001"
 
 
 # ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 
 from licensing.keys import load_private_key
-from licensing.plans import external_accounts_limit_for_tier
+from licensing.plans import TIER_ORDER, external_accounts_limit_for_tier, plan_by_id
 from licensing.verify import ALGORITHM, ISSUER
 
 _MAX_DAYS = 365
@@ -18,7 +18,7 @@ def issue_license(
     sub: str,
     machine_id: str,
     days: int = 30,
-    tier: str = "pro",
+    tier: str = "r2",
     max_devices: int = 1,
     max_players_per_device: int = 3,
     max_external_accounts: int | None = None,
@@ -35,11 +35,15 @@ def issue_license(
     """
     sub = (sub or "").strip()
     machine_id = (machine_id or "").strip()
+    tier = (tier or "").strip().lower()
     if not sub:
         msg = "sub (user identifier) is required"
         raise ValueError(msg)
     if not machine_id:
         msg = "machine_id is required"
+        raise ValueError(msg)
+    if plan_by_id(tier) is None:
+        msg = f"tier must be one of: {', '.join(TIER_ORDER)}"
         raise ValueError(msg)
 
     days = max(1, min(int(days), _MAX_DAYS))

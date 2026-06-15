@@ -16,6 +16,7 @@ steps:
       - click: button.claim.big
       - wait: 2s
       - match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
         steps:
           - click: button.tap_anywhere_to_exit
           - wait: 0.5s

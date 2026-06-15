@@ -16,3 +16,36 @@ overlay:
       - main_world
     steps:
       - push_scenario: chapter.claim_missions
+
+  # On the chapter panel itself: the green "Claim All" template only matches its
+  # lit (claimable) state, so finding it on either tab means rewards are waiting.
+  # This complements the main_city badge rule so the page self-claims when it is
+  # already open (badge missed, or the bot entered the panel directly) — the same
+  # on-page contract the deals sub-pages use. The pushed scenario then sweeps
+  # Claim All + the per-row Claim buttons across both the Daily and Growth tabs.
+  - name: chapter.claim_all.visible
+    region: chapter.button.claim_all
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - chapter.daily_missions
+      - chapter.growth_missions
+    steps:
+      - push_scenario:
+          name: chapter.claim_missions
+          ttl: 1m
+
+  # Growth often has only per-row "Claim" buttons, no Claim All. The
+  # chapter.button.claim region is an isSearch template, so this remains dynamic
+  # across row positions and scroll offsets.
+  - name: chapter.claim.visible
+    region: chapter.button.claim
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - chapter.daily_missions
+      - chapter.growth_missions
+    steps:
+      - push_scenario:
+          name: chapter.claim_missions
+          ttl: 1m

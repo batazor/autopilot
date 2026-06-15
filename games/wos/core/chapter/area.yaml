@@ -67,7 +67,7 @@
         {
           "name": "chapter.daily_missions.title",
           "action": "exist",
-          "threshold": 0.9,
+          "threshold": 0.8,
           "bbox": {
             "x": 53.56171314604929,
             "y": 86.59411478599228,
@@ -130,6 +130,21 @@
             "y": 87.15661472967645,
             "width": 29.376708049046364,
             "height": 2.5107005017360584,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "chapter.button.claim",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 71.66666666666667,
+            "y": 42.5,
+            "width": 22.22222222222222,
+            "height": 5.0,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

@@ -80,11 +80,11 @@ def post_scenarios_reload() -> dict[str, object]:
     Replaces the previous watchdog-based hot reload: the UI calls this after
     edits instead of paying for a polling observer on every scenarios tree.
     """
-    from services import get_scenario_loader
+    from scheduler.wake import wake_scheduler
+    from services import get_scheduler_wake_redis
 
-    loader = get_scenario_loader()
-    loader.reload()
-    return {"loaded": len(loader.load_all())}
+    wake_scheduler(get_scheduler_wake_redis(), {"cmd": "wake", "reason": "scenarios_reloaded"})
+    return {"loaded": len(svc.list_scenarios(module_scope="all"))}
 
 
 @router.patch("/scenarios/{scenario_key}/enabled")

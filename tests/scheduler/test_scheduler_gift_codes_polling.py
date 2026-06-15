@@ -8,17 +8,12 @@ Redis and stub ``importlib`` so we never hit external HTTP.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from dsl.cron_specs import scenario_loader_paths
-from dsl.evaluator import ScenarioEvaluator
-from dsl.loader import ScenarioLoader
-from scheduler.optimizer import TaskOptimizer
 from scheduler.runner import (
     _GIFT_CODE_GAMES,
     _GIFT_CODE_LOCK_TTL_S,
@@ -33,13 +28,7 @@ if TYPE_CHECKING:
 
 
 def _make_runner(settings: Settings) -> SchedulerRunner:
-    repo_root = Path(__file__).resolve().parents[2]
-    return SchedulerRunner(
-        settings,
-        ScenarioLoader(scenario_loader_paths(repo_root)),
-        TaskOptimizer(settings),
-        ScenarioEvaluator(),
-    )
+    return SchedulerRunner(settings)
 
 
 def _fake_summary(total: int = 0) -> SimpleNamespace:

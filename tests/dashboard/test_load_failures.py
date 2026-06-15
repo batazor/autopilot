@@ -47,31 +47,31 @@ def test_record_and_read_roundtrip_tags_source_and_sorts_newest_first() -> None:
     client = _SyncHashRedis()
     record_load_failures(
         client,
-        "scenario_loader",
+        "dsl_validation",
         [{"file": "/x/broken.yaml", "error": "boom", "ts": 100.0}],
     )
     record_load_failures(
         client,
-        "evaluator",
+        "startup_validation",
         [{"scenario": "Regular", "task": "daily_checkin", "error": "nope", "ts": 200.0}],
     )
 
     out = read_load_failures(client)
 
-    assert [e["source"] for e in out] == ["evaluator", "scenario_loader"]
+    assert [e["source"] for e in out] == ["startup_validation", "dsl_validation"]
     assert out[0]["scenario"] == "Regular"
     assert out[1]["file"] == "/x/broken.yaml"
 
 
 def test_record_empty_clears_only_that_source() -> None:
     client = _SyncHashRedis()
-    record_load_failures(client, "scenario_loader", [{"file": "a", "error": "e", "ts": 1.0}])
-    record_load_failures(client, "evaluator", [{"scenario": "s", "error": "e", "ts": 2.0}])
+    record_load_failures(client, "dsl_validation", [{"file": "a", "error": "e", "ts": 1.0}])
+    record_load_failures(client, "startup_validation", [{"scenario": "s", "error": "e", "ts": 2.0}])
 
-    record_load_failures(client, "scenario_loader", [])
+    record_load_failures(client, "dsl_validation", [])
 
     out = read_load_failures(client)
-    assert [e["source"] for e in out] == ["evaluator"]
+    assert [e["source"] for e in out] == ["startup_validation"]
 
 
 def test_read_skips_unparseable_fields() -> None:
@@ -101,8 +101,8 @@ def test_redis_errors_are_swallowed() -> None:
         def hgetall(self, *a: Any, **k: Any) -> None:
             raise ConnectionError(msg)
 
-    record_load_failures(_Broken(), "scenario_loader", [{"file": "a", "error": "e", "ts": 1.0}])
-    record_load_failures(_Broken(), "scenario_loader", [])
+    record_load_failures(_Broken(), "dsl_validation", [{"file": "a", "error": "e", "ts": 1.0}])
+    record_load_failures(_Broken(), "dsl_validation", [])
     assert read_load_failures(_Broken()) == []
 
 
@@ -111,11 +111,11 @@ async def test_async_record_matches_sync_wire_format() -> None:
     store = _SyncHashRedis()
     client = _AsyncHashRedis(store)
     await record_load_failures_async(
-        client, "evaluator", [{"scenario": "s", "task": "t", "error": "e", "ts": 1.0}]
+        client, "dsl_validation", [{"scenario": "s", "task": "t", "error": "e", "ts": 1.0}]
     )
 
     out = read_load_failures(store)
-    assert out == [{"source": "evaluator", "scenario": "s", "task": "t", "error": "e", "ts": 1.0}]
+    assert out == [{"source": "dsl_validation", "scenario": "s", "task": "t", "error": "e", "ts": 1.0}]
 
-    await record_load_failures_async(client, "evaluator", [])
+    await record_load_failures_async(client, "dsl_validation", [])
     assert read_load_failures(store) == []

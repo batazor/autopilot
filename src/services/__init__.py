@@ -31,10 +31,7 @@ if TYPE_CHECKING:
 
     from adb.bot_actions import BotActions
     from config.loader import InstanceConfig, Settings
-    from dsl.evaluator import ScenarioEvaluator
-    from dsl.loader import ScenarioLoader
     from ocr.client import OcrClient
-    from scheduler.optimizer import TaskOptimizer
     from scheduler.queue import RedisQueue
     from scheduler.runner import SchedulerRunner
     from worker.instance_worker import InstanceWorker
@@ -43,9 +40,6 @@ if TYPE_CHECKING:
 # Keys used in :mod:`app._state`. Centralized so typos don't silently
 # create dangling slots that never get cleaned up by ``aclose``.
 _K_OCR = "ocr_client"
-_K_OPTIMIZER = "task_optimizer"
-_K_EVALUATOR = "scenario_evaluator"
-_K_LOADER = "scenario_loader"
 _K_BOT_ACTIONS = "bot_actions"
 _K_SCHED_ASYNC_REDIS = "scheduler_async_redis"
 _K_SCHED_WAKE_REDIS = "scheduler_wake_redis"
@@ -59,7 +53,7 @@ def bind_active_game(game: str) -> None:
 
     Called once per worker child by :func:`worker.supervisor._worker_process`
     after it resolves ``instance_config.game``. Downstream getters
-    (``get_scenario_loader``, navigator, loaders) read this via
+    (navigator, loaders) read this via
     :func:`get_active_game` so they walk only the active game's tree.
     """
     _state.set_(_K_ACTIVE_GAME, (game or "").strip())
@@ -151,8 +145,6 @@ async def init_app_services() -> None:
 
 async def aclose_app_services() -> None:
     """Tear down APP-scope services that hold OS resources."""
-    _state.pop(_K_LOADER)
-
     try:
         from adb.scrcpy import close_all_scrcpy_clients
 
@@ -174,7 +166,7 @@ async def aclose_app_services() -> None:
 
     # Stateless services — drop refs so the next ``init`` rebuilds against
     # the current Settings.
-    for k in (_K_OCR, _K_OPTIMIZER, _K_EVALUATOR, _K_BOT_ACTIONS, _K_SCHED_QUEUE, _K_SCHED_RUNNER):
+    for k in (_K_OCR, _K_BOT_ACTIONS, _K_SCHED_QUEUE, _K_SCHED_RUNNER):
         _state.pop(k)
 
 
@@ -225,39 +217,6 @@ def get_ocr_client() -> OcrClient:
 
 def is_ocr_client_ready() -> bool:
     return _state.has(_K_OCR)
-
-
-def get_task_optimizer() -> TaskOptimizer:
-    if (o := _state.get(_K_OPTIMIZER)) is not None:
-        return o
-    from scheduler.optimizer import TaskOptimizer
-
-    o = TaskOptimizer(get_settings())
-    _state.set_(_K_OPTIMIZER, o)
-    return o
-
-
-def get_scenario_evaluator() -> ScenarioEvaluator:
-    if (e := _state.get(_K_EVALUATOR)) is not None:
-        return e
-    from dsl.evaluator import ScenarioEvaluator
-
-    e = ScenarioEvaluator()
-    _state.set_(_K_EVALUATOR, e)
-    return e
-
-
-def get_scenario_loader() -> ScenarioLoader:
-    if (loader := _state.get(_K_LOADER)) is not None:
-        return loader
-    from dsl.cron_specs import scenario_loader_paths
-    from dsl.loader import ScenarioLoader
-
-    loader = ScenarioLoader(
-        scenario_loader_paths(get_repo_root(), game=get_active_game())
-    )
-    _state.set_(_K_LOADER, loader)
-    return loader
 
 
 def get_bot_actions() -> BotActions:
@@ -322,12 +281,9 @@ async def get_scheduler_runner() -> SchedulerRunner:
     queue = await get_scheduler_queue()
     r = SchedulerRunner(
         get_settings(),
-        get_scenario_loader(),
         redis=redis,
         queue=queue,
         wake_sync=get_scheduler_wake_redis(),
-        optimizer=get_task_optimizer(),
-        evaluator=get_scenario_evaluator(),
     )
     _state.set_(_K_SCHED_RUNNER, r)
     return r

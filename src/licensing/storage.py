@@ -6,7 +6,8 @@ lives inside the signed JWT and the runtime verifies that signature.
 
 We deliberately do **not** wrap the JWT in a JSON envelope: any field
 outside the signature is advisory/untrusted, and shipping a JSON wrapper
-invited "but the file says tier=pro" arguments. The token is authoritative.
+invited "but the file says a different tier" arguments. The token is
+authoritative.
 
 Default location: ``<repo_root>/license-data/licence.jwt`` — a directory
 mount (not a file mount) so Docker can bind it before the file exists and

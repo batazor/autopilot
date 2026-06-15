@@ -1,16 +1,13 @@
-"""Scenario load-failure state (Redis-backed, scheduler-write / API-read).
+"""Load-failure state (Redis-backed, producer-write / API-read).
 
-A malformed scenario YAML or an unresolvable task factory used to leave only a
-log line behind — the scenario just vanished from the schedule. For an
-unattended bot that is worse than a crash, so the scheduler now publishes every
-load/expand failure here and the dashboard renders a red banner until the file
-is fixed.
+Malformed runtime config used to leave only a log line behind. For an
+unattended bot that is worse than a crash, so producers publish load/validation
+failures here and the dashboard renders a red banner until the issue is fixed.
 
 Shape: one Redis hash, ``wos:system:load_failures``, field = producer source
-(``scenario_loader``, ``evaluator``), value = JSON list of entries::
+(``startup_validation``, ``dsl_validation``, etc.), value = JSON list of entries::
 
-    {"file": "...", "error": "...", "ts": 1731030302.1}          # loader
-    {"scenario": "...", "task": "...", "error": "...", "ts": …}  # evaluator
+    {"file": "...", "error": "...", "ts": 1731030302.1}
 
 Producers overwrite their own field on every reload/tick and delete it when
 they have nothing to report, so the banner self-heals once the YAML is fixed.
@@ -33,7 +30,7 @@ def record_load_failures(
     source: str,
     failures: list[dict[str, Any]],
 ) -> None:
-    """Replace ``source``'s failure list (sync producer, e.g. loader reload).
+    """Replace ``source``'s failure list from a sync producer.
 
     Redis errors are swallowed — reporting must never take down the scheduler
     that is doing the reporting.

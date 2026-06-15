@@ -6,38 +6,34 @@ nodes:
   - deals.home_and_beyond
 
 steps:
-  # The "Claim All" CTA at the bottom collects every available reward in one
-  # tap. Loop in case the button re-renders after a sub-popup confirmation,
-  # exits when the button is no longer visible (everything claimed).
-  - while_match: deals.home_and_beyound.claim_all
-    max: 1
+  # Rewards are claimed by tapping the reward tile itself — the day's
+  # claimable tiles (both Free and Epic columns, the pass is purchased)
+  # carry a yellow/gold glow rim; spent tiles show a green check, locked
+  # ones a padlock. ``isYellowGlow: true`` short-circuits ``while_match``
+  # to ``find_yellow_glow_squares`` scoped to ``deals.home_and_beyound.rewards``
+  # (the full reward grid), sets the tap target to the first glowing tile's
+  # centre, and re-detects each iteration — looping until no tile glows.
+  # Same shape as games/wos/deals/sign_in and games/wos/core/shop/dawn_fund.
+  - while_match: deals.home_and_beyound.rewards
+    isYellowGlow: true
+    max: 8
     retry:
-      attempts: 2
+      attempts: 3
       interval: 1s
     steps:
-      - click: deals.home_and_beyound.claim_all
+      - click: deals.home_and_beyound.rewards
       - wait: 1.5s
-
-  # Individual reward tiers expose their own claim buttons; the claimable ones
-  # are highlighted with a white border (spent/locked ones are not).
-  # ``button.claim`` carries ``isSearch: true`` so the matcher scans the whole
-  # frame, and ``isWhiteBorder: true`` keeps only the highlighted (still-claimable)
-  # buttons — one tap per iteration walks every lit button until none remain.
-  - while_match: button.claim
-    isWhiteBorder: true
-    max: 5
-    steps:
-      - click: button.claim
-      - wait: 1s
-
-  - while_match: heroes.sr.new.close
-    max: 5
-    steps:
-      - click: heroes.sr.new.close
-      - wait: 2s
-
-  - while_match: button.tap_anywhere_to_exit
-    max: 1
-    steps:
-      - click: button.tap_anywhere_to_exit
-      - wait: 1s
+      # A claimed tile pops a reward dialog (hero shards / items) that covers
+      # the grid. Dismiss it inside the loop so the next glowing tile is
+      # visible to the re-detect at the top — one pass claims every tile.
+      - while_match: heroes.sr.new.close
+        max: 2
+        steps:
+          - click: heroes.sr.new.close
+          - wait: 800ms
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 2
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 800ms

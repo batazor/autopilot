@@ -12,8 +12,16 @@ steps:
     store: player_id
     type: integer
     preprocess: fast_digits
-    threshold: 0.75
-    min_digits: 8
+    # ``fast_digits`` runs Tesseract with a digit char-whitelist, which disables
+    # its language model and collapses word-confidence to ~0 even on correct
+    # reads (observed: text='2721690' conf=0.000). So confidence is NOT a usable
+    # gate here — the real guards are the digit whitelist, ``type: integer`` and
+    # ``min_digits``. Floor confidence at 0 so a valid id isn't dropped as
+    # ``low_confidence``.
+    threshold: 0.0
+    # WOS player IDs are 7–10 digits — newer/low accounts are 7. Floor at 7 so a
+    # legit 7-digit id isn't rejected as ``integer_too_short``.
+    min_digits: 7
 
   - ocr: player.state
     type: integer

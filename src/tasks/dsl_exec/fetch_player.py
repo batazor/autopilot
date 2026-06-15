@@ -38,6 +38,31 @@ def _century_error_message(exc: CenturyAPIError) -> str:
     return str(raw).strip() if raw is not None else str(exc).strip()
 
 
+async def _running_build_is_beta(ctx: DslExecContext) -> bool | None:
+    """Is the instance running a beta/alias build right now?
+
+    ``True``/``False`` from the controller's ``last_game_is_beta`` signal, which
+    it writes off the *foreground* package (see ``adb.controller_process``), so
+    it reflects the build actually on screen. ``None`` when the field hasn't been
+    written yet — callers treat "unknown" conservatively (don't clear the OCR
+    binding) but still attempt the sync.
+    """
+    if ctx.redis_client is None:
+        return None
+    try:
+        raw = await ctx.redis_client.hget(
+            f"wos:instance:{ctx.instance_id}:state", "last_game_is_beta"
+        )
+    except Exception:
+        return None
+    flag = _decode_redis_raw(raw)
+    if flag == "1":
+        return True
+    if flag == "0":
+        return False
+    return None
+
+
 async def _clear_active_player_if_matches(
     ctx: DslExecContext,
     *,
@@ -82,6 +107,7 @@ async def _recent_fetch_failure(
     *,
     state_key: str,
     fid: int,
+    allow_clear: bool,
 ) -> bool:
     if ctx.redis_client is None:
         return False
@@ -106,7 +132,7 @@ async def _recent_fetch_failure(
     except Exception:
         err_code = ""
         error = ""
-    if err_code == _CENTURY_ROLE_NOT_EXIST_ERR_CODE:
+    if allow_clear and err_code == _CENTURY_ROLE_NOT_EXIST_ERR_CODE:
         await _clear_active_player_if_matches(
             ctx,
             player_id=ctx.player_id.strip(),
@@ -160,6 +186,23 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
         logger.warning("dsl exec fetch_player: empty task player_id — skipping")
         return
 
+    # Century only knows production accounts. On a beta/alias build every id
+    # comes back as err_code 40001 ("role not exist"), which the failure handler
+    # would treat as an invalid player and clear the OCR-bound active_player.
+    # The running build is the source of truth — skip the sync entirely on beta
+    # so the OCR identity (set by `ocr: player.id`) survives untouched. This is
+    # defense-in-depth: who_i_am.yaml also gates the exec on `last_game_is_beta`,
+    # but covering it here protects every caller (cron, UI re-run) and the window
+    # before that field is first written.
+    beta = await _running_build_is_beta(ctx)
+    if beta is True:
+        logger.info(
+            "dsl exec fetch_player: skip Century sync — beta build instance=%s player=%s",
+            ctx.instance_id,
+            ctx.player_id,
+        )
+        return
+
     state_key = f"wos:player:{ctx.player_id}:state"
     raw_fid = await ctx.redis_client.hget(state_key, "player_id")
     fid_s = _decode_redis_raw(raw_fid)
@@ -190,7 +233,13 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
             time.time() - ts,
         )
         return
-    if await _recent_fetch_failure(ctx, state_key=state_key, fid=fid):
+    # Only a positively non-beta build may clear the binding on a 40001 — an
+    # unknown (None) build during the controller's first probe must not wipe a
+    # valid OCR identity over a transient "role not exist".
+    clear_ok = beta is False
+    if await _recent_fetch_failure(
+        ctx, state_key=state_key, fid=fid, allow_clear=clear_ok
+    ):
         return
 
     try:
@@ -202,7 +251,7 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
             fid=fid,
             exc=exc,
         )
-        if err_code == _CENTURY_ROLE_NOT_EXIST_ERR_CODE:
+        if clear_ok and err_code == _CENTURY_ROLE_NOT_EXIST_ERR_CODE:
             await _clear_active_player_if_matches(
                 ctx,
                 player_id=ctx.player_id.strip(),
