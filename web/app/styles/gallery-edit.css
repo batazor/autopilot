@@ -263,6 +263,40 @@
     @apply flex flex-col gap-3;
   }
 
+  /* Grouped section inside the inspector header (Definition / Run behavior). */
+  .edit-scenario-fieldset {
+    @apply m-0 flex flex-col gap-3 rounded-lg border border-wos-border-subtle bg-wos-input/15 p-3;
+  }
+
+  .edit-scenario-fieldset__legend {
+    @apply ml-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-wos-text-muted;
+  }
+
+  /* Small muted helper line under a single field's control. */
+  .field-row__hint {
+    @apply text-xs leading-snug text-wos-text-muted;
+  }
+
+  /* Helper paragraph spanning a multi-field row (no left indent). */
+  .field-help {
+    @apply m-0 text-xs leading-snug text-wos-text-muted;
+  }
+
+  .field-help code,
+  .field-row__hint code {
+    @apply rounded bg-wos-panel-raised/60 px-1 py-px font-mono text-[11px] text-wos-text-secondary;
+  }
+
+  /* Toggle laid out as a card so enabled/device_level align as a pair,
+     separated from the numeric/text inputs below them. */
+  .edit-scenario-toggle {
+    @apply flex flex-col gap-1 rounded-md border border-wos-border-subtle bg-wos-input/30 px-2.5 py-2;
+  }
+
+  .edit-scenario-toggle .field-row__hint {
+    @apply pl-[1.65rem];
+  }
+
   .edit-scenario-step-card {
     @apply mb-3 rounded-xl border border-wos-border-subtle p-3 transition-colors duration-100;
   }
@@ -332,11 +366,15 @@
   }
 
   .edit-scenario-icon-row {
-    @apply items-start;
+    @apply flex items-start gap-3;
   }
 
   .edit-scenario-icon-preview {
-    @apply flex min-h-[4rem] items-center;
+    @apply flex h-14 w-14 shrink-0 items-center justify-center self-end overflow-hidden rounded-md border border-wos-border-subtle bg-wos-input/30;
+  }
+
+  .edit-scenario-icon-preview img {
+    @apply h-full w-full object-contain;
   }
 
   .edit-scenario-yaml-preview,

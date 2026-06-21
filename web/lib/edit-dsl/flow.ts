@@ -21,10 +21,18 @@ export const START_NODE_ID = "start";
 export const FLOW_NODE_W = 260;
 export const FLOW_NODE_H = 76;
 export const FLOW_START_H = 86;
-const GAP = 28;
 const PAD = 14;
 const HEADER_H = 48;
 const EMPTY_H = 44;
+
+/** Vertical gap between stacked steps per density preset. `comfortable` is the
+ *  default (the original 28) — mirrors the tech-tree spacing control. */
+export type FlowSpacing = "compact" | "comfortable" | "spacious";
+const SPACING_GAP: Record<FlowSpacing, number> = {
+  compact: 14,
+  comfortable: 28,
+  spacious: 48,
+};
 
 /** Step kinds whose primary value is a region name (previewable). */
 const REGION_KINDS = new Set(["click", "long_click", "match", "ocr"]);
@@ -419,7 +427,7 @@ function chainEdge(source: string, target: string): Edge {
   };
 }
 
-type FlowAcc = { nodes: Node[]; edges: Edge[]; sets: MetaSets };
+type FlowAcc = { nodes: Node[]; edges: Edge[]; sets: MetaSets; gap: number };
 
 /** Stack `steps` vertically starting at (x0, y0) in the parent's coordinate
  *  space; containers recurse with their children positioned relative to the
@@ -432,6 +440,7 @@ function layoutList(
   y0: number,
   acc: FlowAcc,
 ): { width: number; height: number } {
+  const gap = acc.gap;
   let y = y0;
   let maxW = 0;
   steps.forEach((step, i) => {
@@ -458,32 +467,40 @@ function layoutList(
         type: "dslContainer",
         position: { x: x0, y },
         data: containerNodeData(step, kind, path, children.length, acc.sets),
+        // Explicit dims (not just `style`) so the MiniMap renders the node:
+        // it reads node.width/measured, and this flow has no onNodesChange to
+        // write measured dims back. The layout already knows the exact size.
+        width: w,
+        height: h,
         style: { width: w, height: h },
       };
       maxW = Math.max(maxW, w);
-      y += h + GAP;
+      y += h + gap;
     } else {
       acc.nodes.push({
         ...common,
         type: "dslStep",
         position: { x: x0, y },
         data: stepNodeData(step, kind, path, acc.sets),
+        width: FLOW_NODE_W,
+        height: FLOW_NODE_H,
         style: { width: FLOW_NODE_W, height: FLOW_NODE_H },
       });
       maxW = Math.max(maxW, FLOW_NODE_W);
-      y += FLOW_NODE_H + GAP;
+      y += FLOW_NODE_H + gap;
     }
   });
-  return { width: maxW, height: steps.length ? y - y0 - GAP : 0 };
+  return { width: maxW, height: steps.length ? y - y0 - gap : 0 };
 }
 
 export function docToFlow(
   doc: ScenarioDocument,
   meta?: FlowMeta,
+  spacing: FlowSpacing = "comfortable",
 ): { nodes: Node[]; edges: Edge[] } {
   const steps = Array.isArray(doc.steps) ? doc.steps : [];
   const sets = metaSets(meta);
-  const acc: FlowAcc = { nodes: [], edges: [], sets };
+  const acc: FlowAcc = { nodes: [], edges: [], sets, gap: SPACING_GAP[spacing] };
   const node = String(doc.node ?? "").trim();
   const startIssues: string[] = [];
   if (node && sets.nodes && !sets.nodes.has(node) && !isTemplated(node)) {
@@ -503,9 +520,11 @@ export function docToFlow(
       stepCount: steps.length,
       issues: startIssues,
     } satisfies DslStartNodeData,
+    width: FLOW_NODE_W,
+    height: FLOW_START_H,
     style: { width: FLOW_NODE_W, height: FLOW_START_H },
   });
-  layoutList(steps, [], undefined, 0, FLOW_START_H + GAP, acc);
+  layoutList(steps, [], undefined, 0, FLOW_START_H + acc.gap, acc);
   if (steps.length) acc.edges.push(chainEdge(START_NODE_ID, stepNodeId([0])));
   return acc;
 }

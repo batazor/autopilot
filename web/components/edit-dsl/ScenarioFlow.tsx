@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useTheme } from "@/components/ThemeProvider";
+import { GraphExport } from "@/components/flow/GraphExport";
 import { AppListbox } from "@/components/headless";
 import { tip } from "@/components/AppTooltip";
 import { Icon } from "@/components/ui/Icon";
@@ -62,6 +63,7 @@ import {
   type DslContainerNodeData,
   type DslStartNodeData,
   type DslStepNodeData,
+  type FlowSpacing,
   type StepPath,
   type WrapKind,
 } from "@/lib/edit-dsl/flow";
@@ -630,8 +632,12 @@ export function ScenarioFlow({
   // "start" pins the header form; a path key pins that step; null = overview.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [addType, setAddType] = useState<string>(STEP_TYPES_FOR_NEW[0]);
+  const [spacing, setSpacing] = useState<FlowSpacing>("comfortable");
 
-  const { nodes, edges } = useMemo(() => docToFlow(doc, meta), [doc, meta]);
+  const { nodes, edges } = useMemo(
+    () => docToFlow(doc, meta, spacing),
+    [doc, meta, spacing],
+  );
 
   const stem = (rel.split("/").pop() ?? "").replace(/\.ya?ml$/, "");
   const docName = String(doc.name ?? "").trim();
@@ -939,9 +945,12 @@ export function ScenarioFlow({
       </>
     ) : (
       <>
-        <p className="muted mt-0 text-xs">
-          Click a node to edit it here. Scenario header:
-        </p>
+        <div className="mb-2 flex items-baseline gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--wos-text-muted)" }}>
+            Scenario
+          </span>
+          <span className="muted text-xs">click a node on the canvas to edit a step</span>
+        </div>
         <ScenarioHeaderForm
           doc={doc}
           rel={rel}
@@ -983,6 +992,22 @@ export function ScenarioFlow({
         >
           <Background />
           <Controls showInteractive={false} />
+          <Panel position="top-right">
+            <div className="flex gap-1">
+              {(["compact", "comfortable", "spacious"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={spacing === s ? "btn-primary" : "btn-secondary"}
+                  onClick={() => setSpacing(s)}
+                  {...tip(`${s[0].toUpperCase()}${s.slice(1)} spacing`)}
+                >
+                  {s === "compact" ? "▪" : s === "comfortable" ? "▫" : "⬜"}
+                </button>
+              ))}
+              <GraphExport name={stem || "scenario"} />
+            </div>
+          </Panel>
           {live || lastRun ? (
             <Panel position="top-left">
               <div className="flex flex-col items-start gap-1">
