@@ -2,12 +2,9 @@
 
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Dagre from "@dagrejs/dagre";
-import { toPng } from "html-to-image";
 import {
   Background,
   Controls,
-  getNodesBounds,
-  getViewportForBounds,
   Handle,
   MarkerType,
   MiniMap,
@@ -21,6 +18,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useTheme } from "@/components/ThemeProvider";
+import { GraphExport } from "@/components/flow/GraphExport";
 
 /** A prerequisite edge: id of the required node, plus an optional edge label. */
 export type FlowRequire = string | { id: string; label?: string };
@@ -52,6 +50,16 @@ export type FlowTreeNode = {
 
 /** Layout direction: top→bottom (vertical) or left→right (horizontal). */
 type Dir = "TB" | "LR";
+
+/** Spacing preset → dagre node/rank separation. `comfortable` is the default
+ *  (the original 40/80) — compact packs the graph tighter, spacious airs it out
+ *  so dense trees (building ladders, Fire Age) stay legible. */
+type Spacing = "compact" | "comfortable" | "spacious";
+const SPACING: Record<Spacing, { nodesep: number; ranksep: number }> = {
+  compact: { nodesep: 24, ranksep: 48 },
+  comfortable: { nodesep: 40, ranksep: 80 },
+  spacious: { nodesep: 64, ranksep: 132 },
+};
 
 export const NODE_W = 200;
 export const NODE_H = 64;
@@ -195,9 +203,9 @@ function buildEdges(nodes: FlowTreeNode[]): Edge[] {
 }
 
 /** Dagre auto-layout (https://reactflow.dev/examples/layout/dagre). */
-function dagreLayout(rfNodes: Node[], edges: Edge[], dir: Dir): Node[] {
+function dagreLayout(rfNodes: Node[], edges: Edge[], dir: Dir, spacing: Spacing): Node[] {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: dir, nodesep: 40, ranksep: 80 });
+  g.setGraph({ rankdir: dir, ...SPACING[spacing] });
   for (const n of rfNodes) {
     const w = (n.style?.width as number) ?? NODE_W;
     g.setNode(n.id, { width: w, height: NODE_H });
@@ -308,44 +316,6 @@ function SearchPanel({
   );
 }
 
-/** Export the whole graph (all nodes, not just the viewport) to a PNG. */
-function DownloadButton({ name }: { name: string }) {
-  const { getNodes } = useReactFlow();
-  const onClick = () => {
-    const viewport = document.querySelector<HTMLElement>(".react-flow__viewport");
-    if (!viewport) return;
-    const bounds = getNodesBounds(getNodes());
-    const pad = 48;
-    const width = Math.min(8000, Math.ceil(bounds.width) + pad * 2);
-    const height = Math.min(8000, Math.ceil(bounds.height) + pad * 2);
-    const vp = getViewportForBounds(bounds, width, height, 0.2, 2, pad);
-    const bg =
-      getComputedStyle(document.documentElement)
-        .getPropertyValue("--wos-bg")
-        .trim() || "#1c2433";
-    void toPng(viewport, {
-      backgroundColor: bg,
-      width,
-      height,
-      style: {
-        width: `${width}px`,
-        height: `${height}px`,
-        transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
-      },
-    }).then((dataUrl) => {
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `${name}.png`;
-      a.click();
-    });
-  };
-  return (
-    <button type="button" className="btn-secondary" onClick={onClick}>
-      Export PNG
-    </button>
-  );
-}
-
 export function TechTreeFlow({
   nodes,
   height = 600,
@@ -364,6 +334,7 @@ export function TechTreeFlow({
   const { theme } = useTheme();
   const fixed = nodes.some((n) => n.position);
   const [dir, setDir] = useState<Dir>(defaultDirection);
+  const [spacing, setSpacing] = useState<Spacing>("comfortable");
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const effectiveDir: Dir = fixed ? defaultDirection : dir;
@@ -400,8 +371,8 @@ export function TechTreeFlow({
       style: { width: n.width ?? NODE_W },
     }));
     const e = buildEdges(nodes);
-    return { layoutNodes: fixed ? base : dagreLayout(base, e, dir), edges: e };
-  }, [nodes, dir, fixed]);
+    return { layoutNodes: fixed ? base : dagreLayout(base, e, dir, spacing), edges: e };
+  }, [nodes, dir, fixed, spacing]);
 
   // Graph highlight previews whatever is under the cursor; the detail card is
   // pinned to the clicked node and only follows hover while nothing is pinned.
@@ -534,9 +505,20 @@ export function TechTreeFlow({
                 >
                   Horizontal
                 </button>
+                {(["compact", "comfortable", "spacious"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={spacing === s ? "btn-primary" : "btn-secondary"}
+                    onClick={() => setSpacing(s)}
+                    title={`${s[0].toUpperCase()}${s.slice(1)} spacing`}
+                  >
+                    {s === "compact" ? "▪" : s === "comfortable" ? "▫" : "⬜"}
+                  </button>
+                ))}
               </>
             ) : null}
-            <DownloadButton name={exportName} />
+            <GraphExport name={exportName} />
           </div>
         </Panel>
         </ReactFlow>
