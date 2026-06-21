@@ -1,0 +1,410 @@
+@layer components {
+  /* —— Headless UI (Listbox, Dialog) —— */
+  .headless-listbox-field--inline {
+    @apply flex items-center gap-2 text-sm text-wos-text-secondary;
+  }
+
+  .headless-listbox {
+    @apply relative;
+  }
+
+  .headless-listbox--full {
+    @apply w-full;
+  }
+
+  .headless-listbox-field--block {
+    @apply flex w-full flex-col gap-1 text-sm text-wos-text-secondary;
+  }
+
+  .headless-listbox-field--block > span:first-child {
+    @apply font-medium text-wos-text-muted;
+  }
+
+  .headless-listbox__button {
+    @apply flex w-full min-h-[34px] cursor-pointer items-center justify-between gap-2 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-left text-sm text-wos-text shadow-none transition hover:border-wos-border focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-listbox__value {
+    @apply min-w-0 truncate;
+  }
+
+  .headless-listbox__options {
+    @apply z-40 mt-1 max-h-60 min-w-[var(--button-width)] overflow-auto rounded-lg border border-wos-border-subtle bg-wos-panel p-1 shadow-lg shadow-black/25 outline-none transition duration-100 ease-out data-closed:scale-95 data-closed:opacity-0;
+  }
+
+  .headless-listbox__option {
+    @apply cursor-pointer rounded-md px-2.5 py-1.5 text-sm text-wos-text data-focus:bg-wos-panel-raised data-selected:bg-sky-500 data-selected:text-white;
+  }
+
+  .headless-listbox__empty {
+    @apply px-2.5 py-2 text-sm text-wos-text-muted;
+  }
+
+  /* —— Combobox (search-as-you-type select) —— */
+  .headless-combobox__field {
+    @apply flex w-full min-h-[34px] items-center gap-1 rounded-lg border border-wos-border-subtle bg-wos-input pr-1 text-sm text-wos-text shadow-none transition hover:border-wos-border focus-within:border-sky-400/70 focus-within:outline-none focus-within:ring-2 focus-within:ring-sky-400/25;
+  }
+
+  .headless-combobox__input {
+    @apply w-full min-w-0 flex-1 cursor-text bg-transparent px-2.5 py-1.5 text-left text-sm text-wos-text outline-none placeholder:text-wos-text-muted data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-combobox__button {
+    @apply flex shrink-0 cursor-pointer items-center justify-center px-1.5 text-wos-text-muted outline-none focus:outline-none data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-checkbox-field {
+    @apply flex items-center gap-2;
+  }
+
+  .headless-checkbox-field--inline {
+    @apply text-sm text-wos-text-secondary;
+  }
+
+  .headless-checkbox-field__label {
+    @apply cursor-pointer select-none text-sm text-wos-text-secondary data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-checkbox {
+    @apply flex size-4 shrink-0 cursor-pointer items-center justify-center rounded border border-wos-border-subtle bg-wos-input transition hover:border-wos-border focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-checked:border-sky-500/80 data-checked:bg-sky-500 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-checkbox__icon {
+    @apply size-3 opacity-0 transition;
+  }
+
+  .headless-checkbox[data-checked] .headless-checkbox__icon {
+    @apply opacity-100;
+  }
+
+  .headless-switch-field {
+    @apply inline-flex items-center gap-2;
+  }
+
+  .headless-switch-field--inline {
+    @apply text-sm text-wos-text-secondary;
+  }
+
+  .headless-switch-field__label {
+    @apply cursor-pointer select-none text-sm text-wos-text-secondary data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-switch {
+    @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-wos-border-subtle bg-wos-input transition hover:border-wos-border focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-checked:border-sky-500/80 data-checked:bg-sky-500 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-switch__thumb {
+    @apply pointer-events-none ml-0.5 inline-block size-4 translate-x-0 transform rounded-full bg-white shadow ring-0 transition duration-150 ease-out;
+  }
+
+  .headless-switch[data-checked] .headless-switch__thumb {
+    @apply translate-x-4;
+  }
+
+  /* —— RadioGroup (single-value pick) —— */
+  .headless-radio-group {
+    @apply inline-flex text-sm text-wos-text data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-radio-group--segmented {
+    @apply items-stretch gap-0 rounded-lg border border-wos-border-subtle bg-wos-input p-0.5;
+  }
+
+  .headless-radio-group--stack {
+    @apply flex-col gap-1;
+  }
+
+  .headless-radio--pill {
+    @apply inline-flex shrink-0 cursor-pointer select-none items-center justify-center whitespace-nowrap rounded-md px-2.5 py-1 text-sm text-wos-text-secondary transition hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-checked:bg-sky-500 data-checked:text-white data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-radio--row {
+    @apply flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 transition hover:bg-wos-panel-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-radio__dot {
+    @apply relative inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-input transition;
+  }
+
+  .headless-radio--row[data-checked] .headless-radio__dot {
+    @apply border-sky-500/80 bg-sky-500;
+  }
+
+  .headless-radio--row[data-checked] .headless-radio__dot::after {
+    @apply absolute size-1.5 rounded-full bg-white content-[''];
+  }
+
+  .headless-radio__label {
+    @apply select-none;
+  }
+
+  /* —— Menu (action dropdown) —— */
+  .headless-menu__button {
+    @apply inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent text-wos-text-muted transition hover:border-wos-border-subtle hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-open:border-wos-border-subtle data-open:bg-wos-panel-raised data-open:text-wos-text;
+  }
+
+  .headless-menu__items {
+    @apply z-40 mt-1 min-w-[10rem] origin-top-right overflow-hidden rounded-lg border border-wos-border-subtle bg-wos-panel p-1 shadow-lg shadow-black/30 outline-none transition duration-100 ease-out data-closed:scale-95 data-closed:opacity-0;
+  }
+
+  .headless-menu__item {
+    @apply flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-sm text-wos-text no-underline transition data-focus:bg-wos-panel-raised data-focus:text-wos-text data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-menu__item--danger {
+    @apply text-red-300 data-focus:bg-red-500/10 data-focus:text-red-200;
+  }
+
+  .headless-menu__separator {
+    @apply my-1 h-px bg-wos-border-subtle;
+  }
+
+  /* —— Popover (free-form panel) —— */
+  .headless-popover {
+    @apply relative inline-flex;
+  }
+
+  .headless-popover__button {
+    @apply inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-wos-border-subtle bg-wos-surface px-2.5 text-xs font-medium text-wos-text-secondary transition hover:border-wos-border hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-open:border-wos-border data-open:bg-wos-panel-raised data-open:text-wos-text;
+  }
+
+  .headless-popover__panel {
+    @apply z-40 mt-1 min-w-[14rem] origin-top-right overflow-hidden rounded-lg border border-wos-border-subtle bg-wos-panel p-1 shadow-lg shadow-black/30 outline-none transition duration-100 ease-out data-closed:scale-95 data-closed:opacity-0;
+  }
+
+  .headless-popover__item {
+    @apply flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-sm text-wos-text no-underline transition hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:bg-wos-panel-raised;
+  }
+
+  .headless-popover__item--active {
+    @apply bg-wos-panel-raised text-wos-text;
+  }
+
+  .headless-popover__item-icon {
+    @apply inline-flex h-4 w-4 shrink-0 items-center justify-center text-wos-text-muted;
+  }
+
+  .headless-dialog-root {
+    @apply relative z-50;
+  }
+
+  .headless-dialog__backdrop {
+    @apply fixed inset-0 bg-black/55 transition duration-200 ease-out data-closed:opacity-0;
+  }
+
+  .headless-dialog__container {
+    @apply fixed inset-0 flex items-center justify-center p-4;
+  }
+
+  .headless-dialog__panel {
+    @apply w-full max-w-md rounded-xl border border-wos-border-subtle bg-wos-panel p-5 shadow-xl shadow-black/30 transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0;
+  }
+
+  .headless-dialog__title {
+    @apply m-0 text-lg font-semibold text-wos-text;
+  }
+
+  .headless-dialog__body {
+    @apply mt-2 text-sm text-wos-text-secondary;
+  }
+
+  .headless-dialog__actions {
+    @apply mt-5 flex flex-wrap justify-end gap-2;
+  }
+
+  .headless-dialog__confirm--danger {
+    @apply border-red-500 bg-red-600 hover:bg-red-500;
+  }
+
+  .onboarding-wizard {
+    @apply max-w-lg;
+  }
+
+  .onboarding-confetti {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 70;
+  }
+
+  .onboarding-wizard__header {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .onboarding-wizard__skip {
+    @apply text-xs text-wos-text-muted hover:text-wos-text-secondary;
+  }
+
+  .onboarding-wizard__steps {
+    @apply mt-4 mb-2 flex list-none gap-2 p-0 text-xs text-wos-text-muted;
+  }
+
+  .onboarding-wizard__step-pill {
+    @apply flex flex-1 items-center gap-2 rounded-lg border border-wos-border-subtle/60 bg-wos-panel-raised/40 px-2 py-1.5;
+  }
+
+  .onboarding-wizard__step-pill.is-active {
+    @apply border-sky-500/70 bg-sky-500/10 text-wos-text;
+  }
+
+  .onboarding-wizard__step-pill.is-done {
+    @apply border-emerald-500/40 bg-emerald-500/5 text-wos-text-secondary;
+  }
+
+  .onboarding-wizard__step-num {
+    @apply inline-flex h-5 w-5 items-center justify-center rounded-full bg-wos-surface text-[10px] font-semibold;
+  }
+
+  .onboarding-wizard__body {
+    @apply min-h-[10rem];
+  }
+
+  .onboarding-wizard__panel {
+    @apply flex flex-col gap-3 text-sm text-wos-text-secondary;
+  }
+
+  .onboarding-wizard__panel > p {
+    @apply m-0;
+  }
+
+  .onboarding-wizard__success {
+    @apply text-emerald-300;
+  }
+
+  .onboarding-wizard__hint {
+    @apply text-xs text-wos-text-muted;
+  }
+
+  .onboarding-wizard__error {
+    @apply mt-2 rounded-lg border border-red-500/40 bg-red-950/40 px-2.5 py-1.5 text-xs text-red-100;
+  }
+
+  .onboarding-devices {
+    @apply rounded-lg border border-wos-border-subtle/60 bg-wos-panel-raised/35 px-2.5 py-2 text-xs;
+  }
+
+  .onboarding-devices__head {
+    @apply flex flex-wrap items-center justify-between gap-2 font-semibold text-wos-text-secondary;
+  }
+
+  .onboarding-devices__counts {
+    @apply flex shrink-0 flex-wrap items-center justify-end gap-1.5;
+  }
+
+  .onboarding-devices__badge {
+    @apply rounded border border-wos-border-subtle bg-wos-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-wos-text-muted;
+  }
+
+  .onboarding-devices__badge--warn {
+    @apply border-amber-500/40 bg-amber-500/10 text-amber-200;
+  }
+
+  .onboarding-devices__list {
+    @apply mt-2 flex list-none flex-col gap-1 p-0;
+  }
+
+  .onboarding-devices__row {
+    @apply grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-2 rounded border border-wos-border-subtle/50 bg-wos-surface/80 px-2 py-1.5;
+  }
+
+  .onboarding-devices__name {
+    @apply truncate text-wos-text;
+  }
+
+  .onboarding-devices__serial {
+    @apply truncate text-[11px] text-wos-text-muted;
+  }
+
+  .onboarding-devices__state {
+    @apply rounded-full bg-wos-panel-raised px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-wos-text-muted;
+  }
+
+  .onboarding-devices__state.is-live {
+    @apply bg-emerald-500/15 text-emerald-300;
+  }
+
+  .onboarding-devices__empty {
+    @apply mt-2 break-words text-xs text-wos-text-muted;
+  }
+
+  .onboarding-health-rows {
+    @apply flex flex-col gap-1.5;
+  }
+
+  .onboarding-health-row {
+    @apply grid grid-cols-[1.25rem_6rem_1fr] items-center gap-2 rounded-lg border border-wos-border-subtle/60 bg-wos-panel-raised/40 px-2.5 py-1.5 text-xs;
+  }
+
+  .onboarding-health-row__dot {
+    @apply text-base leading-none;
+  }
+
+  .onboarding-health-row__detail {
+    @apply truncate text-wos-text-muted;
+  }
+
+  .onboarding-health-row--ok .onboarding-health-row__dot {
+    @apply text-emerald-400;
+  }
+
+  .onboarding-health-row--warn .onboarding-health-row__dot {
+    @apply text-amber-400;
+  }
+
+  .onboarding-health-row--fail .onboarding-health-row__dot {
+    @apply text-red-400;
+  }
+
+  .onboarding-health-row--loading .onboarding-health-row__dot {
+    @apply text-wos-text-muted;
+  }
+
+  .onboarding-checklist {
+    @apply mx-3 mt-2 rounded-lg border border-wos-border-subtle/70 bg-wos-panel-raised/60 px-3 py-2.5 text-xs;
+  }
+
+  .onboarding-checklist--complete {
+    @apply border-emerald-500/35 bg-emerald-500/10;
+  }
+
+  .onboarding-checklist__header {
+    @apply mb-2 flex items-center justify-between gap-2;
+  }
+
+  .onboarding-checklist__title {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-wos-text-muted;
+  }
+
+  .onboarding-checklist__dismiss {
+    @apply -mr-1 flex h-5 w-5 items-center justify-center rounded text-base leading-none text-wos-text-muted hover:bg-wos-surface hover:text-wos-text;
+  }
+
+  .onboarding-checklist__list {
+    @apply m-0 flex list-none flex-col gap-1 p-0;
+  }
+
+  .onboarding-checklist__item {
+    @apply flex items-center gap-2 text-wos-text-secondary;
+  }
+
+  .onboarding-checklist__item.is-done {
+    @apply text-wos-text-muted line-through;
+  }
+
+  .onboarding-checklist__bullet {
+    @apply inline-flex h-4 w-4 items-center justify-center text-[11px];
+  }
+
+  .onboarding-checklist__item.is-done .onboarding-checklist__bullet {
+    @apply text-emerald-400;
+  }
+
+  .onboarding-checklist__complete {
+    @apply flex items-center gap-2 rounded-md border border-emerald-500/25 bg-wos-surface/70 px-2 py-1.5 text-emerald-200;
+  }
+
+  .onboarding-checklist__complete-icon {
+    @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-semibold text-emerald-300;
+  }
+
+}

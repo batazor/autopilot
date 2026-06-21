@@ -1,0 +1,27 @@
+enabled: false
+# Vertical slice: planner → navigator → upgrade, wired end to end.
+#   1. plan_next_building  — furnace-first pick from recorded levels →
+#                            planner.next_building
+#   2. navigate_to_building — radar navigator swipes the camera until that
+#                            building is centred, then taps it open (open: true)
+#   3. building.upgrade    — the existing on-screen upgrade flow runs on it
+#
+# Shipped DISABLED on purpose (overrides the enable-by-default rule): it
+# physically swipes/taps via the radar navigator, so it needs (a) a saved
+# main_city radar scan with a building registry, and (b) on-device validation
+# of the navigator first. Flip enabled: true once a city map exists and routing
+# is confirmed.
+name: 🧠🏗️ Smart build · plan → navigate → upgrade
+device_level: true
+priority: 54_000
+cond: currentNode == main_city
+steps:
+  # Clear any modal (Alliance Gift, event popup…) before driving the camera —
+  # a popup over the map breaks the navigator's ORB localization.
+  - exec: dismiss_popup
+  - exec: plan_next_building
+  - exec: navigate_to_building
+    open: true
+  - cond: nav.ok ~= "1"
+    steps:
+      - push_scenario: building.upgrade

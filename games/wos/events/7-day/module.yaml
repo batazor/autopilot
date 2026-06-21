@@ -1,0 +1,9 @@
+id: 7-day
+title: 7-Day Login
+description: 7-Day Login event automation; claims the visible big reward button.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: ../../../area.json
+references: references
+icon: 7-day
+wiki: false

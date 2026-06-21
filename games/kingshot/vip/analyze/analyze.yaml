@@ -1,0 +1,48 @@
+overlay:
+  - name: vip.main_city.badge.visible
+    region: page.vip
+    isRedDot: true
+    device_level: true
+    priority: 90_000
+    screens:
+      - main_city
+    steps:
+      - push_scenario: vip.daily
+
+  - name: vip.box.has_red_dot
+    region: page.vip.box
+    isRedDot: true
+    screens:
+      - vip
+    steps:
+      - push_scenario: vip.daily
+
+  - name: vip.add.has_red_dot
+    region: page.vip.add
+    isRedDot: true
+    screens:
+      - vip
+    steps:
+      - push_scenario: vip.daily
+
+  - name: vip.claim.visible
+    region: button.claim
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - vip
+
+  - name: vip.unlock.has_red_dot
+    region: page.vip.unlock
+    isRedDot: true
+    screens:
+      - vip
+    steps:
+      - push_scenario: vip.daily
+
+  - name: increase_level.use.visible
+    region: button.use
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - increase_level

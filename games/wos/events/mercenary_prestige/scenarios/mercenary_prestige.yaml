@@ -1,0 +1,38 @@
+enabled: true
+name: "Mercenary Prestige: scout"
+
+priority: 80_000
+
+nodes:
+  - event.mercenary_prestige
+
+steps:
+  # One mercenary per run: scout → attack → equalize → deploy. The march out,
+  # the fight, and the march back take real time, so instead of looping inline
+  # we re-push this scenario after the round-trip (the only DSL primitive that
+  # can wait a dynamic, OCR-derived duration). When no scout remains the
+  # while_match has zero iterations → no re-push → the chain stops.
+  - while_match: mercenary_prestige.scout
+    max: 1
+    steps:
+      - click: mercenary_prestige.scout
+      - wait: 1s
+      - click: mercenary_prestige.attack
+      - wait: 1s
+      - click: mercenary_prestige.target.equalize
+      - wait: 500ms
+      - click: mercenary_prestige.target.deploy
+
+      # Read the march timer shown after deploy. The region is type: time, but
+      # we override to type: string so the raw mm:ss text is stored — the
+      # push_scenario delay resolver parses mm:ss and rejects bare-integer
+      # seconds, so storing "45" instead of "00:45" would skip the re-push.
+      - ocr: mercenary_prestige.target.ttl
+        type: string
+        store: mp_ttl
+
+      # Re-arm after the round-trip: march there and back (×2) + a 3s window
+      # for the result screen.
+      - push_scenario:
+          name: mercenary_prestige
+          delay: mp_ttl * 2 + 3s

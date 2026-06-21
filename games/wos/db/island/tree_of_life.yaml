@@ -1,0 +1,73 @@
+# Tree of Life — the heart of Daybreak Island and the island's "Furnace": the
+# spearhead building every other island decision orbits. Each level needs enough
+# accumulated **Prosperity** (NOT consumed — it just has to clear the threshold)
+# plus a one-time **Life Essence** cost, and returns a permanent troop/economy
+# stat bonus and a bump to passive Life-Essence production (le_per_hour).
+#
+# Prosperity comes from placing/upgrading decorations (see decorations.yaml), so
+# the climb is a loop: ToL level -> more LE/hr -> afford decorations -> Prosperity
+# -> next ToL level. The planner treats a prosperity shortfall like a blocked
+# prerequisite and pivots to prosperity-efficient decorations.
+#
+# Source: community data (whiteoutdata.com/daybreak-island/tree-of-life,
+# fetched 2026-06-20). Upgrade *time* is not published per-level → omitted (the
+# planner ranks on value + LE affordability, not build time, for v1).
+source:
+  name: whiteoutdata.com
+  url: https://whiteoutdata.com/daybreak-island/tree-of-life/
+  fetched_at: '2026-06-20'
+
+# level: prosperity_required to unlock, life_essence cost to upgrade, the stat
+# bonus granted, and passive Life Essence/hour produced at that level. Level 1 is
+# the built-from-start base (no cost).
+levels:
+  - level: 1
+    prosperity_required: 0
+    life_essence: 0
+    le_per_hour: 120
+    bonus: {stat: heal_speed, amount: 30.0, unit: percent}
+  - level: 2
+    prosperity_required: 150
+    life_essence: 500
+    le_per_hour: 150
+    bonus: {stat: deployment, amount: 1000, unit: flat}
+  - level: 3
+    prosperity_required: 600
+    life_essence: 1000
+    le_per_hour: 180
+    bonus: {stat: heal_speed, amount: 30.0, unit: percent}
+  - level: 4
+    prosperity_required: 1200
+    life_essence: 5000
+    le_per_hour: 210
+    bonus: {stat: troop_defense, amount: 5.0, unit: percent}
+  - level: 5
+    prosperity_required: 2400
+    life_essence: 10000
+    le_per_hour: 240
+    bonus: {stat: heal_speed, amount: 30.0, unit: percent}
+  - level: 6
+    prosperity_required: 4000
+    life_essence: 20000
+    le_per_hour: 270
+    bonus: {stat: troop_attack, amount: 5.0, unit: percent}
+  - level: 7
+    prosperity_required: 7000
+    life_essence: 30000
+    le_per_hour: 300
+    bonus: {stat: heal_speed, amount: 30.0, unit: percent}
+  - level: 8
+    prosperity_required: 10000
+    life_essence: 50000
+    le_per_hour: 330
+    bonus: {stat: deployment, amount: 3000, unit: flat}
+  - level: 9
+    prosperity_required: 15000
+    life_essence: 70000
+    le_per_hour: 360
+    bonus: {stat: heal, amount: 5.0, unit: percent}
+  - level: 10
+    prosperity_required: 20000
+    life_essence: 100000
+    le_per_hour: 390
+    bonus: {stat: lethality, amount: 5.0, unit: percent}

@@ -1,0 +1,6 @@
+edges:
+  main_world:
+    intel: [main_world.to.intel]
+
+  intel:
+    main_world: [icon.page.back]

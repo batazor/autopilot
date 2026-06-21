@@ -1,0 +1,67 @@
+"""Baked-in defaults for the bot.
+
+Previously lived in ``settings.yaml`` next to this module; kept in Python so the
+defaults sit alongside the loader as a single source of truth. Env-var overrides
+(``WOS_*``) still work via :func:`config.loader.load_settings` — the dict here is
+just the fallback when no override is set.
+
+Edit cadence: rare. Anything operator-tunable should go through env vars or
+``db/devices.yaml`` (the latter is still a YAML file because users add their
+own emulators / accounts there).
+"""
+from __future__ import annotations
+
+from typing import Any
+
+SETTINGS: dict[str, Any] = {
+    "redis": {
+        "url": "redis://localhost:6379/0",
+        "key_prefix": "wos",
+    },
+    "ocr": {
+        "lang": "eng",
+        "tesseract_cmd": "tesseract",
+        "tessdata_dir": "",
+        "timeout_seconds": 10,
+    },
+    "scheduler": {
+        "interval_seconds": 30,
+        "ortools_timeout_seconds": 1.0,
+    },
+    # Object-detection inference sidecar (Roboflow inference server). Used by
+    # feature debuggers (Fishing Tournament fish detector). Override the URL /
+    # key via ``WOS_INFERENCE_URL`` / ``ROBOFLOW_API_KEY`` env vars.
+    "inference": {
+        "service_url": "http://127.0.0.1:9001",
+        "api_key": "",
+        "fish_model_id": "find-fish-ssnpa/6",
+        "confidence": 0.4,
+        "timeout_seconds": 30.0,
+    },
+    "worker": {
+        # adb path; align with UI adb override when needed.
+        "adb_executable": "",
+        # Applied over ADB when the worker starts (per-device overrides in
+        # ``db/devices.yaml`` → ``display:``). wm size/density are skipped
+        # for localhost emulators unless ``wm_size_on_emulator: true``.
+        "device_display": {
+            "size": "720x1280",
+            "density": 320,
+            "brightness_percent": 70,
+            # scrcpy v4 --keep-active keeps the game awake without changing
+            # Android global stay-awake / screen-timeout settings.
+            "keep_screen_on": False,
+            "screen_off_timeout_ms": None,
+        },
+        # ADB foreground check interval for ``worker.game_health_watchdog``
+        # (separate subprocess).
+        "health_check_interval_seconds": 15,
+        "restart_wait_seconds": 10,
+        "task_timeout_seconds": 300,
+        # Max wait at worker boot for Whiteout to reach foreground.
+        "game_foreground_timeout_seconds": 120,
+        "overlay_analyze_when_busy": False,
+        "screen_detect_when_busy": False,
+        "device_reference_snapshot_interval_seconds": 1.0,
+    },
+}

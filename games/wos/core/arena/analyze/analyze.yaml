@@ -1,0 +1,5 @@
+# Arena overlay rules. None yet — the fight flow is driven by the
+# scenario/screen_verify (OCR titles), and the Victory/Defeat result popup is a
+# reward-ribbon screen the shared rewards module already dismisses. Add an
+# entry-point rule here once navigation into the Arena building is wired.
+overlay: []

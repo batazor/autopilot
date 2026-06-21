@@ -1,0 +1,46 @@
+id: cyrille
+name: Cyrille
+wiki_url: https://www.whiteoutsurvival.wiki/experts/cyrille/
+role: Bear Huntress
+type: Expedition
+base_stats:
+- stat: Troops Attack
+  value: +15%
+affinity:
+  stat: Troops Attack
+  max: +15.00%
+skills:
+- name: Entrapment
+  effect: Cyrille's incredible group hunting skills allow her to call many more to the hunters' fest,
+    increasing Bear Hunt Rally Capacity by 30,000 → 300,000.
+  values:
+  - 30,000
+  - 300,000
+- name: Scavenging
+  effect: Her recycling efforts grant 1 → 5 x100 Enhancement XP Component rewards every Bear Hunt.
+  values:
+  - '1'
+  - '5'
+- name: Weapon Master
+  effect: Cyrille's knowledge extends to hero gear expertise, increasing Essence Stone rewards obtained
+    in Bear Hunt by 1 → 5.
+  values:
+  - '1'
+  - '5'
+- name: Ursa's Bane
+  effect: Cyrille's command skills transfer well into the hunting realm, increasing Bear Hunt Troops Deployment
+    capacity by 3,000 → 30,000.
+  values:
+  - 3,000
+  - 30,000
+talent:
+  name: Earthbreaker
+  effect: Cyrille is a repository of bear-hunting skills and knowledge, increasing Bear Hunt Damage Points
+    by up to 2% → 30% (effective for self only).
+  max_level: 11
+story: Cyrille is a legendary hunter whose reputation extends across multiple settlements. She survived
+  a bear encounter as a teenager and has spent over two decades eliminating apex predators on the Tundra.
+  Beyond her hunting prowess, she's known for protecting survivors and outposts with "a kind heart." She's
+  developed innovative bear traps and tactics while warning about distorted super-predators emerging post-collapse.
+  She mentors Cloris and investigates mysterious large-scale beast attacks on cities that leave no traceable
+  evidence.

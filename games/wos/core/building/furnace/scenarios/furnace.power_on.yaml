@@ -1,0 +1,23 @@
+enabled: true
+name: 🔥 Furnace power · On + Max Power
+device_level: true
+priority: 80_000
+steps:
+  # On/Off (heating) toggle is green when ON. If it is NOT green (off), the
+  # match misses and the else-branch taps it back on. No player state / OCR
+  # needed — purely a colour check, so it is safe on a device-level run.
+  - match: building.furnace.on_off
+    threshold: 0.4
+    steps:
+      - wait: 0.1s
+    else:
+      - click: building.furnace.on_off
+      - wait: 0.8s
+  # Max Power toggle is blue while OFF; tapping flips it to green (on) and the
+  # colour re-check ends the loop. Capped so a mis-read can't toggle forever.
+  - while_match: building.furnace.max_power_off
+    threshold: 0.4
+    max: 2
+    steps:
+      - click: building.furnace.max_power_off
+      - wait: 0.8s

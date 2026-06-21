@@ -1,0 +1,137 @@
+id: jasser
+name: Jasser
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/jasser/
+rarity: Epic
+class: Marksmen
+sub_class: Growth
+stats:
+  exploration:
+    attack: '2157'
+    def: '2220'
+    health: '13320'
+  expedition:
+    attack: 140.11%
+    defense: 140.11%
+story: 'Jasser is a travelling scholar, survivalist with encyclopedic knowledge, genius
+  tinker, scientist, crack sharpshooter, a master of no person and servant of none.
+  Jasser has already travelled more in his single lifetime than most survivors of
+  an entire city. And always his goal remains the same: to find a way to heal our
+  troubled world.
+
+
+  Jasser has accumulated enough knowledge as a maverick scientist and explorer to
+  make himself quite useful to both the Dawn Alliance and Phaethon, both of which
+  have made overtures. Jasser''s ideology may align more closely with the Dawn Alliance,
+  but he is not one to make himself beholden to any cause and is happy enough to part
+  with whatever he has learned so as to ensure the Chiefs of various cities have enough
+  cause to welcome him with open arms.
+
+
+  If Jasser''s survival on the ruthless Tundra can be ascribed to one factor, it must
+  be courage under pressure.
+
+
+  Jasser''s first foray onto the Tundra took place as a member of an expeditionary
+  force struck down by an enormous snowstorm soon after leaving their Settlement.
+  Survivors don''t last long in snowstorms, and yet Jasser somehow managed to pathfind
+  his way to an abandoned shelter without which the team would have certainly been
+  found frozen the next morning. Yet their troubles had only just begun. The shelter
+  was immediately attacked by a horde of ravenous animals, and with many fellow explorers
+  wounded, Jasser had to fend off the beasts mostly alone with a gun and hunting knife.
+  In all this Jasser never showed a hint of anxiety, so much so that teammates nicknamed
+  the taciturn explorer "Fortress Jasser".
+
+
+  Jasser is well aware that his refusal to join a faction could make life difficult,
+  and would probably align himself with the Dawn Alliance rather than Phaethon if
+  forced.
+
+
+  In the Dawn Alliance''s favor is its humanitarian concern for the fate of survivors
+  in this post-Chill world, a sympathetic perspective Jasser feels is somewhat over-emphasized
+  as wellbeing should not, in his view, be humanity''s top priority. In this regard,
+  Phaethon''s iron commitment to restoring the old world comes much nearer Jasser''s
+  own goals. But he cannot ignore the atrocities committed at Phaethon''s hands, sins
+  which—among other things—have cost them Jasser''s potential loyalty.
+
+
+  Jasser has been a voracious reader of all kinds of encyclopedias and arcane volumes
+  since childhood, in which he benefited greatly from growing up in a town featuring
+  probably the largest surviving library in the world at that time, and in which he
+  spent many long evenings. Jasser''s broad depth of knowledge has given him a unique
+  appreciation for the way life in the old world used to be, for the stories and the
+  songs mostly lost to time. The memory of earth''s past exerts a special hold over
+  Jasser''s imagination. It is there that Jasser''s never-ending quest for a scientific
+  solution to the world''s woes must be located: surely there is a way to end the
+  march of ice. Surely.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hero Recruitment
+skills:
+- name: Triple Volley
+  description: Jasser precisely aims and fires three consecutive bullets, dealing
+    Attack*100%, Attack * 125%/137.5%/150%/162.5%/175% , and Attack* 150%/165%/180%/195%/210%
+    damage respectively, with the third being area of effect damage.
+- name: Suppressive Fire
+  description: Jasser relies on masterful marksmanship and overwhelming firepower
+    to suppress the enemy, dealing Attack* 100%/110%/120%/130%/140% damage and reducing
+    the target's Attack Speed by 30%/35%/40%/45%/50% for 2s.
+- name: Natural Precision
+  description: Jasser's impeccable marksmanship has become second nature, increasing
+    Attack by 8%/12%/16%/20%/24% .
+- name: Tactical Genius
+  description: Jasser's combination of courage and wisdom enriches the army, increasing
+    damage dealt by 5%/10%/15%/20%/25% for all troops.
+- name: Enlightened Warfare
+  description: Jasser's profound knowledge increases the city's Research Speed by
+    3%/6%/9%/12%/15% .

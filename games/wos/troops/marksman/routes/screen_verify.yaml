@@ -1,0 +1,8 @@
+screens:
+  marksman:
+    priority: 35
+    rules:
+      # Temporary image-less verify until the marksman training screen gets
+      # labeled landmarks. This is enough for post-tap navigation verify from
+      # main_menu, but not a unique detector signal between troop screens.
+      - from_screen: main_menu

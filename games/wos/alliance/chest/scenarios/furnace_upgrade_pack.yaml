@@ -1,0 +1,38 @@
+name: "🔥 Alliance: Furnace Upgrade Pack → Alliance Chat"
+enabled: true
+
+# Overlay-triggered from main_city by the `alliance.furnace_upgrade_pack.visible`
+# rule (analyze/analyze.yaml). The furnace_upgrade_pack help shortcut icon
+# (region `alliance.furnace_upgrade_pack`, bottom-right of main_city) appears when
+# an alliance member requests a furnace upgrade pack; tapping it jumps straight
+# into the Alliance chat tab. There the scenario opens the pack message
+# (`chat.alliance.furnace`), claims it via `button.open`, and backs out of the
+# popup (`icon.page.back`).
+device_level: true
+priority: 70_000
+
+steps:
+  # Soft guard: only tap when the icon is actually on screen (it's transient).
+  - while_match: alliance.furnace_upgrade_pack
+    max: 1
+    steps:
+      - click: alliance.furnace_upgrade_pack
+      - wait: 1s
+      # Landed in the Alliance chat — open the furnace upgrade pack message.
+      - while_match: chat.alliance.furnace
+        max: 1
+        steps:
+          - click: chat.alliance.furnace
+          - wait: 1s
+          - while_match: button.open
+            max: 5
+            steps:
+              - click: button.open
+              - wait: 1s
+              - click: icon.page.back
+              - wait: 1s
+      # Tapping the help icon jumped us INTO the Alliance chat (and the inner
+      # back only closes the pack popup, not the chat). Return to main_city so
+      # the bot isn't stranded in chat — both after a claim AND when the pack is
+      # expired/absent (chat.alliance.furnace never matched).
+      - push_scenario: check_main_city

@@ -1,0 +1,150 @@
+id: lloyd
+name: Lloyd
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/lloyd/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '14850'
+    def: '14850'
+    health: '148518'
+  expedition:
+    attack: 1281.02%
+    defense: 1281.02%
+story: 'Lloyd comes from Ostermore, the "City of Artisans," famed for its astounding
+  mechanical craftsmanship. His family is well-known for their clockmaking expertise.
+  The grand clock tower in town, where he currently resides, is his father''s masterpiece.
+
+
+  As the only son of a master craftsman, Lloyd showed exceptional talent from a young
+  age, effortlessly mastering skills including calibrating the clock tower and repairing
+  intricate pocket watches. His father, often engrossed in his work, had little time
+  to spend with him. Therefore, Lloyd crafted a few "friends" for himself—a cheerful
+  bronze bird and a singing robotic frog. With their companionship, Lloyd enjoyed
+  a joyful childhood.
+
+
+  Sometime later, the town welcomed two new residents—a giant robot named Mr. Tin
+  and a red-haired girl named Edith. Lloyd found his new neighbors fascinating and
+  quickly befriended them. As they grew up and learned together, he developed a close
+  bond with Edith, and he couldn''t resist the urge to explore Mr. Tin''s internal
+  structure.
+
+
+  Ostermore had always been a peaceful place, until the arrival of some outsiders
+  who called themselves Phaethon.
+
+
+  They came in search of the last remaining part of a so-called "War Machine," intending
+  to use it as a prototype for building a formidable army of robots. To this end,
+  they seized control of the town and captured Edith and Mr. Tin.
+
+
+  Wrenches and hammers couldn''t compete with bullets, but the craftsmen weren''t
+  ready to throw in the towel. As darkness fell, a quiet rebellion began to take shape
+  in unseen corners...
+
+
+  While the Phaethon soldiers changed shifts, the townspeople, aided by machines,
+  launched a counterattack. Lloyd''s father led the charge, and Lloyd himself, now
+  a brave young man, was among the fighters.
+
+
+  The cuckoos disrupted the enemy''s vision, and propeller bombs wreaked havoc behind
+  them. In the end, the craftsmen reclaimed their town just before dawn. Lloyd spared
+  Mr. Tin from being dismantled in the nick of time and freed Edith.
+
+
+  His father''s injury cast a shadow over the victory—his movement was restricted
+  by a severe spinal injury. Yet, neither Lloyd nor his father allowed this to bring
+  them down. With Lloyd''s improving skills, they believed he would one day craft
+  the perfect exoskeleton, allowing the legendary craftsman to stand once more.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Chiefs
+- King of Icefield
+- State of Power
+- Daily Deals
+- Hero Rally
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Rapid Bombardment
+  description: Lloyd summons three propeller bombs to attack the target, each dealing
+    Attack* 70%/77%/84%/91%/98% AoE damage.
+- name: Weakness Focus
+  description: Lloyd fires bullets at the target's weaknesses, dealing Attack* 100%/110%/120%/130%/140%
+    and exposing the weaknesses for 3s, during which the target takes 10%/12.5%/15%/17.5%/20%
+    more damage.
+- name: Practiced Perfection
+  description: Lloyd sharpens his combat skills with the craftsman's spirit, increasing
+    his Attack Speed by 10%/15%/20%/25%/30% .
+- name: Bird Invasion
+  description: Lloyd summons a large number of mechanical birds to disrupt enemies,
+    reducing their Lethality by 4%/8%/12%/16%/20% .
+- name: Iceflare Bomb
+  description: Lloyd prepares special bomb for all Lancers, which detonates every
+    3 turns, increases their attack by 30%/60%/90%/120%/150% and releases frosty mist
+    that reduces enemy Lethality by 6%/12%/18%/24%/30% for 1 turn.
+- name: Ingenious Mastery
+  description: Lloyd works to equips his forces with unstable by interesting creations,
+    granting a 40% chance to increase all Troops' Lethality by 10%/20%/30%/40%/50%
+    .
+- name: Frosty Whisper (Lv. 5)
+  description: Lloyd's mechanical cuckoos freeze the bullets with liquid nitrogen,
+    making his normal attacks deal Attack*15% extra damage and reducing the target's
+    Attack Speed by 15% for 2s. The effects are not stackable.
+- name: Steel Maze (Lv. 5)
+  description: Lloyd installs traps on the barricade to assist in the defense, increasing
+    Defender Troops' Attack by 15%.

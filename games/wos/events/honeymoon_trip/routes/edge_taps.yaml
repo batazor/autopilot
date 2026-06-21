@@ -1,0 +1,12 @@
+edges:
+  main_menu:
+    event.honeymoon_trip:
+      resolver: main_menu_panel_row
+      section: honeymoon_trip
+      rows:
+        - honeymoon_trip
+      approval_region: main_menu.panel.honeymoon_trip
+
+  event.honeymoon_trip:
+    main_menu: [icon.page.back]
+    main_city: [icon.page.back]

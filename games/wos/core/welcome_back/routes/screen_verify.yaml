@@ -1,0 +1,6 @@
+screens:
+  welcome_back:
+    priority: 100
+    rules:
+    - match: text.welcome_back
+      threshold: 0.9

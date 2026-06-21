@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1199,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.deals",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 89.38223938223938,
+            "y": 17.82608695652174,
+            "width": 6.40926640926641,
+            "height": 3.4684782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1200,
+      "screen_id": "deals",
+      "ocr": "references/deals.png",
+      "regions": [
+        {
+          "name": "deals.tabs_strip",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 0.0,
+            "y": 6.2,
+            "width": 98.5,
+            "height": 8.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "deals.title",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 11.787833827893152,
+            "y": 0.8865666983352204,
+            "width": 14.999999999999995,
+            "height": 4.42122862113373,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

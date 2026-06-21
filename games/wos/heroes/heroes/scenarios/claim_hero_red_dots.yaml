@@ -1,0 +1,27 @@
+# Walk every hero card to clear the per-hero red dots — opening a hero the first
+# time clears its grid red dot and grants the one-time diamond reward.
+#
+# Mechanism (verified on-device): from the Heroes grid, open the first hero, then
+# step through every hero with the card's "next" arrow (page.heroes.unit.next_unit).
+# The arrow advances Molly → Bahiti → Jessie → … ; `while_match` stops when it is
+# gone (last hero) and `max` caps the walk above the roster size.
+#
+# Manual / on-demand: no cron, no analyzer trigger — runs only when pushed.
+# NOTE: opening clears the *diamond* red dots (fresh / unviewed heroes); other
+# red dots (upgrade/skill available) are not cleared by viewing. If a fresh hero
+# pops a "tap to claim" reward dialog that blocks the arrow, add a dismiss step.
+enabled: true
+name: 💎 Claim hero red dots
+node: heroes
+steps:
+# Open the first hero in the grid.
+- click: heroes.grid.r0c0
+- wait: 1s
+# Step through every hero via the card's next-unit arrow.
+- while_match: page.heroes.unit.next_unit
+  max: 70
+  steps:
+  - click: page.heroes.unit.next_unit
+  - wait: 0.5s
+# Close the last card back to the grid.
+- system_back: true

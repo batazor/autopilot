@@ -1,0 +1,25 @@
+enabled: true
+device_level: true
+name: Sync alliance statistics
+node: alliance
+priority: 70000
+steps:
+  - ocr: alliance.name
+    store: alliance.name
+    scope: instance
+  - ocr: alliance.power
+    type: integer
+    store: alliance.power
+    scope: instance
+  - ocr: alliance.rank
+    type: integer
+    store: alliance.rank
+    scope: instance
+  - ocr: alliance.members.count
+    store: alliance.members.count
+    scope: instance
+  - ocr: alliance.level.badge
+    type: integer
+    store: alliance.level.badge
+    scope: instance
+  - exec: sync_alliance_stats

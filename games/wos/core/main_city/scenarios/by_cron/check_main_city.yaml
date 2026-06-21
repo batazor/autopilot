@@ -1,0 +1,20 @@
+name: 🏙️ Check Main City
+enabled: true
+
+cron: "*/5 * * * *"
+
+# Onboarding gate: this cron navigates to main_city, which fights the tutorial.
+# The scheduler keeps it out of the queue while the onboarding reader reports
+# furnace < 5 (see runner ``min_furnace_level`` handling), instead of enqueuing
+# it every 5 min only to bail.
+min_furnace_level: 5
+
+# Pure node-navigation back to the hub — no player state is read or written.
+# Marked device_level so the worker can seed it at boot (player_id="") before
+# ``who_i_am`` has resolved ``active_player``; player-bound scenarios with an
+# empty player_id are otherwise skipped at scenario-load time.
+device_level: true
+
+node: main_city
+
+steps: []

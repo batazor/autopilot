@@ -1,0 +1,21 @@
+overlay:
+  # The ``+`` button in the rewards panel renders with a tiny red dot when
+  # there is something new to claim on the Witness sub-page. Gate the template
+  # match with ``isRedDot`` so the analyzer does not push on the plain ``+``.
+  #
+  # When matched, push ``deals.hall_of_heroes``: it reads the hub (dismiss the
+  # tips overlay, OCR the event score), then taps ``deals.hall_of_heroes.add`` to
+  # cross the ``deals.hall_of_heroes → hall_of_heroes.witness`` edge, runs the
+  # ``while_match: button.free`` claim loop on the witness sub-page, and chevrons
+  # back. The whole hub + witness flow lives in that single scenario now.
+  - name: deals.hall_of_heroes.add.has_dot
+    region: deals.hall_of_heroes.add
+    action: findIcon
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - deals.hall_of_heroes
+    steps:
+      - push_scenario:
+          name: deals.hall_of_heroes
+          ttl: 1m

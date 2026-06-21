@@ -1,0 +1,10 @@
+enabled: false
+name: 🦸 Sync hero unit
+node: page.heroes.unit
+steps:
+- ocr: page.heroes.unit.name
+  store: page.heroes.unit.name
+- ocr: page.heroes.unit.level
+  type: integer
+  store: page.heroes.unit.level
+- exec: sync_hero_unit

@@ -1,0 +1,10 @@
+id: main_menu
+title: Main menu
+description: >-
+  Main menu child panel opened from main_city via the left-side menu button.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

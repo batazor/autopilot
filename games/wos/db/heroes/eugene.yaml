@@ -1,0 +1,121 @@
+id: eugene
+name: Eugene
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/eugene/
+rarity: Rare
+class: Infantry
+sub_class: Growth
+stats:
+  exploration:
+    attack: '1106'
+    def: '2220'
+    health: '21644'
+  expedition:
+    attack: 90.07%
+    defense: 90.07%
+story: 'Wood is a crucial material for building Cities, but its acquisition is an
+  extremely laborious and time-intensive process. Most lumberjacks do not pick up
+  their axe and head into the forest by choice. Eugene does. He truly enjoys harvesting
+  the forest''s bounty.
+
+
+  Eugene is extremely passionate about his work. He''s happy to accept demanding tasks
+  and gets rather restless when he is not physically exhausted from work. Rumor has
+  it that Eugene''s strange temperament may have much to do with his equally strange
+  past. Eugene approaches combat with the same zest, his large axe is a terror to
+  any foes in his way.
+
+
+  A man like Eugene, who works hard and conducts himself well, is always welcomed
+  in any City. He certainly does love his liquor - but only in his free time. Only
+  the blacksmith has an issue with Eugene - his axes have to be replaced rather frequently.
+
+
+  Eugene is stubborn in his choice of tools and has zero interest in trying out more
+  convenient alternatives like the new steam-powered chainsaws. Eugene''s first choice
+  would always be those crafted by his drinking buddy Smith, as his axes are the sturdiest
+  and easiest to handle.
+
+
+  A major accident several years ago left Eugene with a strange vision: he began seeing
+  "evil spirits" everywhere. The constant sense of anxiety eventually drove him over
+  the edge. He fought the demonic vision, only to later discover he had attacked none
+  other than the Chief of the City. He was cast out into the frozen tundra and was
+  luckily saved by a passing caravan.
+
+
+  Dr. Philly surmised that Eugene''s excessive exposure to an unstable fire crystal
+  had altered his memory and senses. It had also made him incredibly strong and short-tempered.
+  Although Philly could not find a cure, there was a temporary solution: exhausting
+  manual labor prevented the visions.
+
+
+  Logging has since become his answer to the "evil spirits" problem until a more permanent
+  cure can be found. Alternatively, if Eugene runs out of wood to chop, chopping down
+  enemies will do just fine.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Exploration
+- Lighthouse Intel
+- Hero Recruitment
+skills:
+- name: Axe Whirl
+  description: Eugene's axe pirouette deals damage of Attack * 80%/88%/96%/104%/110%
+    per 0.5s to nearby enemies for 3s.
+- name: Razor Sharp
+  description: Eugene's sharpened axe deals 10%/15%/20%/25%/30% more damage per second.
+- name: Woodland Inheritor
+  description: Eugene's consummate knowledge of timber processing has raised City
+    Sawmill Output by 5%/10%/15%/20%/25% .
+- name: Master Woodcutter
+  description: Eugene is always focused on achieving the perfect logging technique.
+    + 5%/10%/15%/20%/25% Wood Gathering Speed on the map.

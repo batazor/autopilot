@@ -1,0 +1,9 @@
+id: armament_competition
+title: Armament Competition
+description: Limited-time Armament Competition event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: armament_competition
+wiki: false

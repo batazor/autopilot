@@ -1,0 +1,14 @@
+overlay:
+  - name: shelter.next.visible
+    region: shelter.next
+    action: cta_button
+    color: blue
+    threshold: 0.5
+    screens:
+      - shelter
+    priority: 80_000
+    ttl: 10s
+    steps:
+      - push_scenario:
+          name: shelter.upgrade
+          ttl: 30s

@@ -1,0 +1,4 @@
+edges:
+  # Welcome-back offline-income popup: tapping Confirm returns to main_city.
+  welcome_back:
+    main_city: [button.confirm.green]

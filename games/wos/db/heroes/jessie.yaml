@@ -1,0 +1,120 @@
+id: jessie
+name: Jessie
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/jessie/
+rarity: Epic
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '1776'
+    def: '2220'
+    health: '17760'
+  expedition:
+    attack: 140.11%
+    defense: 140.11%
+story: 'Jessie is always able to inspire all those around her, but this is not her
+  most valuable skill. She is an excellent Machinist, probably one of the very best.
+
+
+  People have Jessie to thank for the recent inventions: compact shower heaters, automatic
+  conveyor belts for the iron and coal fields, and steam-powered chainsaws. They all
+  helped to improve productivity and quality of life. Jessie''s other inventions include
+  a series of children''s toys and trinkets, less practical but much-beloved by families.
+  "We should still have fun even at the end of the world," is what she always says.
+
+
+  Last but not least, her latest weaponry greatly improved City security. "I didn''t
+  expect Jessie of all people to carry such a heavy rifle". A kind-hearted manner
+  should not be mistaken for weakness, and Jessie has been known to show a much more
+  aggressive side when defending fellow survivors. She was nicknamed "the machinist
+  machine-gunner" after helping to repel a bandit assault with one of her new inventions.
+  The bandits scattered from the hail of bullets as fellow defenders stared at Jessie
+  with newfound awe in their eyes.
+
+
+  Though Jessie is always smiling, she also has wounds of her own. Her optimism is
+  more like a defense mechanism than genuine cheerfulness. Jessie may try to suppress
+  the memories, but there are times when the past well up in her thoughts.
+
+
+  Jessie once lived in Arcadia, the crown jewel of Cities and a genuine utopia of
+  the post-Great Chill world. The City Chief (a former engineer) had realized early
+  on that the oncoming winter posed an enormous threat to our survival, and took every
+  methodical, technological, and societal step to ensure that their oasis could endure
+  for the long haul. Unfortunately, years of prosperity could not make up for a lack
+  of military strength.
+
+
+  Arcadia could not remain immune to the fires of war. The city was ravaged in a day
+  by a well-organized band of invaders, Jessie and the other survivors were sent on
+  a run for their lives. After that, Jessie has come to a very different view of firearms:
+  they are needed to achieve the "hopes for a better world".'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '50'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lighthouse Intel
+- Hero Recruitment
+skills:
+- name: Burst Fire
+  description: Jessie sprays enemies in a forward arc with her machine gun, dealing
+    Attack* 55%/60%/65%/70%/75% damage every 0.5s for 2s.
+- name: Defense Upgrade
+  description: Jessie upgrades her armor, increasing Defense by 25%/37.5%/50%/62.5%/70%
+    .
+- name: Weapon Upgrade
+  description: Jessie's upgraded weapon boosts Attack by 8%/12%/16%/20%/24% .
+- name: Stand of Arms
+  description: Jessie implement advanced weaponry for our troops, increasing damage
+    dealt by 5%/10%/15%/20%/25% for all troops.
+- name: Bulwarks
+  description: With a keen engineering eye, Jessie enhances troops armor, reducing
+    damage taken by 4%/8%/12%/16%/20% for all troops.

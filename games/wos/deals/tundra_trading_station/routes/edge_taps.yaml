@@ -1,0 +1,11 @@
+edges:
+  main_city:
+    deals.tundra_trading_station:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/deals/tundra_trading_station/references/main_city.deals.tundra_trading_station.png
+      threshold: 0.9
+
+  deals.tundra_trading_station:
+    deals: [icon.page.back]
+    main_city: [icon.page.back]

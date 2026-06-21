@@ -1,0 +1,39 @@
+enabled: true
+name: "Deals: Home & Beyond claim"
+
+priority: 80_000
+nodes:
+  - deals.home_and_beyond
+
+steps:
+  # Rewards are claimed by tapping the reward tile itself — the day's
+  # claimable tiles (both Free and Epic columns, the pass is purchased)
+  # carry a yellow/gold glow rim; spent tiles show a green check, locked
+  # ones a padlock. ``isYellowGlow: true`` short-circuits ``while_match``
+  # to ``find_yellow_glow_squares`` scoped to ``deals.home_and_beyound.rewards``
+  # (the full reward grid), sets the tap target to the first glowing tile's
+  # centre, and re-detects each iteration — looping until no tile glows.
+  # Same shape as games/wos/deals/sign_in and games/wos/core/shop/dawn_fund.
+  - while_match: deals.home_and_beyound.rewards
+    isYellowGlow: true
+    max: 8
+    retry:
+      attempts: 3
+      interval: 1s
+    steps:
+      - click: deals.home_and_beyound.rewards
+      - wait: 1.5s
+      # A claimed tile pops a reward dialog (hero shards / items) that covers
+      # the grid. Dismiss it inside the loop so the next glowing tile is
+      # visible to the re-detect at the top — one pass claims every tile.
+      - while_match: heroes.sr.new.close
+        max: 2
+        steps:
+          - click: heroes.sr.new.close
+          - wait: 800ms
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 2
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 800ms

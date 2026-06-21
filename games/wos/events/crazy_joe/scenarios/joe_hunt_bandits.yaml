@@ -1,0 +1,11 @@
+# Stamina-budget consumer stub (demand id: joe_bandits).
+#
+# Scenario key / task_type = `joe_hunt_bandits`. Enqueued by
+# games.wos.core.stamina during the Crazy Joe event when the allocator routes
+# stamina to bandit hunting. No-op for now: a wait placeholder. Real steps
+# (find a bandit on the map, attack, spend ~10 stamina) are filled in later.
+name: Joe hunt bandits (stamina consumer)
+enabled: true
+priority: 80_100          # 80_000 base + demand priority 100
+steps:
+  - wait: 1s              # TODO: replace with the real bandit-hunt flow

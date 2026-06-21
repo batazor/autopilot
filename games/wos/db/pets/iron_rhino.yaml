@@ -1,0 +1,26 @@
+id: iron_rhino
+name: Iron Rhino
+wiki_url: https://www.whiteoutsurvival.wiki/pets/iron-rhino/
+rarity: SSR
+unlock: Unlock after 280 days and Snow Ape LV.30
+max_refinement: 49.16%
+skill:
+  name: Rallying Beasts
+  cooldown: '20:00:00'
+  effect: Inspired by the stampeding beasts, Rally Capacity is increased by 60,000 / 70,000 / 80,000 /
+    90,000 / 100,000 / 110,000 / 120,000 / 130,000 / 140,000 / 150,000 for 2 hours.
+  values:
+  - 60,000
+  - 70,000
+  - 80,000
+  - 90,000
+  - 100,000
+  - 110,000
+  - 120,000
+  - 130,000
+  - 140,000
+  - 150,000
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 31.46%
+  max_defense: 31.46%

@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "deals.tundra_trading_station",
+      "ocr": "references/tundra_trading_station.png",
+      "regions": [
+        {
+          "name": "tundra_trading_station.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.833333333333333,
+            "y": 16.875,
+            "width": 70.83333333333333,
+            "height": 3.90625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

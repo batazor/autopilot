@@ -1,0 +1,8 @@
+# Phase 5 stub — no-op heartbeat scenario so the Kingshot loader has at
+# least one scenario to enumerate. Real Kingshot automation lives in
+# separate scenarios authored once the area/templates are captured.
+name: Kingshot heartbeat
+enabled: false
+device_level: true
+steps:
+  - wait: 1s

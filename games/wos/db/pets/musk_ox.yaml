@@ -1,0 +1,54 @@
+id: musk_ox
+name: Musk Ox
+wiki_url: https://www.whiteoutsurvival.wiki/pets/musk-ox/
+rarity: ''
+unlock: Unlock after 54 days and Furnace LV.18
+max_refinement: 13.41%
+skill:
+  name: Burden Bearer
+  cooldown: 1d 11:00:00 / 1d 07:00:00 / 1d 03:00:00 / 23:00:00 / 19:00:00 / 15:00:00
+  effect: Harnessing the Musk Ox's formidable strength and endurance, instantly complete
+    the gathering upon reaching the next wilderness resource tile (excludes Secured
+    Alliance Gathering Nodes).
+  values: []
+  levels:
+  - level: 1
+    effect: Harnessing the Musk Ox's formidable strength and endurance, instantly
+      complete the gathering upon reaching the next wilderness resource tile (excludes
+      Secured Alliance Gathering Nodes).
+    cooldown: 1d 11:00:00
+  - level: 2
+    effect: Harnessing the Musk Ox's formidable strength and endurance, instantly
+      complete the gathering upon reaching the next wilderness resource tile (excludes
+      Secured Alliance Gathering Nodes).
+    cooldown: 1d 07:00:00
+  - level: 3
+    effect: Harnessing the Musk Ox's formidable strength and endurance, instantly
+      complete the gathering upon reaching the next wilderness resource tile (excludes
+      Secured Alliance Gathering Nodes).
+    cooldown: 1d 03:00:00
+  - level: 4
+    effect: Harnessing the Musk Ox's formidable strength and endurance, instantly
+      complete the gathering upon reaching the next wilderness resource tile (excludes
+      Secured Alliance Gathering Nodes).
+    cooldown: '23:00:00'
+    requires:
+      pet_advancement_level: 40
+  - level: 5
+    effect: Harnessing the Musk Ox's formidable strength and endurance, instantly
+      complete the gathering upon reaching the next wilderness resource tile (excludes
+      Secured Alliance Gathering Nodes).
+    cooldown: '19:00:00'
+    requires:
+      pet_advancement_level: 50
+  - level: 6
+    effect: Harnessing the Musk Ox's formidable strength and endurance, instantly
+      complete the gathering upon reaching the next wilderness resource tile (excludes
+      Secured Alliance Gathering Nodes).
+    cooldown: '15:00:00'
+    requires:
+      pet_advancement_level: 60
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 10.06%
+  max_defense: 10.06%

@@ -1,0 +1,25 @@
+# Claim a hero's biography reward (diamonds). Pushed by the analyzer when the
+# book/wiki icon on a hero card lights a red dot (analyze/analyze.yaml →
+# heroes.unit.bio.scan). Runs in place on the open hero card.
+#
+# Flow (verified on-device): the book icon (page.heroes.unit.wiki) opens the
+# hero's Story; an unclaimed chapter shows a treasure chest. Tapping the chest
+# pops a "Rewards" dialog (50 diamonds) dismissed by tapping anywhere — the
+# second chest tap doubles as that "tap anywhere to exit". Claiming clears the
+# book red dot, so the analyzer won't re-push.
+enabled: true
+name: 📖 Claim hero bio · 💎
+steps:
+- match: page.heroes.unit.wiki
+  isRedDot: true
+  steps:
+  - click: page.heroes.unit.wiki        # open the hero's Story / bio
+  - wait: 1s
+  - while_match: page.heroes.unit.bio.chest
+    max: 5
+    steps:
+    - click: page.heroes.unit.bio.chest  # claim → "Rewards" dialog (diamonds)
+    - wait: 1.2s
+    - click: page.heroes.unit.bio.chest  # tap anywhere to exit the dialog
+    - wait: 0.8s
+  - system_back: true                    # close the Story back to the card

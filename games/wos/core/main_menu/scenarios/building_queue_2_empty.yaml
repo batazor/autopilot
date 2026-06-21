@@ -1,0 +1,46 @@
+enabled: true
+name: "Use empty building queue 2"
+priority: 80_000
+
+# Pushed by scan_main_menu_panel when the City tab shows Building Queue 2 as
+# Idle. Kept separate from queue 1 so scheduler dedup treats both empty slots
+# as independent work. First construction pass stops after opening the target;
+# the next branch depends on the building screen that appears after the tap.
+node: main_menu
+cond: "active_player != null"
+
+steps:
+  - exec: tap_main_menu_panel_row
+    section: building_queue
+    row: queue_2
+    approval_region: main_menu.panel.building_queue.queue_2
+  - wait: 2s
+  - wait_screen:
+      any: [building, main_city]
+      max: 8
+      interval: 500ms
+  - click: main_city.center_building
+  - wait: 400ms
+  - click: main_city.center_building
+  - while_match: upgrade_button
+    action: cta_button
+    color: blue
+    threshold: 0.5
+    max: 1
+    steps:
+      - click: upgrade_button
+      - wait: 800ms
+  - while_match: upgrade_blue_button
+    action: cta_button
+    color: blue
+    threshold: 0.5
+    max: 1
+    steps:
+      - click: upgrade_blue_button
+      - wait: 2s
+  - while_match: building.alliance_help_button
+    threshold: 0.85
+    max: 1
+    steps:
+      - click: building.alliance_help_button
+      - wait: 800ms

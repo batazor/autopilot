@@ -1,0 +1,8 @@
+id: deals_home_and_beyond
+title: Deals — Home and Beyond
+description: Home and Beyond deals sub-tab; taps Claim-All until empty.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: home_and_beyond
+wiki: false

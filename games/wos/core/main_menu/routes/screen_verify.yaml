@@ -1,0 +1,7 @@
+screens:
+  main_menu:
+    priority: 30
+    rules:
+      # Temporary image-less verify until the child menu gets its own labeled
+      # title/landmark region.
+      - from_screen: main_city

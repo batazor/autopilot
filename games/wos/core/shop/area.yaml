@@ -1,0 +1,642 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1100,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.shop",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.6949806949807,
+            "y": 3.4782608695652173,
+            "width": 19.0,
+            "height": 3.5000000000000004,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 1102,
+      "screen_id": "shop",
+      "ocr": "references/page.shop.dawn_market.png",
+      "regions": [
+        {
+          "name": "page.shop.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 19.266409266409266,
+            "y": 0.32608695652173914,
+            "width": 20.0,
+            "height": 6.392391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "shop.tabs_strip",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.0,
+            "y": 6.630434782608695,
+            "width": 90.0,
+            "height": 8.366304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "shop.tab.next_page",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 92.08494208494209,
+            "y": 8.478260869565217,
+            "width": 4.600386100386101,
+            "height": 2.990217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "shop.to.dawn_market",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 15.554054054054053,
+            "y": 9.177173913043479,
+            "width": 7.264478764478765,
+            "height": 3.614130434782609,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.dawn_market.claimable",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.15057915057915,
+            "y": 16.52173913043478,
+            "width": 15.0,
+            "height": 7.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "shop.to.training",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.46718146718147,
+            "y": 8.880434782608695,
+            "width": 11.615830115830116,
+            "height": 4.752173913043478,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "shop.to.rise_of_the_city",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 67.14285714285714,
+            "y": 8.152173913043478,
+            "width": 12.200772200772201,
+            "height": 5.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.dawn_market.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.629343629343629,
+            "y": 15.543478260869565,
+            "width": 40.0,
+            "height": 4.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1103,
+      "screen_id": "shop.daily_deals",
+      "ocr": "references/page.shop.daily_deals.png",
+      "regions": [
+        {
+          "name": "page.shop.daily_deals.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.594594594594595,
+            "y": 15.869565217391305,
+            "width": 15.447876447876448,
+            "height": 4.26304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "box.free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.9,
+            "y": 29.9,
+            "width": 9.3,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "shop.to.construction_queue",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 15.212355212355213,
+            "y": 7.934782608695652,
+            "width": 14.3996138996139,
+            "height": 6.2,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.to.daily_deals",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.78764478764479,
+            "y": 8.695652173913043,
+            "width": 10.150579150579151,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1104,
+      "screen_id": "shop.mix_match",
+      "ocr": "references/page.shop.mix_match.png",
+      "regions": [
+        {
+          "name": "shop.to.mix_match",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 15.250965250965251,
+            "y": 8.91304347826087,
+            "width": 7.081081081081081,
+            "height": 3.9999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.mix_match.claimable",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.53667953667954,
+            "y": 16.293478260869566,
+            "width": 12.984555984555985,
+            "height": 6.844565217391304,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "shop.to.chief_stamina",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.31274131274131,
+            "y": 10.434782608695652,
+            "width": 10.583011583011583,
+            "height": 3.358695652173913,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "shop.to.ice_conqueror",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 68.68725868725869,
+            "y": 9.891304347826088,
+            "width": 11.0,
+            "height": 3.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.mix_match.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.594594594594595,
+            "y": 15.543478260869565,
+            "width": 17.0,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1105,
+      "screen_id": "shop.dawn_fund",
+      "ocr": "references/page.shop.dawn_fund.png",
+      "regions": [
+        {
+          "name": "page.shop.dawn_fund.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.2084942084942085,
+            "y": 15.543478260869565,
+            "width": 17.2992277992278,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "shop.to.dawn_fund",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.54054054054054,
+            "y": 8.58695652173913,
+            "width": 5.7992277992278,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "shop.to.dawn_fund.box",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 21.776061776061777,
+            "y": 53.15217391304348,
+            "width": 20.0,
+            "height": 43.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1106,
+      "screen_id": "shop.construction_queue",
+      "ocr": "references/page.shop.construction_queue.png",
+      "regions": [
+        {
+          "name": "page.shop.construction_queue.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.015444015444015,
+            "y": 15.652173913043478,
+            "width": 35.53088803088803,
+            "height": 4.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1107,
+      "screen_id": "shop.weekly_monthly_cards",
+      "ocr": "references/page.shop.weekly_monthly_cards.png",
+      "regions": [
+        {
+          "name": "shop.to.weekly_monthly_cards",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 14.826254826254827,
+            "y": 9.130434782608695,
+            "width": 10.471042471042471,
+            "height": 3.497826086956522,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.weekly_monthly_cards.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.173745173745174,
+            "y": 16.73913043478261,
+            "width": 28.6003861003861,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1109,
+      "screen_id": "shop.get_gems",
+      "ocr": "references/page.shop.get_gems.png",
+      "screen_region": "page.shop.get_gems.title",
+      "regions": [
+        {
+          "name": "page.shop.get_gems.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 72.2007722007722,
+            "y": 22.5,
+            "width": 12.156370656370656,
+            "height": 5.077173913043478,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "shop.to.get_gems",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.15057915057915,
+            "y": 8.695652173913043,
+            "width": 4.600386100386101,
+            "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1110,
+      "screen_id": "shop.regular_pack",
+      "ocr": "references/page.shop.regular_pack.png",
+      "regions": [
+        {
+          "name": "shop.to.regular_pack",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.55598455598456,
+            "y": 8.804347826086957,
+            "width": 7.399613899613899,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.regular_pack.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.80694980694981,
+            "y": 20.32608695652174,
+            "width": 20.0,
+            "height": 10.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1111,
+      "screen_id": "shop",
+      "ocr": "references/page.shop.artisans_trove.png",
+      "regions": [
+        {
+          "name": "artisans_trove.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.231216273501131,
+            "y": 16.070432687456808,
+            "width": 24.700772200772175,
+            "height": 4.014550055353462,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "artisans_trove.delay",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 14.013353115726993,
+            "y": 28.484309106851118,
+            "width": 14.999999999999995,
+            "height": 2.387835792232473,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "artisans_trove.box",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.44362017804154,
+            "y": 18.20882789317508,
+            "width": 15,
+            "height": 8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "shop.to.artisans_trove",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 14.903050948354073,
+            "y": 8.855700010566636,
+            "width": 7.425401683244066,
+            "height": 3.2164042748094333,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1112,
+      "screen_id": "shop.custom_artistry_chest",
+      "ocr": "references/page.shop.custom_artistry_chest.png",
+      "regions": [
+        {
+          "name": "page.shop.custom_artistry_chest.title",
+          "action": "text",
+          "bbox": {
+            "x": 4.861111111111112,
+            "y": 15.2,
+            "width": 69.0,
+            "height": 5.4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.custom_artistry_chest.claimable",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.44444444444444,
+            "y": 16.40625,
+            "width": 15.0,
+            "height": 8.125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "shop.to.custom_artistry_chest",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.333333333333332,
+            "y": 7.96875,
+            "width": 23.61111111111111,
+            "height": 6.40625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 62,
+      "screen_id": "shop",
+      "ocr": "references/page.shop.png",
+      "regions": [
+        {
+          "name": "page.shop.dawnMarket",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 15.984555984555984,
+            "y": 9.347826086956522,
+            "width": 6.2007722007721995,
+            "height": 3.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.training",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.55598455598456,
+            "y": 10.434782608695652,
+            "width": 6.2007722007721995,
+            "height": 3.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.riseofthecity",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 70.42471042471043,
+            "y": 10.652173913043478,
+            "width": 5.7992277992278,
+            "height": 2.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 19.266409266409266,
+            "y": 0.32608695652173914,
+            "width": 20.0,
+            "height": 6.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

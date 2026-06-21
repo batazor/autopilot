@@ -1,0 +1,252 @@
+id: gwen
+name: Gwen
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/gwen-2/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '5987'
+    def: '4928'
+    health: '36962'
+  expedition:
+    attack: 444.35%
+    defense: 444.35%
+story: 'Gwen and Norah often elicit diverse first impressions although both may be
+  equally respected commanders of the Dawn Alliance.
+
+
+  The commander of a mechanized brigade, Norah excels at lightning-fast charges, disrupting
+  enemy formations, ambushes, and daring raids. By contrast, Gwen exudes a scholarly,
+  bookish aura.Her high standing in the Dawn Alliance has come only from her revolutionary
+  flying machines which can mark enemy movements from high above the battlefield.
+  An exceptional pilot, Gwen has pioneered a myriad of intricate inventions instrumental
+  to many difficult Dawn Alliance missions.
+
+
+  As the machinist Jessie once said of Gwen: "An engineering prodigy, one of only
+  a few in the world, Gwen''s trinkets have done the Alliance enormous good. But I
+  think what Gwen really wants is to create aircraft that will conquer the skies."
+
+
+  Gwen is not fond of combat, but her father''s tragedy has also left her with the
+  realization that sometimes fighting and its brutal consequences cannot be avoided.
+  Gwen is a remarkably strong fighter thanks to her older sister Norah''s guidance
+  and training.Gwen''s prudence still shines through as she tends to disengage when
+  the outcome is uncertain. Ironically,Gwen finds herself most at risk when testing
+  out new machine prototypes. Invention can often be arisky endeavor.
+
+
+  The love Norah holds for her younger sister Gwen is undeniable, yet their journey
+  together has not been without its fair share of conflict.  Despite Norah''s many
+  attempts to make Gwen wise to the ways of battle, she still harbors profound fears
+  for Gwen''s safety in a real firefight. Norah does not want to go through the loss
+  of another family member. Similarly. Norah is anxious about her sister''s obsession
+  with flying machines. She worries for Gwen''s sister''s safety during the invention
+  process and that all these trinket may well prove fruitless. There is also Norah''s
+  perspective on Gwen''s scientific efforts, highly reminiscent of their father. Just
+  like their father''s tragic tale, Norah believes that all the knowledge in the world
+  is futile when faced with the threat of violence and need for self-preservation.
+
+
+  Norah and Gwen''s sisterly relationship has improved.For example, Norah has recently
+  embraced Gwen''s active involvement in combat and focus on research.A considerable
+  part of this positive transformation has come from Gwen''s exceptional contribution
+  during a particularly nasty engagement with Phaethon. One fateful morning, Phaethon
+  launched a vicious invasion led by mechanized infantry backed by heavily-armored
+  guards in what can only be described as a ring of steel around the city. It was
+  a daunting, hopeless sight. Gwen, who had earlier been evacuated, returned in an
+  airship which dropped barrage after barrage of explosives on confused enemy forces.
+  Phaethon''s panicked response provided Norah the perfect moment for an effective
+  counterattack. Norah had witnessed her younger sister''s extraordinary courage,
+  skill, determination, and resourcefulness with a dawning realization: her sister
+  was no longer a child in need of protective guidance. Gwen was fully capable of
+  protecting herself.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Daily Deals
+- Mythic General Hero Shard
+skills:
+- name: Salvo
+  description: Gwen unleashes a devastating salvo against ennemies at the rear (heroes
+    first), dealing Attack 180%/198%/216%/234%/252% Area of Effect damage. Shockwaves
+    will also decrease target's Attack Speed by 50% for 2 seconds.
+- name: Sky Sniper
+  description: Gwen unleashes a devastating air-assisted precision strike against
+    the target -heroes first), dealing Attack 100%/110%/120%/130%/140% damage with
+    a 50% chance of dealing double damage.
+- name: Hellfire
+  description: Gwen launches an incendiary grenade to burn all ennemy targets in the
+    area, dealing Attack 35%/38.5%/42%/45.5%/49% damage per second, for 3s.
+- name: Eagle Vision
+  description: Gwen provides unfettered vision of ennemy weakpoint during fligths,
+    increasing target's Damage Taken by 5%/10%/15%/20%/25% .
+- name: Air Dominance
+  description: Gwen dominates the skies, dealing 20%/40%/60%/80%/100% extra damage
+    once every five attacks and grants 5%/7.5%/10%/12.5%/15% extra damage to the next
+    attack from any source.
+- name: Blastmaster
+  description: Gwen equips her troops with grenades, dealing 10%/20%/30%/40%/50% extra
+    damage to all ennemies once every 4 attacks.
+- name: Fire Support Unit (Lv. 5)
+  description: Gwen's automated secondary weapon attacks random target on skill cast
+    (heroes forst), dealing Attack 70% damage.
+- name: Marauder (Lv. 5)
+  description: Gwen use her expertise in offensive tactics, boosting Rally Troops
+    Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 66600
+      attack: 159
+      defense: 133
+      health: 999
+      lethality_m: 11.1
+      health_m: 11.1
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 50% damage
+    2:
+      power: 113220
+      attack: 273
+      defense: 226
+      health: 1698
+      lethality_m: 22.2
+      health_m: 22.2
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 50% damage
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 159840
+      attack: 386
+      defense: 319
+      health: 2397
+      lethality_m: 33.3
+      health_m: 33.3
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 55% damage
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 206460
+      attack: 501
+      defense: 412
+      health: 3096
+      lethality_m: 44.4
+      health_m: 44.4
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 55% damage
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 253080
+      attack: 614
+      defense: 506
+      health: 3796
+      lethality_m: 55.5
+      health_m: 55.5
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 60% damage
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 299700
+      attack: 728
+      defense: 599
+      health: 4495
+      lethality_m: 66.6
+      health_m: 66.6
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 60% damage
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 346320
+      attack: 841
+      defense: 692
+      health: 5194
+      lethality_m: 77.7
+      health_m: 77.7
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 65% damage
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 392940
+      attack: 954
+      defense: 785
+      health: 5894
+      lethality_m: 88.8
+      health_m: 88.8
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 65% damage
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 439560
+      attack: 1067
+      defense: 879
+      health: 6593
+      lethality_m: 99.9
+      health_m: 99.9
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 70% damage
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 499500
+      attack: 1212
+      defense: 999
+      health: 7492
+      lethality_m: 111.0
+      health_m: 111.0
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 70% damage
+      skill_2: Rally Troop Lethality +15%

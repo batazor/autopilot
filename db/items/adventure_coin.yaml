@@ -1,0 +1,9 @@
+id: adventure_coin
+name: Adventure Coin
+wiki_url: https://www.whiteoutsurvival.wiki/items/adventure-coin/
+category: ''
+description: Ancient coin found in the snowy terrain. Can be exchanged for various
+  rewards from the Adventure Caravan. Will be converted into a 1K Meat at the end
+  of the event.
+sources:
+- Tundra Adventure

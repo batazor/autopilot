@@ -1,0 +1,9 @@
+enabled: true
+name: Dismiss Survivor Status intro tips
+device_level: true
+steps:
+  - while_match: survivors.intro
+    max: 10
+    steps:
+      - click: survivors.intro
+      - wait: 1s

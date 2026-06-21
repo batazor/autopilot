@@ -1,0 +1,104 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import {
+  useAttention,
+  useDismissAttention,
+} from "@/components/attention/useAttention";
+import { attentionAction } from "@/lib/attention";
+import { Icon } from "@/components/ui/Icon";
+import { CopyButton } from "@/components/CopyButton";
+
+/**
+ * Global strip under the header: critical fleet problems only. Warnings live
+ * on the overview AttentionPanel — a strip that nags on every page must mean
+ * "the bot is not making progress", or it trains operators to ignore it.
+ */
+export function AttentionBanner() {
+  const [expanded, setExpanded] = useState(false);
+  const { data } = useAttention();
+  const dismiss = useDismissAttention();
+
+  const critical = (data?.items ?? []).filter((i) => i.severity === "critical");
+  if (critical.length === 0) return null;
+
+  return (
+    <div className="border-b border-red-500/40 bg-red-500/10 text-xs text-red-100">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-red-500/15"
+        aria-expanded={expanded}
+      >
+        <Icon name="alert" size="sm" className="shrink-0 text-red-400" />
+        <span className="flex-1 font-medium">
+          {critical.length === 1
+            ? critical[0].title
+            : `${critical.length} issues need attention — ${critical[0].title}`}
+        </span>
+        <Icon
+          name={expanded ? "chevron-left" : "chevron-right"}
+          size="sm"
+          className="shrink-0 text-red-300"
+        />
+      </button>
+      {expanded && (
+        <ul className="space-y-1 px-4 pb-3 pl-11">
+          {critical.map((item) => {
+            const action = attentionAction(item);
+            return (
+              <li key={item.id} className="break-words">
+                <span className="font-medium text-red-200">{item.title}</span>
+                {item.detail ? (
+                  <span className="text-red-100/80"> — {item.detail}</span>
+                ) : null}
+                {action ? (
+                  <>
+                    {" "}
+                    <Link
+                      href={action.href}
+                      className="font-medium text-red-200 underline underline-offset-2"
+                    >
+                      {action.label}
+                    </Link>
+                  </>
+                ) : null}
+                {item.dismissible ? (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      className="font-medium text-red-200 underline underline-offset-2 disabled:opacity-60"
+                      disabled={dismiss.isPending}
+                      onClick={() => dismiss.mutate(item)}
+                      title="Hide this expected offline-device notice until the device reconnects"
+                    >
+                      {dismiss.isPending ? "Skipping..." : "Skip"}
+                    </button>
+                  </>
+                ) : null}
+                {item.debug_log ? (
+                  <div className="mt-2 rounded-md border border-red-400/30 bg-black/20 p-2">
+                    <div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-red-100/70">
+                      <span>Diagnostic trace</span>
+                      <CopyButton
+                        text={item.debug_log}
+                        label="Copy"
+                        title="Copy diagnostic trace"
+                        className="ml-auto px-2 py-0.5 text-[11px]"
+                      />
+                    </div>
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-red-50/90">
+                      {item.debug_log}
+                    </pre>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}

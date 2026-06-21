@@ -1,0 +1,10 @@
+enabled: true
+name: 🎁 Redeem beta gift codes
+device_level: true
+priority: 60_000
+# Run a few times a day; the exec no-ops when nothing is pending. Only act from
+# a hub screen — the governor avatar opens the profile only there.
+cron: "0 */6 * * *"
+cond: currentNode == main_city
+steps:
+  - exec: redeem_beta_gift_codes

@@ -1,0 +1,13 @@
+enabled: true
+name: Onboarding click · Open Chapter panel
+device_level: true
+priority: 95_000
+steps:
+  # Main city during the tutorial: tap the chapter-quest scroll (bottom-left) to
+  # reopen the Chapter panel so the Claim/Go rules can keep driving the story
+  # missions. The panel's own buttons take over from there.
+  - while_match: onboarding.chapter.entry
+    max: 1
+    steps:
+      - click: onboarding.chapter.entry
+      - wait: 1.2s

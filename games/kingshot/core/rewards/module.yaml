@@ -1,0 +1,9 @@
+id: rewards
+title: Rewards (Kingshot)
+description: >-
+  Kingshot generic reward popup shown after claim flows. Detects the
+  "Rewards" banner and closes the overlay by tapping "Tap anywhere to exit".
+area: area.yaml
+references: references
+scenarios: scenarios
+wiki: false

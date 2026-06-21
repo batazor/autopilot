@@ -1,0 +1,62 @@
+# Radar config — ISLAND target (event island map).
+#
+# Like main_city, the island has no minimap world grid and no kingdom border, so
+# it uses the screen-space `raster` route with the border servo OFF and the
+# first cell captured in place. The stitcher measures frame offsets from ORB
+# keypoints, so distances are accurate as long as frames overlap and the crop
+# covers map content only (not the static UI overlay).
+#
+# PLACEHOLDER GEOMETRY: crop + raster below are copied from main_city. The island
+# view differs — recalibrate on-device against the stitched canvas:
+#   * crop — tighten to the island's map area only.
+#   * raster cols/rows/step — cover the island from the start view; step_*_px ≈
+#     crop dim × (1 − overlap). Scan at a fixed zoom for repeatable distances.
+version: 1
+device_serial: 127.0.0.1:5555
+adb_bin: adb
+minimap:
+  bbox: [506, 12, 195, 145]
+  corners:
+    top: [603.0, 18.0]
+    right: [695.0, 84.0]
+    bottom: [606.0, 151.0]
+    left: [512.0, 84.0]
+  reference: radar_minimap_ref.png
+viewport:
+  rect_w: 24
+  rect_h: 39
+overlap: 0.5
+crop:
+  x: 110
+  y: 210
+  w: 500
+  h: 790
+raster:
+  cols: 3
+  rows: 3
+  step_x_px: 250
+  step_y_px: 395
+game_size: 1200
+navigation:
+  mode: swipe
+  swipe_duration_ms: 500
+  swipe_margin_px: 48
+  swipe_scale: 1.0
+timings:
+  post_tap_delay_ms: 300
+  stabilize_interval_ms: 150
+  stabilize_diff_threshold: 2.0
+  stabilize_consecutive: 2
+  stabilize_timeout_ms: 5000
+border:
+  servo: false
+  stop_at_top: false
+  require_cross: false
+  block_crossing: false
+label_guard:
+  enabled: true
+  white_threshold: 235
+  white_fraction: 0.5
+  sample_radius_px: 6
+  timeout_ms: 4000
+  poll_interval_ms: 250

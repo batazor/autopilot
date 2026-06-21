@@ -1,0 +1,155 @@
+id: ligeia
+name: Ligeia
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/ligeia/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '21656'
+    def: '17826'
+    health: '133698'
+  expedition:
+    attack: 1451.16%
+    defense: 1451.16%
+story: 'Ligeia is a lady of many talents, an excellent singer whose melodious songs
+  are well-known across the Tundra. There are great chiefs who consider it an honor
+  to have heard Ligeia perform. But there is still much more to Ligeia than meets
+  the eye.
+
+
+  Ligeia seems to wield a strange power over Tundra society. Why do nobles bow to
+  her every whim? Why do some chiefs whisper her name in fear? Some say she is a master
+  manipulator who hypnotizes with her voice or weaves an invisible web of dark magic.
+  If Ligeia has ever responded to such rumors, it is only with laughter or a declaration
+  that undoubtedly some fans are indeed "captivated" by her heavenly voice.
+
+
+  The most commonly accepted story of Ligeia''s singing skills, charm, sophistication,
+  and breadth of knowledge is that she is an exiled noble from the last days of the
+  Solaris Empire. Those doubtful (particularly noblemen''s wives wary of her menacing
+  presence) have occasionally dispatched investigators to uncover the layers of Ligeia''s
+  past. Strangely, none have ever returned compromising information and several have
+  gone missing.
+
+
+  Ligeia does not hypnotize. She does not need to. Her actual skills are far more
+  menacing.
+
+
+  Ligeia was second to none in her mastery of mechanical robotics during the last
+  days of the Empire. Not all of the Empire''s spider-mechs, which were mainly used
+  to spy on nobles and obtain compromising information, were destroyed. It is Ligeia''s
+  ability to observe, blackmail, and emotionally manipulate that has granted what
+  she desires more than anything else in the world: a life of ease and luxury. Of
+  course, spider-mechs can be deployed in times of physical danger also.
+
+
+  Ligeia hides her past well. Nobody can know she was once a spymaster of the Solaris
+  Empire.
+
+
+  Ligeia once had the unenviable role of watching the emperor''s inner circle—acting
+  as judge, jury, and executioner in the case of suspected dissidents (poison or spider
+  bomb execution was preferred). Ligeia''s unique skills helped her to navigate the
+  collapse of the Empire better than most. Freedom and fortune became a simple matter
+  of tracking down and assuming the identity of a noblewoman of similar appearance
+  following the collapse.
+
+
+  Ligeia''s new noble identity both allowed her to avoid enemies from the old regime
+  and theoretically gave access to a large fortune. This facade has to be carefully
+  managed, but leaves plenty of room for Ligeia to enjoy a better life than the Empire
+  provided. That is the ultimate goal of all the blackmail, manipulation, and lying:
+  not political gain.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Chiefs
+- King of Icefield
+- State of Power
+- Daily Deals
+- Hero Rally
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Acid Reflex
+  description: Ligeia summons 3 acid-lobbing Mech-spiders against an enemy, dealing
+    Attack* 70%/77%/84%/91%/98% area damage and reducing Enemy's Attack by 5%/10%/15%/20%/25%
+    for 2 seconds.
+- name: Spider Madam
+  description: Ligeia deploys steelweb against an enemy with the damage of 50%/55%/60%/65%/70%
+    Attack* and a 20%/40%/60%/80%/100% chance to trigger a "Resonance" trap for 5
+    seconds. Resonance reapportions damage against Ligeia to the target.
+- name: Mechanical Teeth
+  description: Ligeia activates Queen Protection Mode to deflect a negative status
+    effect at a cost of 1 Guard Spider, but gaining a 10-second 8%/12%/16%/20%/24%
+    Attack boost. Ligeia can deploy up to 3 active Guard Spiders at a rate of 1 every
+    10 seconds.
+- name: Nerf Poison
+  description: Ligeia unleashes a swarm of biting Mech-spiders against well-armored
+    foes, reducing all enemy Defense by 5%/10%/15%/20%/25% .
+- name: Corrosion
+  description: Ligeia adds Mech-spiders to Marksmen's fire, dealing 20%/40%/60%/80%/100%
+    extra damage every 2 attacks; spider acid dissolves enemy armor, amplifying target
+    damage received by 5%/10%/15%/20%/25% for 1 turn.
+- name: Toxic Tip
+  description: Ligeia dips Marksmen arrowheads in spider toxin, increasing Marksmen's
+    damage by 20%/40%/60%/80%/100% against the target every 2 attacks while reducing
+    the target's damage dealt by 4%/8%/12%/16%/20% for 1 turn.
+- name: Spider Queen (Lv. 5)
+  description: Ligeia's mech mastery is a sight to behold, allowing her to deploy
+    2 Guard Spider at the start of battle with a 100% chance Spider Madam of striking
+    1 extra target.
+- name: Trap Nest (Lv. 5)
+  description: Ligeia knows traps, particularly when she has time to prepare them
+    herself, increasing Defender Troops' Lethality by 15%.

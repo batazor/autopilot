@@ -1,0 +1,11 @@
+# Stamina-budget consumer stub (demand id: beast_hunt) — the overflow sink.
+#
+# Scenario key / task_type = `beast_hunt`. Enqueued by games.wos.core.stamina
+# as the lowest-priority, unlimited-quota consumer that drains surplus stamina
+# so it never burns at the cap. No-op for now: a wait placeholder. Real steps
+# (find a world-map beast, attack, spend ~10 stamina) are filled in later.
+name: Beast hunt (stamina overflow sink)
+enabled: true
+priority: 80_010          # 80_000 base + demand priority 10
+steps:
+  - wait: 1s              # TODO: replace with the real world-map beast hunt

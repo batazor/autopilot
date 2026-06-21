@@ -1,0 +1,13 @@
+enabled: true
+name: "Shop: Custom Artistry Chest"
+priority: 80_000
+
+node: shop.custom_artistry_chest
+
+steps:
+  - while_match: page.shop.custom_artistry_chest.claimable
+    isRedDot: true
+    max: 20
+    steps:
+      - click: page.shop.custom_artistry_chest.claimable
+      - wait: 1s

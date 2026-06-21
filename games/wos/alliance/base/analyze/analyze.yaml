@@ -1,0 +1,30 @@
+overlay:
+  - name: alliance.page.visible
+    region: page.alliance.title
+    action: text
+    type: string
+    expected:
+      - Alliance
+    threshold: 0.8
+    screens:
+      - alliance
+    set_node: alliance
+    ttl: 30s
+    steps:
+      - push_scenario:
+          name: sync_alliance_stats
+          priority: 70000
+          ttl: 30m
+  - name: alliance.tech.visible
+    region: alliance.tech.title
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - alliance.tech
+    set_node: alliance.tech
+    ttl: 30s
+    steps:
+      - push_scenario:
+          name: sync_alliance_money
+          priority: 70000
+          ttl: 30m

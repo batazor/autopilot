@@ -1,0 +1,37 @@
+overlay:
+  - name: rose_defense_battle.main_menu.rose_defense.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.rose_defense.rose_defense_battle.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.rose_defense_battle
+          ttl: 1m
+  - name: rose_defense_battle.main_menu.bloom_battle.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.rose_defense.bloom_battle.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.rose_defense_battle
+          ttl: 1m
+  - name: rose_defense_battle.main_menu.flower_eating_beasts.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.rose_defense.flower_eating_beasts.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.rose_defense_battle
+          ttl: 1m

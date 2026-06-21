@@ -1,0 +1,8 @@
+id: vip
+title: VIP (Kingshot)
+description: Daily VIP reward checks and VIP screen automation for Kingshot.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

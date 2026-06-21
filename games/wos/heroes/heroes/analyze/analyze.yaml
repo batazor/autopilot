@@ -1,0 +1,20 @@
+# Heroes screen overlay rules. Uses regions defined in this module's area.yaml.
+overlay:
+- name: heroes.recruit.scan
+  region: heroes.recruit
+  isRedDot: true
+  screens:
+    - heroes
+  steps:
+    - push_scenario: free_recruitments_today
+
+# On a hero card, a red dot on the book/wiki icon means an unclaimed biography
+# reward (diamonds) — open the Story and claim the chest. Cleared on claim, so
+# this stops firing per hero.
+- name: heroes.unit.bio.scan
+  region: page.heroes.unit.wiki
+  isRedDot: true
+  screens:
+    - page.heroes.unit
+  steps:
+    - push_scenario: claim_hero_bio

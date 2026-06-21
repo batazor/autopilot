@@ -1,0 +1,7 @@
+enabled: false
+name: 📖 Read hero wiki
+steps:
+- click: page.heroes.unit.wiki
+- wait: 1s
+- click: icon.page.back
+- wait: 0.5s

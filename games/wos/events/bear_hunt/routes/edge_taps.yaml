@@ -1,0 +1,22 @@
+edges:
+  # Tapping the event icon opens the Bear Hunt *info panel* (trap tabs + cooldown
+  # timer), not the world map. That panel is event.bear_hunt.info; the world-map
+  # bear view (event.bear_hunt) is one "Enable" tap further in.
+  main_city:
+    event.bear_hunt: [main_city.to.bear_hunt]
+    event.bear_hunt.info: [main_city.to.bear_hunt]
+
+  # The event icon sits on the world map too, so allow direct entry without
+  # detouring back to the city first.
+  main_world:
+    event.bear_hunt: [main_city.to.bear_hunt]
+    event.bear_hunt.info: [main_city.to.bear_hunt]
+
+  # The info panel is a full-screen page — close it with the standard back arrow.
+  event.bear_hunt.info:
+    main_city: [icon.page.back]
+
+  # The event view is the world map itself, so the parent's "return to city"
+  # button is the reliable way out (there is no icon.page.back here).
+  event.bear_hunt:
+    main_city: [main_world.to.main_city]

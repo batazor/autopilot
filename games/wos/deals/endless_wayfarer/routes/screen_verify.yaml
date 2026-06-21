@@ -1,0 +1,12 @@
+screens:
+  deals.endless_wayfarer:
+    priority: 52
+    rules:
+      # Detect by the deal name printed in the title slot (OCR), not a template
+      # crop: the game reskins deal art/frames, but the name text is stable and
+      # always rendered in this same spot — the uniform, low-maintenance way to
+      # tell deal sub-screens apart. "Endless" is the distinctive token (OCR is
+      # reliable on it; the full "Endless Wayfarer" sometimes reads "Wavfarer").
+      - ocr: endless_wayfarer.title
+        contains: Endless
+        threshold: 0.8

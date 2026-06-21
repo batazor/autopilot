@@ -1,0 +1,25 @@
+# Rewards popup detection — ribbon popups share the same banner shape, so they
+# are treated as one dismissible rewards modal. The VIP-styled white popup still
+# uses its legacy title landmark because it has no ribbon.
+screens:
+  rewards.upgraded:
+    priority: 4
+    rules:
+    - match: rewards.ribbon
+      action: reward_ribbon
+      type: orange
+      threshold: 0.35
+      min_component_y_ratio: 0.15
+      min_component_height_ratio: 0.7
+
+  rewards:
+    priority: 5
+    rules:
+    - match: rewards.ribbon
+      action: reward_ribbon
+      type: blue
+      threshold: 0.35
+      min_component_y_ratio: 0.15
+      min_component_height_ratio: 0.7
+    - match: rewards.title.v2
+      threshold: 0.9

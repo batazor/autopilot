@@ -1,0 +1,6 @@
+id: event_snowstorm
+title: Snowstorm
+description: Snowstorm event popup — detect the on-screen banner and tap target.
+area: area.yaml
+references: references
+wiki: false

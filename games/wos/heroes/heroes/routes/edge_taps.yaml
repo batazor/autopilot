@@ -1,0 +1,21 @@
+# Per-hero edges (heroes ↔ page.heroes.<hid>, and the wiki popups) are NOT
+# listed here — they are synthesized at load time from the heroes wiki index
+# by navigation.screen_graph._load_edge_taps, so they stay in lockstep with
+# the catalog. Only structural / non-per-hero edges live in this file.
+edges:
+  main_city:
+    heroes: [main_city.to.heroes]
+
+  heroes:
+    main_city: [icon.page.back]
+    hero.recruitment: [heroes.recruit]
+
+  hero.recruitment:
+    main_city: [icon.page.back]
+
+  heroes.sr.new:
+    main_city: [heroes.sr.new.close]
+
+  # Generic hero-detail node (the screen sync_hero_unit / read_hero_wiki run on).
+  page.heroes.unit:
+    heroes: [icon.page.back]

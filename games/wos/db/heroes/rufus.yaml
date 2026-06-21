@@ -1,0 +1,157 @@
+id: rufus
+name: Rufus
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/rufus/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '18042'
+    def: '14850'
+    health: '111388'
+  expedition:
+    attack: 1281.02%
+    defense: 1281.02%
+story: 'The old kingdom still stood firm during Rufus'' youth. At that time, the aristocrats
+  lived extravagantly, while the common people suffered from hunger and cold. Faced
+  with such injustice, some chose to put up with the hardship while others rose in
+  rebellion—Rufus belonged to the latter.
+
+
+  After the fall of the old kingdom, Rufus became the leader of a mercenary group.
+  Having suffered under oppression and driven by a strong sense of justice, he never
+  treated the people with violence like some of his peers. It was this quality that
+  attracted honorable warriors like Gina, who chose to join him and become his followers.
+
+
+  Regrettably, Rufus'' journey came to an abrupt end one day. After receiving a secret
+  commission, he left with an expedition team and was never seen again.
+
+
+  Rufus was entrusted with escorting his client through a remote valley into the underground.
+  As the mysterious client put it, the outcome of that trip would determine the fate
+  of the entire world.
+
+
+  Despite thorough preparations, the journey was more perilous than Rufus had anticipated.
+  The mist shrouding the valley seemed to take a toll on the mind, causing the expeditioners
+  to experience hallucinations, lose track of time, and suffer memory distortions.
+  One by one, they fell behind and disappeared...
+
+
+  By the time Rufus finally arrived at the narrow fissure leading to the underworld,
+  his client and he were the last ones standing.
+
+
+  It was a whole new world beneath the surface.
+
+
+  After traversing a vast jungle of giant fungi, wading through winding rivers, and
+  evading the pursuit of underground dwellers, they arrived at their destination—a
+  seemingly ordinary relic. The client introduced it as a machine created by an ancient
+  civilization, capable of awakening the entire planet.
+
+
+  Rufus thought his client had lost his mind, but after all the hardships they endured
+  to reach the place, he still gave his all to help activate the relic. Once all the
+  necessary steps were completed, the relic came to life, and something appeared to
+  awaken. As Rufus gazed at "the presence" through the open stone gate, both he and
+  his client were engulfed by a dazzling light...
+
+
+  Within the light, Rufus witnessed the birth, rise, and fall of civilizations in
+  an endless cycle... as though he was having a dream. When he finally woke up, he
+  couldn''t tell how much time had passed. His client was nowhere to be seen, and
+  the relic further deteriorated. The memories of his experience in the light began
+  to fade, leaving him with nothing but unanswered mysteries as he walked away.
+
+
+  With the fissure to the surface gone, Rufus made his home in the underground settlement,
+  earning the respect of its inhabitants through his bravery. Years passed before
+  another expedition team found him and brought him back to the surface. Everything
+  felt unfamiliar, but he took solace in seeing The Eagles thriving under Gina''s
+  leadership.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Starfall Impact
+  description: Rufus fires grenades that bombards the ground like meteors, dealing
+    Attack* 200%/220%/240%/260%/280% AoE damage. The grenades set the ground ablaze,
+    dealing Attack* 20%/22.5%/25%/27.5%/30% to targets within range every 0.5s for
+    2s.
+- name: Splinter Blast
+  description: Rufus fires explosive bullets, dealing Attack* 100%/110%/120%/130%/140%
+    damage to the target. The splinters deal Attack* 50%/55%/60%/65%/70% damage to
+    nearby enemies.
+- name: Raging Fury
+  description: Rufus morphs into an unstoppable presence on the battlefield, increasing
+    his Crit Rate by 7%/10%/13%/16%/20% .
+- name: Inferno Regiment
+  description: Rufus uses his bold leadership to transform all troops into blazing
+    flames on the battlefield, increasing their Attack by 5%/10%/15%/20%/25% .
+- name: Armor Crush
+  description: Rufus equips his Marksmen with armor-piercing rounds, dealing 12%/24%/36%/48%/60%
+    extra damage for each attack and increases the target's damage taken by 5%/10%/15%/20%/25%
+    for 1 turn.
+- name: Wrathful Quake
+  description: Rufus' aggressive combat style grants all troops a 20% chance to intimidate
+    enemies, reducing their Lethality by 10%/20%/30%/40%/50% for 2 turns.
+- name: Ember of Conflict (Lv. 5)
+  description: Rufus' normal attacks shoot scorching bullets that set the target on
+    fire, dealing Attack*30% damage per second for 2s.
+- name: Blazing Legion (Lv. 5)
+  description: Rufus rallies his troops under his phoenix banner, increasing their
+    Attack by 15%.

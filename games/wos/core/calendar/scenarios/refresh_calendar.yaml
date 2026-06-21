@@ -1,0 +1,18 @@
+# Refresh the server/state event schedule from the on-screen calendar.
+#
+# Navigates to the Calendar tab (node), then reads every event: taps each bar,
+# OCRs the detail popup (full name + exact start/end), dismisses it, swipes down,
+# and repeats to the bottom. Events are state-wide, so a SET-NX lock makes ONE
+# bot per state do the read (the exec returns skip_locked for the rest); the
+# deduped result is written to the per-state schedule table.
+#
+# High priority so the schedule is actualised before the planners that depend on
+# it run. Cron a few times a day — the calendar only changes on event rollovers,
+# and the lock collapses concurrent state-mates into a single read.
+name: Refresh calendar
+enabled: true
+priority: 90_000
+cron: "30 */6 * * *"
+node: event.calendar
+steps:
+  - exec: read_calendar_screen

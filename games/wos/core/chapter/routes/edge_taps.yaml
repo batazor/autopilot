@@ -1,0 +1,35 @@
+# Chapter is reachable from BOTH hubs: the chapter banner (`chapter.new`)
+# sits in the same bottom-left corner on the city view and the world map.
+# The panel always opens on a tab, so the hubs route straight to
+# `chapter.daily_missions`. The generic `chapter` node is only a lower-priority
+# fallback when the common header is visible but the active tab landmark did not
+# match. The panel closes via its own X button (`chapter.close`), not the shared
+# back arrow.
+#
+# Tab → tab navigation goes through the dynamic `tab_index` resolver over the
+# segmented `chapter.tabs_strip`, NOT a static tap on the tab title. The title
+# templates are captured in the *active* state and score ~0.15 against the
+# *inactive* tab we need to switch to (contrast inversion: dark-on-light vs
+# light-on-dark) — a static title tap there lands on a stale/garbage match in
+# mid-screen. The segmenter instead finds each tab capsule by position; the
+# strip order is stable (Growth = index 0 on the left, Daily = index 1 on the
+# right) regardless of which tab is active. Hardcoded for the 2-tab layout.
+edges:
+  main_city:
+    chapter.daily_missions: [chapter.new]
+
+  main_world:
+    chapter.daily_missions: [chapter.new]
+
+  chapter:
+    main_city: [chapter.close]
+    chapter.daily_missions: { resolver: tab_index, region: chapter.tabs_strip, index: 1 }
+    chapter.growth_missions: { resolver: tab_index, region: chapter.tabs_strip, index: 0 }
+
+  chapter.daily_missions:
+    main_city: [chapter.close]
+    chapter.growth_missions: { resolver: tab_index, region: chapter.tabs_strip, index: 0 }
+
+  chapter.growth_missions:
+    main_city: [chapter.close]
+    chapter.daily_missions: { resolver: tab_index, region: chapter.tabs_strip, index: 1 }

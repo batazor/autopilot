@@ -1,0 +1,9 @@
+id: castle_battle
+title: Castle Battle
+description: Limited-time Castle Battle event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: castle_battle
+wiki: false

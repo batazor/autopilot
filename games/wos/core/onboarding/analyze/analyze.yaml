@@ -1,0 +1,176 @@
+# Onboarding overlay rules, enabled step by step. All are gated on the
+# onboarding/login phase (cond: active_player == "") and self-throttled via a
+# push-entry ttl so a device-level push never preempts its own in-flight
+# instance.
+#
+# The shared gate scaffold (findIcon + device_level + onboarding-phase cond +
+# 2s ttl) lives in the `&gate` anchor below and is merged into every rule with
+# `<<: *gate`; rules only spell out what differs (name, region, priority,
+# threshold, the pushed scenario). `x-onboarding-gate` is ignored by the loader,
+# which only reads the `overlay:` list.
+#
+# Hand-pointer rules detect the hand icon but tap where it points: the overlay
+# engine auto-redirects the tap to the sibling `<region>_tap` zone
+# (overlay_geometry: tap_region = "<region>_tap"), and the scenario's
+# `while_match`/`click` reuse those adjusted coords. So `click: <pointer>` lands
+# on the target, not the icon.
+x-onboarding-gate: &gate
+  action: findIcon
+  device_level: true
+  cond: active_player == ""
+  ttl: 2s
+
+overlay:
+  - <<: *gate
+    name: skip_button.visible
+    region: skip_button
+    priority: 100_000
+    threshold: 0.9
+    steps:
+      - push_scenario:
+          name: onboarding.click.skip_button
+          ttl: 2s
+
+  - <<: *gate
+    name: hand_pointer.visible
+    region: hand_pointer
+    priority: 100_000
+    threshold: 0.9
+    steps:
+      - push_scenario:
+          name: onboarding.click.hand_pointer
+          ttl: 2s
+
+  - <<: *gate
+    name: hand_pointer_small.visible
+    region: hand_pointer_small
+    priority: 100_000
+    threshold: 0.9
+    steps:
+      - push_scenario:
+          name: onboarding.click.hand_pointer_small
+          ttl: 2s
+
+  - <<: *gate
+    name: hand_pointer_small_reverse.visible
+    region: hand_pointer_small_reverse
+    priority: 100_000
+    threshold: 0.9
+    steps:
+      - push_scenario:
+          name: onboarding.click.hand_pointer_small_reverse
+          ttl: 2s
+
+  - <<: *gate
+    name: hand_pointer_build.visible
+    region: hand_pointer_build
+    priority: 100_000
+    threshold: 0.9
+    steps:
+      - push_scenario:
+          name: onboarding.click.hand_pointer_build
+          ttl: 2s
+
+  # Chapter / growth panel (auto-opens during the tutorial). It is not a
+  # recognised screen node, so the geometric popup dismisser used to close it
+  # and stall the tutorial. These rules drive it instead: claim completed
+  # (green) missions first, then tap "Go" to start the next build. Higher
+  # priority on Claim so rewards clear before navigating away.
+  - <<: *gate
+    name: onboarding.chapter.claim.visible
+    region: onboarding.button.claim
+    priority: 100_010
+    threshold: 0.85
+    steps:
+      - push_scenario:
+          name: onboarding.click.button.claim
+          ttl: 2s
+
+  - <<: *gate
+    name: onboarding.chapter.go.visible
+    region: onboarding.button.go
+    priority: 100_000
+    threshold: 0.85
+    steps:
+      - push_scenario:
+          name: onboarding.click.button.go
+          ttl: 2s
+
+  # Building detail screen reached via "Go": confirm the build.
+  - <<: *gate
+    name: onboarding.build.confirm.visible
+    region: onboarding.button.build
+    priority: 100_000
+    threshold: 0.85
+    steps:
+      - push_scenario:
+          name: onboarding.click.button.build
+          ttl: 2s
+
+  # Building-management interior: tap the light-blue Build/Upgrade button (the
+  # "upgrade a station to Lv.N" tutorial steps). Distinct button style from the
+  # placement-confirm Build above, so it gets its own template.
+  - <<: *gate
+    name: onboarding.build_interior.confirm.visible
+    region: onboarding.button.build_interior
+    priority: 100_000
+    threshold: 0.85
+    steps:
+      - push_scenario:
+          name: onboarding.click.button.build_interior
+          ttl: 2s
+
+  # Build/upgrade detail screen: bottom-centre "Upgrade" confirm (existing
+  # building leveling up). Complements onboarding.button.build ("Build" variant).
+  - <<: *gate
+    name: onboarding.upgrade_confirm.visible
+    region: onboarding.button.upgrade_confirm
+    priority: 100_000
+    threshold: 0.85
+    steps:
+      - push_scenario:
+          name: onboarding.click.button.upgrade_confirm
+          ttl: 2s
+
+  # Upgrade screen with an unmet building-level prerequisite: tap the
+  # requirement's "Go" to navigate to the prerequisite building first. Higher
+  # priority than the (greyed, no-op) main Upgrade button below.
+  - <<: *gate
+    name: onboarding.req_go.visible
+    region: onboarding.button.req_go
+    priority: 100_020
+    threshold: 0.85
+    steps:
+      - push_scenario:
+          name: onboarding.click.button.req_go
+          ttl: 2s
+
+  # Building-management interior: tap the blue Upgrade button (built station
+  # leveling up). Same slot as build_interior with the word changed.
+  - <<: *gate
+    name: onboarding.upgrade.confirm.visible
+    region: onboarding.button.upgrade
+    priority: 100_000
+    # 0.80: the "Upgrade" wordmark rejects non-button screens at ~0.46, but the
+    # varying cost line + an overlapping tutorial hand-pointer drag the live
+    # match to ~0.81, so a tight 0.85 misses it. Wide margin keeps it safe.
+    threshold: 0.80
+    steps:
+      - push_scenario:
+          name: onboarding.click.button.upgrade
+          ttl: 2s
+
+  # Main city: reopen the Chapter panel via the bottom-left quest scroll so the
+  # Claim/Go loop continues after a build returns to the city. Lower priority
+  # than the panel buttons (only one of these matches per screen anyway). Longer
+  # ttl than the gate default so the panel has time to slide in.
+  - <<: *gate
+    name: onboarding.chapter.entry.visible
+    region: onboarding.chapter.entry
+    priority: 95_000
+    threshold: 0.8
+    ttl: 3s
+    steps:
+      - push_scenario:
+          name: onboarding.click.chapter_entry
+          ttl: 3s

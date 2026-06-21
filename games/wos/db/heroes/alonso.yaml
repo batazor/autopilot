@@ -1,0 +1,222 @@
+id: alonso
+name: Alonso
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/alonso/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '3235'
+    def: '2220'
+    health: '19980'
+  expedition:
+    attack: 240.19%
+    defense: 240.19%
+story: 'The legends of Alonso "the whale hunter" was known far and wide.\nHe is described
+  as a stout, well-built man of few words. He always carries his netting and trusty
+  harpoon wherever he goes. This whale hunter travels from one seaside town to another
+  in search of good ale and the intel on a certain sea monster.
+
+
+  According to the stories, the monster that Alonso seeks is the same one that slaughtered
+  his entire crew 30 years ago. He wishes to settle scores with the mythical "Leviathan"
+  that took his crew, his friends, and his family...
+
+
+  The creature "Leviathan" grows more bizarre with each tavern retelling. Apparently,
+  the beast has a huge horn and a body that spans hundreds of meters. Many laughed
+  at such an impossible tale behind Alonso''s back, but none dared to mock Alonso
+  to his face. After all, this man is capable of taking down Giant Apes and Cryptids
+  single-handedly.
+
+
+  Alonso had defended many Cities from pillagers during his travel. In one instance,
+  all the townsfolks panicked at the sight of bandits but Alonso rallied them and
+  organized an excellent defense. When he gave orders, Alonso was like the captain
+  of a City-sized ship.
+
+
+  Not long ago, he caught a glimpse of a former crew member that was supposedly killed
+  by "Leviathan" many years ago.\nAlonso refused to believe it had been a trick of
+  the eyes. He questioned half the town and finally learned his former crew is now
+  a slave onboard a giant, steam-powered submarine called the "Neptune". "That’s it..."
+  Alonso thought to himself, "Leviathan is not a monster, but a submarine!". Now,
+  he hopes to find Neptune and reunite with his former crew.
+
+
+  To Alonso, there is not much difference between hunting down a Leviathan and a lot
+  of bandits.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Daily Deals
+skills:
+- name: Trapnet
+  description: Alonso casts a wide net over the target area, dealing Attack* 200%/220%/240%/260%/280%
+    Area of Effect Damage and immobilizing enemies for 1.5s.
+- name: Tidal Force
+  description: Alonso shoots a harpoon with tsunami-like force at a target, dealing
+    Attack* 50%/55%/60%/65%/70% Area of Effect Damage.
+- name: Harpoon Blast
+  description: Alonso's heavy harpoon can really do some damage, stunning targets
+    for 0.2/0.2/0.4/0.4/0.5s after every 8/7/7/6/5 strikes.
+- name: Onslaught
+  description: Alonso attacks like the waves, granting a 40% chance of increasing
+    all troop's Lethality by 10%/20%/30%/40%/50%
+- name: Iron Strength
+  description: Alonso's indomitable will grants all troops' attack a 20% chance of
+    reducing damage dealt by 10%/20%/30%/40%/50% for all enemy troops for 2 turns.
+- name: Poison Harpoon
+  description: Alonso coats weapons with lethal toxins, granting all troops' attack
+    a 50% chance of dealing + 10%/20%/30%/40%/50% more damage.
+- name: Ocean's Bounty (Lv. 5)
+  description: Alonso knows how to share the spoils of success, with his fresh fish
+    meals healing your weakest hero by 15% with each basic attack.
+- name: Harpoon Enhancement (Lv. 5)
+  description: Alonso has made some modifications to your troops' weapons, boosting
+    Rally Squad Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 36000
+      attack: 86
+      defense: 72
+      health: 540
+      lethality_m: 6.0
+      health_m: 6.0
+      skill_1: Heal weakest hero by 5% with each basic attack
+    2:
+      power: 61200
+      attack: 147
+      defense: 122
+      health: 918
+      lethality_m: 12.0
+      health_m: 12.0
+      skill_1: Heal weakest hero by 5% with each basic attack
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 86400
+      attack: 208
+      defense: 172
+      health: 1296
+      lethality_m: 18.0
+      health_m: 18.0
+      skill_1: Heal weakest hero by 7.5% with each basic attack
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 111600
+      attack: 271
+      defense: 223
+      health: 1674
+      lethality_m: 24.0
+      health_m: 24.0
+      skill_1: Heal weakest hero by 7.5% with each basic attack
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 136800
+      attack: 332
+      defense: 273
+      health: 2052
+      lethality_m: 30.0
+      health_m: 30.0
+      skill_1: Heal weakest hero by 10% with each basic attack
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 162000
+      attack: 393
+      defense: 324
+      health: 2430
+      lethality_m: 36.0
+      health_m: 36.0
+      skill_1: Heal weakest hero by 10% with each basic attack
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 187200
+      attack: 454
+      defense: 374
+      health: 2808
+      lethality_m: 42.0
+      health_m: 42.0
+      skill_1: Heal weakest hero by 12.5% with each basic attack
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 212400
+      attack: 516
+      defense: 424
+      health: 3186
+      lethality_m: 48.0
+      health_m: 48.0
+      skill_1: Heal weakest hero by 12.5% with each basic attack
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 237600
+      attack: 577
+      defense: 475
+      health: 3564
+      lethality_m: 54.0
+      health_m: 54.0
+      skill_1: Heal weakest hero by 15% with each basic attack
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 270000
+      attack: 655
+      defense: 540
+      health: 4050
+      lethality_m: 60.0
+      health_m: 60.0
+      skill_1: Heal weakest hero by 15% with each basic attack
+      skill_2: Rally Troop Lethality +15%

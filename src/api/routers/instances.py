@@ -1,0 +1,283 @@
+"""Per-instance routes (detail, preview, commands)."""
+from __future__ import annotations
+
+from typing import Annotated, Any, Literal
+
+import redis
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+from pydantic import BaseModel
+
+from adb.serial import canonical_adb_serial
+from api.deps import get_redis
+from api.services import instance_detail as detail
+from api.services.dashboard_stream import instance_revision
+from api.services.instances import list_instance_ids
+from config.devices import invalidate_device_registry
+from config.test_module import (
+    get_instance_test_module,
+    set_instance_test_module,
+)
+from dashboard.dashboard_events import publish_dashboard_event, publish_device_reconcile
+
+router = APIRouter(prefix="/api/instances", tags=["instances"])
+
+RedisDep = Annotated[redis.Redis, Depends(get_redis)]
+
+
+class InstanceCommandBody(BaseModel):
+    cmd: Literal["pause", "resume", "restart", "switch_player", "run_task"]
+    player_id: str | None = None
+    task_type: str | None = None
+
+
+class AbortTaskBody(BaseModel):
+    restart: bool = False
+
+
+class TestModuleBody(BaseModel):
+    module: str | None = None
+
+
+class InstanceGameBody(BaseModel):
+    game: str
+
+
+@router.get("")
+def list_instances() -> dict[str, list[str]]:
+    return {"instances": list_instance_ids()}
+
+
+@router.get("/games")
+def list_instance_games(client: RedisDep) -> dict[str, dict[str, str]]:
+    """``{instance_id: game_id}`` for every registered instance.
+
+    The dashboard reads this to populate the per-instance game badge (Bot
+    control carousel, Overview fleet table) and to seed the ``?game=`` URL
+    param when none is provided. Keyed by device ``name`` so it lines up with
+    the instance ids returned by :func:`list_instance_ids`.
+
+    The game the worker is *actually* running (persisted to the Redis instance
+    state on boot, and left in place after stop) takes priority over the static
+    device-profile config, so the badge reflects what's live or last ran. Falls
+    back to the profile game, then the default, when Redis has no value.
+    """
+    from config.devices import load_devices
+    from config.games import default_game, is_known_game
+    from dashboard.redis_client import get_instance_state
+
+    fallback = default_game()
+    out: dict[str, str] = {}
+    try:
+        for entry in load_devices().devices:
+            instance_id = (entry.name or entry.effective_serial or "").strip()
+            if not instance_id:
+                continue
+            try:
+                game = entry.game_for_profile()
+            except Exception:
+                game = fallback
+            # Prefer the live/last running game recorded in Redis.
+            try:
+                redis_game = (get_instance_state(client, instance_id).get("game") or "").strip()
+            except Exception:
+                redis_game = ""
+            if redis_game and is_known_game(redis_game):
+                game = redis_game
+            out[instance_id] = (game or fallback).strip()
+    except Exception:
+        pass
+    return {"games": out}
+
+
+def _live_detected_games_for_instance(instance_id: str) -> list[dict[str, Any]]:
+    """Detected games installed on the matching live ADB device, if available."""
+    from api.services.adb_api import get_adb_status
+    from config.devices import load_devices
+
+    registry = load_devices()
+    target_serial = ""
+    for entry in registry.devices:
+        if entry.name == instance_id or entry.effective_serial == instance_id:
+            target_serial = entry.effective_serial
+            break
+    if not target_serial:
+        return []
+    target = canonical_adb_serial(target_serial)
+    adb = get_adb_status()
+    for row in adb.get("live_devices", []):
+        serial = canonical_adb_serial(
+            str(row.get("canonical_serial") or row.get("serial") or "")
+        )
+        if serial == target:
+            games = row.get("detected_games") or []
+            return [g for g in games if isinstance(g, dict)]
+    return []
+
+
+@router.put("/{instance_id}/game")
+def put_instance_game(
+    instance_id: str,
+    body: InstanceGameBody,
+    client: RedisDep,
+) -> dict[str, str]:
+    """Set the device-level game the bot should launch for this instance."""
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+
+    from config.devices_db import set_device_game
+    from config.games import GAMES, is_known_game
+
+    game = (body.game or "").strip()
+    if not is_known_game(game):
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown game: {game!r}; known: {', '.join(sorted(GAMES))}",
+        )
+
+    try:
+        detected = _live_detected_games_for_instance(instance_id)
+    except Exception:
+        detected = []
+    if detected:
+        available = {str(row.get("id") or "").strip() for row in detected}
+        if game not in available:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{game!r} is not installed on {instance_id}",
+            )
+
+    try:
+        value = set_device_game(instance_id, game)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    invalidate_device_registry()
+    publish_dashboard_event(client, topic="instance", instance_id=instance_id, reason="game")
+    publish_dashboard_event(client, topic="fleet", instance_id=instance_id, reason="game")
+    publish_device_reconcile(client, reason=f"game:{instance_id}:{value}")
+    return {"game": value}
+
+
+@router.get("/{instance_id}")
+def get_instance(
+    instance_id: str,
+    client: RedisDep,
+    if_revision: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    try:
+        # Cache hit is safe: instance/queue mutations publish dashboard events
+        # whose hook invalidates the per-instance revision key (see
+        # ``dashboard/dashboard_events.py``). Stale-detail risk is bounded by
+        # ``REV_TTL_SECONDS`` in ``dashboard_rev.py`` if a producer skips the
+        # publish step.
+        revision = instance_revision(client, instance_id, use_cache=True)
+        if if_revision and if_revision == revision:
+            return {"unchanged": True, "revision": revision}
+        payload = detail.build_instance_detail(client, instance_id)
+        payload["revision"] = revision
+        return payload
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{instance_id}/preview")
+def get_instance_preview(instance_id: str) -> Response:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    png, _ = detail.load_preview_png(instance_id)
+    if png is None:
+        raise HTTPException(status_code=404, detail="no preview image available")
+    # The worker rewrites this PNG every ~1s; the dashboard pulls a fresh URL on
+    # the same cadence. Tell intermediate caches and the browser not to hold a
+    # copy or the UI shows a stale frame after the cache-buster lines up again.
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+
+@router.post("/{instance_id}/commands")
+def post_instance_command(
+    instance_id: str,
+    body: InstanceCommandBody,
+    client: RedisDep,
+) -> dict[str, bool]:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    payload: dict[str, Any] = {"cmd": body.cmd}
+    if body.cmd == "switch_player":
+        if not body.player_id:
+            raise HTTPException(status_code=400, detail="player_id required")
+        payload["player_id"] = body.player_id
+    elif body.cmd == "run_task":
+        if not body.player_id or not body.task_type:
+            raise HTTPException(status_code=400, detail="player_id and task_type required")
+        payload["player_id"] = body.player_id
+        payload["task_type"] = body.task_type
+    try:
+        detail.push_command(client, instance_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    publish_dashboard_event(
+        client, topic="instance", instance_id=instance_id, reason=body.cmd
+    )
+    publish_dashboard_event(
+        client, topic="fleet", instance_id=instance_id, reason=body.cmd
+    )
+    if body.cmd in ("run_task", "switch_player"):
+        publish_dashboard_event(
+            client, topic="queue", instance_id=instance_id, reason=body.cmd
+        )
+    return {"ok": True}
+
+
+@router.post("/{instance_id}/abort-task")
+def post_abort_task(
+    instance_id: str,
+    body: AbortTaskBody,
+    client: RedisDep,
+) -> dict[str, bool]:
+    """Skip the in-flight task (operator "Stuck?" action on the instance page)."""
+    try:
+        detail.abort_current_task(
+            client,
+            instance_id,
+            reason="operator skipped stuck task from dashboard",
+            restart=body.restart,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    for topic in ("instance", "fleet", "queue"):
+        publish_dashboard_event(
+            client, topic=topic, instance_id=instance_id, reason="abort_task"
+        )
+    return {"ok": True}
+
+
+@router.get("/{instance_id}/test-module")
+def get_test_module(instance_id: str, client: RedisDep) -> dict[str, str]:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    return {"module": get_instance_test_module(client, instance_id)}
+
+
+@router.put("/{instance_id}/test-module")
+def put_test_module(
+    instance_id: str,
+    body: TestModuleBody,
+    client: RedisDep,
+) -> dict[str, str]:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    value = set_instance_test_module(client, instance_id, body.module)
+    publish_dashboard_event(
+        client, topic="instance", instance_id=instance_id, reason="test_module"
+    )
+    publish_dashboard_event(
+        client, topic="queue", instance_id=instance_id, reason="test_module"
+    )
+    return {"module": value}

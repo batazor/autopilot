@@ -1,0 +1,99 @@
+id: cookhouse
+name: Cookhouse
+category: unknown
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/cookhouse/
+requirements_by_level:
+  '1':
+    prerequisites: Furnace Lv. 1
+    build_cost:
+    - item: item_icon_103
+      amount: '35'
+    construction_time: 00:00:02
+    building_power: 100
+  '2':
+    prerequisites: Furnace Lv. 2
+    build_cost:
+    - item: item_icon_103
+      amount: '50'
+    construction_time: 00:00:09
+    building_power: 190
+  '3':
+    prerequisites: Furnace Lv. 3
+    build_cost:
+    - item: item_icon_103
+      amount: '240'
+    construction_time: 00:00:45
+    building_power: 325
+  '4':
+    prerequisites: Furnace Lv. 4
+    build_cost:
+    - item: item_icon_103
+      amount: '540'
+    - item: item_icon_104
+      amount: '105'
+    construction_time: 00:02:15
+    building_power: 505
+  '5':
+    prerequisites: Furnace Lv. 5
+    build_cost:
+    - item: item_icon_103
+      amount: 2.2k
+    - item: item_icon_104
+      amount: '455'
+    construction_time: 00:04:30
+    building_power: 775
+  '6':
+    prerequisites: Furnace Lv. 6
+    build_cost:
+    - item: item_icon_103
+      amount: 5.7k
+    - item: item_icon_104
+      amount: 1.1k
+    - item: item_icon_105
+      amount: '285'
+    construction_time: 00:09:00
+    building_power: 1180
+  '7':
+    prerequisites: Furnace Lv. 7
+    build_cost:
+    - item: item_icon_103
+      amount: 20k
+    - item: item_icon_104
+      amount: 4.1k
+    - item: item_icon_105
+      amount: '865'
+    construction_time: 00:18:00
+    building_power: 1765
+  '8':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 37k
+    - item: item_icon_104
+      amount: 7.5k
+    - item: item_icon_105
+      amount: 1.8k
+    construction_time: 00:27:00
+    building_power: 2350
+  '9':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 78k
+    - item: item_icon_104
+      amount: 15k
+    - item: item_icon_105
+      amount: 3.9k
+    construction_time: 00:40:30
+    building_power: 2935
+  '10':
+    prerequisites: Furnace Lv. 10
+    build_cost:
+    - item: item_icon_103
+      amount: 130k
+    - item: item_icon_104
+      amount: 27k
+    - item: item_icon_105
+      amount: 6.9k
+    construction_time: 00:54:00
+    building_power: 3785

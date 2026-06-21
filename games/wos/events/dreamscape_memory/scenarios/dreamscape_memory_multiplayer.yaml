@@ -1,0 +1,16 @@
+name: Dreamscape Memory — solve recall road (multiplayer, 6 words)
+enabled: true
+# Device-level: screen-driven solver with no per-account state, so it runs
+# standalone (manual "Start solving" / overlay rule) without a bound player.
+device_level: true
+priority: 90_000
+
+# Stateful Python solver variant for co-op: six word slots, same clicked-word
+# memory and direct frame OCR as the solo solver.
+steps:
+  - exec: dreamscape_memory_solve_loop
+    mode: multiplayer
+    ttl: 5m
+    max_iterations: 3000
+    wait: 300ms
+    tap_delay: 0ms

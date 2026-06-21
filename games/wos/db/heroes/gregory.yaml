@@ -1,0 +1,151 @@
+id: gregory
+name: Gregory
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/gregory/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '9484'
+    def: '12364'
+    health: '185480'
+  expedition:
+    attack: 1110.88%
+    defense: 1110.88%
+story: '"For the glory of the empire! For old Solaris!" Gregory''s impassioned battle
+  cry has never wavered even if today the Solaris Empire is but a distant memory.
+
+
+  The Empire''s reign ended the day Sunfire Castle fell to an army of bandits. The
+  tundra had spoken. Everybody was on their own, including Gregory''s soldiers, who,
+  like many other Solaris ex-military, were forced into the mercenary life to make
+  ends meet. Yet, in his heart of hearts, Gregory has never stopped pining for a return
+  to the Empire''s glory days where the Solaris banner can once again fly high atop
+  Sunfire Castle.
+
+
+  The men under Gregory are less optimistic, but certainly don''t mind the bread and
+  creature comforts that come with Gregory''s competent leadership. He remains a popular
+  commander, then as now.
+
+
+  As a swordsman on horseback Gregory is perhaps unequalled; as a tactician and oldworld
+  infantry specialist willing to strike hard and fast he may be the best. It was no
+  accident Gregory found himself at the head of the old empire''s last Dawnguard squad,
+  and it is largely thanks to their sacrificial, loyal efforts that the young Empress
+  was saved.
+
+
+  Their escape from Sunfire Castle brought its own complexities: what was the role
+  of the Empress in this new world? And, more importantly, how would they cope without
+  a household retinue of servants, squires, and maids?
+
+
+  Contrary to Gregory''s appearance, he is not a rough man by any means. Those who
+  know him well will testify of a soft underside to his stern face and tenderness
+  particularly toward the young empress.
+
+
+  As a matter of principle, Gregory still considers the empress to hold a kind of
+  royal authority—to whom he will often act as an uncle, advisor, butler or bodyguard
+  when danger calls. Gregory is also keen to preserve the old ways of the Solaris
+  Empire by insisting, for example, on courtly decorum and regal outfits for Her Majesty
+  and entourage no matter how impossible the Empire''s restoration may seem.
+
+
+  The day Sunfire Castle fell is forever burned into Gregory''s memory: the day he
+  lost everything but a newfound purpose.
+
+
+  Gregory received his orders from the dying Captain of the Guard: the young empress
+  was still alive! But to reach safety his men would have to thread a needle of life
+  through absolute chaos, confusion, looting, and bloodshed. It was an almost impossible
+  task and yet at the end Gregory led the empress safety out of the city with blood
+  pouring from several arrow wounds in his armor. As his men planned to take the empress
+  somewhere safe he then, as he gazed upon her terrified eyes, found the strength
+  from within to pick himself up and press on. Thereafter his fate would be bound
+  to that of the heir-apparent, and he would be her most loyal protector.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Chiefs
+- King of Icefield
+- State of Power
+- Daily Deals
+- Hero Rally
+- Mythic General Hero Shard
+skills:
+- name: Sword of the Mountain
+  description: Gregory readies himself for a furious strike, dealing Attack* 100%/110%/120%/130%/140%
+    Area of Effect damage while knocking back and stunning nearby enemies for 1s.
+- name: Parryshield
+  description: Gregory weaves his greatsword into a defensive posture, granting 10%/20%/30%/40%/50%
+    chance of reducing damage taken by half.
+- name: Sacrificial Will
+  description: Even if Gregory falls, his example lives on, increasing all friendly
+    troops' Attack by 8%/12%/16%/20%/24% for 5 seconds after Gregory's defeat.
+- name: Legion of the Sun
+  description: Gregory nurtures latent talents his troops did not realize they had,
+    increasing Attack by 3%/6%/9%/12%/15% and Defense by 2%/4%/6%/8%/10% for all troops.
+- name: Charged Assault
+  description: Gregory inspires everyone with his valor and enthusiasm, granting all
+    troop's normal attacks a 5%/10%/15%/20%/25% chance of dealing critical damage.
+- name: Unbroken
+  description: Gregory forms unbroken defensive lines, reducing Infantry’s Damage
+    Taken by 4%/8%/12%/16%/20% .
+- name: Indomitable Armor (Lv. 5)
+  description: Gregory's plate armor protects him, increasing his defense by 50%.
+    Meanwhile, his armor of indomitable will shields him from stuns, paralysis, and
+    other interrupting effects.
+- name: Day of the Guard (Lv. 5)
+  description: Courage and the will to victory will always surpass mercenary greed.
+    Gregory's leadership increases Defender Troops' Lethality by 15%.

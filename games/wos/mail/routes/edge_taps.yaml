@@ -1,0 +1,46 @@
+edges:
+  main_city:
+    mail: [mail.new]
+
+  mail:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+
+  mail.wars:
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+
+  mail.alliance:
+    mail.wars: [mail.tab.wars]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+
+  mail.system:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+
+  mail.reports:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+
+  mail.starred:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    main_city: [icon.page.back]

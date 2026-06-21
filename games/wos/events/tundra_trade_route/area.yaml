@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "event.tundra_trade_route",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.38305057373954,
+            "y": 65.02985707337675,
+            "width": 6.5133009046625725,
+            "height": 3.871239403603525,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/event.tundra_trade_route.my_truck.png",
+      "regions": []
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+name: "🩹 Heal Injured Troops"
+enabled: true
+
+# City-level upkeep — no per-player binding needed. The hard `match: heal.title`
+# gate below makes this a clean no-op if it ever runs off the Heal Injured screen
+# (e.g. a stale push), so it is safe to keep enabled before navigation is wired.
+device_level: true
+priority: 70_000
+
+# Ported from legacy `usecases/heal/heal_injured.yaml`. The legacy "help" button
+# and the "start heal" button are the same on-screen control (`heal.button.heal`):
+# tapping it starts healing, and tapping again raises the alliance-help request.
+steps:
+  - match: heal.title
+    threshold: 0.85
+
+  - loop:
+      max: 6
+      steps:
+        - while_match: heal.button.heal
+          max: 1
+          steps:
+            # Start / continue healing.
+            - click: heal.button.heal
+            - wait: 300ms
+
+            # If the game pops the "not enough resources" dialog, pull from the
+            # backpack via Replenish All, then re-confirm the heal.
+            - match: heal.button.replenish_all
+              threshold: 0.85
+              steps:
+                - click: heal.button.replenish_all
+                - wait: 300ms
+                - click: heal.button.heal
+                - wait: 300ms
+
+            # Raise the alliance-help request.
+            - click: heal.button.heal
+            - wait: 1s
+          else:
+            # Nothing left to heal — exit the loop.
+            - break: loop

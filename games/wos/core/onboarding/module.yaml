@@ -1,0 +1,12 @@
+id: onboarding
+title: Onboarding
+description: >-
+  Tutorial overlays that drive the first-run onboarding flow: hand-pointer /
+  skip taps plus the Chapter-panel Claim/Go and build-confirm buttons. All
+  rules are device-level and gated to the pre-identity phase
+  (active_player == "").
+area: area.yaml
+references: references
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+wiki: false

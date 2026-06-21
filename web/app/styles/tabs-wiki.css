@@ -1,0 +1,53 @@
+@layer components {
+  /* —— Headless UI tabs —— */
+  .headless-tabs-toolbar {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .headless-tab-list {
+    @apply flex gap-0.5;
+  }
+
+  .headless-tab-list--section {
+    @apply scrollbar-thin scroll-smooth py-2;
+  }
+
+  .headless-tab-list--toolbar {
+    @apply flex-wrap gap-2;
+  }
+
+  .headless-tab {
+    @apply shrink-0 cursor-pointer rounded-lg border border-transparent px-3 py-1.5 text-sm font-medium text-wos-text-muted outline-none transition-colors hover:bg-wos-panel-raised/80 hover:text-wos-text focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-tab-list--section .headless-tab,
+  .section-tab.headless-tab {
+    @apply no-underline;
+  }
+
+  .headless-tab-list--section .headless-tab[data-selected],
+  .section-tab.headless-tab[data-selected] {
+    @apply border-sky-400/35 bg-sky-500/15 text-sky-100;
+  }
+
+  .headless-tab-list--toolbar .headless-tab {
+    @apply border-wos-border bg-wos-panel-raised text-wos-text hover:border-wos-border-subtle hover:bg-wos-surface;
+  }
+
+  .headless-tab-list--toolbar .headless-tab[data-selected] {
+    @apply border-sky-500 bg-sky-500 text-white hover:bg-sky-400;
+  }
+
+  .headless-tab-panel {
+    @apply outline-none;
+  }
+
+  /* —— Section tabs (per route group) —— */
+  .section-tabs {
+    @apply scrollbar-thin scroll-smooth py-2;
+  }
+
+  .section-tab {
+    @apply shrink-0 rounded-lg border border-transparent px-3 py-1.5 text-sm font-medium no-underline text-wos-text-muted transition-colors hover:bg-wos-panel-raised/80 hover:text-wos-text;
+  }
+}

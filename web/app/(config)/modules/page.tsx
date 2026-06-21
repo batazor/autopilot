@@ -1,0 +1,668 @@
+"use client";
+
+import Link from "next/link";
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { AppListbox, AppSwitch, AppTabs } from "@/components/headless";
+import { ErrorBanner, useFeedback } from "@/components/feedback";
+import { NewModuleDialog } from "@/components/modules/NewModuleDialog";
+import { PageHeader } from "@/components/PageHeader";
+import { Icon } from "@/components/ui/Icon";
+import { Spinner } from "@/components/ui/Spinner";
+import {
+  fetchModules,
+  fetchWikiScopes,
+  reloadScenarios,
+  setScenarioEnabled,
+} from "@/lib/api";
+import type { ModuleRow, ScenarioRow } from "@/lib/config-pages";
+import { editDslHref } from "@/lib/debug-links";
+import {
+  createModuleSearchIndex,
+  filterModuleSearchIndex,
+} from "@/lib/modules-filter";
+import type { WikiScope } from "@/lib/wiki";
+
+const GAME_TABS: { id: string; label: string }[] = [
+  { id: "wos", label: "Whiteout Survival" },
+  { id: "kingshot", label: "Kingshot" },
+];
+
+function enabledLabel(enabled: boolean | null): string {
+  if (enabled === true) return "On";
+  if (enabled === false) return "Off";
+  return "Default";
+}
+
+function scenarioCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "scenario" : "scenarios"}`;
+}
+
+function ModuleScenarios({
+  moduleKey,
+  scenarios,
+  busyKey,
+  onToggle,
+}: {
+  moduleKey: string;
+  scenarios: ScenarioRow[];
+  busyKey: string | null;
+  onToggle: (row: ScenarioRow) => void;
+}) {
+  const enabledOn = scenarios.filter((s) => s.enabled === true).length;
+  const enabledOff = scenarios.filter((s) => s.enabled === false).length;
+
+  if (!scenarios.length) {
+    return (
+      <div className="module-scenario-panel">
+        <div className="module-scenario-empty">
+          <Icon name="list-empty" size="lg" />
+          <span>No runnable scenarios in this module.</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="module-scenario-panel">
+      <div className="module-scenario-panel__head">
+        <div>
+          <h3>Scenarios</h3>
+          <p className="meta">
+            {scenarioCountLabel(scenarios.length)} in this module
+          </p>
+        </div>
+        <div className="module-scenario-panel__stats">
+          <span className="status-pill status-idle">{enabledOn} on</span>
+          {enabledOff ? (
+            <span className="status-pill module-status-muted">{enabledOff} off</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="data-table-wrap module-scenario-table-wrap">
+        <table className="data-table module-scenario-table">
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Name</th>
+              <th>Steps</th>
+              <th>Mode</th>
+              <th>Enabled</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map((s) => (
+              <tr
+                key={s.key}
+                className={
+                  s.enabled === false
+                    ? "module-scenario-row module-scenario-row--off"
+                    : "module-scenario-row"
+                }
+              >
+                <td>
+                  <div className="module-scenario-key">
+                    <code>{s.key}</code>
+                    <span>{s.source}</span>
+                  </div>
+                </td>
+                <td>
+                  <div className="module-scenario-name">
+                    <strong>{s.name}</strong>
+                    <code>{s.path}</code>
+                  </div>
+                </td>
+                <td>
+                  <span className="module-count-pill">{s.steps}</span>
+                </td>
+                <td>
+                  <span
+                    className={`status-pill ${
+                      s.device_level ? "module-status-device" : "module-status-muted"
+                    }`}
+                  >
+                    {s.device_level ? "Device" : "General"}
+                  </span>
+                </td>
+                <td>
+                  <div className="module-scenario-enabled-cell">
+                    <AppSwitch
+                      checked={s.enabled === true}
+                      disabled={busyKey === s.key}
+                      onChange={() => onToggle(s)}
+                      aria-label={`Enable scenario ${s.name}`}
+                      title={enabledLabel(s.enabled)}
+                    />
+                    <span>{enabledLabel(s.enabled)}</span>
+                  </div>
+                </td>
+                <td className="module-scenario-actions">
+                  <Link
+                    href={editDslHref({ module: moduleKey, scenario: s.path })}
+                    className="module-action-link"
+                    title={`Edit ${s.name}`}
+                  >
+                    <Icon name="edit-dsl" size="sm" />
+                    Edit
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const ModuleTableRow = memo(function ModuleTableRow({
+  module,
+  open,
+  busyKey,
+  onToggleExpanded,
+  onToggleScenario,
+}: {
+  module: ModuleRow;
+  open: boolean;
+  busyKey: string | null;
+  onToggleExpanded: (storageKey: string) => void;
+  onToggleScenario: (row: ScenarioRow) => void;
+}) {
+  const hasEnabledState = module.enabled_on > 0 || module.enabled_off > 0;
+
+  return (
+    <Fragment>
+      <tr
+        className={[
+          "module-row",
+          open ? "module-row--open" : "",
+          module.scenario_count === 0 ? "module-row--empty" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <td className="module-table__expander">
+          {module.scenario_count > 0 ? (
+            <button
+              type="button"
+              className="btn-icon module-expand-button"
+              aria-expanded={open}
+              aria-label={`${open ? "Hide" : "Show"} scenarios for ${
+                module.title
+              }`}
+              onClick={() => onToggleExpanded(module.storage_key)}
+            >
+              <Icon
+                name="chevron-right"
+                size="sm"
+                className={
+                  open
+                    ? "module-expand-icon module-expand-icon--open"
+                    : "module-expand-icon"
+                }
+              />
+            </button>
+          ) : (
+            <span className="module-expand-placeholder">
+              <Icon name="dot" size="sm" />
+            </span>
+          )}
+        </td>
+        <td>
+          <div className="module-title-cell">
+            <div className="module-title-line">
+              <strong>{module.title}</strong>
+              <span
+                className={`module-kind-pill ${
+                  module.core
+                    ? "module-kind-pill--core"
+                    : "module-kind-pill--custom"
+                }`}
+              >
+                {module.core ? "Core" : "Custom"}
+              </span>
+            </div>
+            <code>{module.storage_key}</code>
+            {module.description ? <p>{module.description}</p> : null}
+          </div>
+        </td>
+        <td className="module-path-cell">
+          <code>{module.rel_path}</code>
+        </td>
+        <td>
+          <div className="module-scenario-summary">
+            <strong>{module.scenario_count}</strong>
+            <span>
+              {module.scenario_count === 1 ? "scenario" : "scenarios"}
+            </span>
+          </div>
+        </td>
+        <td>
+          <div className="module-enabled-stack">
+            {module.enabled_on ? (
+              <span className="status-pill status-idle">
+                {module.enabled_on} on
+              </span>
+            ) : null}
+            {module.enabled_off ? (
+              <span className="status-pill module-status-muted">
+                {module.enabled_off} off
+              </span>
+            ) : null}
+            {!hasEnabledState ? (
+              <span className="status-pill module-status-muted">Default</span>
+            ) : null}
+          </div>
+        </td>
+        <td>
+          <div className="module-docs-stack">
+            {module.wiki ? (
+              <span className="status-pill module-status-wiki">
+                <Icon name="wiki" size="sm" />
+                Wiki
+              </span>
+            ) : null}
+            {module.has_analyze ? (
+              <span className="status-pill module-status-analyze">
+                <Icon name="optimizer" size="sm" />
+                Analyzer
+              </span>
+            ) : null}
+            {!module.wiki && !module.has_analyze ? (
+              <span className="text-wos-text-muted" aria-label="No docs">
+                —
+              </span>
+            ) : null}
+          </div>
+        </td>
+        <td>
+          <div className="module-row-actions">
+            <Link
+              href={editDslHref({ module: module.storage_key })}
+              className="module-action-link"
+            >
+              <Icon name="edit-dsl" size="sm" />
+              DSL
+            </Link>
+            <Link
+              href={editDslHref({
+                module: module.storage_key,
+                newScenario: true,
+              })}
+              className="module-action-link"
+            >
+              <Icon name="plus" size="sm" />
+              Scenario
+            </Link>
+          </div>
+        </td>
+      </tr>
+      {open && module.scenarios.length > 0 && (
+        <tr key={`${module.storage_key}-detail`} className="module-detail-row">
+          <td colSpan={7}>
+            <ModuleScenarios
+              moduleKey={module.storage_key}
+              scenarios={module.scenarios}
+              busyKey={busyKey}
+              onToggle={onToggleScenario}
+            />
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+});
+
+export default function ModulesPage() {
+  const { showSuccess } = useFeedback();
+  const [game, setGame] = useState<string>(GAME_TABS[0]?.id ?? "wos");
+  const [scopes, setScopes] = useState<WikiScope[]>([]);
+  const [scope, setScope] = useState("all");
+  const [modules, setModules] = useState<ModuleRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
+  const requestIdRef = useRef(0);
+  const deferredFilter = useDeferredValue(filter);
+
+  const reload = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    setError(null);
+    setLoading(true);
+    try {
+      const mods = await fetchModules(scope, game);
+      if (requestIdRef.current === requestId) {
+        setModules(mods);
+      }
+    } catch (e) {
+      if (requestIdRef.current === requestId) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    } finally {
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
+    }
+  }, [scope, game]);
+
+  useEffect(() => {
+    let active = true;
+    fetchWikiScopes(game)
+      .then((nextScopes) => {
+        if (active) setScopes(nextScopes);
+      })
+      .catch(() => {
+        if (active) setScopes([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [game]);
+
+  const handleGameChange = useCallback((nextGame: string) => {
+    setGame(nextGame);
+    setScope("all");
+    setExpanded(new Set());
+  }, []);
+
+  const handleScopeChange = useCallback((nextScope: string) => {
+    setScope(nextScope);
+    setExpanded(new Set());
+  }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  const moduleSearchIndex = useMemo(
+    () => createModuleSearchIndex(modules),
+    [modules],
+  );
+  const filtered = useMemo(
+    () => filterModuleSearchIndex(moduleSearchIndex, deferredFilter),
+    [moduleSearchIndex, deferredFilter],
+  );
+
+  const scopeOptions = useMemo(() => {
+    const mapped = scopes.map((s) => ({ value: s.key, label: s.label }));
+    if (mapped.some((option) => option.value === "all")) {
+      return mapped;
+    }
+    return [{ value: "all", label: "all" }, ...mapped];
+  }, [scopes]);
+
+  const selectedGameLabel =
+    GAME_TABS.find((tab) => tab.id === game)?.label ?? game;
+  const selectedScopeLabel =
+    scopeOptions.find((option) => option.value === scope)?.label ?? scope;
+  const visibleExpanded = filtered.filter((m) =>
+    expanded.has(m.storage_key),
+  ).length;
+
+  const totals = useMemo(
+    () =>
+      filtered.reduce(
+        (acc, moduleRow) => {
+          acc.scenarios += moduleRow.scenario_count;
+          acc.enabledOn += moduleRow.enabled_on;
+          acc.enabledOff += moduleRow.enabled_off;
+          acc.wiki += moduleRow.wiki ? 1 : 0;
+          acc.analyzers += moduleRow.has_analyze ? 1 : 0;
+          return acc;
+        },
+        { scenarios: 0, enabledOn: 0, enabledOff: 0, wiki: 0, analyzers: 0 },
+      ),
+    [filtered],
+  );
+
+  const toggleExpanded = useCallback((storageKey: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(storageKey)) next.delete(storageKey);
+      else next.add(storageKey);
+      return next;
+    });
+  }, []);
+
+  const toggleScenario = useCallback(async (row: ScenarioRow) => {
+    const next = row.enabled !== true;
+    setBusy(row.key);
+    try {
+      await setScenarioEnabled(row.key, next);
+      await reload();
+      showSuccess(
+        `${row.name}: ${next ? "enabled" : "disabled"} (${enabledLabel(next)})`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }, [reload, showSuccess]);
+
+  return (
+    <>
+      <PageHeader title="Modules">
+        <div className="module-header">
+          <p className="muted">
+            Module manifests under <code>modules/</code> - enable scenarios and
+            open the DSL editor.
+          </p>
+          <div className="module-header-metrics">
+            <span className="module-metric">
+              <span>Game</span>
+              <strong>{selectedGameLabel}</strong>
+            </span>
+            <span className="module-metric">
+              <span>Scope</span>
+              <strong>{selectedScopeLabel}</strong>
+            </span>
+            <span className="module-metric">
+              <span>Visible</span>
+              <strong>
+                {filtered.length}/{modules.length}
+              </strong>
+            </span>
+            <span className="module-metric">
+              <span>Scenarios</span>
+              <strong>{totals.scenarios}</strong>
+            </span>
+            <span className="module-metric module-metric--wide">
+              <span>Enabled</span>
+              <strong>
+                {totals.enabledOn} on / {totals.enabledOff} off
+              </strong>
+            </span>
+            <span className="module-metric module-metric--wide">
+              <span>Docs</span>
+              <strong>
+                {totals.wiki} wiki / {totals.analyzers} analyzers
+              </strong>
+            </span>
+          </div>
+        </div>
+      </PageHeader>
+      <AppTabs
+        tabs={GAME_TABS.map((g) => ({ key: g.id, label: g.label, title: g.id }))}
+        selectedKey={game}
+        onChange={handleGameChange}
+        renderPanels={false}
+      />
+      <div className="module-toolbar">
+        <AppListbox
+          inline
+          label="Scope"
+          value={scope}
+          onChange={handleScopeChange}
+          options={scopeOptions}
+          minWidth={160}
+        />
+        <label className="module-search">
+          <Icon name="search" size="sm" />
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter id, title, path"
+            type="search"
+          />
+          {filter ? (
+            <button
+              type="button"
+              className="btn-icon module-search__clear"
+              aria-label="Clear module filter"
+              onClick={() => setFilter("")}
+            >
+              <Icon name="clear" size="sm" />
+            </button>
+          ) : null}
+        </label>
+        <button
+          type="button"
+          className="btn-secondary module-toolbar-button"
+          onClick={() => void reload()}
+        >
+          <Icon name="refresh" size="sm" />
+          Refresh
+        </button>
+        <button
+          type="button"
+          className="btn-secondary module-toolbar-button"
+          disabled={busy === "__reload__"}
+          onClick={async () => {
+            setBusy("__reload__");
+            try {
+              const loaded = await reloadScenarios();
+              await reload();
+              showSuccess(`Reloaded scenarios from disk (${loaded} loaded)`);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+            } finally {
+              setBusy(null);
+            }
+          }}
+        >
+          <Icon name="recent" size="sm" />
+          {busy === "__reload__" ? "Reloading" : "Reload disk"}
+        </button>
+        <button
+          type="button"
+          className="btn-primary module-toolbar-button"
+          onClick={() => setNewOpen(true)}
+        >
+          <Icon name="modules" size="sm" />
+          New module
+        </button>
+      </div>
+      <NewModuleDialog
+        open={newOpen}
+        initialGame={game}
+        onClose={() => setNewOpen(false)}
+        onCreated={async (row) => {
+          await reload();
+          await reloadScenarios().catch(() => {});
+          setExpanded((prev) => new Set(prev).add(row.storage_key));
+          showSuccess(`Created module ${row.storage_key}`);
+        }}
+        onError={(message) => setError(message)}
+      />
+      <ErrorBanner
+        message={error}
+        onRetry={() => void reload()}
+        retrying={loading}
+      />
+      <section className="panel module-editor-panel">
+        <div className="module-panel-head">
+          <div>
+            <h2>Modules</h2>
+            <p className="meta">
+              {loading
+                ? "Loading…"
+                : error
+                  ? "Couldn’t load modules"
+                  : filtered.length === modules.length
+                    ? `${modules.length} loaded`
+                    : `${filtered.length} of ${modules.length} shown`}
+            </p>
+          </div>
+          <span className="status-pill module-status-muted">
+            {visibleExpanded} expanded
+          </span>
+        </div>
+        {loading ? (
+          <div className="module-empty">
+            <Spinner />
+            <span>Loading modules…</span>
+          </div>
+        ) : error ? null : filtered.length === 0 ? (
+          <div className="module-empty">
+            <Icon name="list-empty" size="lg" />
+            <strong>
+              {modules.length === 0
+                ? "No modules found"
+                : "No modules match this filter"}
+            </strong>
+            <span>
+              {modules.length === 0
+                ? "Nothing is registered for this game and scope yet."
+                : "Clear the filter or switch scope to see more modules."}
+            </span>
+            {filter ? (
+              <button
+                type="button"
+                className="btn-secondary module-toolbar-button"
+                onClick={() => setFilter("")}
+              >
+                <Icon name="clear" size="sm" />
+                Clear filter
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="data-table-wrap module-table-wrap">
+            <table className="data-table module-table">
+              <thead>
+                <tr>
+                  <th />
+                  <th>Module</th>
+                  <th>Path</th>
+                  <th>Scenarios</th>
+                  <th>Enabled</th>
+                  <th>Docs</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((m) => {
+                  const open = expanded.has(m.storage_key);
+                  return (
+                    <ModuleTableRow
+                      key={m.storage_key}
+                      module={m}
+                      open={open}
+                      busyKey={open ? busy : null}
+                      onToggleExpanded={toggleExpanded}
+                      onToggleScenario={toggleScenario}
+                    />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </>
+  );
+}

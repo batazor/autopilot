@@ -1,0 +1,12 @@
+overlay:
+  # On the Chief Orders screen, drive the enact flow. The scenario handles
+  # main_city -> chief_orders returns after each successful Enact.
+  - name: chief_orders.visible
+    region: icon.page.back
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - chief_order
+    ttl: 15m
+    steps:
+      - push_scenario: claim_chief_orders

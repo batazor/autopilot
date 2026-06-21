@@ -1,0 +1,62 @@
+enabled: true
+name: Dismiss popup on unknown screen
+
+device_level: true
+priority: 70_000
+
+# Onboarding is gated at the enqueue point (``_maybe_dismiss_unknown_popup``):
+# while furnace < 5 the dismisser is not enqueued at all, so it can't fight the
+# tutorial. No furnace cond here — gating in the scenario would still enqueue it
+# every unknown-screen tick only to bail.
+cond: currentNode == unknown
+
+steps:
+  - cond: currentNode == unknown
+    steps:
+      - while_match: rewards.upgraded.tap_anywhere_to_exit
+        max: 1
+        steps:
+          - click: rewards.upgraded.tap_anywhere_to_exit
+          - wait: 1s
+
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
+
+      - while_match: button.free
+        max: 1
+        steps:
+          - click: button.free
+          - wait: 1s
+
+      - while_match: claim_button_close
+        max: 1
+        steps:
+          - click: claim_button_close
+          - wait: 1s
+
+      - while_match: icon.page.back
+        max: 1
+        steps:
+          - click: icon.page.back
+          - wait: 1s
+
+      - while_match: button.click_to_continue
+        max: 1
+        steps:
+          - click: button.click_to_continue
+          - wait: 1s
+
+      - while_match: heroes.sr.new.close
+        max: 1
+        steps:
+          - click: heroes.sr.new.close
+          - wait: 1s
+
+  # Template regions above are safer and produce meaningful approval labels.
+  # Fall back to the game-wide popup detector only when known affordances were
+  # not found.
+  - exec: dismiss_popup

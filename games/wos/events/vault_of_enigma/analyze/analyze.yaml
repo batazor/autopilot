@@ -1,0 +1,25 @@
+overlay:
+  - name: vault_of_enigma.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: games/wos/events/vault_of_enigma/references/main_city.event.vault_of_enigma.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: deals.vault_of_enigma
+          ttl: 1m
+  
+  - name: vault_of_enigma.box.has_red_dot
+    region: vault_of_enigma.box
+    threshold: 0.85
+    isRedDot: true
+    screens:
+      - deals
+      - deals.vault_of_enigma
+    steps:
+      - push_scenario:
+          name: deals.vault_of_enigma
+          ttl: 1m

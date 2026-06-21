@@ -1,0 +1,8 @@
+# Optimizer dispatch target: a `skill_up` candidate resolves to
+# `skill_up_<hero>` (optimizer/dispatcher.scenario_name_for) and is pushed with
+# the skill-slot region hint `page.heroes.unit.skill_<slot>` (region_for).
+# NOT dead code — the steps are unimplemented pending the skill-up UI flow.
+enabled: false
+name: 📘 Skill up · ${hero_name}
+node: page.heroes.${hero_id}
+steps: []

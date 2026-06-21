@@ -1,0 +1,6 @@
+enabled: true
+name: Exit rewards popup
+device_level: true
+node: rewards
+steps:
+  - click: button.tap_anywhere_to_exit

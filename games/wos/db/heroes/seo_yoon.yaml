@@ -1,0 +1,151 @@
+id: seo_yoon
+name: Seo-yoon
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/seo-yoon/
+rarity: Epic
+class: Marksmen
+sub_class: Growth
+stats:
+  exploration:
+    attack: '2157'
+    def: '2220'
+    health: '13320'
+  expedition:
+    attack: 140.11%
+    defense: 140.11%
+story: 'Seo-yoon has always believed in the transformative power of music. Likewise,
+  music and other higher forms of entertainment have always been a rare commodity
+  in this new icy world.
+
+
+  Virtually everyone can appreciate the efforts of Seo-yoon and her merry band of
+  minstrels, as they are sometimes called, in travelling from settlement to settlement
+  in echoes of touring musicians of the old world. Certainly, plenty of merriment,
+  laughter, songs of joy and dance will be found in every community they visit.
+
+
+  Seo-yoon strikes most folk as a gentle soul on first impression, humble with a certain
+  elegance of spirit. Only the most discerning or those who know Seo-yoon well will
+  recognize the iron stubbornness and bravery behind her eyes. Fewer still would know
+  of Seo-yoon''s skills as a close quarters combatant with a proven track record of
+  defending her companions in need, or the evil uses to which her drumsticks can be
+  turned when the situation calls for it.
+
+
+  Seo-yoon''s drumming skills are probably her most legendary. A smart Chief should
+  not underestimate the inspirational effect of music on troops, even troops who seem
+  to lack a single musical bone in their body.
+
+
+  There is no substitution for talent. Even if Seo-yoon has practiced her instruments
+  for many years, what she possesses is nothing less than a special kind of musical
+  magnetism, an ability to channel her heart and soul into a language all listeners
+  can hear. Few drummers generate the responses that Seo-yoon excites after a few
+  minutes.
+
+
+  Seo-yoon owes much of her fame to a privileged upbringing in one of the wealthiest
+  Cities in the Tundra, a relative utopia compared to many others overrun by cold
+  and wind. This afforded her the opportunity to study music and choreography to her
+  heart''s content, at which she had already showed exceptional promise as a young
+  girl. Seo-yoon''s ability to play nearly any instrument after a short practice session
+  did not escape her father''s proud notice.
+
+
+  A strict survivalist, Seo-yoon''s father was a stern but kindly man who considered
+  it his duty to prepare his only daughter for every eventuality that may come to
+  pass in the new world. Musical practice was always followed by rigorous combat training
+  that, if all went well, would never be used. Fate had other plans.
+
+
+  Seo-yoon''s wealthy Settlement was raided by a large group of bandits in her late
+  teenage years. Caught by surprise, most of the city''s defenders were quickly massacred,
+  including her father, while others fled on foot from their homes into the icy wilderness.
+  The situation seemed utterly hopeless, but something in Seo-yoon refused to yield.
+  And in that stubbornness she found hope. She took to her instruments and began playing
+  a rousing martial theme that she kept up through the night until early morning,
+  although there was little sign of any significant response.
+
+
+  It was only when dawn came, and the beautiful golden sun lit up the edges of the
+  horizon that the Settlement''s survivors looked around at each other and realized
+  they were still great in number. This might just be the occasion for a miracle.
+  Seo-yoon called for volunteers and, one by one, brave warriors pledged themselves
+  into a ragtag counter-attack force. The invaders, many drunk on the town''s wine
+  or napping from the heavy celebrations following their so-called victory, were unprepared.
+  The rest is history.
+
+
+  In the end, Seo-yoon had played a critical role in winning back the resolve of her
+  people and their home, to which she was given a hero''s welcome. Seo-yoon was not
+  just a musician now, but an inspiring warrior and commander.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hero Recruitment
+skills:
+- name: Heartbeat of Valor
+  description: Seo-yoon lifts the army's spirits with invigorating drum beats, increasing
+    all troops' Attack by 1.5%/2%/2.5%/3%/3.5% and Attack Speed by 2.5%/3%/3.5%/4%/4.5%
+    for 4s.
+- name: Bullseye Bash
+  description: Seo-yoon aims for the enemy's weak spot and hurls the drumstick with
+    full force, dealing Attack* 150%/165%/180%/195%/210% damage.
+- name: Gale's Pulse
+  description: Seo-yoon dances to the rhythm, sharpening her assault. For every 3
+    basic attacks, increases Attack Speed by 1%/2%/3%/4%/5% . Lasts until the end
+    of the battle.
+- name: Rallying Beat
+  description: Seo-yoon beats the war drum to boost morale, increasing Troops Attack
+    by 5%/10%/15%/20%/25% .
+- name: Soothing Dance
+  description: Seo-yoon treats wounded troops with traditional medicine, increasing
+    Healing speed in the infirmary by 10%/20%/30%/40%/50% .

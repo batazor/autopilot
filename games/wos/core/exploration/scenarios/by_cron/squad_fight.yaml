@@ -1,0 +1,44 @@
+enabled: true
+name: Squad Fight
+
+# A cron tick starts the redeploy loop. Victory re-pushes this scenario so the
+# chain can continue until a fight is lost.
+cron: "0 */12 * * *"
+ttl: 6h
+
+node: squad_settings
+
+steps:
+  - ocr: exploration.level
+    state: exploration.level
+  - ocr: exploration.state.myPower
+    state: exploration.state.myPower
+  - ocr: exploration.state.enemyPower
+    state: exploration.state.enemyPower
+
+  - click: squad_settings.quick_deploy
+  - wait: 200ms
+  - click: squad_settings.fight
+  - wait: 2s
+
+  - wait_screen:
+      any: [exploration.victory, exploration.defeat]
+      max: 90
+      interval: 2s
+
+  - cond: currentNode == exploration.victory
+    steps:
+      - click: page.exploration.victory.next
+      - wait_screen:
+          any: [squad_settings]
+          max: 5
+          interval: 500ms
+      - push_scenario: squad_fight
+
+  - cond: currentNode == exploration.defeat
+    steps:
+      - push_scenario:
+          name: squad_fight
+          delay: 6h
+      - click: button.to_main_city
+      - wait: 2s

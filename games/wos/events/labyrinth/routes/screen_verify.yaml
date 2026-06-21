@@ -1,0 +1,48 @@
+screens:
+  event.labyrinth:
+    rules:
+      - ocr: labyrinth.title
+        contains: Labyrinth
+        threshold: 0.9
+
+  event.labyrinth.research_center:
+    rules:
+      - ocr: labyrinth.cave.title
+        contains: Research Center
+        match: labyrinth.cave.challenge
+        threshold: 0.85
+
+  event.labyrinth.land_of_heroes:
+    rules:
+      - ocr: labyrinth.cave.title
+        contains: Land of Heroes
+        match: labyrinth.cave.challenge
+        threshold: 0.85
+
+  event.labyrinth.cave_of_monsters:
+    rules:
+      - ocr: labyrinth.cave.title
+        contains: Cave of Monsters
+        match: labyrinth.cave.challenge
+        threshold: 0.85
+
+  event.labyrinth.charm_mine:
+    rules:
+      - ocr: labyrinth.cave.title
+        contains: Charm Mine
+        match: labyrinth.cave.challenge
+        threshold: 0.85
+
+  event.labyrinth.gear_forge:
+    rules:
+      - ocr: labyrinth.cave.title
+        contains: Gear Forge
+        match: labyrinth.cave.challenge
+        threshold: 0.85
+
+  event.labyrinth.gaia_heart:
+    rules:
+      - ocr: labyrinth.cave.title
+        contains: Gaia Heart
+        match: labyrinth.cave.challenge
+        threshold: 0.85

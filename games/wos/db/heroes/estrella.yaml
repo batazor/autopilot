@@ -1,0 +1,149 @@
+id: estrella
+name: Estrella
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/estrella/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: 30,812
+    def: 30,812
+    health: 308,136
+  expedition:
+    attack: 1961.56%
+    defense: 1961.56%
+story: 'As a child, Estrella often heard stories of the "old world" from the older
+  folks in her town. In stark contrast to the endless snow-covered winter she knew,
+  the world of the past had verdant forests and golden fields of wheat.
+
+
+  These tales prompted vivid dreams in which Estrella returned to that vibrant world
+  to experience the blossoming of spring, the heat of summer, and the autumn harvest
+  season—all sensations foreign to her frigid life in the real world. Estrella could
+  never find the right words to express the beauty of her dreams, so she decided to
+  paint them, hoping to share her spectacular visions with her entire town.
+
+
+  Estrella''s home was a mining town tucked away in the mountainside, a place rich
+  with mineral deposits. Crystals and stones of every color could be found among the
+  hills, along the riverbanks, and inside the caverns there. Some luminous ores even
+  glowed under the night sky, like stars fallen to the ground. Estrella used all of
+  these minerals as pigments to color her paintings, weaving the vibrant spectrum
+  of light into spectacular canvases with her imagination.
+
+
+  But danger lurked in her hometown as well, as many people coveted their lucrative
+  mineral deposits. While painting outside one day, Estrella was approached by a group
+  of shady figures—outlaw miners from another town who''d come to scout the terrain
+  and gather intel. The unwelcome guests spotted Estrella and attacked her.
+
+
+  Instinctively, Estrella flung her mineral paints at the attackers. As the paint
+  spattered all over them, the unstable chemicals reacted somehow to burn the intruders,
+  buying Estrella time to escape. The attacks lessened after the town sought the protection
+  of the Dawn Alliance, but the occasional reckless intruder still got in from time
+  to time.
+
+
+  Estrella loved her hometown and vowed to defend it however she could. She continued
+  to refine her pigment formulas until she could repel intruders with either scorching
+  or freezing paints.
+
+
+  Estrella loved to dream—not only for the gorgeous scenes, but also for her special
+  dream "companion", a girl named Evelyn from the old world, who lived in a beautiful
+  rose garden. Within Estrella''s dreams they played together, sharing stories of
+  their respective worlds and forming a close friendship.
+
+
+  Estrella always believed these were simply recurring dreams—until she stumbled upon
+  the ancient "Notes From the Rose Garden" at the town library, where the author wrote
+  about her recurring childhood dreams in which she often played with a girl from
+  the "Land of Winter". Most townsfolk dismissed this as mere coincidence. After all,
+  the notes had no signature and never mentioned Estrella''s name. But others believed
+  that the mysterious crystals beneath the town''s soil served as some kind of medium
+  that connected people across time and space via dreams.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Scorching Scarlet
+  description: Splashes scorching scarlet paint, dealing Attack* 200%/220%/240%/260%/280%
+    AoE damage to enemies in range. Splashed targets also have their Attack reduced
+    by 5%/10%/15%/20%/25% for 2s.
+- name: Molten Gold
+  description: Splatters the target with amber-yellow paint, dealing Attack* 100%/110%/120%/130%/140%
+    damage and inflicting Corrosion, which causes the target to take Attack* 2%/3%/4%/5%/6%
+    damage every 0.5s for 4s.
+- name: Midnight Blue
+  description: A night-like shade of blue brings bone-chilling cold. Normal Attacks
+    paint targets blue, reducing their Attack Speed by 10%/15%/20%/25%/30% for 2s.
+- name: Corrosive Color
+  description: Splatters paint made from mysterious crystals that corrode enemy armor,
+    reducing the Defense of all enemy troops by 5%/10%/15%/20%/25% .
+- name: Dawn Canvas
+  description: Encourages troops with an inspiring painting, increasing the Attack
+    of all allied troops by 3%/6%/9%/12%/15% and their Defense by 2%/4%/6%/8%/10%
+    .
+- name: Splendid Scene
+  description: Boosts morale with a vibrant painting, reducing the damage taken by
+    Infantry by 5%/10%/15%/20%/25% and increasing the damage dealt by Lancers by 5%/10%/15%/20%/25%
+    .
+- name: Color Burst
+  description: The collision of colors unleashes incredible power. Enemies stained
+    with 2 colors at the same time will take 30% more damage.
+- name: Homeland Defense
+  description: Estrella's brushstrokes reveal a majestic homeland that inspires troops
+    to fight for it, increasing the Attack of Defender Troops by 15%.

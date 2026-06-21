@@ -1,0 +1,42 @@
+# Non-decoration Daybreak Island structures: the Life-Essence producers and the
+# unique blueprint building. These don't grant the per-stat buffs decorations do
+# (Lumber Camp / Timbermill produce LE; Starry Lighthouse is a special late buff),
+# but they gate the LE economy the rest of the island runs on.
+#
+# Source: onechilledgamer Daybreak Island guide + whiteoutdata (fetched 2026-06-20).
+source:
+  name: onechilledgamer.com / whiteoutdata.com
+  url: https://onechilledgamer.com/whiteout-survival-daybreak-island-guide/
+  fetched_at: '2026-06-20'
+
+structures:
+  # Clears trees and produces Life Essence; the island's primary LE source until
+  # the trees run out. Two plots, max level 10. Gated by the main-city Furnace.
+  - id: lumber_camp
+    name: Lumber Camp
+    role: producer            # produces Life Essence; planner values it as throughput
+    max_level: 10
+    plots: 2
+    unlock: {building: furnace, level: 19}
+
+  # Takes over LE production after every tree is cleared (~40 LE/hr per worker,
+  # capacity 2,000). No level data published → modelled as a flat late producer.
+  - id: timbermill
+    name: Timbermill
+    role: producer
+    le_per_hour_per_worker: 40
+    capacity: 2000
+    unlock: {trees_cleared: true}
+
+  # Unique coastal decoration unlocked only at Tree of Life level 10. Blueprint
+  # costs 50,000 LE; upgraded with construction contracts (not LE) to level 10.
+  - id: starry_lighthouse
+    name: Starry Lighthouse
+    role: buff
+    max_level: 10
+    blueprint_life_essence: 50000
+    prosperity: 20000
+    unlock: {building: tree_of_life, level: 10}
+    bonuses:
+      - {stat: lethality, amount: 10.0, unit: percent}
+      - {stat: troop_health, amount: 10.0, unit: percent}

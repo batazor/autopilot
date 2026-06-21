@@ -1,0 +1,40 @@
+enabled: true
+name: "Chapter: Claim Growth Missions"
+priority: 80_000
+
+# The Growth Missions tab is an independent navigation node. Pushed by
+# chapter.claim_missions after the Daily sweep, and self-pushed by the on-page
+# Claim / Claim All overlay rules when the bot is already on the Growth tab.
+# Navigation reaches this node via the tab_index resolver (segmented
+# chapter.tabs_strip), so switching here never relies on a title-template tap.
+node: chapter.growth_missions
+
+steps:
+  # Claim All first when it is lit (green template only matches the lit state).
+  - while_match: chapter.button.claim_all
+    max: 1
+    steps:
+      - click: chapter.button.claim_all
+      - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
+
+  # Then sweep any per-row Claim buttons left over.
+  - while_match: chapter.button.claim
+    action: cta_button
+    color: green
+    threshold: 0.5
+    max: 6
+    steps:
+      - click: chapter.button.claim
+      - wait: 0.8s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s

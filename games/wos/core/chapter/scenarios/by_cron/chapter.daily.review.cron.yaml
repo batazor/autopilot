@@ -1,0 +1,17 @@
+enabled: true
+name: "Chapter: Daily Review (cron)"
+priority: 90_000
+
+# Cron safety net for the daily mission list. The badge rule and the reset+5m
+# trampoline normally drive chapter.claim_missions, but if either chain breaks
+# (bot offline around the reset, refresh clock OCR missed) nothing re-reads
+# the day's list — this re-runs the review pass twice a game day. The
+# scheduler's interval throttle keeps boot-time enqueues honest, and a
+# distinct key from chapter.daily.review keeps the delayed reset+5m item from
+# dedup-swallowing these pushes. The bare push inherits this scenario's
+# above-average priority, so the claim pass itself runs at 90_000 too.
+cron: "0 */12 * * *"
+cond: "active_player != null"
+
+steps:
+  - push_scenario: chapter.claim_missions

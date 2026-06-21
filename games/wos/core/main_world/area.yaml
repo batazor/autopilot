@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "main_world",
+      "ocr": "references/main_world_intel_entry.png",
+      "screen_region": "main_world.to.intel",
+      "regions": [
+        {
+          "name": "main_world.to.intel",
+          "action": "exist",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 88.13064316298932,
+            "y": 64.38310038284392,
+            "width": 8.814577984356703,
+            "height": 5.414717288196705,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_world.to.main_city",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 84.8,
+            "y": 91.0,
+            "width": 13.4,
+            "height": 8.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

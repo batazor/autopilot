@@ -1,0 +1,26 @@
+# Bank sits at the far-right end of the deals tab strip, so a fixed-position
+# ``bank.tab`` tap misses until the strip is scrolled there. Resolve it
+# dynamically: the navigator segments deals.tabs_strip, identifies the Bank tab
+# by its template, advances (taps the strip next-page control) until it appears,
+# then clicks it. ``page`` defaults to the edge destination (deals.bank);
+# ``namespace`` to the strip prefix (deals).
+edges:
+  deals:
+    deals.bank: { resolver: tab_identify, region: deals.tabs_strip }
+
+  deals.sign_in:
+    deals.bank: { resolver: tab_identify, region: deals.tabs_strip }
+
+  deals.home_and_beyond:
+    deals.bank: { resolver: tab_identify, region: deals.tabs_strip }
+
+  deals.hall_of_heroes:
+    deals.bank: { resolver: tab_identify, region: deals.tabs_strip }
+
+  deals.bank:
+    deals: [icon.page.back]
+    main_city: [icon.page.back]
+    bank.deposit_dialog: [bank.deposit_5.button]
+
+  bank.deposit_dialog:
+    deals.bank: [bank.deposit_dialog.close]

@@ -1,0 +1,82 @@
+enabled: true
+name: 'Journey of Light: My Treasures'
+priority: 85000
+node: journey_of_light.my_treasures
+icon: journey_of_light
+steps:
+- while_match: journey_of_light.my_treasures.enable.common
+  threshold: 0.85
+  template: games/wos/events/journey_of_light/references/crop/my_treasures_journey_of_light.my_treasures.enable.common.png
+  max: 1
+  min_match_saturation: 80
+  min_patch_bright_ratio: 0.05
+  retry:
+    attempts: 2
+    interval: 500ms
+  steps:
+  - click: journey_of_light.my_treasures.enable.common
+  - wait: 1s
+  - while_match: journey_of_light.my_treasures.enable.popup
+    threshold: 0.85
+    template: games/wos/events/journey_of_light/references/crop/my_treasures_enable_popup_journey_of_light.my_treasures.enable.popup.png
+    max: 1
+    min_match_saturation: 80
+    min_patch_bright_ratio: 0.05
+    retry:
+      attempts: 2
+      interval: 500ms
+    steps:
+    - click: journey_of_light.my_treasures.enable.popup
+    - wait: 1s
+  - while_match: journey_of_light.my_treasures.assemble_popup.start
+    threshold: 0.85
+    template: games/wos/events/journey_of_light/references/crop/my_treasures_assemble_popup_journey_of_light.my_treasures.assemble_popup.start.png
+    max: 1
+    min_match_saturation: 80
+    min_patch_bright_ratio: 0.05
+    retry:
+      attempts: 2
+      interval: 500ms
+    steps:
+    - click: journey_of_light.my_treasures.assemble_popup.checkbox
+    - wait: 500ms
+    - click: journey_of_light.my_treasures.assemble_popup.start
+    - wait: 1s
+- while_match: journey_of_light.my_treasures.enable.premium
+  threshold: 0.85
+  template: games/wos/events/journey_of_light/references/crop/my_treasures_journey_of_light.my_treasures.enable.premium.png
+  max: 1
+  min_match_saturation: 80
+  min_patch_bright_ratio: 0.05
+  retry:
+    attempts: 2
+    interval: 500ms
+  steps:
+  - click: journey_of_light.my_treasures.enable.premium
+  - wait: 1s
+  - while_match: journey_of_light.my_treasures.enable.popup
+    threshold: 0.85
+    template: games/wos/events/journey_of_light/references/crop/my_treasures_enable_popup_journey_of_light.my_treasures.enable.popup.png
+    max: 1
+    min_match_saturation: 80
+    min_patch_bright_ratio: 0.05
+    retry:
+      attempts: 2
+      interval: 500ms
+    steps:
+    - click: journey_of_light.my_treasures.enable.popup
+    - wait: 1s
+  - while_match: journey_of_light.my_treasures.assemble_popup.start
+    threshold: 0.85
+    template: games/wos/events/journey_of_light/references/crop/my_treasures_assemble_popup_journey_of_light.my_treasures.assemble_popup.start.png
+    max: 1
+    min_match_saturation: 80
+    min_patch_bright_ratio: 0.05
+    retry:
+      attempts: 2
+      interval: 500ms
+    steps:
+    - click: journey_of_light.my_treasures.assemble_popup.checkbox
+    - wait: 500ms
+    - click: journey_of_light.my_treasures.assemble_popup.start
+    - wait: 1s

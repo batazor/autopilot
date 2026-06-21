@@ -1,0 +1,13 @@
+enabled: true
+name: Onboarding click · Chapter Go
+device_level: true
+priority: 100_000
+steps:
+  # Chapter / growth panel: tap the first "Go" to start the next build. It
+  # navigates to the building's detail screen (handled by the build-confirm
+  # rule). One per run — re-probed each tick.
+  - while_match: onboarding.button.go
+    max: 1
+    steps:
+      - click: onboarding.button.go
+      - wait: 1s

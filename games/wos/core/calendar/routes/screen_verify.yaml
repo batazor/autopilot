@@ -1,0 +1,9 @@
+# Calendar tab of the Events panel. Detected by the *active* (white capsule)
+# calendar tab landmark — that white background is what tells "calendar tab is
+# selected" apart from the blue inactive tab (calendar.tab) seen on every other
+# event tab.
+screens:
+  event.calendar:
+    rules:
+      - match: calendar.title
+        threshold: 0.9

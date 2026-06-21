@@ -1,0 +1,8 @@
+id: magician_s_cloak
+name: Magician’s Cloak
+wiki_url: https://www.whiteoutsurvival.wiki/items/magicians-cloak/
+category: ''
+description: Removes the interaction effect and grants immunity to interaction items
+  for 8 hours. (Will be recycled after the event)
+sources:
+- Halloween Event

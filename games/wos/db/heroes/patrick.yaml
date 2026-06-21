@@ -1,0 +1,123 @@
+id: patrick
+name: Patrick
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/patrick/
+rarity: Epic
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '1776'
+    def: '2220'
+    health: '17760'
+  expedition:
+    attack: 140.11%
+    defense: 140.11%
+story: '"Who cares if the world''s turned to ice? At least our diners can reach heaven!"
+  - Patrick.\n Masterchef Patrick of Sunfire Castle has always believed nice food
+  helps to uplift the spirit. He has spent most of his life developing, researching,
+  and cooking the best dishes in the world. He has earned recognition from the President
+  and local nobles of all stripes.
+
+
+  Patrick''s life was turned upside down by the collapse of the Solaris Royal Family.
+  Though he was no longer the Masterchef, life still has to go on. In the Cities,
+  he no longer had access to the royal pantry and had to scramble for ingredients
+  and condiments. Many still remark on his inventive cuisine as comparable to the
+  finest in the old world.
+
+
+  Occasionally, Patrick''s skills are also needed in battle. Pantry thieves and resource
+  hunt have made combat a necessity. To many’s surprise, Patrick is a descent fighter.
+  Not only does he possess a lifetime''s worth of experience handling all kinds of
+  knives, he also has the strength and stamina to use them quite efficiently. The
+  busy kitchen has honed his intuition that can be easily applied to other "dynamic"
+  situations.
+
+
+  This is not to say the renowned Masterchef Patrick never gets it wrong. Necessity
+  is the mother of invention, and much inventiveness is needed in Cities. Anyone sampling
+  his newest creations should be cautious - new ingredients can be tricky even for
+  a seasoned chef like Patrick. Bahiti can particularly attest to this.
+
+
+  Patrick has taken the loss of his position at Sunfire Castle fairly well, all things
+  considered. The low point was when he and several other public servants were trapped
+  in a makeshift shelter following the collapse of Sunfire Castle. After a while,
+  the supply ran low and everyone thought they were doomed.
+
+
+  Patrick went to great effort to ensure the group''s "last meal" would at least be
+  a happy one. But despair soon gave way to warmth as the delicious food soothed their
+  earlier exhaustion. The group outlasted the snowstorm and arrived together at a
+  new shelter - in no small part thanks to that meal, which was the most meaningful
+  moment of Patrick''s career.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lighthouse Intel
+- Hero Recruitment
+skills:
+- name: BBQ Feast
+  description: Patrick prepares a lavish feast, restoring Health by Attack* 200%/220%/240%/260%/280%
+    to all troops and increasing Attack by 5%/5.5%/6%/6.5%/7% for all troops for 4s.
+- name: Thick Belly
+  description: Patrick's protective blubber reduces damage taken by 10%/15%/20%/25%/30%
+    .
+- name: Emergency Snack
+  description: Patrick's regular snacking restores Health equal to Attack* 50%/55%/60%/65%/70%
+    every 5s.
+- name: Super Nutrients
+  description: Patrick's culinary masterpieces invigorate our troops, increasing Health
+    by 5%/10%/15%/20%/25% for all troops.
+- name: Caloric Booster
+  description: Patrick's gourmet meals motivate and unleash the potential of our soldiers,
+    increasing Attack by 5%/10%/15%/20%/25% for all troops.

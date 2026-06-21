@@ -1,0 +1,13 @@
+id: arena
+name: Arena
+category: unknown
+requires:
+- building: furnace
+  level: 8
+requirements_by_level:
+  '1':
+    prerequisites: Furnace 8
+    build_cost: []
+    construction_time: '-'
+    building_power: null
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/arena/

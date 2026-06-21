@@ -1,0 +1,17 @@
+# Cookhouse build/upgrade button is blue while an upgrade is available and turns
+# grey once it's maxed / already upgrading. Detect the blue state and push the
+# hold-to-upgrade scenario; the scenario re-checks the colour and stops when grey.
+overlay:
+  - name: cookhouse.build.blue
+    region: cookhouse.build
+    action: color_check
+    type: blue
+    threshold: 0.4
+    screens:
+      - cookhouse
+    priority: 80_000
+    ttl: 3s
+    steps:
+      - push_scenario:
+          name: cookhouse.build.upgrade
+          ttl: 5s

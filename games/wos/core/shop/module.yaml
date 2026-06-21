@@ -1,0 +1,10 @@
+id: shop
+title: Shop
+description: >-
+  Shop screen automation — daily deals, free boxes, and shop navigation
+  from main city.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

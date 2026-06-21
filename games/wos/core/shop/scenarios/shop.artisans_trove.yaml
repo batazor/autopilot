@@ -1,0 +1,16 @@
+enabled: true
+name: Shop — Artisan's Trove
+
+node: shop.artisans_trove
+
+steps:
+  - while_match: artisans_trove.box
+    isRedDot: true
+    steps:
+      - click: artisans_trove.box
+      - wait: 1s
+      - ocr: artisans_trove.delay
+        event_timer: shop.artisans_trove
+      - push_scenario:
+          name: shop.artisans_trove
+          delay: shop.artisans_trove

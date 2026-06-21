@@ -1,0 +1,12 @@
+# Generic reward popup exit. Prefer the bottom "Tap anywhere to exit" affordance
+# over Android BACK so rewards dialogs close through the same UI path the player sees.
+edges:
+  rewards:
+    main_city:
+      - button.tap_anywhere_to_exit
+  rewards.upgraded:
+    deals:
+      - rewards.upgraded.tap_anywhere_to_exit
+  claimed:
+    shop.daily_deals:
+      - claimed.tap_anywhere_to_exit

@@ -1,0 +1,30 @@
+enabled: true
+name: Romance Season
+priority: 70_000
+node: event.romance_season
+icon: romance_season
+cond: "active_player != null"
+
+steps:
+  - ocr: romance_season.attack_count
+    type: integer
+    store: romance_season.attack_count
+    state: events.romanceSeason.attack_count
+
+  - ocr: romance_season.ttl
+    type: time
+    store: romance_season.ttl
+    state: events.romanceSeason.ttl_remaining_s
+    event_timer: romance_season
+
+  - click: romance_season.go
+  - wait_screen:
+      any: [romance_season.target, main_world]
+      max: 5
+      interval: 500ms
+
+  - click: romance_season.attack
+  - wait_screen:
+      any: [romance_season.rosarion]
+      max: 10
+      interval: 500ms

@@ -1,0 +1,53 @@
+overlay:
+  - name: mail.tabs.visible_red_dot
+    region: mail.tabs_strip
+    action: detectTabs
+    push_red_dot_pages: true
+    tab_pages:
+      - mail.claim.wars
+      - mail.claim.alliance
+      - mail.claim.system
+      - mail.claim.reports
+      - mail.claim.starred
+    screens:
+      - mail
+      - mail.wars
+      - mail.alliance
+      - mail.system
+      - mail.reports
+      - mail.starred
+
+  - name: mail.wars.active
+    region: mail.tab.wars
+    isTabActive: true
+    screens:
+      - mail
+    set_node: mail.wars
+
+  - name: mail.alliance.active
+    region: mail.tab.alliance
+    isTabActive: true
+    screens:
+      - mail
+    set_node: mail.alliance
+
+  - name: mail.system.active
+    region: mail.tab.system
+    isTabActive: true
+    screens:
+      - mail
+    set_node: mail.system
+
+  - name: mail.reports.active
+    region: mail.tab.reports
+    isTabActive: true
+    screens:
+      - mail
+    set_node: mail.reports
+
+  - name: mail.starred.active
+    region: mail.tab.starred
+    isTabActive: true
+    screens:
+      - mail
+    set_node: mail.starred

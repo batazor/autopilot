@@ -1,0 +1,10 @@
+@layer components {
+  .yaml-editor {
+    @apply w-full min-h-[360px] resize-y rounded-xl border border-wos-border-subtle bg-wos-input px-3 py-3 font-mono text-sm leading-relaxed text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25;
+  }
+
+  .code-block {
+    @apply max-h-[70vh] overflow-auto rounded-xl border border-wos-border-subtle bg-wos-input p-3 font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-wos-text-secondary;
+  }
+
+}

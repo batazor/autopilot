@@ -1,0 +1,44 @@
+enabled: true
+name: "🦸 Free recruitments today"
+
+# Daily-ish: ~every 5 hours. The free advanced recruit refreshes once per
+# real-time window; missing one or two ticks is harmless, the next run picks
+# it up. Cron form ``0 */5 * * *`` fires at 00/05/10/15/20 — the 20:00→00:00
+# wrap is 4h, not 5h, but for "free recruit when available" that's fine.
+cron: "0 */5 * * *"
+
+# Navigator BFS: main_city → heroes → hero.recruitment (see edge_taps.yaml).
+node: hero.recruitment
+
+steps:
+  # Snapshot HUD counters into state.yaml — same fields the
+  # ``analyze_hero_recruitment.yaml`` overlay + ``sync_hero_recruitment_resources``
+  # CLI populate, but inline here so a cron tick refreshes them without a
+  # separate sync run.
+  - ocr: key.silver
+    type: integer
+    state: resources.silver_keys
+  - ocr: key.gold
+    type: integer
+    state: resources.gold_keys
+  - ocr: diamond
+    type: integer
+    state: resources.diamond
+
+  # Guard: only proceed when the free recruit button is currently visible.
+  # If the free pull isn't available (already claimed / cooldown), ``match``
+  # bails and the click is skipped.
+  - while_match: hero.recruitment.advanced.free
+    steps:
+      - click: hero.recruitment.advanced.free
+      - wait: 2s
+      - click: hero.recruitment.advanced.free
+      - wait: 2s
+      - while_match: tapanywhereyoexit
+        expected: ["tap anywhere"]
+        threshold: 0.7
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s
+        else:
+          - ttl: 30m

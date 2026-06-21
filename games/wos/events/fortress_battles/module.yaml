@@ -1,0 +1,9 @@
+id: fortress_battles
+title: Fortress Battles
+description: Limited-time Fortress Battles event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: fortress_battles
+wiki: false

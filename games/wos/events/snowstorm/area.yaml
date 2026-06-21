@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 25,
+      "screen_id": "",
+      "ocr": "references/event.snowstorm.png",
+      "regions": [
+        {
+          "name": "event.snowstorm",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.436293436293436,
+            "y": 1.4130434782608696,
+            "width": 20.0,
+            "height": 10.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "event.snowstorm_tap",
+          "action": "click",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 71.58301158301158,
+            "y": 79.56521739130434,
+            "width": 17.0,
+            "height": 3.9000000000000004,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    }
+  ]
+}

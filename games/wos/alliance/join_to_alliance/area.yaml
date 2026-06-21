@@ -1,0 +1,418 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 73,
+      "screen_id": "alliance.invitation",
+      "ocr": "references/alliance.invitation.png",
+      "regions": [
+        {
+          "name": "text.sky_eaglewarriors",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.91698841698842,
+            "y": 22.5,
+            "width": 33.05598455598456,
+            "height": 2.109782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "463b883dace9afb1ebd910504f1e8d4e39d42452e530b6690c620e431aaf624e"
+        },
+        {
+          "name": "text.57_100",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.05598455598456,
+            "y": 30.93804347826087,
+            "width": 14.583011583011585,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3ea9325c3d0ac7a72c821bc6e12ca3959a96c3c98d634105ca5e96d03424e22a"
+        },
+        {
+          "name": "text.1_099_964_315",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.1949806949807,
+            "y": 33.75,
+            "width": 24.72200772200772,
+            "height": 2.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "afe41d741eec4e1285f735214aa1af58fa22525cd28ede3a362722dc37a45ee1"
+        },
+        {
+          "name": "text.y6",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.36100386100386,
+            "y": 44.92173913043478,
+            "width": 7.916988416988417,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a99a2f50f36670a22421c57ba21cdca63f55d5f95da914ea8aebb19f124f2b04"
+        },
+        {
+          "name": "text.74_100",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.91698841698842,
+            "y": 47.89021739130435,
+            "width": 15.13899613899614,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "57dda1232957040ae883f3535e34b8eb9c8c03e710b312856d09c8242e8d3557"
+        },
+        {
+          "name": "text.50_000_000",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 67.5,
+            "y": 47.42173913043478,
+            "width": 25.0,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a0b53e7d6fc37ea137ce35a7b44d5a7460503c15b2182d167a395dc77aa15b9b"
+        },
+        {
+          "name": "text.lv_11",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.694980694980694,
+            "y": 48.67173913043478,
+            "width": 8.472972972972974,
+            "height": 1.875,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "aee33968ebad4999d40479d30cd916981ea3bc39544cd83ecd3be8bbc0ac3c0c"
+        },
+        {
+          "name": "text.10_978_752_096",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.05598455598456,
+            "y": 50.70326086956522,
+            "width": 27.083011583011583,
+            "height": 2.5782608695652174,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "621b056abfbc16c9298a9d54ecd84102d70f83ce311b8f6acbce097fcf0eddf2"
+        },
+        {
+          "name": "text.bhx_theclang",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.91698841698842,
+            "y": 89.84347826086956,
+            "width": 24.583011583011583,
+            "height": 3.125,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "fb307bf3f4fc5cbe6e689fc56efb12499a3cf0b48053a2563cb7cb4a1d7c7b25"
+        },
+        {
+          "name": "text.14",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.36100386100386,
+            "y": 95.625,
+            "width": 8.750965250965251,
+            "height": 2.4217391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "9f0e8284e8123932409455a5cd43cac7f8b6fe5d9843cc7792f83e285cca0715"
+        },
+        {
+          "name": "text.join",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 78.05598455598455,
+            "y": 95.23478260869565,
+            "width": 7.916988416988417,
+            "height": 2.8119565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "9d54d0c3c40360760f968abfa277fad1d1729ab2fbb51ab40f376b3cc2207ca6"
+        },
+        {
+          "name": "icon.vip_vipacademy_apply_lv_11_76_100_8_098_795_549",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.357142857142857,
+            "y": 55.325,
+            "width": 92.06756756756756,
+            "height": 16.430434782608696,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "95fe7820f7ff2b7c22cf1350bcdca95572e353769dace73e1917f020a85d5ac6"
+        },
+        {
+          "name": "icon.join_alliance",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.56949806949807,
+            "y": 6.602173913043479,
+            "width": 31.131274131274132,
+            "height": 6.319565217391304,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "e4a140872a667fdaeafefb23ee001f7b4815576617cc4a538a2d141777100192"
+        },
+        {
+          "name": "icon.4us_4musketeersonly_all_languages_join_lv_11_50",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.451737451737452,
+            "y": 72.00108695652175,
+            "width": 91.88610038610038,
+            "height": 16.565217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ff33fc8e087b65e78727e5aa2bd37e164d798058287f8223f156918240e87eaa"
+        },
+        {
+          "name": "button.join",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 69.1911196911197,
+            "y": 25.89782608695652,
+            "width": 25.2007722007722,
+            "height": 6.307608695652174,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "660f729b09f5233581e8d8d96bc4e77c651ee7c360ec871e4782b3a1d391fdc0"
+        },
+        {
+          "name": "icon.create_alliance",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.667953667953668,
+            "y": 7.371739130434782,
+            "width": 31.53667953667954,
+            "height": 5.655434782608696,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a62f24654fca40c05888a5834b53847eb2a2f21c0c1c6b0eb810e165e543b2de"
+        },
+        {
+          "name": "icon.invites_requests",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 66.31467181467181,
+            "y": 7.407608695652175,
+            "width": 31.318532818532816,
+            "height": 5.791304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "28d5a17932b68c6222be5aa8069ab10d9d1e246e11cb180067a90e4632f2bc71"
+        },
+        {
+          "name": "alliance.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.583011583011583,
+            "y": 0.22391304347826088,
+            "width": 19.092664092664094,
+            "height": 5.684782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "21eaa9ba7f8523087d37b9d543bedbfaf8a8e173517e927bd37fd55d5e6f04a7"
+        },
+        {
+          "name": "icon.tap_to_enter",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.694980694980695,
+            "y": 14.656521739130435,
+            "width": 79.82046332046332,
+            "height": 5.2423913043478265,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "cd960c0725c3d767fe866026095037bc2796e15e2bc2a80192144d0943bc946a"
+        },
+        {
+          "name": "icon.lv_11",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.891891891891892,
+            "y": 21.520652173913042,
+            "width": 19.814671814671815,
+            "height": 14.710869565217392,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "15e308b8bf1f51b310b94c5798110905d21c12052db2d5647bb46df148f7827f"
+        },
+        {
+          "name": "icon.all_languages",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.625482625482626,
+            "y": 41.975,
+            "width": 21.177606177606176,
+            "height": 2.753260869565217,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b728ce56a7190452e5c5121ebc9ef50cac21b293a5ecc815faf69e67bcacdf35"
+        },
+        {
+          "name": "icon.one_akatsuki",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.75868725868726,
+            "y": 38.823913043478264,
+            "width": 24.969111969111967,
+            "height": 3.142391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "62117f0f62014ff392dfc79bf0f0ab89b6b2094d40afc7887602b78f7658a8a3"
+        },
+        {
+          "name": "icon.find",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 84.42857142857143,
+            "y": 14.13695652173913,
+            "width": 11.816602316602317,
+            "height": 6.172826086956522,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "0658da18b394af9c9c73b03e9f5ba270ca06d932566cec7032a7e65cdf079ca6"
+        },
+        {
+          "name": "icon.a_simple_icon_or_profile_indicator",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 88.7992277992278,
+            "y": 1.6456521739130434,
+            "width": 8.666023166023166,
+            "height": 4.5097826086956525,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d3d2cbd8fa87272067bb9943cc8d3b12f2b24bb715b72e36267845f2013c3d60"
+        },
+        {
+          "name": "icon.a_walking_path_or_platform",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.808880308880312,
+            "y": 24.758695652173913,
+            "width": 13.992277992277993,
+            "height": 3.0489130434782608,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "86f4895d6f1818e2577c9de8eb3aa2c69c1511dcfa0fde9555805ed4b18482ae"
+        },
+        {
+          "name": "icon.a_symbol_or_emblem_indicating_a_specific_purpose",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.96911196911196,
+            "y": 49.72717391304348,
+            "width": 6.166023166023166,
+            "height": 3.1706521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "579dce7ec6142fc34d92d2358b7845cc16541722e3558a396acfb22bce589fc4"
+        },
+        {
+          "name": "icon.a_simple_icon_or_symbol.alliance.invitation",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.96911196911196,
+            "y": 49.653260869565216,
+            "width": 4.216216216216216,
+            "height": 2.606521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "87950958cf6e276d9506e32e4766df9f62579e40ee78f6c0ffb58f7a2283d722"
+        }
+      ],
+      "screen_region": "alliance.title"
+    }
+  ]
+}

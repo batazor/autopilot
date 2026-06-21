@@ -1,0 +1,11 @@
+screens:
+  account_menu:
+    priority: 20
+    rules:
+    - match: account_menu.to.switch_menu
+      threshold: 0.9
+
+  switch_menu:
+    priority: 20
+    rules:
+    - from_screen: account_menu

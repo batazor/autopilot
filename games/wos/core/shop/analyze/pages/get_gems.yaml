@@ -1,0 +1,11 @@
+overlay:
+  - name: shop.get_gems.page
+    region: page.shop.get_gems.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - shop.get_gems
+    steps:
+      - push_scenario:
+          name: shop.get_gems
+          ttl: 1m

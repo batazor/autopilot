@@ -1,0 +1,14 @@
+enabled: true
+name: Onboarding click · Requirement Go (prerequisite building)
+device_level: true
+priority: 100_020
+steps:
+  # Upgrade screen with an unmet building-level requirement (e.g. "Furnace
+  # Level 2 ✗  [Go]"): tap the requirement's "Go" to navigate to the
+  # prerequisite building so it can be upgraded first. Higher priority than the
+  # greyed-out main Upgrade button (which is a no-op until the prereq is met).
+  - while_match: onboarding.button.req_go
+    max: 1
+    steps:
+      - click: onboarding.button.req_go
+      - wait: 1.5s

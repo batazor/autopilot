@@ -1,0 +1,12 @@
+id: heal
+title: Heal Injured
+description: >-
+  Heal-injured-troops automation: start healing, pull resources from the backpack
+  via the Replenish-All dialog, and request alliance help. Ported from the legacy
+  Go bot's `usecases/heal/heal_injured.yaml`.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

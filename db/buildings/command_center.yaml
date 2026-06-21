@@ -1,0 +1,259 @@
+id: command_center
+name: Command Center
+category: unknown
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/command-center/
+requirements_by_level:
+  '1':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 1
+    build_cost:
+    - item: item_icon_103
+      amount: '80'
+    construction_time: 00:00:02
+    building_power: 280
+  '2':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 2
+    build_cost:
+    - item: item_icon_103
+      amount: '125'
+    construction_time: 00:00:08
+    building_power: 532
+  '3':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 3
+    build_cost:
+    - item: item_icon_103
+      amount: '565'
+    construction_time: 00:00:35
+    building_power: 910
+  '4':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 4
+    build_cost:
+    - item: item_icon_103
+      amount: 1.2K
+    - item: item_icon_104
+      amount: '250'
+    construction_time: 00:01:45
+    building_power: null
+  '5':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 5
+    build_cost:
+    - item: item_icon_103
+      amount: 5.3K
+    - item: item_icon_104
+      amount: 1K
+    construction_time: 00:03:35
+    building_power: null
+  '6':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 6
+    build_cost:
+    - item: item_icon_103
+      amount: 13K
+    - item: item_icon_104
+      amount: 2.6K
+    - item: item_icon_105
+      amount: '670'
+    construction_time: 00:07:10
+    building_power: null
+  '7':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 7
+    build_cost:
+    - item: item_icon_103
+      amount: 48K
+    - item: item_icon_104
+      amount: 9.6K
+    - item: item_icon_105
+      amount: 2.4K
+    construction_time: 00:14:00
+    building_power: null
+  '8':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 88K
+    - item: item_icon_104
+      amount: 17K
+    - item: item_icon_105
+      amount: 4.4K
+    construction_time: 00:21:00
+    building_power: null
+  '9':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 180K
+    - item: item_icon_104
+      amount: 36K
+    - item: item_icon_105
+      amount: 9.1K
+    construction_time: 00:32:00
+    building_power: null
+  '10':
+    prerequisites: Furnace Lv. 10 Embassy Lv. 10
+    build_cost:
+    - item: item_icon_103
+      amount: 320K
+    - item: item_icon_104
+      amount: 64K
+    - item: item_icon_105
+      amount: 16K
+    construction_time: 00:43:00
+    building_power: null
+  '11':
+    prerequisites: Furnace Lv. 11 Embassy Lv. 11
+    build_cost:
+    - item: item_icon_100011
+      amount: 390K
+    - item: item_icon_103
+      amount: 390K
+    - item: item_icon_104
+      amount: 79K
+    - item: item_icon_105
+      amount: 19K
+    construction_time: 00:54:00
+    building_power: null
+  '12':
+    prerequisites: Furnace Lv. 12 Embassy Lv. 12
+    build_cost:
+    - item: item_icon_100011
+      amount: 500K
+    - item: item_icon_103
+      amount: 500K
+    - item: item_icon_104
+      amount: 100K
+    - item: item_icon_105
+      amount: 25K
+    construction_time: 01:04:30
+    building_power: null
+  '13':
+    prerequisites: Furnace Lv. 13 Embassy Lv. 13
+    build_cost:
+    - item: item_icon_100011
+      amount: 710K
+    - item: item_icon_103
+      amount: 710K
+    - item: item_icon_104
+      amount: 140K
+    - item: item_icon_105
+      amount: 35K
+    construction_time: 01:19:00
+    building_power: null
+  '14':
+    prerequisites: Furnace Lv. 14 Embassy Lv. 14
+    build_cost:
+    - item: item_icon_100011
+      amount: 940K
+    - item: item_icon_103
+      amount: 940K
+    - item: item_icon_104
+      amount: 180K
+    - item: item_icon_105
+      amount: 47K
+    construction_time: 01:40:30
+    building_power: null
+  '15':
+    prerequisites: Furnace Lv. 15 Embassy Lv. 15
+    build_cost:
+    - item: item_icon_104
+      amount: 270K
+    - item: item_icon_105
+      amount: 69K
+    construction_time: 02:09:30
+    building_power: null
+  '16':
+    prerequisites: Furnace Lv.  16 Embassy Lv. 16
+    build_cost:
+    - item: item_icon_104
+      amount: 350K
+    construction_time: 03:39:00
+    building_power: null
+  '17':
+    prerequisites: Furnace Lv. 17 Embassy Lv. 17
+    build_cost:
+    - item: item_icon_104
+      amount: 550K
+    - item: item_icon_105
+      amount: 130K
+    construction_time: 04:23:00
+    building_power: null
+  '18':
+    prerequisites: Furnace Lv. 18 Embassy Lv. 18
+    build_cost:
+    - item: item_icon_104
+      amount: 750K
+    - item: item_icon_105
+      amount: 180K
+    construction_time: 05:16:00
+    building_power: null
+  '19':
+    prerequisites: Furnace Lv. 19 Embassy Lv. 19
+    build_cost:
+    - item: item_icon_104
+      amount: 940K
+    - item: item_icon_105
+      amount: 230K
+    construction_time: 07:54:00
+    building_power: null
+  '20':
+    prerequisites: Furnace Lv. 20 Embassy Lv. 20
+    build_cost:
+    - item: item_icon_105
+      amount: 320K
+    construction_time: 09:52:30
+    building_power: null
+  '21':
+    prerequisites: Furnace Lv. 21 Embassy Lv. 21
+    build_cost:
+    - item: item_icon_105
+      amount: 400K
+    construction_time: '12:50:00'
+    building_power: null
+  '22':
+    prerequisites: Furnace Lv. 22 Embassy Lv. 22
+    build_cost:
+    - item: item_icon_105
+      amount: 540K
+    construction_time: '19:15:30'
+    building_power: null
+  '23':
+    prerequisites: Furnace Lv. 23 Embassy Lv. 23
+    build_cost:
+    - item: item_icon_105
+      amount: 670K
+    construction_time: 1d 02:57:00
+    building_power: null
+  '24':
+    prerequisites: Furnace Lv. 24 Embassy Lv. 24
+    build_cost:
+    - item: item_icon_105
+      amount: 900K
+    construction_time: 1d 13:44:00
+    building_power: null
+  '25':
+    prerequisites: Furnace Lv. 25 Embassy Lv. 25
+    build_cost: []
+    construction_time: 2d 04:50:00
+    building_power: null
+  '26':
+    prerequisites: Furnace Lv. 26 Embassy Lv. 26
+    build_cost: []
+    construction_time: 2d 12:46:00
+    building_power: null
+  '27':
+    prerequisites: Furnace Lv. 27 Embassy Lv. 27
+    build_cost: []
+    construction_time: 3d 00:55:00
+    building_power: null
+  '28':
+    prerequisites: Furnace Lv. 28 Embassy Lv. 28
+    build_cost: []
+    construction_time: 3d 11:51:00
+    building_power: null
+  '29':
+    prerequisites: Furnace Lv. 29 Embassy Lv. 29
+    build_cost: []
+    construction_time: 4d 00:26:00
+    building_power: null
+  '30':
+    prerequisites: Furnace Lv. 30 Embassy Lv. 30
+    build_cost: []
+    construction_time: 4d 19:44:00
+    building_power: null

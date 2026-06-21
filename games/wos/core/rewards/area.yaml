@@ -1,0 +1,150 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 74,
+      "screen_id": "rewards",
+      "ocr": "references/page.rewards.png",
+      "screen_region": "rewards.ribbon",
+      "regions": [
+        {
+          "name": "rewards.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 16.756756756756758,
+            "y": 21.52173913043478,
+            "width": 66.7992277992278,
+            "height": 6.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "rewards.ribbon",
+          "action": "reward_ribbon",
+          "type": "any",
+          "threshold": 0.35,
+          "bbox": {
+            "x": 0,
+            "y": 14,
+            "width": 100,
+            "height": 18,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 77,
+      "screen_id": "rewards",
+      "ocr": "references/page.rewards_popup.png",
+      "screen_region": "rewards.title.v2",
+      "regions": [
+        {
+          "name": "rewards.title.v2",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.86872586872587,
+            "y": 27.065217391304348,
+            "width": 27.6003861003861,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 78,
+      "screen_id": "rewards.upgraded",
+      "ocr": "references/page.rewards_upgraded.png",
+      "screen_region": "rewards.ribbon",
+      "regions": [
+        {
+          "name": "rewards.upgraded.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 19.44444444444444,
+            "y": 16.55343343883013,
+            "width": 63.33333333333324,
+            "height": 9.830876313001198,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "rewards.upgraded.tap_anywhere_to_exit",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.88888888888889,
+            "y": 90.3125,
+            "width": 32.22222222222222,
+            "height": 3.125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true,
+          "tap_hold_ms": 200
+        }
+      ]
+    },
+    {
+      "id": 79,
+      "screen_id": "claimed",
+      "ocr": "references/page.claimed.png",
+      "regions": [
+        {
+          "name": "claimed.title",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 18.14407748761379,
+            "y": 21.778289088909297,
+            "width": 64.68460767068679,
+            "height": 6.3181786315199275,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true,
+          "type": "string"
+        },
+        {
+          "name": "claimed.tap_anywhere_to_exit",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.51437904213581,
+            "y": 88.16457095004668,
+            "width": 43.025716623899456,
+            "height": 6.045918897572366,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true,
+          "type": "string",
+          "tap_hold_ms": 200
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "screen_id": "claimed",
+      "ocr": "references/chapter_rewards.png",
+      "regions": []
+    }
+  ]
+}

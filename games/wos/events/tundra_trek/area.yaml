@@ -1,0 +1,161 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "event.tundra_trek",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "tundra_trek.title",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 71.90187317912513,
+            "y": 39.287649517931605,
+            "width": 16.50753768844223,
+            "height": 5.994253493319611,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "event.tundra_trek.stop",
+      "ocr": "references/stop.png",
+      "regions": [
+        {
+          "name": "tundra_trek.next_stop",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.0,
+            "y": 90.5,
+            "width": 38.0,
+            "height": 6.8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "screen_id": "event.tundra_trek.stop",
+      "ocr": "references/fight.png",
+      "regions": [
+        {
+          "name": "tundra_trek.fight",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.0,
+            "y": 89.7,
+            "width": 40.0,
+            "height": 6.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.tundra_trek",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.66115075568277,
+            "y": 80.07159282599187,
+            "width": 6.125169305755013,
+            "height": 3.767320184591894,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_city.tundra_trek.icon_search",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0,
+            "y": 43.75,
+            "width": 100,
+            "height": 56.25,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "main_world",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_world.to.tundra_trek",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.66115075568277,
+            "y": 80.07159282599187,
+            "width": 6.125169305755013,
+            "height": 3.767320184591894,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_world.tundra_trek.icon_search",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0,
+            "y": 43.75,
+            "width": 100,
+            "height": 56.25,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/skip.png",
+      "regions": [
+        {
+          "name": "tundra_trek.skip",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.07587548638136,
+            "y": 93.96270152493359,
+            "width": 14.999999999999993,
+            "height": 3.3440522030510693,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

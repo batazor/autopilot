@@ -1,0 +1,9 @@
+id: endless_wayfarer
+title: Endless Wayfarer
+description: Endless Wayfarer deals sub-tab; opens via main_city event strip or deals hub.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: endless_wayfarer
+wiki: false

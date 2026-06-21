@@ -1,0 +1,23 @@
+screens:
+  isNewPeople:
+    priority: 5
+    rules:
+    - match: button.welcome_in
+      threshold: 0.9
+  survivor_status:
+    priority: 9
+    rules:
+    - match: survivor_status.title
+      threshold: 0.9
+  survivor_status.status:
+    priority: 8
+    rules:
+    - match: survivor_status.title
+      threshold: 0.9
+      tab_active: survivor_status.status
+  survivor_status.details:
+    priority: 8
+    rules:
+    - match: survivor_status.title
+      threshold: 0.9
+      tab_active: survivor_status.details

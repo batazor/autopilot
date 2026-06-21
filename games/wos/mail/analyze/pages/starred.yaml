@@ -1,0 +1,23 @@
+overlay:
+  - name: mail.starred.gift.visible
+    region: mail.gift
+    action: findIcon
+    threshold: 0.9
+    min_match_saturation: 48
+    screens:
+      - mail.starred
+    steps:
+      - push_scenario: mail.claim.starred
+  - name: mail.tab.starred.has_red_dot
+    region: mail.tab.starred
+    isRedDot: true
+    screens:
+      - mail
+      - mail.wars
+      - mail.alliance
+      - mail.system
+      - mail.reports
+    steps:
+      - push_scenario:
+          name: mail.claim.starred
+          ttl: 5m

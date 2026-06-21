@@ -1,0 +1,225 @@
+id: furnace
+name: Furnace
+category: unknown
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/furnace/
+requirements_by_level:
+  '1':
+    prerequisites: ''
+    build_cost: []
+    construction_time: '-'
+    building_power: null
+  '2':
+    prerequisites: Sawmill Lv. 1
+    build_cost:
+    - item: item_icon_103
+      amount: '180'
+    construction_time: 00:00:06
+    building_power: null
+  '3':
+    prerequisites: Shelter 1 Lv. 2
+    build_cost:
+    - item: item_icon_103
+      amount: '805'
+    construction_time: 00:01:00
+    building_power: null
+  '4':
+    prerequisites: Coal Mine Lv. 3
+    build_cost:
+    - item: item_icon_103
+      amount: 1.8k
+    - item: item_icon_104
+      amount: '360'
+    construction_time: 00:03:00
+    building_power: null
+  '5':
+    prerequisites: Hero Hall Shelter 3 Lv. 3
+    build_cost:
+    - item: item_icon_103
+      amount: 7.6k
+    - item: item_icon_104
+      amount: 1.5k
+    construction_time: 00:10:00
+    building_power: null
+  '6':
+    prerequisites: Iron Mine Lvl. 5
+    build_cost:
+    - item: item_icon_103
+      amount: 19k
+    - item: item_icon_104
+      amount: 3.8k
+    - item: item_icon_105
+      amount: '960'
+    construction_time: 00:30:00
+    building_power: null
+  '7':
+    prerequisites: Hunter's Hut Lvl. 6
+    build_cost:
+    - item: item_icon_103
+      amount: 69k
+    - item: item_icon_104
+      amount: 13k
+    - item: item_icon_105
+      amount: 3.4k
+    construction_time: 01:00:00
+    building_power: null
+  '8':
+    prerequisites: Infantry Camp Lvl. 7
+    build_cost:
+    - item: item_icon_103
+      amount: 120k
+    - item: item_icon_104
+      amount: 25k
+    - item: item_icon_105
+      amount: 6.3k
+    construction_time: 02:30:00
+    building_power: null
+  '9':
+    prerequisites: Embassy Lvl. 8 Infirmary Lvl. 1
+    build_cost:
+    - item: item_icon_103
+      amount: 260k
+    - item: item_icon_104
+      amount: 52k
+    - item: item_icon_105
+      amount: 13k
+    construction_time: 04:30:00
+    building_power: null
+  '10':
+    prerequisites: Marksman Camp Lvl. 9 Research Center
+    build_cost:
+    - item: item_icon_103
+      amount: 460k
+    - item: item_icon_104
+      amount: 92k
+    - item: item_icon_105
+      amount: 23k
+    construction_time: 06:00:00
+    building_power: null
+  '11':
+    prerequisites: Embassy Lv. 10 Lancer Camp Lv. 10
+    build_cost:
+    - item: item_icon_104
+      amount: 260k
+    - item: item_icon_105
+      amount: 65k
+    construction_time: 07:30:00
+    building_power: null
+  '12':
+    prerequisites: Embassy Lv. 11 Command Centre Lv. 1
+    build_cost:
+    - item: item_icon_104
+      amount: 330k
+    - item: item_icon_105
+      amount: 84k
+    construction_time: 09:00:00
+    building_power: null
+  '13':
+    prerequisites: Embassy Lv. 12 Infantry Camp Lv. 12
+    build_cost:
+    - item: item_icon_104
+      amount: 470k
+    - item: item_icon_105
+      amount: 110k
+    construction_time: '11:00:00'
+    building_power: null
+  '14':
+    prerequisites: Embassy Lv. 13 Marksman Camp Lv. 13
+    build_cost:
+    - item: item_icon_104
+      amount: 630K
+    - item: item_icon_105
+      amount: 150K
+    construction_time: '14:00:00'
+    building_power: null
+  '15':
+    prerequisites: Embassy Lv. 14 Lancer Camp Lv. 14
+    build_cost:
+    - item: item_icon_104
+      amount: 930K
+    - item: item_icon_105
+      amount: 230K
+    construction_time: '18:00:00'
+    building_power: null
+  '16':
+    prerequisites: Embassy Lv. 15 Research Center Lv. 15
+    build_cost:
+    - item: item_icon_105
+      amount: 290K
+    construction_time: 1d 06:28:00
+    building_power: null
+  '17':
+    prerequisites: Embassy Lv. 16 Infantry Camp Lv. 16
+    build_cost:
+    - item: item_icon_105
+      amount: 460K
+    construction_time: 1d 12:34:00
+    building_power: null
+  '18':
+    prerequisites: Embassy Lv. 17 Marksman Camp Lv. 17
+    build_cost:
+    - item: item_icon_105
+      amount: 620K
+    construction_time: 1d 19:53:00
+    building_power: null
+  '19':
+    prerequisites: Embassy Lv. 18 Lancer Camp Lv. 18
+    build_cost:
+    - item: item_icon_105
+      amount: 780k
+    construction_time: 2d 17:50:00
+    building_power: null
+  '20':
+    prerequisites: Embassy Lv. 19, Research Center Lv. 19
+    build_cost: []
+    construction_time: 3d 10:18:00
+    building_power: null
+  '21':
+    prerequisites: Embassy Lv. 20 Infantry Camp Lv. 20
+    build_cost: []
+    construction_time: 4d 10:59:00
+    building_power: null
+  '22':
+    prerequisites: Embassy Lv. 21 Marksman Camp Lv. 21
+    build_cost: []
+    construction_time: 6d 16:29:00
+    building_power: null
+  '23':
+    prerequisites: Embassy Lv. 22 Lancer Camp Lv. 22
+    build_cost: []
+    construction_time: 9d 08:40:00
+    building_power: null
+  '24':
+    prerequisites: Embassy Lv. 23 Research Center Lv. 23
+    build_cost: []
+    construction_time: 13d 02:33:00
+    building_power: null
+  '25':
+    prerequisites: Embassy Lv. 24 Infantry Camp Lv. 24
+    build_cost: []
+    construction_time: 18d 08:22:00
+    building_power: null
+  '26':
+    prerequisites: Embassy Lv. 25 Marksman Camp Lv. 25
+    build_cost: []
+    construction_time: 21d 02:26:00
+    building_power: null
+  '27':
+    prerequisites: Embassy Lv. 26 Lancer Camp Lv. 26
+    build_cost: []
+    construction_time: 25d 07:43:00
+    building_power: null
+  '28':
+    prerequisites: Embassy Lv. 27 Research Center Lv. 27
+    build_cost: []
+    construction_time: 29d 02:52:00
+    building_power: null
+  '29':
+    prerequisites: Embassy Lv. 28 Infantry Camp Lv. 28
+    build_cost: []
+    construction_time: 33d 11:42:00
+    building_power: null
+  '30':
+    prerequisites: Embassy Lv. 29 Marksman Camp Lv. 29
+    build_cost: []
+    construction_time: 40d 04:27:00
+    building_power: null

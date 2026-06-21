@@ -1,0 +1,140 @@
+id: fred
+name: Fred
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/fred/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '10300'
+    def: '10300'
+    health: '103008'
+  expedition:
+    attack: 940.75%
+    defense: 940.75%
+story: '"Show me the fire. I''ll deal with the heat!"
+
+
+  Fred has been a dependable fixture of the City''s fire brigade for what seems like
+  centuries, first to wade into the fiery maelstrom, last to surrender survivors''
+  dwellings to the flames. Many years of service have built up a strong sense of gratitude
+  on behalf of grateful survivors for his efforts.
+
+
+  A Fire Chief has to be smart too. Fred hasn''t survived this long without building
+  up an uncanny understanding of unusual scenarios and a sixth sense for risk. This
+  is surely why the last great engineers of the Solaris Dynasty gifted Fred with the
+  so-called "Antifire", an extremely advanced and powerful piece of firefighting equipment
+  the likes of which has never been seen since.
+
+
+  Strip away all the oldworld heroics and Fred consistently models a strong sense
+  of humility and kindness, endearing him to his fervent fans everywhere—particularly
+  in the Dawn Alliance. If Fred has a fault, an extremely minor one, it is that the
+  man simply doesn''t have much of a sense of humor (or, for that matter, the ability
+  to detect sarcasm). To quote Bahiti on this topic: "Fred''s the nearest I''ve ever
+  seen to a perfect human being. If only he could lighten up a little..."
+
+
+  Fred would not claim to be perfect. Many decades ago, when the world was a very
+  different place, Fred was already well-known in the Solaris Capital as the city''s
+  youngest ever and most successful fire chief. It was in fact on the eve of a ceremony
+  celebrating Fred''s achievements, with the anointing of a great bronze figurine
+  in his honor at the Fire Bureau''s gates, when disaster struck! The great Fire Crystal
+  at the heart of the capital, powering much of its industry, ignited into an enormous
+  explosion that rocked the city. Fred''s failures that night have become an eternal
+  weight on his conscience.
+
+
+  Fred has had plenty of time to ponder the collapse of the Empire in the years following.
+  Had he been but a noble cog in its unfeeling machine, blinded by devotion? Which,
+  once the pomp and majesty were removed, was covered by the scars of suffering and
+  injustice? Fred has learned to accept that for all the faults of the new world,
+  cities today do not have to maintain themselves at such a vast human cost.
+
+
+  It was the arrival of the Dawn Alliance that ultimately filled Fred''s heart with
+  the hope missing since the Great Collapse. Now he is devoted not only to the extinguishing
+  of harmful fires, but to that much deadlier fire: the fire of war, which threatens
+  all of humanity.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+skills:
+- name: Acid Rain
+  description: Fred rains down his special acidic formulation on the target area,
+    dealing Attack* 60%/66%/72%/78%/84% damage every 0.5 seconds while increasing
+    targets' damage taken by 15% for 3 seconds.
+- name: Water Cannon
+  description: Fred water-blasts the target, rinsing away their combat bonuses while
+    dealing damage equal to Attack* 200%/220%/240%/260%/280% .
+- name: Perfect Responder
+  description: Fred performs better under extreme stress, increasing Attack by 8%/12%/16%/20%/24%
+    and Defense by 25%/37.5%/50%/62.5%/75% when under 50% Health.
+- name: Hydraulic Suppression
+  description: Fred's water volleys destroy opponent momentum, reducing all enemy
+    troops’ lethality by 4%/8%/12%/16%/20% .
+- name: Acidification
+  description: Fred coats enemy Infantry shields with a special acidic blend, amplifying
+    their damage taken by 4%/8%/12%/16%/20% .
+- name: Floodbringer
+  description: A master of pressure both hydraulic and tactical, Fred's Lancers deal
+    40%/80%/120%/160%/200% additional damage every 4 strikes and reduce enemy troop
+    damage dealt by 4%/8%/12%/16%/20% on the next turn.
+- name: Idealism (Lv. 5)
+  description: The noble idealism of Fred's calling increases his attack by 24%, and
+    increases his Defense by 10% for each bonus dispelled until the end of battle
+    (max 5 stacks).
+- name: Call of the Firefighter (Lv. 5)
+  description: Few troops can remain unmoved by Fred's remarkable heroics, increasing
+    Rally Troops' Attack by 15%.

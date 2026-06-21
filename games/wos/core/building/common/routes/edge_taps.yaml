@@ -1,0 +1,19 @@
+edges:
+  # Concrete building nodes are generated from games/wos/db/buildings and
+  # verified via OCR `building.title` (cookhouse keeps its local `building.name`).
+  # Each owns its own back tap to main_city.
+  # Furnace screen reuses the generic building→main_city back tap — both
+  # screens share the same chrome (back arrow at the same coords).
+  furnace:
+    main_city: [from.building.to.main_city]
+
+  # Cookhouse uses the same building chrome; the local module owns cookhouse
+  # landmarks once reference screenshots are captured.
+  cookhouse:
+    main_city: [from.building.to.main_city]
+
+  sawmill:
+    main_city: [from.building.to.main_city]
+
+  hunters_hut:
+    main_city: [from.building.to.main_city]

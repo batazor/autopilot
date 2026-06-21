@@ -1,0 +1,13 @@
+edges:
+  main_city:
+    exploration: [main_city.to.exploration]
+
+  exploration:
+    main_city: [icon.page.back]
+    squad_settings: [exploration.to.squad_settings]
+
+  squad_settings:
+    exploration: [icon.page.back]
+
+  exploration.defeat:
+    main_city: [button.to_main_city]

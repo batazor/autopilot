@@ -1,0 +1,337 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "arena",
+      "ocr": "references/arena.png",
+      "regions": [
+        {
+          "name": "arena.title",
+          "action": "text",
+          "bbox": {
+            "x": 14,
+            "y": 2,
+            "width": 68,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.challenge",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28,
+            "y": 90,
+            "width": 44,
+            "height": 5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "arena.challenge_list",
+      "ocr": "references/challenge_list.png",
+      "regions": [
+        {
+          "name": "arena.challenge_list.title",
+          "action": "text",
+          "bbox": {
+            "x": 28,
+            "y": 13.5,
+            "width": 44,
+            "height": 4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.fight_button.1",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79,
+            "y": 24.5,
+            "width": 14,
+            "height": 6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.fight_button.2",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79,
+            "y": 34.4,
+            "width": 14,
+            "height": 6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.fight_button.3",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79,
+            "y": 44.3,
+            "width": 14,
+            "height": 6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.fight_button.4",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79,
+            "y": 54.2,
+            "width": 14,
+            "height": 6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.fight_button.5",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79,
+            "y": 64.1,
+            "width": 14,
+            "height": 6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.free_refresh",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30,
+            "y": 85.5,
+            "width": 40,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.daily_count",
+          "action": "text",
+          "bbox": {
+            "x": 18,
+            "y": 74.5,
+            "width": 44,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.buy_attempt",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59,
+            "y": 74.5,
+            "width": 9,
+            "height": 5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.opponent.1",
+          "action": "text",
+          "bbox": {
+            "x": 20,
+            "y": 22.6,
+            "width": 42,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.opponent.2",
+          "action": "text",
+          "bbox": {
+            "x": 20,
+            "y": 32.5,
+            "width": 42,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.opponent.3",
+          "action": "text",
+          "bbox": {
+            "x": 20,
+            "y": 42.4,
+            "width": 42,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.opponent.4",
+          "action": "text",
+          "bbox": {
+            "x": 20,
+            "y": 52.3,
+            "width": 42,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.opponent.5",
+          "action": "text",
+          "bbox": {
+            "x": 20,
+            "y": 62.2,
+            "width": 42,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "arena.squad",
+      "ocr": "references/squad.png",
+      "regions": [
+        {
+          "name": "arena.squad.title",
+          "action": "text",
+          "bbox": {
+            "x": 18,
+            "y": 1.5,
+            "width": 54,
+            "height": 4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.squad.fight",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52,
+            "y": 93,
+            "width": 37,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.squad.quick_deploy",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 7,
+            "y": 93,
+            "width": 37,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "arena.result",
+      "ocr": "references/result.png",
+      "regions": [
+        {
+          "name": "arena.result.exit",
+          "action": "text",
+          "bbox": {
+            "x": 15,
+            "y": 93,
+            "width": 70,
+            "height": 4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "screen_id": "arena.buy",
+      "ocr": "references/buy.png",
+      "regions": [
+        {
+          "name": "arena.buy.title",
+          "action": "text",
+          "bbox": {
+            "x": 28,
+            "y": 29.5,
+            "width": 44,
+            "height": 3.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.buy.confirm",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30,
+            "y": 64,
+            "width": 40,
+            "height": 5.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

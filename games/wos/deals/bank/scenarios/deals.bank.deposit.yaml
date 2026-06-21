@@ -1,0 +1,20 @@
+enabled: true
+name: "Deals: Bank deposit max 5%"
+node: deals.bank
+icon: bank
+priority: 95_000
+steps:
+  - while_match: bank.deposit_5.button
+    max: 1
+    steps:
+      - click: bank.deposit_5.button
+      - wait: 1s
+      - match: bank.deposit_dialog.title
+      - click: bank.deposit_dialog.max_button
+      - wait: 0.5s
+      - click: bank.deposit_dialog.deposit_button
+      - wait: 1s
+      - push_scenario:
+          name: deals.bank.withdraw
+          priority: 100_000
+          delay: 1d

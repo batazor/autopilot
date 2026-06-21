@@ -1,0 +1,6 @@
+edges:
+  main_city:
+    gathering.resources: [main_city.resources]
+
+  gathering.resources:
+    main_city: [icon.page.back]

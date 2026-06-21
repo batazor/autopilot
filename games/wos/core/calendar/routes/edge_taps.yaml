@@ -1,0 +1,27 @@
+# Reaching the Calendar tab of the Events panel.
+#
+# Calendar is always the FIRST (leftmost) tab of the Events panel and has no
+# floating main_city icon. You open the panel via the fixed `events.button` on
+# main_city — see state_of_power/routes/edge_taps.yaml, which maps
+# main_city → event.state_of_power through that button — then tap the leftmost
+# `calendar.tab` to select Calendar.
+#
+# So the route is main_city → event.state_of_power → event.calendar, split into
+# two edges ON PURPOSE (not one main_city → event.calendar edge carrying both
+# taps): the navigator verifies the intermediate event.state_of_power node after
+# the first tap, which lets the panel-open animation settle before the
+# calendar.tab tap. A single two-tap edge tapped calendar.tab ~0.4s after the
+# Events button — before the panel had opened — and landed nowhere (UNKNOWN).
+# Verified on-device 2026-06-21.
+#
+# NEXT STEP (deferred): if the panel defaults to an event tab other than State of
+# Power (and not Calendar itself), add a `[calendar.tab]` edge from that tab's
+# node too, or add a generic "events panel open" node. Also: when the tab strip
+# is scrolled so Calendar is off-screen, `calendar.tab` won't be at its labeled
+# position — a resolver that swipes the strip until Calendar appears is the fix.
+edges:
+  event.state_of_power:
+    event.calendar: [calendar.tab]
+
+  event.calendar:
+    main_city: [icon.page.back]

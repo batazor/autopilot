@@ -1,0 +1,98 @@
+families:
+  shop:
+    hub: shop
+    prefix: shop.
+    tab_region: shop.tabs_strip
+    namespace: shop
+    advance_scenario: tabs.strip.advance
+    next_region: shop.tab.next_page
+
+# Shop sub-pages: use ``parent: shop`` so the parent's ``page.shop.title`` is the
+# shared gate, plus ONE specific landmark per sub-page (sub-page title or tab).
+# Rules across multiple list entries are OR-ed (any matches → screen wins), so
+# the parent title MUST NOT be repeated as a separate sub-page rule — otherwise
+# every sub-page fires whenever ``page.shop.title`` is on screen.
+screens:
+  shop.dawn_market:
+    parent: shop
+    priority: 50
+    rules:
+    - match: page.shop.dawn_market.title
+      threshold: 0.9
+  shop.mix_match:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.mix_match.title
+      threshold: 0.9
+  shop.chief_stamina:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.title
+      threshold: 0.9
+      tab_active: shop.tab.chief_stamina
+  shop.ice_conqueror:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.title
+      threshold: 0.9
+      tab_active: shop.tab.ice_conqueror
+  shop.construction_queue:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.construction_queue.title
+      threshold: 0.9
+  shop.daily_deals:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.daily_deals.title
+      threshold: 0.9
+  shop.weekly_monthly_cards:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.weekly_monthly_cards.title
+      threshold: 0.9
+  shop.regular_pack:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.regular_pack.title
+      threshold: 0.9
+  shop.dawn_fund:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.dawn_fund.title
+      threshold: 0.9
+  shop.get_gems:
+    parent: shop
+    priority: 55
+    rules:
+    - match: page.shop.get_gems.title
+      threshold: 0.9
+  shop.artisans_trove:
+    parent: shop
+    priority: 55
+    rules:
+    - match: artisans_trove.title
+      threshold: 0.9
+  shop.custom_artistry_chest:
+    parent: shop
+    priority: 55
+    rules:
+    # Read the title by OCR, not a template crop: the game reskins this chest
+    # (was "Custom Artistry Chest" on a purple banner, now "Custom Armament
+    # Chest" on blue), so a fixed crop goes stale on every rename/recolour.
+    # "Armament" is the distinctive token (sibling tab is "Custom Pet Chest").
+    - ocr: page.shop.custom_artistry_chest.title
+      contains: "Armament"
+  shop:
+    priority: 60
+    rules:
+    - match: page.shop.title
+      threshold: 0.9

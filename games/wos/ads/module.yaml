@@ -1,0 +1,10 @@
+id: ads
+title: Ads
+description: >-
+  Promotional and shop popups — overlay detection, dismiss scenarios, and
+  navigation routes back to main city.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

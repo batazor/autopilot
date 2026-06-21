@@ -1,0 +1,112 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 14,
+      "screen_id": "",
+      "ocr": "references/welcome_back.png",
+      "regions": [
+        {
+          "name": "text.welcome_back",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.13899613899614,
+            "y": 18.515217391304347,
+            "width": 29.44401544401545,
+            "height": 2.1869565217391305,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "text.01_40_12",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 47.08301158301158,
+            "y": 30.859782608695657,
+            "width": 16.388030888030887,
+            "height": 2.3434782608695652,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "text.max_offline_income_12hrs",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.611969111969113,
+            "y": 35.39021739130435,
+            "width": 42.5,
+            "height": 1.7967391304347826,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "icon.10_2k",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 40.737451737451735,
+            "y": 49.51195652173913,
+            "width": 18.397683397683398,
+            "height": 10.254347826086956,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.confirm.green",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.97104247104247,
+            "y": 76.69347826086957,
+            "width": 39.91312741312741,
+            "height": 7.304347826086956,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "icon.a_crosswalk_or_walk_symbol",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.14864864864865,
+            "y": 18.096739130434784,
+            "width": 5.955598455598456,
+            "height": 3.3369565217391304,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "icon.a_simple_logitech_logo",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.146437450591755,
+            "y": 29.5033673074442,
+            "width": 8.38030888030888,
+            "height": 4.767391304347826,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

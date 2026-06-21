@@ -1,0 +1,10 @@
+overlay:
+  - name: reconnect.visible
+    region: icon.reconnect
+    action: findIcon
+    device_level: true
+    priority: 120_000
+    threshold: 0.9
+    ttl: 5s
+    steps:
+      - click: icon.reconnect

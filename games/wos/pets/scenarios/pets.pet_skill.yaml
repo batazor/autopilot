@@ -1,0 +1,21 @@
+enabled: true
+name: Pet Skill
+node: pets.pet_skill
+icon: pets
+steps:
+  - while_match: button.claim
+    max: 3
+    steps:
+      - click: button.claim
+      - wait: 1s
+  - while_match: button.claim.big
+    max: 3
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - while_match: tapanywhereyoexit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s

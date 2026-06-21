@@ -1,0 +1,32 @@
+@import "tailwindcss" source("..");
+
+/* App Router pages + shared components (relative to this file in app/). */
+@source "../components";
+@source ".";
+
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/layout.css";
+@import "./styles/ui-core.css";
+@import "./styles/tables-status.css";
+@import "./styles/queue.css";
+@import "./styles/overview.css";
+@import "./styles/forms-misc.css";
+@import "./styles/labeling.css";
+@import "./styles/wiki-player.css";
+@import "./styles/routes-instance.css";
+@import "./styles/approvals.css";
+@import "./styles/notify-monitor.css";
+@import "./styles/fish.css";
+@import "./styles/gallery-edit.css";
+@import "./styles/forms-headless.css";
+@import "./styles/headless.css";
+@import "./styles/navigation.css";
+@import "./styles/tabs-wiki.css";
+@import "./styles/trees.css";
+@import "./styles/theme-light.css";
+
+/* Calendar Gantt: tint the "today" column (SVAR highlightTime class). */
+.cal-gantt-today {
+  background: rgba(56, 189, 248, 0.12);
+}

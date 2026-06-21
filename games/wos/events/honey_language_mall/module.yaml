@@ -1,0 +1,9 @@
+id: honey_language_mall
+title: Honey Language Mall
+description: Limited-time event shop; alias Sweet Whispers Shop, source for Honeymoon Trip march skin.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: honey_language_mall
+wiki: false

@@ -1,0 +1,580 @@
+source:
+  sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+  gid: 0
+  fetched_at: '2026-05-13'
+points_required:
+  grey:
+    1: 10
+    2: 15
+    3: 20
+    4: 25
+    5: 30
+    6: 35
+    7: 40
+    8: 45
+    9: 50
+    10: 55
+    11: 60
+    12: 65
+    13: 70
+    14: 75
+    15: 80
+    16: 85
+    17: 90
+    18: 95
+    19: 100
+    20: 105
+  green:
+    1: 10
+    2: 15
+    3: 20
+    4: 25
+    5: 30
+    6: 35
+    7: 40
+    8: 45
+    9: 50
+    10: 55
+    11: 60
+    12: 65
+    13: 70
+    14: 75
+    15: 80
+    16: 85
+    17: 90
+    18: 95
+    19: 100
+    20: 105
+    21: 110
+    22: 115
+    23: 120
+    24: 125
+    25: 130
+    26: 135
+    27: 140
+    28: 145
+    29: 150
+    30: 160
+    31: 170
+    32: 180
+    33: 190
+    34: 200
+    35: 210
+    36: 220
+    37: 230
+    38: 240
+    39: 250
+    40: 270
+  blue:
+    1: 10
+    2: 15
+    3: 20
+    4: 25
+    5: 30
+    6: 35
+    7: 40
+    8: 45
+    9: 50
+    10: 55
+    11: 60
+    12: 65
+    13: 70
+    14: 75
+    15: 80
+    16: 85
+    17: 90
+    18: 95
+    19: 100
+    20: 105
+    21: 110
+    22: 115
+    23: 120
+    24: 125
+    25: 130
+    26: 135
+    27: 140
+    28: 145
+    29: 150
+    30: 160
+    31: 170
+    32: 180
+    33: 190
+    34: 200
+    35: 210
+    36: 220
+    37: 230
+    38: 240
+    39: 250
+    40: 270
+    41: 290
+    42: 310
+    43: 330
+    44: 350
+    45: 370
+    46: 390
+    47: 410
+    48: 430
+    49: 450
+    50: 470
+    51: 490
+    52: 510
+    53: 530
+    54: 550
+    55: 570
+    56: 590
+    57: 610
+    58: 630
+    59: 650
+    60: 680
+  purple:
+    1: 10
+    2: 15
+    3: 20
+    4: 25
+    5: 30
+    6: 35
+    7: 40
+    8: 45
+    9: 50
+    10: 55
+    11: 60
+    12: 65
+    13: 70
+    14: 75
+    15: 80
+    16: 85
+    17: 90
+    18: 95
+    19: 100
+    20: 105
+    21: 110
+    22: 115
+    23: 120
+    24: 125
+    25: 130
+    26: 135
+    27: 140
+    28: 145
+    29: 150
+    30: 160
+    31: 170
+    32: 180
+    33: 190
+    34: 200
+    35: 210
+    36: 220
+    37: 230
+    38: 240
+    39: 250
+    40: 270
+    41: 290
+    42: 310
+    43: 330
+    44: 350
+    45: 370
+    46: 390
+    47: 410
+    48: 430
+    49: 450
+    50: 470
+    51: 490
+    52: 510
+    53: 530
+    54: 550
+    55: 570
+    56: 590
+    57: 610
+    58: 630
+    59: 650
+    60: 680
+    61: 710
+    62: 740
+    63: 770
+    64: 800
+    65: 830
+    66: 860
+    67: 890
+    68: 920
+    69: 950
+    70: 990
+    71: 1030
+    72: 1070
+    73: 1110
+    74: 1150
+    75: 1190
+    76: 1230
+    77: 1270
+    78: 1310
+    79: 1350
+    80: 1400
+  gold:
+    1: 10
+    2: 15
+    3: 20
+    4: 25
+    5: 30
+    6: 35
+    7: 40
+    8: 45
+    9: 50
+    10: 55
+    11: 60
+    12: 65
+    13: 70
+    14: 75
+    15: 80
+    16: 85
+    17: 90
+    18: 95
+    19: 100
+    20: 105
+    21: 110
+    22: 115
+    23: 120
+    24: 125
+    25: 130
+    26: 135
+    27: 140
+    28: 145
+    29: 150
+    30: 160
+    31: 170
+    32: 180
+    33: 190
+    34: 200
+    35: 210
+    36: 220
+    37: 230
+    38: 240
+    39: 250
+    40: 270
+    41: 290
+    42: 310
+    43: 330
+    44: 350
+    45: 370
+    46: 390
+    47: 410
+    48: 430
+    49: 450
+    50: 470
+    51: 490
+    52: 510
+    53: 530
+    54: 550
+    55: 570
+    56: 590
+    57: 610
+    58: 630
+    59: 650
+    60: 680
+    61: 710
+    62: 740
+    63: 770
+    64: 800
+    65: 830
+    66: 860
+    67: 890
+    68: 920
+    69: 950
+    70: 990
+    71: 1030
+    72: 1070
+    73: 1110
+    74: 1150
+    75: 1190
+    76: 1230
+    77: 1270
+    78: 1310
+    79: 1350
+    80: 1400
+    81: 1450
+    82: 1500
+    83: 1550
+    84: 1600
+    85: 1650
+    86: 1700
+    87: 1750
+    88: 1800
+    89: 1850
+    90: 1910
+    91: 1950
+    92: 2000
+    93: 2050
+    94: 2100
+    95: 2150
+    96: 2200
+    97: 2250
+    98: 2300
+    99: 2350
+    100: 2400
+points_required_totals:
+  grey: 1150
+  green: 4640
+  blue: 14250
+  purple: 34820
+  gold: 73330
+points_per_tier_sacrifice:
+  grey: 10
+  green: 30
+  blue: 60
+  purple: 150
+  gold: N/A
+mastery_levels:
+  1:
+    bonus_pct: 10
+    essence_stones: 10
+    stat_multiplier: x 1.1
+  2:
+    bonus_pct: 20
+    essence_stones: 20
+    stat_multiplier: x 1.2
+  3:
+    bonus_pct: 30
+    essence_stones: 30
+    stat_multiplier: x 1.3
+  4:
+    bonus_pct: 40
+    essence_stones: 40
+    stat_multiplier: x 1.4
+  5:
+    bonus_pct: 50
+    essence_stones: 50
+    stat_multiplier: x 1.5
+  6:
+    bonus_pct: 60
+    essence_stones: 60
+    stat_multiplier: x 1.6
+  7:
+    bonus_pct: 70
+    essence_stones: 70
+    stat_multiplier: x 1.7
+  8:
+    bonus_pct: 80
+    essence_stones: 80
+    stat_multiplier: x 1.8
+  9:
+    bonus_pct: 90
+    essence_stones: 90
+    stat_multiplier: x 1.9
+  10:
+    bonus_pct: 100
+    essence_stones: 100
+    stat_multiplier: x 2
+  11:
+    bonus_pct: 110
+    essence_stones: 110
+    stat_multiplier: x 2.1
+  12:
+    bonus_pct: 120
+    essence_stones: 120
+    stat_multiplier: x 2.2
+  13:
+    bonus_pct: 130
+    essence_stones: 130
+    stat_multiplier: x 2.3
+  14:
+    bonus_pct: 140
+    essence_stones: 140
+    stat_multiplier: x 2.4
+  15:
+    bonus_pct: 150
+    essence_stones: 150
+    stat_multiplier: x 2.5
+  16:
+    bonus_pct: 160
+    essence_stones: 160
+    stat_multiplier: x 2.6
+  17:
+    bonus_pct: 170
+    essence_stones: 170
+    stat_multiplier: x 2.7
+  18:
+    bonus_pct: 180
+    essence_stones: 180
+    stat_multiplier: x 2.8
+  19:
+    bonus_pct: 190
+    essence_stones: 190
+    stat_multiplier: x 2.9
+  20:
+    bonus_pct: 200
+    essence_stones: 200
+    stat_multiplier: x 3
+mythic_max_costs:
+  0:
+    pts_required: 73330
+    grey_gear: 7333
+    green_gear: 2445
+    blue_gear: 1223
+    purple_gear: 489
+    gear_cog_10: 7333
+    gear_cog_100: 734
+  10:
+    pts_required: 50
+  20:
+    pts_required: 72180
+    grey_gear: 7218
+    green_gear: 2406
+    blue_gear: 1203
+    purple_gear: 482
+    gear_cog_10: 7218
+    gear_cog_100: 722
+  30:
+    pts_required: 70850
+    grey_gear: 7085
+    green_gear: 2362
+    blue_gear: 1181
+    purple_gear: 473
+    gear_cog_10: 7085
+    gear_cog_100: 709
+  40:
+    pts_required: 68690
+    grey_gear: 6869
+    green_gear: 2290
+    blue_gear: 1145
+    purple_gear: 458
+    gear_cog_10: 6869
+    gear_cog_100: 687
+  50:
+    pts_required: 64890
+    grey_gear: 6489
+    green_gear: 2163
+    blue_gear: 1082
+    purple_gear: 433
+    gear_cog_10: 6489
+    gear_cog_100: 649
+  55:
+    pts_required: 62240
+    grey_gear: 6224
+    green_gear: 2075
+    blue_gear: 1038
+    purple_gear: 415
+    gear_cog_10: 6224
+    gear_cog_100: 623
+  60:
+    pts_required: 59080
+    grey_gear: 5908
+    green_gear: 1970
+    blue_gear: 985
+    purple_gear: 394
+    gear_cog_10: 5908
+    gear_cog_100: 591
+  65:
+    pts_required: 55230
+    grey_gear: 5523
+    green_gear: 1841
+    blue_gear: 921
+    purple_gear: 369
+    gear_cog_10: 5523
+    gear_cog_100: 553
+  70:
+    pts_required: 50620
+    grey_gear: 5062
+    green_gear: 1688
+    blue_gear: 844
+    purple_gear: 338
+    gear_cog_10: 5062
+    gear_cog_100: 507
+  75:
+    pts_required: 45070
+    grey_gear: 4507
+    green_gear: 1503
+    blue_gear: 752
+    purple_gear: 301
+    gear_cog_10: 4507
+    gear_cog_100: 451
+  80:
+    pts_required: 38510
+    grey_gear: 3851
+    green_gear: 1284
+    blue_gear: 642
+    purple_gear: 257
+    gear_cog_10: 3851
+    gear_cog_100: 386
+  85:
+    pts_required: 30760
+    grey_gear: 3076
+    green_gear: 1026
+    blue_gear: 513
+    purple_gear: 206
+    gear_cog_10: 3076
+    gear_cog_100: 308
+  90:
+    pts_required: 21750
+    grey_gear: 2175
+    green_gear: 725
+    blue_gear: 363
+    purple_gear: 145
+    gear_cog_10: 2175
+    gear_cog_100: 218
+  95:
+    pts_required: 11500
+    grey_gear: 1150
+    green_gear: 384
+    blue_gear: 192
+    purple_gear: 77
+    gear_cog_10: 1150
+    gear_cog_100: 115
+  96:
+    pts_required: 9300
+    grey_gear: 930
+    green_gear: 310
+    blue_gear: 155
+    purple_gear: 62
+    gear_cog_10: 930
+    gear_cog_100: 93
+  97:
+    pts_required: 7050
+    grey_gear: 705
+    green_gear: 235
+    blue_gear: 118
+    purple_gear: 47
+    gear_cog_10: 705
+    gear_cog_100: 71
+  98:
+    pts_required: 4750
+    grey_gear: 475
+    green_gear: 159
+    blue_gear: 80
+    purple_gear: 32
+    gear_cog_10: 475
+    gear_cog_100: 48
+  99:
+    pts_required: 2400
+    grey_gear: 240
+    green_gear: 80
+    blue_gear: 40
+    purple_gear: 16
+    gear_cog_10: 240
+    gear_cog_100: 24
+  1:
+    pts_required: 5
+  2:
+    pts_required: 10
+  3:
+    pts_required: 15
+  4:
+    pts_required: 20
+  5:
+    pts_required: 25
+  6:
+    pts_required: 30
+  7:
+    pts_required: 35
+  8:
+    pts_required: 40
+  9:
+    pts_required: 45
+weapon_widgets:
+  1: 5
+  2: 10
+  3: 15
+  4: 20
+  5: 25
+  6: 30
+  7: 35
+  8: 40
+  9: 45
+  10: 50
+  total: 275

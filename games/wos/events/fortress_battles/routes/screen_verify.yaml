@@ -1,0 +1,5 @@
+screens:
+  event.fortress_battles:
+    rules:
+      - match: event.fortress_battles
+        threshold: 0.9

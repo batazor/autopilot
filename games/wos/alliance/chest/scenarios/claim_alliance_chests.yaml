@@ -1,0 +1,35 @@
+name: "🎁 Alliance Chests: Claim All"
+enabled: true
+
+# Account-level claim, idempotent clicks — device_level keeps it runnable without
+# player binding. The `match: chest.to_gift` landmark gate makes it a no-op off the
+# Alliance Chests screen.
+device_level: true
+priority: 70_000
+
+# Ported from legacy `usecases/alliance/alliance_chest_loot.yaml` +
+# `alliance_chest_gift.yaml` (Claim-All branches). Per-chest individual claim is a
+# follow-up (needs a live-captured Claim button template).
+steps:
+  - match: chest.to_gift
+    threshold: 0.85
+
+  # Loot tab: Claim All.
+  - click: chest.to_loot
+  - wait: 700ms
+  - match: chest.loot.claim_all
+    threshold: 0.85
+    steps:
+      - click: chest.loot.claim_all
+      - wait: 800ms
+      - push_scenario: dismiss_unknown_popup
+
+  # Gift tab: Claim All.
+  - click: chest.to_gift
+  - wait: 700ms
+  - match: chest.gift.claim_all
+    threshold: 0.85
+    steps:
+      - click: chest.gift.claim_all
+      - wait: 800ms
+      - push_scenario: dismiss_unknown_popup

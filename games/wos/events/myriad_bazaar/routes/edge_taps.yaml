@@ -1,0 +1,3 @@
+edges:
+  myriad_bazaar:
+    main_city: [myriad_bazaar.to.main_city]

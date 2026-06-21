@@ -1,0 +1,141 @@
+# syntax=docker/dockerfile:1.24
+#
+# Bot worker + scheduler (default CMD), or FastAPI when invoked as ``api``
+# (override via ``command: ["api"]`` in compose). Talks to ADB on the host
+# (BlueStacks / real device) — connect via ``--network=host`` on Linux or
+# ``host.docker.internal`` on Docker Desktop with the host's ``adb start-server``
+# already running and the emulator's port (e.g. ``127.0.0.1:5555``) reachable.
+#
+# Operator UI: ``Dockerfile.web`` + ``docker compose -f docker-compose.prod.yml``
+# (Next.js on :3000, FastAPI on :8765).
+#
+# Companion services (see ``docker-compose.prod.yml``):
+#   * ``redis:alpine`` — queue / instance state
+#   * ``web``          — Next.js dashboard
+#
+# Build args:
+#   PYTHON_VERSION         (default: 3.13)
+#   UV_VERSION             (default: 0.5.18) — pin uv to a known-good release
+#
+# Layer plan:
+#   builder   — resolve lockfile + install project into ``.venv`` (cached)
+#   runtime   — minimal image: Python + system libs + venv + source tree
+
+ARG PYTHON_VERSION=3.13
+ARG UV_VERSION=0.5.18
+
+
+# --- Stage 1: builder --------------------------------------------------------
+# Resolves the lockfile + installs the project into a self-contained ``.venv/``.
+# Shipping the venv (not pip-installing inside runtime) keeps the runtime image
+# free of the Python toolchain itself.
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+
+ARG UV_VERSION
+RUN pip install --no-cache-dir "uv==${UV_VERSION}"
+
+WORKDIR /app
+ENV UV_LINK_MODE=copy \
+    UV_PYTHON_PREFERENCE=only-system \
+    UV_COMPILE_BYTECODE=1 \
+    UV_HTTP_TIMEOUT=300
+
+# Step 1: dependency layer. Copy manifests *only* — the resulting ``.venv/``
+# cache layer survives any source-only change. The BuildKit cache mount keeps
+# uv's download cache across builds, so rebuilds skip re-downloading wheels.
+COPY pyproject.toml uv.lock README.md ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev
+
+# Step 2: project source. ``db/`` is bind-mounted in prod compose so users
+# edit it without rebuilding the image; it's baked in here too so a bare
+# ``docker run`` of this image still works for smoke tests.
+COPY src/ ./src/
+COPY games/ ./games/
+COPY db/ ./db/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
+
+# --- Stage 2: runtime --------------------------------------------------------
+# Minimal image: Python + system libs + the venv + the source tree (which the
+# editable install in ``.venv`` references). pyproject.toml / uv.lock / README.md
+# are intentionally dropped — the venv's dist-info carries the metadata that
+# ``importlib.metadata.version(...)`` calls need.
+FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
+
+# Runtime system libs:
+#   libgl1, libglib2.0-0    — opencv-python's libGL/glib dependencies
+#   adb                     — bot needs the client binary for tap/screencap
+#   tesseract-ocr + eng     — local OCR backend
+#   curl                    — used by the ``api`` healthcheck
+#
+# Cache mounts speed up rebuilds on the same machine; ``rm /etc/apt/apt.conf.d/docker-clean``
+# is needed because the default cache config wipes ``/var/cache/apt`` between
+# runs, defeating the mount.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 libglib2.0-0 \
+        adb \
+        tesseract-ocr tesseract-ocr-eng \
+        curl
+
+WORKDIR /app
+
+# Selective copy from the builder stage.
+# pyproject.toml / uv.lock / README.md are intentionally omitted — the venv's
+# dist-info and entry-point scripts (``/app/.venv/bin/{bot,api}``) are
+# self-sufficient for startup.
+COPY --from=builder /app/.venv ./.venv
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/games ./games
+COPY --from=builder /app/db ./db
+
+# Fail the image build if the runtime venv is broken or ANY router has an
+# import-time error. The smoke test actually imports ``api.main`` (not just
+# ``find_spec``), so an import error in a router — a renamed symbol, a missing
+# transitive dep — fails the build loudly here instead of at container startup,
+# where uvicorn would crash importing ``api.main:app`` and the healthcheck would
+# report "unhealthy" with the real error buried in ``docker logs``.
+#
+# Safe at build time: the heaviest side effect is the notify monitor's daemon
+# thread (the interpreter still exits), and the gift-code scrape only runs under
+# uvicorn's lifespan, not on import. We delete the scratch DB/log the monitor
+# writes so nothing stale is baked into the image — the directory is
+# ``.dockerignore``d and recreated fresh at runtime.
+RUN /app/.venv/bin/python -c "import api.main; assert api.main.app is not None; print('runtime import smoke ok')" \
+    && rm -rf /app/src/modules/notify/data
+
+# Build identity for the /api/version endpoint. These are compared against the
+# GHCR registry's :latest manifest labels to detect available updates. Both
+# default to empty so a hand-built image presents as "dev" in the UI.
+ARG BUILD_VERSION=""
+ARG BUILD_REVISION=""
+
+# ``games/`` ships as files under /app but is not part of the installed wheel
+# (only ``src/*`` packages are). The supervisor's spawned scheduler/worker
+# subprocesses don't run with cwd=/app on sys.path, so ``import games`` (used by
+# the stamina/MARCH planners) fails with ModuleNotFoundError. Put /app on the
+# path so ``games`` resolves as a namespace package in every subprocess.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    PATH="/app/.venv/bin:$PATH" \
+    WOS_BUILD_VERSION=${BUILD_VERSION} \
+    WOS_BUILD_REVISION=${BUILD_REVISION}
+
+# Bot-mode healthcheck (process check). The ``api`` service overrides this in
+# ``docker-compose.prod.yml`` with a curl probe against ``/health``.
+# The image ships no procps (no ``ps``/``pgrep``) and the supervisor runs as
+# pid 1 with argv ``.../bin/bot`` (the ``bot`` entrypoint, not
+# ``worker.supervisor``), so probe pid 1's cmdline via /proc with ``grep``.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+    CMD sh -c "grep -aq 'bin/bot' /proc/1/cmdline || exit 1"
+
+LABEL org.opencontainers.image.title="autopilot-bot" \
+      org.opencontainers.image.description="WOS automation bot (worker + scheduler + API)" \
+      org.opencontainers.image.source="https://github.com/batazor/autopilot" \
+      org.opencontainers.image.licenses="MIT"
+
+CMD ["bot"]

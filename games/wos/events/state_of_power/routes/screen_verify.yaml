@@ -1,0 +1,10 @@
+screens:
+  event.state_of_power:
+    rules:
+      # OCR the page title, not a template crop of the tab: the tab is visible on
+      # sibling pages too (false positives), and the SoP banner reskins per phase
+      # so a fixed crop goes stale. The title shows only when SoP is the active
+      # screen. (see [[ocr-screen-verify-reskinnable-titles]])
+      - ocr: state_of_power.title
+        contains: "State of Power"
+        threshold: 0.8

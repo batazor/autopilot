@@ -1,0 +1,11 @@
+overlay:
+  - name: shop.weekly_monthly_cards.page
+    region: page.shop.weekly_monthly_cards.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - shop.weekly_monthly_cards
+    steps:
+      - push_scenario:
+          name: shop.weekly_monthly_cards
+          ttl: 1m

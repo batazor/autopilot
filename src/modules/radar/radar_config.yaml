@@ -1,0 +1,96 @@
+version: 1
+device_serial: 127.0.0.1:5555
+adb_bin: adb
+minimap:
+  bbox:
+  - 506
+  - 12
+  - 195
+  - 145
+  corners:
+    top:
+    - 603.0
+    - 18.0
+    right:
+    - 695.0
+    - 84.0
+    bottom:
+    - 606.0
+    - 151.0
+    left:
+    - 512.0
+    - 84.0
+  reference: radar_minimap_ref.png
+viewport:
+  rect_w: 24
+  rect_h: 39
+# 0.40 over the FULL kingdom (grid_scale 3.0) ≈ 325 frames. Higher overlap
+# multiplies the count fast (~1/(1-overlap)^2); 0.40 keeps the full-kingdom run
+# under ~1 hr while leaving enough share for ORB registration.
+overlap: 0.40
+edge_margin_px: 0
+# Bottom trimmed to 1026px: keeps the magnifier button (~y1085) and chat
+# overlay out of the ORB feature mask.
+crop:
+  x: 0
+  y: 156
+  w: 580
+  h: 870
+stitch_viewport:
+  w: 720
+  h: 1185
+# Full kingdom scan: start at the bottom corner and climb upward, ending on its
+# own when the top border enters the view (border.stop_at_top). Re-add
+# `max_frames: <n>` here to clamp the scan to a debug window again.
+grid_limit:
+  anchor: bottom
+  bottom_skip_rows: 0           # don't skip any fitted rows
+  bottom_overscan_rows: 1       # extra row near the vertex — start at the center-bottom
+  bottom_overscan_inset_px: 5   # stay this far above the tip: a vertex tap falls into the next state
+  bottom_descend_screens: 1.25  # servo OFF only: blind pan toward the corner; with the servo on the approach is measured
+game_size: 1200
+# The minimap diamond was calibrated against a central sub-region (~1/9 of the
+# real kingdom — odometry drives on bs1 measured the true span ×3.0 per axis:
+# height ≈14202px, width ≈15244px, 8.69 px/tile). Enlarge the route ×3 so the
+# bottom-anchored grid climbs all the way to the real top corner. Origin
+# positioning + the live minimap rect keep the unscaled diamond.
+grid_scale: 3.0
+navigation:
+  mode: swipe
+  swipe_duration_ms: 600
+  swipe_margin_px: 48
+  swipe_scale: 1.0
+timings:
+  post_tap_delay_ms: 300
+  stabilize_interval_ms: 150
+  stabilize_diff_threshold: 2.0
+  stabilize_consecutive: 2
+  stabilize_timeout_ms: 5000
+# Yellow kingdom border: origin servo on the bottom V, top-corner stop, and a
+# crossing guard that shortens any inter-cell swipe about to leave the kingdom.
+border:
+  servo: true
+  target_frac: 0.66       # the line crossing is steered to (crop center x, this fraction of crop h)
+  tolerance_px: 80
+  max_steps: 16
+  approach_step_screens: 0.3   # gentle blind descend — a big leap can jump past the vertex into the next state
+  max_blind_screens: 3.0       # stop after this much blind descend if the border never appears
+  gap_back_off_frac: 0.9       # lower-band out-of-bounds ≥ this ⇒ in the inter-kingdom gap ⇒ climb back (robust anti-cross)
+  # The minimap white "rect" is a fixed-size PIN (~24x39), NOT the viewport:
+  # true scale ≈ 4 minimap px per screen. Hence a PX inset, not a fraction.
+  safe_tap_inset_px: 6         # origin taps this many px above the bottom vertex (≈1.5 screens)
+  stop_at_top: false   # territory/alliance diamond tops false-trigger the top corner here; let the grid (sized to the kingdom) end the climb at iy=0 instead
+  require_cross: true      # don't start capturing until the dashed-line X (kingdom corner) is in view
+  block_crossing: false    # grid_scale 3.0 sizes the grid to the true kingdom (cells inset inside the diamond), so the look-ahead guard is redundant — and its neutral-grey outside test false-fires on the grey alliance/territory roads that pattern the mid-kingdom, stalling the climb at ~iy 12. Diamond bounds keep the scan inside.
+  cross_margin_px: 140     # stop this far short of the line (screen px)
+  cross_corridor_px: 80    # half-width of the look-ahead corridor around the move axis
+
+# Wait out white UI labels (city/marker names, minimap overlays) sitting on the
+# next touch point — touching one selects it instead of panning/teleporting.
+label_guard:
+  enabled: true
+  white_threshold: 235   # min BGR channel to count a pixel as label-white
+  white_fraction: 0.5    # share of the patch that must be white to wait
+  sample_radius_px: 6
+  timeout_ms: 4000       # then touch anyway
+  poll_interval_ms: 250

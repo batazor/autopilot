@@ -1,0 +1,45 @@
+# Expert reference catalog — sourced from https://www.whiteoutsurvival.wiki/experts/
+# Served by the wiki stack (config.wiki_sources) as the per-game core entity
+# games/wos/db/experts/. Each expert carries role/type, base stat bonuses, the
+# affinity-track summary (stat + max bonus), all skills (effect + scaling values),
+# the talent and lore. The full 1-100 affinity table is intentionally omitted.
+source:
+  name: whiteoutsurvival.wiki
+  url: https://www.whiteoutsurvival.wiki/experts/
+experts:
+- id: kathy
+  name: Kathy
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/kathy/
+  file: kathy.yaml
+- id: ronne
+  name: Ronne
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/ronne/
+  file: ronne.yaml
+- id: agnes
+  name: Agnes
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/agnes/
+  file: agnes.yaml
+- id: valeria
+  name: Valeria
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/valeria/
+  file: valeria.yaml
+- id: baldur
+  name: Baldur
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/baldur/
+  file: baldur.yaml
+- id: fabian
+  name: Fabian
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/fabian/
+  file: fabian.yaml
+- id: romulus
+  name: Romulus
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/romulus/
+  file: romulus.yaml
+- id: holger
+  name: Holger
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/holger/
+  file: holger.yaml
+- id: cyrille
+  name: Cyrille
+  wiki_url: https://www.whiteoutsurvival.wiki/experts/cyrille/
+  file: cyrille.yaml

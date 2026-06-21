@@ -1,0 +1,9 @@
+id: alliance
+title: Alliance
+description: Base Alliance screen, navigation node, and page identity helpers.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false
+

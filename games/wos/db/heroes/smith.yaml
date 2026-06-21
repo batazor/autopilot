@@ -1,0 +1,117 @@
+id: smith
+name: Smith
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/smith/
+rarity: Rare
+class: Infantry
+sub_class: Growth
+stats:
+  exploration:
+    attack: '1106'
+    def: '2220'
+    health: '21644'
+  expedition:
+    attack: 90.07%
+    defense: 90.07%
+story: 'Smith comes across as an inconspicuous fellow running an everyday smithery
+  in an average City. But his reputation for forging the best weapons has won him
+  customers from all over the wilderness. Smith also offers perfectly-tailored custom
+  weapons (be it guns or swords) if the price is right.
+
+
+  Some say Smith himself is an expert in martial arts, hence his precise understanding
+  of the weight, length, center of gravity, and other such specifications required
+  of the perfect weapon. In any case, wise troublemakers know better than to upset
+  this humble blacksmith.
+
+
+  Smith prefers crafting melee weapons over ranged weapons. He find something truly
+  exciting in the downward stroke of the rapier, the quick lunge of the scimitar,
+  and the deflected blow of the spear. His drinking buddy Eugene also loves the aesthetics
+  and feel of melee weapons, although Smith would rather Eugene not use his well-crafted
+  axes simply for logging.
+
+
+  Smith loves the loud clangs of hammer against anvil and the sparks from iron in
+  the hot furnace. He has an intuitive understanding of each piece of metal and hears
+  its "inner voice". He has claimed to friends that he simply follows the "will" of
+  the metal as he intuitively interprets it - that''s his secret to making the best
+  weapons.
+
+
+  Smith''s forging talents did not come easily. In fact, he was abducted and forced
+  to work as a blacksmith on the "Neptune" steam submarine as a child.
+
+
+  It was a dark time, made darker still by Smith''s fear of the sea and confined spaces.
+  One day, after years of forced labor, Smith suddenly heard a whisper from the metal
+  he was working on… It was that same night Smith began to truly master forging. When
+  the submarine docked for supplies, Smith used a secret weapon he had crafted to
+  knock out the guards and escape from the "Neptune".'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Exploration
+- Lighthouse Intel
+- Hero Recruitment
+skills:
+- name: Hammer Burn
+  description: Smith swings his hammer forward in a devastating arc, dealing Attack
+    200%/220%/240%/260%/280% damage.
+- name: Armor Enhancement
+  description: Smith upgrades his armor to reduce damage taken by 10%/15%/20%/25%/30%
+    .
+- name: Burnished Iron
+  description: Smith's contagious passion for the art of crafting has raised City
+    Iron Mine Output by 5%/10%/15%/20%/25% .
+- name: Craftsmanship
+  description: Smith has an extraordinary sixth sense when it comes to iron. + 5%/10%/15%/20%/25%
+    Iron Gathering Speed on the map.

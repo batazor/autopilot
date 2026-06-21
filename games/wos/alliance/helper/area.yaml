@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "main_city",
+      "ocr": "references/alliance.helper.png",
+      "regions": [
+        {
+          "name": "button.alliance.help",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 69.6357391761772,
+            "y": 85.98686358461053,
+            "width": 7.109658277834156,
+            "height": 5.253318747044119,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

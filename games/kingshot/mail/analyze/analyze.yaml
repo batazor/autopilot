@@ -1,0 +1,218 @@
+overlay:
+  - name: mail.new.has_red_dot
+    region: mail.new
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: mail.claim.system
+          ttl: 1m
+
+  - name: mail.tabs.visible_red_dot
+    region: mail.tabs_strip
+    action: detectTabs
+    push_red_dot_pages: true
+    tab_pages:
+      - mail.claim.wars
+      - mail.claim.alliance
+      - mail.claim.system
+      - mail.claim.reports
+      - mail.claim.starred
+    screens:
+      - mail
+      - mail.wars
+      - mail.alliance
+      - mail.system
+      - mail.reports
+      - mail.starred
+
+  - name: mail.wars.active
+    region: mail.tab.wars
+    isTabActive: true
+    max_mean_saturation: 60
+    min_mean_value: 210
+    min_yellow_ratio: 0.9
+    screens:
+      - mail
+    set_node: mail.wars
+
+  - name: mail.alliance.active
+    region: mail.tab.alliance
+    isTabActive: true
+    max_mean_saturation: 60
+    min_mean_value: 210
+    min_yellow_ratio: 0.9
+    screens:
+      - mail
+    set_node: mail.alliance
+
+  - name: mail.system.active
+    region: mail.tab.system
+    isTabActive: true
+    max_mean_saturation: 60
+    min_mean_value: 210
+    min_yellow_ratio: 0.9
+    screens:
+      - mail
+    set_node: mail.system
+
+  - name: mail.reports.active
+    region: mail.tab.reports
+    isTabActive: true
+    max_mean_saturation: 60
+    min_mean_value: 210
+    min_yellow_ratio: 0.9
+    screens:
+      - mail
+    set_node: mail.reports
+
+  - name: mail.starred.active
+    region: mail.tab.starred
+    isTabActive: true
+    max_mean_saturation: 60
+    min_mean_value: 210
+    min_yellow_ratio: 0.9
+    screens:
+      - mail
+    set_node: mail.starred
+
+  - name: mail.wars.gift.visible
+    region: mail.gift
+    action: findIcon
+    threshold: 0.9
+    min_match_saturation: 48
+    screens:
+      - mail.wars
+    steps:
+      - push_scenario: mail.claim.wars
+
+  - name: mail.alliance.gift.visible
+    region: mail.gift
+    action: findIcon
+    threshold: 0.9
+    min_match_saturation: 48
+    screens:
+      - mail.alliance
+    steps:
+      - push_scenario: mail.claim.alliance
+
+  - name: mail.system.gift.visible
+    region: mail.gift
+    action: findIcon
+    threshold: 0.9
+    min_match_saturation: 48
+    screens:
+      - mail.system
+    steps:
+      - push_scenario: mail.claim.system
+
+  - name: mail.reports.gift.visible
+    region: mail.gift
+    action: findIcon
+    threshold: 0.9
+    min_match_saturation: 48
+    screens:
+      - mail.reports
+    steps:
+      - push_scenario: mail.claim.reports
+
+  - name: mail.starred.gift.visible
+    region: mail.gift
+    action: findIcon
+    threshold: 0.9
+    min_match_saturation: 48
+    screens:
+      - mail.starred
+    steps:
+      - push_scenario: mail.claim.starred
+
+  - name: mail.letter.claim.visible
+    region: mail.letter.claim
+    action: findIcon
+    threshold: 0.9
+    search_region: mail.letter.window
+    screens:
+      - mail.letter
+
+  - name: mail.delete.confirm.visible
+    region: mail.delete.confirm
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - mail.delete_confirm
+
+  - name: mail.tab.wars.has_red_dot
+    region: mail.tab.wars.red_dot
+    isRedDot: true
+    screens:
+      - mail
+      - mail.wars
+      - mail.alliance
+      - mail.system
+      - mail.reports
+      - mail.starred
+    steps:
+      - push_scenario:
+          name: mail.claim.wars
+          ttl: 5m
+
+  - name: mail.tab.alliance.has_red_dot
+    region: mail.tab.alliance.red_dot
+    isRedDot: true
+    screens:
+      - mail
+      - mail.wars
+      - mail.alliance
+      - mail.system
+      - mail.reports
+      - mail.starred
+    steps:
+      - push_scenario:
+          name: mail.claim.alliance
+          ttl: 5m
+
+  - name: mail.tab.system.has_red_dot
+    region: mail.tab.system.red_dot
+    isRedDot: true
+    screens:
+      - mail
+      - mail.wars
+      - mail.alliance
+      - mail.system
+      - mail.reports
+      - mail.starred
+    steps:
+      - push_scenario:
+          name: mail.claim.system
+          ttl: 5m
+
+  - name: mail.tab.reports.has_red_dot
+    region: mail.tab.reports.red_dot
+    isRedDot: true
+    screens:
+      - mail
+      - mail.wars
+      - mail.alliance
+      - mail.system
+      - mail.reports
+      - mail.starred
+    steps:
+      - push_scenario:
+          name: mail.claim.reports
+          ttl: 5m
+
+  - name: mail.tab.starred.has_red_dot
+    region: mail.tab.starred.red_dot
+    isRedDot: true
+    screens:
+      - mail
+      - mail.wars
+      - mail.alliance
+      - mail.system
+      - mail.reports
+      - mail.starred
+    steps:
+      - push_scenario:
+          name: mail.claim.starred
+          ttl: 5m

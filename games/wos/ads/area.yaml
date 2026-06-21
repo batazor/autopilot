@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 21,
+      "screen_id": "",
+      "ocr": "references/ads_rookie_value_pack.png",
+      "regions": [
+        {
+          "name": "ads_rookie_value_pack",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 81.46718146718146,
+            "y": 7.5,
+            "width": 6.144787644787645,
+            "height": 4.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "screen_id": "",
+      "ocr": "references/ads.legend_transcend_pack.png",
+      "regions": [
+        {
+          "name": "ads.legend_transcend_pack",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 81.23552123552123,
+            "y": 8.043478260869565,
+            "width": 6.386100386100386,
+            "height": 3.652173913043478,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "screen_id": "ads.natalia",
+      "ocr": "references/ads.natalia.png",
+      "regions": [
+        {
+          "name": "ads.natalia.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 84.55598455598455,
+            "y": 3.369565217391304,
+            "width": 7.6003861003861,
+            "height": 4.6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ],
+      "screen_region": "ads.natalia.title"
+    },
+    {
+      "id": 69,
+      "screen_id": "",
+      "ocr": "references/ads.player_survey.png",
+      "regions": [
+        {
+          "name": "button.letsdothis",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 54.01544401544402,
+            "y": 69.8913043478261,
+            "width": 26.3996138996139,
+            "height": 3.9999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "screen_id": "",
+      "ocr": "references/craftsmans_treasure.png",
+      "regions": []
+    }
+  ]
+}

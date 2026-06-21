@@ -1,0 +1,224 @@
+id: flint
+name: Flint
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/flint/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '2043'
+    def: '2664'
+    health: '39960'
+  expedition:
+    attack: 240.19%
+    defense: 240.19%
+story: 'Flint is the flame that is always ready to burn down Phaethon in his vengeance.
+  It’s almost certain that his personal crusade against Phaethon will only end in
+  either his or Phaethon''s demise.
+
+
+  Flint and his ragtag followers (most of whom have suffered at the hands of Phaethon)
+  often partnered with the Dawn Alliance in their fight against Phaethon''s forces.
+  Bahiti and the others knew that Flint would never take an innocent life. As for
+  criminals and wrongdoers? They won’t receive any mercy from Flint''s hands.
+
+
+  Flint was a high-ranking military officer. In a scouting mission, he got separated
+  from his own platoon and ended up in a remote City known as “Arcadia”. That City
+  was the closest thing to utopia - a place filled with theaters, auditoriums, and
+  even libraries! The City did not have weapons; its citizens were peace-loving scholars,
+  so they do not see a need for firearms.
+
+
+  Flint fell in love with the City and the machinist Jessie. His time in Arcadia made
+  him believe a bright future can be built even in this icy world. His hope and belief
+  were soon destroyed in a horrible raid on Arcadia.
+
+
+  An emissary from Phaethon showed up at Arcadia’s door and demanded the immediate
+  transfer of all knowledge pertaining to "fire crystal". The Chief refused, knowing
+  full well their research can be turned into destructive weapons of war. When Phaethon
+  razed the City to the ground, Flint was the only fighter that put up a resistance.
+  He was terribly injured during the fight but somehow survived the ordeal.His hopes
+  for a better future are now replaced by a burning desire for vengeance.
+
+
+  Flint and Jessie crossed paths again many years later.Embers of the couple''s old
+  affection still remained, but Jessie could not approve of Flint''s all-consuming
+  quest for vengeance. Flint will always hold a special place in Jessie''s heart,
+  but she can never bring herself to love a man dedicated to destruction. The former
+  lovers have now drifted apart.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+skills:
+- name: Fires of Vengeance
+  description: Flint's fire-breathing attack deals Attack* 60%/66%/72%/78%/84% damage
+    every 0.5s and amplifies damage taken by the target by 10%/15%/20%/25%/30% for
+    2s.
+- name: Incinerator
+  description: Pain only boosts Flint's potential. Flint immediately regains 20%/25%/30%/35%/40%
+    of his max Health when Health is below 50%. Can only activate once per battle.
+- name: Heat Diffusion
+  description: The warmth of Flint's fire represents hope in troubling times, boosting
+    your heroes' Attack Speed by 3%/4%/5%/6%/7% .
+- name: Pyromaniac
+  description: Every flame, no matter how small, can ignite a roaring fire. Flint
+    increases his infantry's Damage Dealt by 20%/40%/60%/80%/100%
+- name: Burning Resolve
+  description: Flint's fire not only dispels the cold but also ignites the passion
+    for battle, increasing Attack by 5%/10%/15%/20%/25% for all troops.
+- name: Immolation
+  description: Flint's flame of anger devours everything. Increasing all troops' Lethality
+    by 5%/10%/15%/20%/25% .
+- name: Vengeful Task (Lv. 5)
+  description: Once released, the fires of Flint's vengeance cannot be quenched, boosting
+    Attack by 24% until the end of battle once "Incinerator" is triggered.
+- name: Dragonbreath (Lv. 5)
+  description: Flint fortifies his flamethrower for city defense, increasing Defense
+    Troops' Attack by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 36000
+      attack: 55
+      defense: 72
+      health: 1080
+      lethality_i: 6.0
+      health_i: 6.0
+      skill_1: Flint Attack +8% until end of battle once Incinerator has been triggered
+    2:
+      power: 61200
+      attack: 93
+      defense: 122
+      health: 1836
+      lethality_i: 12.0
+      health_i: 12.0
+      skill_1: Flint Attack +8% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +5%
+    3:
+      power: 86400
+      attack: 132
+      defense: 172
+      health: 2592
+      lethality_i: 18.0
+      health_i: 18.0
+      skill_1: Flint Attack +12% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +5%
+    4:
+      power: 111600
+      attack: 170
+      defense: 223
+      health: 3348
+      lethality_i: 24.0
+      health_i: 24.0
+      skill_1: Flint Attack +12% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +7.5%
+    5:
+      power: 136800
+      attack: 210
+      defense: 273
+      health: 4104
+      lethality_i: 30.0
+      health_i: 30.0
+      skill_1: Flint Attack +16% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +7.5%
+    6:
+      power: 162000
+      attack: 248
+      defense: 324
+      health: 4860
+      lethality_i: 36.0
+      health_i: 36.0
+      skill_1: Flint Attack +16% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +10%
+    7:
+      power: 187200
+      attack: 286
+      defense: 374
+      health: 5616
+      lethality_i: 42.0
+      health_i: 42.0
+      skill_1: Flint Attack +20% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +10%
+    8:
+      power: 212400
+      attack: 325
+      defense: 424
+      health: 6372
+      lethality_i: 48.0
+      health_i: 48.0
+      skill_1: Flint Attack +20% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +12.5%
+    9:
+      power: 237600
+      attack: 363
+      defense: 475
+      health: 7128
+      lethality_i: 54.0
+      health_i: 54.0
+      skill_1: Flint Attack +24% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +12.5%
+    10:
+      power: 270000
+      attack: 414
+      defense: 540
+      health: 8100
+      lethality_i: 60.0
+      health_i: 60.0
+      skill_1: Flint Attack +24% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +15%

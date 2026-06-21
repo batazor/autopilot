@@ -1,0 +1,170 @@
+id: vulcanus
+name: Vulcanus
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/vulcanus/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '25998'
+    def: '21400'
+    health: '160506'
+  expedition:
+    attack: 1621.29%
+    defense: 1621.29%
+story: 'Grim-faced Vulcanus is a harsh man. Harsh-mouthed, cold-eyed, bad-tempered
+  and liable to dark moods.
+
+
+  Vulcanus is tough and so he should be. As one of the chief leaders of an undercity
+  where survival is a daily battle, Vulcanus has to embody the ideal of a ruler who
+  is both terrifying and yet not unjust, cunning and yet not paranoid, and violent
+  but only against enemies. Some call him a tyrant and long for the kings of better
+  days. But as much as one might wish for a sweet-hearted ruler, there is no denying
+  that Vulcanus'' City has virtually no crime and is free from the chaos and famines
+  of other regions.
+
+
+  Vulcanus is not just a political warrior and commander—the man is extremely proficient
+  with a heavy crossbow and an expert in siege equipment. Vulcanus customized his
+  own weapon to fire arrows with such force as to strike fear into even the most heavily
+  armored enemy.
+
+
+  Vulcanus comes from a long line of pioneers. The pioneers of old decided that the
+  best solution to freezing surface temperatures was to go low.
+
+
+  Pioneers all—some adventurers, scholars, exiled nobles, criminals and desperados—found
+  refuge in the undercity areas then already occupied by the Windbreaker Tribe. War
+  ensued, but a better union was forged out of their common concern for humanity.
+  The factions laid down their swords for ploughs and Vulcanus'' own people branched
+  into a number of different sects that today war with each other more than the Windbreakers.
+
+
+  Vulcanus'' group fearlessly established the city of Thaleira on unused territory...
+  from their perspective. It was never settled by the Windbreakers because the entire
+  ground was considered a "cursed" Forbidden Zone. The curse carried great weight.
+  There is still power in the ruins to damn any explorer from ever returning from
+  its depths. Vulcanus has not been willing to go himself, but believes that whatever
+  killing power is inside the ruins might also bring life to a world slain by ice.
+  A great reward is available to anyone who can return from the Forbidden Zone with
+  the secret knowledge of what is hidden there.
+
+
+  The great mystery of the Forbidden Zone attracts adventurers throughout the land
+  like moths to a flame. Some, like Rufus, come in peace.
+
+
+  What was anyone to make of the fair-skinned giant with his flowing mane of red hair?
+  Only he seemed to be under the guidance of a mysterious elder who helped him evade
+  Thaleira''s sentries outside the Forbidden Zone. The sentries shook their heads
+  and walked away — saddened by what they believed would be the explorer’s death,
+  yet relieved they hadn’t needed to execute him themselves.
+
+
+  Rufus barely survived whatever happened in the Forbidden Zone when he stumbled into
+  the arms of Thaleira''s guards. Vulcanus ordered Rufus taken to the Palace and treated
+  as an honored guest. Rufus could not remember a single thing outside the city gates.
+  Vulcanus asked many times, but Rufus refused to return. Still, the hope that Rufus
+  might one day remember could forever keep him an honored guest in Vulcanus'' kingdom.
+
+
+  Not all explorers interested in the Forbidden Zone are friendly. An advanced contingent
+  of Phaethon soldiers attacked Thaleira soon after Rufus arrived. Their real goal,
+  of course, was to gain access to the ruins beyond. Vulcanus had seen more threats
+  in his life than Phaethon''s great cannons. Nor did Rufus fear anything from Phaethon
+  greater than what he had already survived. As Thaleira mounted a much stronger defense
+  than Phaethon expected, Vulcanus and Rufus also forged an unbroken bond on the battlements
+  that has continued to this day.
+
+
+  Although Phaethon''s initial strike failed, the promise of the Forbidden Zone remains
+  too exciting for them to abandon. A small Phaethon outpost remains to this day near
+  Thaleira, well-defended and biding their time. Vulcanus too is biding his time,
+  waiting for the right moment to expel the arrogant interlopers from this sacred
+  land.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Siege Bolts
+  description: 'Vulcanus rips a Barricade to shreds with three heavy bolts, dealing
+    Attack* 200%/220%/240%/260%/280% damage and inflicting Bleed. Bleed: deals Attack*10%
+    damage every 0.5s for 3s.'
+- name: Chainlinked
+  description: Vulcanus targets an enemy hero with a chained dart, dealing Attack*
+    100%/110%/120%/130%/140% damage, immobilizing and stuns the target for 2s.
+- name: Fire of Hope
+  description: Vulcanus shapes rage into resolve, increasing his Escorts' Attack by
+    10%/15%/20%/25%/30% and Defense 10%/15%/20%/25%/30% .
+- name: Raging Storm
+  description: Vulcanus is skilled in the arts of terror and manipulation, reducing
+    all enemy troops' Attack by 4%/8%/12%/16%/20% .
+- name: Breaker Steel
+  description: There's no steel like the blades in Vulcanus' armory, empowering all
+    troops to deal 20%/40%/60%/80%/100% extra damage after every 5 attacks, and increasing
+    damage taken for the target by 5%/7.5%/10%/12.5%/15% in the next attack.
+- name: True Strike
+  description: Vulcanus' modified armor-piercing arrows reduce enemy Infantry and
+    Lancer Defense by 12%/24%/36%/48%/60% for 3 turns and increase our Marksmen's
+    Attack by 12%/24%/36%/48%/60% for 1 turn.
+- name: Laceration (Lv. 5)
+  description: Reforged in the Undercity workshops, Vulcanus' arrowheads now inflict
+    Bleed on all targets for all damage done. Bleed deals Attack*20% damage every
+    0.5s for 3s.
+- name: Born King (Lv. 5)
+  description: Vulcanus' sense of confidence and unstoppable momentum increases Rally
+    Troops' Attack by 15%.

@@ -1,0 +1,11 @@
+overlay:
+  - name: deals.endless_wayfarer.page
+    region: endless_wayfarer.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - deals.endless_wayfarer
+    steps:
+      - push_scenario:
+          name: deals.endless_wayfarer
+          ttl: 1m

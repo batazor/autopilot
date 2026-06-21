@@ -1,0 +1,26 @@
+enabled: true
+name: Mia's Fortune Hut
+node: deals.mia_fortune_hut
+icon: mia_fortune
+steps:
+  - while_match: mia_fortune_hut.fortune_token_pack_box
+    isRedDot: true
+    max: 1
+    steps:
+      - click: mia_fortune_hut.fortune_token_pack_box
+      - wait: 1s
+      - while_match: fortune_token_pack.free
+        max: 1
+        steps:
+          - click: fortune_token_pack.free
+          - wait: 1s
+          - while_match: tapanywhereyoexit
+            expected: ["tap anywhere"]
+            max: 1
+            steps:
+              - click: tapanywhereyoexit
+              - wait: 1s
+      - click: icon.page.back
+      - wait: 1s
+      - click: mia_fortune_hut.select_reward_wish
+      - wait: 1s

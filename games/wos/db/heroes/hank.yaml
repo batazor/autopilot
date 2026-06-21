@@ -1,0 +1,132 @@
+id: hank
+name: Hank
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/hank-2/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: 23,637
+    def: 30,812
+    health: 462,204
+  expedition:
+    attack: 1961.56%
+    defense: 1961.56%
+story: 'Atop the vast tundra lie regions where humanity struggles to survive, whether
+  due to harsh terrain or wild beasts. The mission of the Icebreaker Alliance is to
+  conquer these perilous lands and expand the horizons of human civilization to survive
+  this long winter of raging winds and heavy snow. Hank belongs to the Icebreaker
+  Alliance as one of its fearless pioneers.
+
+
+  Gifted with tremendous strength and great courage, Hank has developed immense willpower
+  through his decades of pioneering adventures, including countless clashes with bandits
+  amidst the lawless icefields. Through all those battles, Hank mastered the art of
+  wielding a variety of hand tools as weapons, allowing him to take on up to ten enemies
+  at a time.
+
+
+  The Icebreaker Alliance''s most celebrated achievement has to be the establishment
+  of Arena tournaments that swept across the tundra, of which Hank is a massive fan.
+
+
+  He knows the stats of every Arena legend by heart, possesses a deep understanding
+  of Arena tactics and formations, and he''s even put forth new strategic concepts
+  of his own. Armed with such strength and skill, Hank could certainly find success
+  in the Arena himself, but he seems happy to remain a spectator. Anyway, the tactics
+  he learns from watching matches are all useful in his everyday combat work.
+
+
+  Hank might seem like just another tough guy, but he''s also got a tender heart.
+  His chainsaw is rugged, but he can also use it to craft exquisite works of art,
+  including carvings in ice and wood. He even dreams up fantastic stories for the
+  lifelike figures he creates, which tundra children find enthralling. Not only that,
+  but Hank is also a chef who specializes in desserts. Patrick often uses him as a
+  taste-tester to sample his wildly imaginative new dishes.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Frenzied Slashes
+  description: Hank switches his circular saw to "Frenzy" mode to perform two slashes
+    in a row. Each slash deals Attack* 120%/130%/140%/150%/160% damage to frontal
+    enemies within range, while also reducing their Defense by 10%/15%/20%/25%/30%
+    for 2s.
+- name: Urgent Energy
+  description: Hank's backup power unit activates when things get tough, increasing
+    his circular saw's destructive power. When Hank's Health drops below 50%, his
+    Attack increases by 10%/15%/20%/25%/30% . This can be triggered once per battle.
+- name: Recycle & Reuse
+  description: As a master of improvisation, Hank can use combat scrap to heal himself.
+    10%/15%/20%/25%/30% of Hank's damage dealt is converted into Health for himself.
+- name: Roaring Rage
+  description: Hank's rage and the roaring of his chainsaw ignite the fighting spirit
+    of all troops, boosting all troops' Lethality by 5%/10%/15%/20%/25% .
+- name: Flying Sparks
+  description: The sparks of the chainsaw ignite allied morale. For every 5 attacks
+    Hank's Infantry perform, the damage dealt by all allied troops is increased by
+    5%/10%/15%/20%/25% , while their damage taken is reduced by 5%/10%/15%/20%/25%
+    .
+- name: Raging Force
+  description: Hank's wild attacks weaken enemy morale. Every 4 turns, the damage
+    taken by enemy Infantry is increased by 6%/12%/18%/24%/30% , while the damage
+    dealt by enemy Marksmen is reduced by 6%/12%/18%/24%/30% . This effect lasts for
+    2 turns.
+- name: Steel Barricade
+  description: Slash your heart away under the protection of sturdy armor. Hank gains
+    a shield worth Attack*220% when using the Frenzied Slashes skill for 3 seconds.
+- name: Wall of Despair
+  description: Hank's courage and willpower bolster defenses, increasing the Health
+    of Defender Troops by 15%.

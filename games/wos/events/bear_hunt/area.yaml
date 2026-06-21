@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "bear_hunt.info.title",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 2.0833,
+            "y": 16.5625,
+            "width": 31.9444,
+            "height": 3.5938,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "bear_hunt.trap_enhancement",
+          "action": "exist",
+          "threshold": 0.85,
+          "has_red_dot": true,
+          "bbox": {
+            "x": 83.0556,
+            "y": 88.9063,
+            "width": 13.0556,
+            "height": 6.4063,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.bear_hunt",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.00989279230645,
+            "y": 64.95259135915782,
+            "width": 6.783707865168489,
+            "height": 3.623747412688443,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/world.png",
+      "regions": [
+        {
+          "name": "bear_hunt.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 37.4054879544674,
+            "y": 53.72609667251699,
+            "width": 23.00561797752807,
+            "height": 7.408614515228175,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/hold_rally.png",
+      "regions": []
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/deploy.png",
+      "regions": []
+    }
+  ]
+}

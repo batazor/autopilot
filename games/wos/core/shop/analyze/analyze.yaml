@@ -1,0 +1,13 @@
+include:
+  - pages/main_city.yaml
+  - pages/common.yaml
+  - pages/dawn_market.yaml
+  - pages/daily_deals.yaml
+  - pages/mix_match.yaml
+  - pages/dawn_fund.yaml
+  - pages/construction_queue.yaml
+  - pages/weekly_monthly_cards.yaml
+  - pages/get_gems.yaml
+  - pages/artisans_trove.yaml
+  - pages/custom_artistry_chest.yaml
+  - pages/regular_pack.yaml

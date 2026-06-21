@@ -1,0 +1,10 @@
+overlay:
+  - name: welcome_back.confirm.visible
+    region: button.confirm.green
+    action: findIcon
+    device_level: true
+    priority: 120_000
+    threshold: 0.9
+    ttl: 5s
+    steps:
+      - click: button.confirm.green

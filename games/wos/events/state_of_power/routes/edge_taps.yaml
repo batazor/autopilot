@@ -1,0 +1,19 @@
+# Reaching the State of Power tab of the Events panel.
+#
+# The fixed `events.button` on main_city opens the Events panel, which defaults
+# to the State of Power tab while SoP is the active/primary event. This replaces
+# the old floating-icon `template_icon` resolver: the icon only appears while SoP
+# runs AND its template crop was never committed (template_load_failed), so the
+# edge — and everything routed through it, notably event.calendar — was dead.
+#
+# The navigator verifies `event.state_of_power` after the tap (with retries), so
+# the panel-open animation is tolerated. If the panel instead opens straight on
+# the Calendar tab, the verify fails and the navigator's next attempt detects the
+# real screen (event.calendar) and resolves from there — so calendar routing is
+# robust either way.
+edges:
+  main_city:
+    event.state_of_power: [events.button]
+
+  event.state_of_power:
+    main_city: [icon.page.back]

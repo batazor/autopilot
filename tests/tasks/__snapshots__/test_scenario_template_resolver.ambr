@@ -1,0 +1,56 @@
+# serializer version: 1
+# name: test_load_doc_substitutes_onboarding_pointer
+  dict({
+    'device_level': True,
+    'enabled': True,
+    'name': 'Onboarding click · Hand pointer',
+    'priority': 100000,
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'hand_pointer',
+          }),
+          dict({
+            'wait': '0.5s',
+          }),
+        ]),
+        'while_match': 'hand_pointer',
+      }),
+    ]),
+  })
+# ---
+# name: test_load_doc_substitutes_placeholders
+  dict({
+    'enabled': False,
+    'name': '⬆️ Level up · Bahiti',
+    'node': 'page.heroes.bahiti',
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'page.heroes.unit.upgrade_tap',
+          }),
+          dict({
+            'wait': '0.8s',
+          }),
+          dict({
+            'ocr': 'page.heroes.unit.name',
+            'store': 'page.heroes.unit.name',
+          }),
+          dict({
+            'ocr': 'page.heroes.unit.level',
+            'store': 'page.heroes.unit.level',
+            'type': 'integer',
+          }),
+          dict({
+            'exec': 'sync_hero_unit',
+          }),
+        ]),
+        'while_match': 'page.heroes.unit.upgrade',
+      }),
+    ]),
+  })
+# ---
