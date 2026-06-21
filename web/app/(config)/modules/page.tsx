@@ -495,6 +495,7 @@ export default function ModulesPage() {
           </div>
         </div>
       </PageHeader>
+      <div className="page-stack">
       <AppTabs
         tabs={GAME_TABS.map((g) => ({ key: g.id, label: g.label, title: g.id }))}
         selectedKey={game}
@@ -583,7 +584,7 @@ export default function ModulesPage() {
         onRetry={() => void reload()}
         retrying={loading}
       />
-      <section className="panel module-editor-panel">
+      <section className="panel">
         <div className="module-panel-head">
           <div>
             <h2>Modules</h2>
@@ -663,6 +664,7 @@ export default function ModulesPage() {
           </div>
         )}
       </section>
+      </div>
     </>
   );
 }

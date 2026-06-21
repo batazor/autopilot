@@ -32,7 +32,6 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/fish-detect": "overlay-test",
   "/queue": "queue",
   "/routes": "routes",
-  "/optimizer": "optimizer",
   "/gift-codes": "gift-codes",
   "/dreamscape-memory": "dreamscape-memory",
   "/notify-monitor": "notify-monitor",
@@ -46,5 +45,4 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/edit-dsl": "edit-dsl",
   "/modules": "modules",
   "/adb": "adb",
-  "/balance": "balance",
 };

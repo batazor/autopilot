@@ -20,6 +20,6 @@ Opens http://127.0.0.1:3000/overview (API :8765). Worker is **not** started by d
 uv run bot
 ```
 
-**Split terminals** (same as before): `uv run bot`, `uv run api`, `cd web && npm run dev`.
+**Split terminals** (same as before): `uv run bot`, `uv run api`, `cd web && pnpm dev`.
 
 Optional env: `WOS_PLAY_NO_WEB=1`, `WOS_PLAY_NO_API=1`, `WOS_PLAY_OPEN_BROWSER=0`, `WOS_FORCE_RESTART=1`.

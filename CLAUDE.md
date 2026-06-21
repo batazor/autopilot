@@ -31,7 +31,7 @@ uv run play          # API + Next.js → http://127.0.0.1:3000/overview
                      # then press "Start bot" in the dashboard sidebar to spawn the worker
 ```
 
-**Split terminals** (optional): `uv run bot`, `uv run api`, `cd web && npm run dev`.
+**Split terminals** (optional): `uv run bot`, `uv run api`, `cd web && pnpm dev`.
 
 **Headless mode** (worker + scheduler only, no UI process):
 

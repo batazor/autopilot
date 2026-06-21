@@ -348,6 +348,7 @@ export default function QueuePage() {
       </PageHeader>
       <ErrorBanner message={error} />
 
+      <div className="page-stack">
       {loading && !data ? (
         <MetricsRowSkeleton count={5} className="queue-metrics" />
       ) : (
@@ -678,6 +679,7 @@ export default function QueuePage() {
           />
         )}
       </section>
+      </div>
     </>
   );
 }

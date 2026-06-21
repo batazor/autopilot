@@ -11,15 +11,20 @@
 ARG NODE_VERSION=22
 
 # --- Stage 1: deps -----------------------------------------------------------
-# Just ``npm ci`` with the lockfile. The cache mount keeps ``~/.npm`` warm so
+# ``pnpm install --frozen-lockfile`` against the committed lockfile. corepack
+# ships with Node and activates the exact pnpm pinned in package.json's
+# ``packageManager`` field. The cache mount keeps the pnpm store warm so
 # rebuilds without dep changes complete in seconds.
 FROM node:${NODE_VERSION}-bookworm-slim AS deps
 
+RUN corepack enable
 WORKDIR /app
-COPY web/package.json web/package-lock.json ./
+# pnpm-workspace.yaml carries nodeLinker:hoisted (flat node_modules like npm)
+# and allowBuilds:sharp (native libvips for Next's image optimizer).
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 COPY web/scripts/ ./scripts/
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 
 # --- Stage 2: builder --------------------------------------------------------
@@ -49,7 +54,7 @@ ENV WOS_API_URL=${WOS_API_URL} \
 # Cache the Next build cache across builds — recompiling untouched files is
 # what dominates rebuild time once node_modules is stable.
 RUN --mount=type=cache,target=/app/.next/cache \
-    npm run build
+    pnpm run build
 
 
 # --- Stage 3: runner ---------------------------------------------------------

@@ -294,7 +294,7 @@
   }
 
   .module-toolbar {
-    @apply mb-4 flex flex-wrap items-center gap-2;
+    @apply flex flex-wrap items-center gap-2;
   }
 
   .module-toolbar-button {
@@ -346,9 +346,6 @@
     @apply h-9 w-full gap-1.5 sm:w-auto;
   }
 
-  .module-editor-panel {
-    @apply mt-4;
-  }
 
   .module-panel-head {
     @apply mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2;

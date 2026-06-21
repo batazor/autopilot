@@ -11,10 +11,6 @@
     @apply xl:grid-cols-5;
   }
 
-  .queue-panel + .queue-panel {
-    @apply mt-4;
-  }
-
   .queue-pending-order-hint {
     @apply mb-3;
   }

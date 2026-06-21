@@ -198,13 +198,15 @@ export default function RoutesPage() {
 
   return (
     <>
-      <PageHeader title="Screen routes" fleet />
-      <p className="meta">
-        Screen tree from <code>main_city</code> — plan paths and inspect transitions
-        from the navigation graph (<code>area.json</code> / screen graph).
-      </p>
+      <PageHeader title="Screen routes" fleet>
+        <p className="muted">
+          Screen tree from <code>main_city</code> — plan paths and inspect transitions
+          from the navigation graph (<code>area.json</code> / screen graph).
+        </p>
+      </PageHeader>
       {error ? <div className="error-banner">{error}</div> : null}
 
+      <div className="page-stack">
       {m ? (
         <MetricGrid>
           <MetricCard label="Tree edges" value={m.tree_edges} />
@@ -432,6 +434,7 @@ export default function RoutesPage() {
           </div>
         </section>
       )}
+      </div>
     </>
   );
 }

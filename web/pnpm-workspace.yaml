@@ -1,0 +1,11 @@
+# pnpm settings home (pnpm 10+ no longer reads the "pnpm" key in package.json
+# nor node-linker from .npmrc). See https://pnpm.io/settings.
+#
+# hoisted node-linker → a flat node_modules like npm, so directly-imported
+# transitive deps (monaco-editor, @svar-ui/calendar-store) keep resolving and
+# the svar-exports postinstall fixup behaves as before.
+nodeLinker: hoisted
+# Only sharp may run its install/build script (native libvips for Next's image
+# optimizer); every other dependency stays sandboxed.
+allowBuilds:
+  sharp: true

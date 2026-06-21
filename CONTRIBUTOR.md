@@ -13,7 +13,7 @@ Setup for **editing the code**. End-users who just want to run the bot are bette
 | Tesseract OCR | 5+ with `eng.traineddata` | `brew install tesseract` / OS package manager |
 | Android Platform Tools (`adb`) | latest | [Download](https://developer.android.com/tools/releases/platform-tools) |
 | BlueStacks | 5+ | [Download](https://www.bluestacks.com/) |
-| Node.js (Web UI only) | 20+ | [nodejs.org](https://nodejs.org/) — `npm install` in `web/` |
+| Node.js (Web UI only) | 20+ | [nodejs.org](https://nodejs.org/) — `pnpm install` in `web/` |
 
 > The emulator must be **720 × 1280, 320 DPI, English game language** — see the [Emulator Configuration](README.md#-emulator-configuration) section in the README for the full required-settings table.
 
@@ -80,9 +80,9 @@ docker compose up -d redis
 uv run play          # API + Next.js → http://127.0.0.1:3000/overview (Start bot in sidebar)
 ```
 
-Requires **Node.js 20+** in `web/` (`npm` on PATH; `play` runs `npm install` once if needed). Keep BlueStacks running and the device visible in `adb devices` first.
+Requires **Node.js 20+** in `web/` (`pnpm` on PATH; `play` runs `pnpm install` once if needed). Keep BlueStacks running and the device visible in `adb devices` first.
 
-**Split terminals** (optional): `uv run bot`, `uv run api`, `cd web && npm run dev`.
+**Split terminals** (optional): `uv run bot`, `uv run api`, `cd web && pnpm dev`.
 
 **Labeling** (versions, basename promote): http://127.0.0.1:3000/labeling.
 

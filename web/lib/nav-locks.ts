@@ -25,7 +25,7 @@ export function isLockDisabling(lock: NavLock | null | undefined): boolean {
   return lock?.kind === "soon";
 }
 
-const COMING_SOON_HREFS = new Set<string>(["/optimizer", "/balance"]);
+const COMING_SOON_HREFS = new Set<string>([]);
 // "wip" is resolved before "soon" below, so a route here shows the WIP badge
 // and stays clickable even if it also appears in COMING_SOON. Removing it from
 // this set restores whatever lock that set implies.

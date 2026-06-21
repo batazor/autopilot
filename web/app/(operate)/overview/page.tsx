@@ -31,6 +31,7 @@ import { DataTableSkeleton } from "@/components/skeleton/DataTableSkeleton";
 import { MetricsRowSkeleton } from "@/components/skeleton/MetricsRowSkeleton";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Button } from "@/components/ui/Button";
+import { Dash } from "@/components/ui/Dash";
 import { DailyTasksButton } from "@/components/quests/DailyTasksButton";
 import { MetricCard, MetricGrid } from "@/components/ui";
 import { fetchOverview, toggleInstancePause } from "@/lib/api";
@@ -128,10 +129,11 @@ export default function OverviewPage() {
         retrying={overview.isFetching}
       />
 
-      <AttentionPanel />
+      <div className="page-stack">
+        <AttentionPanel />
 
-      {loading && !m ? <MetricsRowSkeleton count={5} /> : null}
-      {m ? (
+        {loading && !m ? <MetricsRowSkeleton count={5} /> : null}
+        {m ? (
         <MetricGrid>
           <MetricCard label="Instances" value={String(m.instances)} />
           <MetricCard
@@ -176,7 +178,7 @@ export default function OverviewPage() {
         <FleetStatusGrid fleet={optimisticFleet} onOpen={openInstance} />
       ) : null}
 
-      <section className="panel panel--spaced">
+      <section className="panel">
         <div className="fleet-section__head">
           <h2>Fleet</h2>
           {data?.has_devices && optimisticFleet.length ? (
@@ -253,6 +255,7 @@ export default function OverviewPage() {
           </p>
         ) : null}
       </section>
+      </div>
     </>
   );
 }
@@ -270,6 +273,29 @@ function GameIcon({ game }: { game: string }) {
       className="inline-block h-4 w-4 shrink-0 rounded"
       title={slug}
     />
+  );
+}
+
+/** Compact "stove / kid" readout for a player sub-row. Renders only the
+ *  segments that have a value so an empty account stops printing
+ *  "stove — · kid —"; both blank collapses to a single muted dash. */
+function StoveKid({ stove, kid }: { stove: string; kid: string }) {
+  const s = stove && stove !== "—" ? stove : null;
+  const k = kid && kid !== "—" ? kid : null;
+  if (!s && !k) return <Dash />;
+  return (
+    <span className="inline-flex items-center gap-2 tabular-nums">
+      {s ? (
+        <span>
+          <span className="text-wos-text-muted">stove</span> {s}
+        </span>
+      ) : null}
+      {k ? (
+        <span>
+          <span className="text-wos-text-muted">kid</span> {k}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -326,7 +352,7 @@ function fleetRows(
             {row.active_player}
           </Link>
         ) : (
-          "—"
+          <Dash />
         )}
       </td>
       <td>
@@ -338,7 +364,7 @@ function fleetRows(
             {row.node}
           </Link>
         ) : (
-          "—"
+          <Dash />
         )}
       </td>
       <td>
@@ -350,10 +376,10 @@ function fleetRows(
             {row.task}
           </Link>
         ) : (
-          "—"
+          <Dash />
         )}
       </td>
-      <td>{row.uptime || "—"}</td>
+      <td>{row.uptime && row.uptime !== "—" ? row.uptime : <Dash />}</td>
       <td className="fleet-row__alert" title={row.alert || undefined}>
         {row.alert ? (
           <Link
@@ -363,7 +389,7 @@ function fleetRows(
             {row.alert}
           </Link>
         ) : (
-          "—"
+          <Dash />
         )}
       </td>
       <td onClick={(e) => e.stopPropagation()}>
@@ -395,12 +421,16 @@ function fleetRows(
       </td>
       <td>{p.on_device ? "● on device" : ""}</td>
       <td colSpan={2}>
-        <Link
-          href={playerStateHref(p.who, { instanceId: row.instance_id })}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {p.nickname}
-        </Link>
+        {p.nickname && p.nickname !== "—" ? (
+          <Link
+            href={playerStateHref(p.who, { instanceId: row.instance_id })}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {p.nickname}
+          </Link>
+        ) : (
+          <Dash />
+        )}
       </td>
       <td>
         {p.in_game_id && p.in_game_id !== "—" ? (
@@ -411,11 +441,11 @@ function fleetRows(
             {p.in_game_id}
           </Link>
         ) : (
-          "—"
+          <Dash />
         )}
       </td>
       <td colSpan={2}>
-        stove {p.stove} · kid {p.kid}
+        <StoveKid stove={p.stove} kid={p.kid} />
       </td>
       <td>
         <span className="inline-flex items-center gap-2">

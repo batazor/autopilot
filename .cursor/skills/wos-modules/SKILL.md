@@ -116,7 +116,7 @@ For `modules/core/survivors`, use `survivors` (or `core/survivors`) and let the 
 
 ## Labeling UI deep-link
 
-**Primary (Next.js):** http://127.0.0.1:3000/labeling — `uv run play` or `uv run api` + `cd web && npm run dev`.
+**Primary (Next.js):** http://127.0.0.1:3000/labeling — `uv run play` or `uv run api` + `cd web && pnpm dev`.
 
 | Param | Value | Example |
 |-------|-------|---------|

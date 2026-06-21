@@ -11,7 +11,7 @@ Stack: **[Tailwind CSS v4](https://tailwindcss.com/docs/installation/framework-g
 | Tool | Notes |
 |------|--------|
 | [uv](https://docs.astral.sh/uv/) | `uv sync` at repo root |
-| Node.js 20+ | `npm install` in `web/` |
+| Node.js 20+ | `pnpm install` in `web/` |
 | Redis | `docker compose up -d redis` |
 | Running bot | `uv run play` (worker + API + Next.js) **or** `uv run bot` (headless worker only) |
 
@@ -35,7 +35,7 @@ Open http://127.0.0.1:3000/overview (redirects from `/`).
 ```sh
 uv run bot                   # headless worker + scheduler only
 uv run api                   # FastAPI on :8765
-cd web && npm install && npm run dev
+cd web && pnpm install && pnpm dev
 ```
 
 **Styles** are split under `web/app/styles/` (see `web/app/styles/README.md`). Entry: `web/app/globals.css`.
@@ -44,7 +44,7 @@ cd web && npm install && npm run dev
 
 ```sh
 rm -rf .next
-npm run dev
+pnpm dev
 ```
 
 Then hard-refresh the browser (Cmd+Shift+R). This usually happens after a failed compile left `.next` in a bad state.

@@ -2,6 +2,7 @@
 
 import type { KeyboardEvent } from "react";
 import { StatusPill } from "@/components/ui/StatusPill";
+import { Dash } from "@/components/ui/Dash";
 import type { FleetInstanceRow } from "@/lib/types";
 
 /** Status → accent color (CSS var) for the rail + dot. */
@@ -30,9 +31,7 @@ function Field({ label, value }: { label: string; value: string }) {
       <dt className="text-[10px] font-semibold uppercase tracking-wide text-wos-text-muted">
         {label}
       </dt>
-      <dd className="m-0 truncate text-wos-text">
-        {clean ?? <span className="text-wos-text-muted">—</span>}
-      </dd>
+      <dd className="m-0 truncate text-wos-text">{clean ?? <Dash />}</dd>
     </div>
   );
 }
@@ -53,7 +52,7 @@ export function FleetStatusGrid({
 
   return (
     <div
-      className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(16rem,1fr))]"
+      className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))]"
       role="list"
       aria-label="Fleet status"
     >

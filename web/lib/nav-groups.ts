@@ -99,7 +99,6 @@ export const NAV_GROUPS: NavGroup[] = [
         description: "Fleet task queue",
       },
       { href: "/routes", label: "Routes" },
-      { href: "/optimizer", label: "Optimizer" },
     ],
   },
   {
@@ -117,12 +116,11 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: "config",
     label: "Config",
-    description: "ADB, modules & balance",
+    description: "ADB & modules",
     defaultHref: "/adb",
     tabs: [
       { href: "/adb", label: "ADB" },
       { href: "/modules", label: "Modules" },
-      { href: "/balance", label: "Balance" },
     ],
   },
 ];

@@ -7,6 +7,7 @@ export { Card } from "./Card";
 export { Pill, type PillTone } from "./Pill";
 export { StatusPill } from "./StatusPill";
 export { Chip } from "./Chip";
+export { Dash } from "./Dash";
 export { Toggle } from "./Toggle";
 export { MetricCard, type MetricTone } from "./MetricCard";
 export { MetricGrid } from "./MetricGrid";

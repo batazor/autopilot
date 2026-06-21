@@ -84,11 +84,11 @@ def test_start_web_exits_cleanly_when_build_is_interrupted(tmp_path, capsys) -> 
 
     with (
         patch("worker.launch._clear_port_or_fail"),
-        patch("worker.launch.shutil.which", return_value="/usr/bin/npm"),
+        patch("worker.launch.shutil.which", return_value="/usr/bin/pnpm"),
         patch(
             "worker.launch.subprocess.run",
             side_effect=launch.subprocess.CalledProcessError(
-                130, ["/usr/bin/npm", "run", "build"]
+                130, ["/usr/bin/pnpm", "run", "build"]
             ),
         ),
         pytest.raises(SystemExit) as exc_info,
@@ -106,11 +106,11 @@ def test_start_web_reports_build_failure_without_traceback(tmp_path) -> None:
 
     with (
         patch("worker.launch._clear_port_or_fail"),
-        patch("worker.launch.shutil.which", return_value="/usr/bin/npm"),
+        patch("worker.launch.shutil.which", return_value="/usr/bin/pnpm"),
         patch(
             "worker.launch.subprocess.run",
             side_effect=launch.subprocess.CalledProcessError(
-                1, ["/usr/bin/npm", "run", "build"]
+                1, ["/usr/bin/pnpm", "run", "build"]
             ),
         ),
         pytest.raises(SystemExit, match=r"Next\.js build failed with exit code 1\."),

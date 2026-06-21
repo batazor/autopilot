@@ -360,19 +360,22 @@ class _PlayStack:
 
     def start_web(self, web_dir: Path, *, host: str, port: int) -> None:
         _clear_port_or_fail(host=host, port=port, label="Next.js")
-        npm = shutil.which("npm")
-        if npm is None:
-            msg = "npm not found on PATH — install Node.js 20+ to run the Next.js dashboard."
+        pnpm = shutil.which("pnpm")
+        if pnpm is None:
+            msg = (
+                "pnpm not found on PATH — install pnpm (`npm install -g pnpm` or "
+                "`corepack enable`) to run the Next.js dashboard."
+            )
             raise SystemExit(msg)
         if not (web_dir / "node_modules").is_dir():
-            print("Installing web dependencies (npm install)…", flush=True)
+            print("Installing web dependencies (pnpm install)…", flush=True)
             _run_required(
-                [npm, "install"],
+                [pnpm, "install"],
                 cwd=web_dir,
                 env=self._env,
                 label="Web dependency install",
             )
-        print("Building Next.js (npm run build)…", flush=True)
+        print("Building Next.js (pnpm run build)…", flush=True)
         # Cap build workers so the static-generation pass doesn't OOM-kill a
         # worker under memory pressure (e.g. a preview dev server also up). The
         # default is one worker per core — on a many-core box that is a lot of
@@ -382,7 +385,7 @@ class _PlayStack:
         build_env = dict(self._env)
         build_env.setdefault("WOS_BUILD_CPUS", str(_default_build_cpus()))
         _run_required(
-            [npm, "run", "build"],
+            [pnpm, "run", "build"],
             cwd=web_dir,
             env=build_env,
             label="Next.js build",
