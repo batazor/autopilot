@@ -1,0 +1,13 @@
+enabled: true
+name: Onboarding click · Upgrade (building interior)
+device_level: true
+priority: 100_000
+steps:
+  # Building-management interior: tap the blue "Upgrade" button (an already-built
+  # station leveling up — the "upgrade a station to Lv.N" tutorial steps). Same
+  # button slot as build_interior, only the word changes Build → Upgrade.
+  - while_match: onboarding.button.upgrade
+    max: 1
+    steps:
+      - click: onboarding.button.upgrade
+      - wait: 1.5s

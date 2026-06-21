@@ -1,0 +1,9 @@
+id: childrens_day
+title: Children's Day
+description: Limited-time Children's Day event hub; prepared for main-menu claimable rows.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: childrens_day
+wiki: false

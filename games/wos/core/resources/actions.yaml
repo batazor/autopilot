@@ -1,0 +1,111 @@
+# Shared resource world for Whiteout Survival.
+#
+# Declarative action table consumed by games.wos.core.resources.allocator. Edit
+# here (config-as-code) — there is no UI editor for these values. Each action
+# declares a *cost vector*: a march/raid usually spends a march slot AND troops
+# AND heroes (and sometimes stamina) at once, so the allocator checks the whole
+# bundle before dispatching one action per tick (highest priority that fits).
+#
+# `active_when` is a python-expression cond (use `and`/`or`, not SQL `AND`)
+# evaluated by layout.area_versions.eval_cond against the player's flat state;
+# event-window flags (e.g. bear_hunt_event_active) are written by the calendar
+# reader — same source the stamina allocator's conditions read.
+#
+# DISABLED on purpose. The planner stays dormant until:
+#   1. the troop-pool + hero-roster readers exist (resources below flip to
+#      observed: true), and
+#   2. the consumer scenarios (task_type) are real, not no-op stubs.
+# With `observed: false` + `unobserved_policy: block`, every action that needs
+# troops or heroes is held back, so flipping `enabled: true` prematurely cannot
+# fire a march we can't actually staff.
+enabled: false
+unobserved_policy: block        # "block" until readers land | "optimistic"
+daily_reset_utc: "02:00"        # TODO: confirm the in-game daily reset hour (UTC)
+
+resources:
+  march_slots:                  # concurrency cap (2..6); capacity read from state
+    kind: slot_lease            # marches.capacity / marches.active_count ✅ read
+    observed: true
+
+  stamina:                      # capped, regenerating pool (1 / 5 min) ✅ read
+    kind: pool_regen
+    observed: true
+    cap: 200
+    regen_per_hour: 12
+
+  troops:                       # ⏳ reader pending → sync_troop_pool writes
+    kind: typed_pool            #    troops.<type>.available / .wounded
+    observed: false
+    types: [infantry, lancer, marksman]
+
+  heroes:                       # ⏳ reader pending → sync_hero_roster writes
+    kind: exclusive_set         #    heroes.<id>.{roles,free}; one march per hero
+    observed: false
+    roles: [combat, gatherer]
+
+# Troop `amount` values are nominal until the troop reader lands (a march's real
+# size scales with hero levels + Command Center). They don't gate anything while
+# troops are unobserved.
+actions:
+  - id: bear_hunt_trap
+    task_type: event.bear_hunt.rally
+    priority: 90
+    active_when: "bear_hunt_event_active"
+    reserve: {march_slots: 1}   # hold a slot for the bear during its window
+    lease_seconds: 1800         # rally staging + combat (~30m); estimate
+    costs:
+      - {resource: march_slots, amount: 1}
+      - {resource: stamina, amount: 0}        # Hunting Trap rallies cost no stamina
+      - {resource: troops, type: any, amount: 60000}
+      - {resource: heroes, role: combat, count: 3}
+
+  - id: pve_rally
+    task_type: pve_rally
+    priority: 70
+    active_when: "polar_terror_event_active or cryptid_event_active"
+    lease_seconds: 1800         # rally (~30m); estimate
+    costs:
+      - {resource: march_slots, amount: 1}
+      - {resource: stamina, amount: 25}       # PvE rallies cost 25 stamina
+      - {resource: troops, type: any, amount: 60000}
+      - {resource: heroes, role: combat, count: 3}
+
+  - id: intel_run             # intel *events* (rescue/explore) — a troop march +
+    task_type: intel_run      # stamina. NOT the excluded passive "tent gathering",
+    priority: 60              # which is observed as slot occupancy but not planned.
+    daily_quota: 10
+    lease_seconds: 1200         # march + intel fight (~20m); estimate
+    costs:
+      - {resource: march_slots, amount: 1}
+      - {resource: stamina, amount: 10}
+      - {resource: troops, type: any, amount: 10000}
+
+  - id: beast_hunt
+    task_type: beast_hunt
+    priority: 40
+    lease_seconds: 900          # march + beast fight (~15m); estimate
+    costs:
+      - {resource: march_slots, amount: 1}
+      - {resource: stamina, amount: 10}       # each beast attack costs 10 stamina
+      - {resource: troops, type: any, amount: 60000}
+      - {resource: heroes, role: combat, count: 3}
+
+  - id: rally_join            # auto-join an alliance/PvE rally — occupies a march for
+    task_type: rally_join     # the whole round trip (travel out + event + travel back).
+    priority: 75              # lease_seconds here is a placeholder; the dispatcher
+    active_when: "rally_auto_join_enabled and rally_available"   # recomputes it via
+    lease_seconds: 1800       # model.round_trip_seconds(travel_out, ~1:1 return).
+    costs:
+      - {resource: march_slots, amount: 1}
+      - {resource: stamina, amount: 0}        # a rally JOINER doesn't spend stamina
+      - {resource: troops, type: any, amount: 60000}
+      - {resource: heroes, role: combat, count: 3}
+
+  - id: gather_resources
+    task_type: gather_resources
+    priority: 20
+    lease_seconds: 21600        # gathering runs for HOURS — ties up slot+troops+heroes
+    costs:
+      - {resource: march_slots, amount: 1}
+      - {resource: troops, type: any, amount: 60000}
+      - {resource: heroes, role: gatherer, count: 3}

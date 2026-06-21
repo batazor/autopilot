@@ -1,0 +1,11 @@
+edges:
+  main_city:
+    deals.endless_wayfarer:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/deals/endless_wayfarer/references/main_city.deals.endless_wayfarer.png
+      threshold: 0.9
+
+  deals.endless_wayfarer:
+    deals: [icon.page.back]
+    main_city: [icon.page.back]

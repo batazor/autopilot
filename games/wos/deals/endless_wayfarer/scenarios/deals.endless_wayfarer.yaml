@@ -1,0 +1,28 @@
+enabled: true
+name: Endless Wayfarer
+node: deals.endless_wayfarer
+icon: endless_wayfarer
+steps:
+  # Claimable rewards are square tiles with a bright gold/yellow GLOWING border
+  # (locked tiers have a lock badge + no glow; the featured-but-locked gold cell
+  # is a flat yellow FILL, not a border). The border's bright core is exactly
+  # what the white-border detector keys on, so `isWhiteBorder` finds the gem and
+  # ignores the flat fills. The old gate ran on `button.claim`, which doesn't
+  # match this screen (no Claim button — you tap the bordered tile), so it never
+  # fired; running it on the reward grid is the fix. The match sets the tap point
+  # to the found tile, so `click` lands on it. Loop until no bordered tile remains.
+  - while_match: endless_wayfarer.reward_grid
+    isWhiteBorder: true
+    # Claimable tiles are fixed-size SQUARES (~100px). Constrain the border
+    # slide-find to square, tile-sized matches so it only taps reward tiles —
+    # without this it also fires on small non-square highlights (lock badges /
+    # inner glints ~36x52) once the real tiles are claimed, mis-tapping the UI.
+    min_side_px: 80
+    max_side_px: 150
+    min_aspect: 0.8
+    max_aspect: 1.25
+    max: 6
+    steps:
+      - click: endless_wayfarer.reward_grid
+      - wait: 1500ms
+

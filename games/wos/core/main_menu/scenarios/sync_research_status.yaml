@@ -1,0 +1,12 @@
+enabled: true
+name: "Sync tech research status"
+priority: 70_000
+
+node: main_menu
+
+steps:
+  - ocr: main_menu.research.slot.status
+    store: main_menu.research.slot.status
+  - ocr: main_menu.research.slot.time
+    store: main_menu.research.slot.remaining_s
+  - exec: sync_main_menu_research_status

@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "deals.endless_wayfarer",
+      "ocr": "references/endless_wayfarer.png",
+      "regions": [
+        {
+          "name": "endless_wayfarer.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.188252580685821,
+            "y": 15.65420845105678,
+            "width": 21.225868725868725,
+            "height": 4.09588576850953,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "endless_wayfarer.reward_grid",
+          "action": "text",
+          "bbox": {
+            "x": 3.0,
+            "y": 42.0,
+            "width": 95.0,
+            "height": 56.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

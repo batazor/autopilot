@@ -1,0 +1,16 @@
+id: giant_elk
+name: Giant Elk
+wiki_url: https://www.whiteoutsurvival.wiki/pets/giant-elk/
+rarity: ''
+unlock: Unlock after 140 days and Titan Roc LV.15
+max_refinement: 29.05%
+skill:
+  name: Mystical Finding
+  cooldown: 2d 03:00:00 / 1d 23:00:00 / 1d 19:00:00 / 1d 15:00:00 / 1d 11:00:00 / 1d 07:00:00 / 1d 03:00:00
+    / 23:00:00
+  effect: Guided by its mystical intuition, the Giant Elk unearths an item lost on the Tundra.
+  values: []
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 21.78%
+  max_defense: 21.78%

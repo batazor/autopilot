@@ -1,0 +1,8 @@
+id: account/switch
+title: Account Switch
+description: WOS beta account switching flow.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+wiki: false

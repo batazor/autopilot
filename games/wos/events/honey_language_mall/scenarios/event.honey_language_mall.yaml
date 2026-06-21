@@ -1,0 +1,30 @@
+enabled: true
+name: Honey Language Mall
+priority: 70_000
+node: event.honey_language_mall
+icon: honey_language_mall
+cond: "active_player != null"
+
+steps:
+  - while_match: button.claim
+    max: 5
+    steps:
+      - click: button.claim
+      - wait: 1s
+      - while_match: tapanywhereyoexit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s
+  - while_match: button.claim.big
+    max: 5
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - while_match: tapanywhereyoexit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s

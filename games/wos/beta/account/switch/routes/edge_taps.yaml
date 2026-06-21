@@ -1,0 +1,6 @@
+edges:
+  main_city:
+    account_menu: [main_city.to.account_menu]
+
+  account_menu:
+    switch_menu: [account_menu.to.switch_menu]

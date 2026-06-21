@@ -1,0 +1,69 @@
+overlay:
+- name: page.building.furniture.present
+  region: page.building.furniture
+  action: findIcon
+  threshold: 0.9
+  ttl: 30s
+  steps:
+    - push_scenario: building.upgrade
+# The blue-CTA mask is deliberately permissive — it accepts any blue blob near
+# the anchor — so these rules MUST be screen-gated, or a large blue element on
+# an unrelated screen (e.g. the mail screen's bottom-center button) false-matches
+# the bottom-center upgrade/build anchor and self-pushes a building scenario.
+# Building detail screens report current_screen as the generic ``building``
+# (covers cookhouse, hunters_hut, sawmill and every building without a dedicated
+# screen def) plus the dedicated ``furnace`` / ``shelter`` ids.
+- name: upgrade_building.visible
+  region: upgrade_building
+  action: cta_button
+  color: blue
+  priority: 80_000
+  threshold: 0.5
+  ttl: 20s
+  screens:
+    - building
+    - furnace
+    - shelter
+  steps:
+    - push_scenario: building.upgrade
+- name: upgrade_big_button.visible
+  region: upgrade_big_button
+  action: cta_button
+  color: blue
+  priority: 70_000
+  threshold: 0.5
+  screens:
+    - building
+    - furnace
+    - shelter
+  steps:
+    - push_scenario: tap_upgrade_big_button
+- name: build_button.visible
+  region: build_button
+  action: cta_button
+  color: blue
+  priority: 70_000
+  threshold: 0.5
+  ttl: 5s
+  screens:
+    - building
+    - furnace
+    - shelter
+  steps:
+    - push_scenario: tap_build_button
+# When a building is mid-upgrade the in-game UI shows a HH:MM:SS countdown.
+# Region ``building.upgrading.time`` is tagged ``type: time`` in area.json,
+# so the engine OCRs + parses it to total seconds without an explicit
+# ``type:`` on this rule. The overlay enqueuer then treats the parsed
+# seconds as the effective push-step ``ttl`` and writes the push_ttl
+# marker *instead of* pushing the scenario. Any further pushes of
+# ``building.upgrade`` — overlay or hand-driven — are silently dropped
+# until the in-game upgrade actually finishes. The chapter task itself
+# does the same at its tail (games/wos/core/building/scenarios/building.upgrade.yaml).
+# OCR/time overlay disabled:
+# - name: building.upgrading.detected
+#   region: building.upgrading.time
+#   action: text
+#   ttl: 10s
+#   steps:
+#     - push_scenario: building.upgrade

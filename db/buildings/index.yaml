@@ -1,0 +1,180 @@
+source:
+  name: whiteoutsurvival.wiki
+  url: https://www.whiteoutsurvival.wiki/buildings/
+  fetched_at: '2026-05-28'
+buildings:
+- id: arena
+  name: Arena
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/arena/
+  file: arena.yaml
+- id: barricade
+  name: Barricade
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/barricade/
+  file: barricade.yaml
+- id: beast_cage
+  name: Beast Cage
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/beast-cage/
+  file: beast_cage.yaml
+- id: chief_s_house
+  name: Chief’s House
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/chiefs-house/
+  file: chief_s_house.yaml
+- id: clinic
+  name: Clinic
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/clinic/
+  file: clinic.yaml
+- id: coal_mine
+  name: Coal Mine
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/coal-mine/
+  file: coal_mine.yaml
+- id: command_center
+  name: Command Center
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/command-center/
+  file: command_center.yaml
+- id: cookhouse
+  name: Cookhouse
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/cookhouse/
+  file: cookhouse.yaml
+- id: crystal_laboratory
+  name: Crystal Laboratory
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/crystal-laboratory/
+  file: crystal_laboratory.yaml
+- id: dawn_academy
+  name: Dawn Academy
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/dawn-academy/
+  file: dawn_academy.yaml
+- id: embassy
+  name: Embassy
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/embassy/
+  file: embassy.yaml
+- id: enlistment_office
+  name: Enlistment Office
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/enlistment-office/
+  file: enlistment_office.yaml
+- id: explorers_cabin
+  name: Explorers Cabin
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/explorers-cabin/
+  file: explorers_cabin.yaml
+- id: fire_crystal_command_center
+  name: Fire Crystal Command Center
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/fire-crystal-command-center/
+  file: fire_crystal_command_center.yaml
+- id: fire_crystal_embassy
+  name: Fire Crystal Embassy
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/fire-crystal-embassy/
+  file: fire_crystal_embassy.yaml
+- id: fire_crystal_furnace
+  name: Fire Crystal Furnace
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/fire-crystal-furnace/
+  file: fire_crystal_furnace.yaml
+- id: fire_crystal_infantry_camp
+  name: Fire Crystal Infantry Camp
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/fire-crystal-infantry-camp/
+  file: fire_crystal_infantry_camp.yaml
+- id: fire_crystal_infirmary
+  name: Fire Crystal Infirmary
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/fire-crystal-infirmary/
+  file: fire_crystal_infirmary.yaml
+- id: fire_crystal_lancer_camp
+  name: Fire Crystal Lancer Camp
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/fire-crystal-lancer-camp/
+  file: fire_crystal_lancer_camp.yaml
+- id: fire_crystal_marksman_camp
+  name: Fire Crystal Marksman Camp
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/fire-crystal-marksman-camp/
+  file: fire_crystal_marksman_camp.yaml
+- id: furnace
+  name: Furnace
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/furnace/
+  file: furnace.yaml
+- id: hero_hall
+  name: Hero Hall
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/hero-hall/
+  file: hero_hall.yaml
+- id: hunter_s_hut
+  name: Hunter’s Hut
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/hunters-hut/
+  file: hunter_s_hut.yaml
+- id: infantry_camp
+  name: Infantry Camp
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/infantry-camp/
+  file: infantry_camp.yaml
+- id: infirmary
+  name: Infirmary
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/infirmary/
+  file: infirmary.yaml
+- id: iron_mine
+  name: Iron Mine
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/iron-mine/
+  file: iron_mine.yaml
+- id: lancer_camp
+  name: Lancer Camp
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/lancer-camp/
+  file: lancer_camp.yaml
+- id: lighthouse
+  name: Lighthouse
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/lighthouse/
+  file: lighthouse.yaml
+- id: marksman_camp
+  name: Marksman Camp
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/marksman-camp/
+  file: marksman_camp.yaml
+- id: research_center
+  name: Research Center
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/research-center/
+  file: research_center.yaml
+- id: sawmill
+  name: Sawmill
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/sawmill/
+  file: sawmill.yaml
+- id: shelter
+  name: Shelter
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/shelter/
+  file: shelter.yaml
+- id: storehouse
+  name: Storehouse
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/storehouse/
+  file: storehouse.yaml
+- id: suggestion_box
+  name: Suggestion Box
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/suggestion-box/
+  file: suggestion_box.yaml
+- id: war_academy
+  name: War Academy
+  category: unknown
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/war-academy/
+  file: war_academy.yaml

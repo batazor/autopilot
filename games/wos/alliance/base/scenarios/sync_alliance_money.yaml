@@ -1,0 +1,10 @@
+enabled: true
+name: Sync alliance money
+node: alliance.tech
+priority: 70_000
+cond: "active_player != null"
+
+steps:
+  - ocr: alliance.money
+    type: integer
+    state: alliance.money

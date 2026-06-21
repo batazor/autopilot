@@ -1,0 +1,12 @@
+id: arena
+title: Arena
+description: >-
+  Arena of Glory (hero PvP) automation — spend the daily free challenges:
+  open the challenge list, fight each opponent, dismiss the result. Points are
+  only gained by attacking and never lost on defeat, so it is always safe to
+  fight every available challenge.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

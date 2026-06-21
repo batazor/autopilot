@@ -1,0 +1,7 @@
+screens:
+  sawmill:
+    priority: 31
+    rules:
+    - ocr: building.title
+      contains: Sawmill
+      threshold: 0.8

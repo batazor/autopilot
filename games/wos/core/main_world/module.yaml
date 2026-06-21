@@ -1,0 +1,7 @@
+id: main_world
+title: Main world
+description: >-
+  World map (overworld) screen — reached via the globe button from main_city.
+  Sibling hub to main_city; a routing node so scenarios can enter map-side
+  events directly instead of detouring through the city.
+wiki: false

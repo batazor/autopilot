@@ -1,0 +1,13 @@
+enabled: true
+name: Onboarding click · Build / Upgrade (building interior)
+device_level: true
+priority: 100_000
+steps:
+  # Building-management interior (Furniture/Survivor tabs): tap the light-blue
+  # "Build"/"Upgrade" button to advance the upgrade-a-station tutorial step.
+  # Same button style across every building's interior.
+  - while_match: onboarding.button.build_interior
+    max: 1
+    steps:
+      - click: onboarding.button.build_interior
+      - wait: 1.5s

@@ -1,0 +1,480 @@
+from __future__ import annotations
+
+import dataclasses
+import json
+import logging
+import time
+import uuid
+from contextlib import suppress
+from typing import TYPE_CHECKING, Any
+
+import redis.asyncio as aioredis
+
+from config.paths import repo_root
+from config.redis_health import ping_async_redis_or_exit
+from navigation.lifecycle_states import InstanceState
+from scheduler.claims import CooperativeClaims
+from scheduler.queue import QueueItem, RedisQueue
+
+logger = logging.getLogger(__name__)
+
+_INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
+
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerRedisMixin(_Base):
+    _cfg: Any
+    _redis: aioredis.Redis | None
+    _queue: RedisQueue | None
+    _claims: Any
+    _instance_state: InstanceState
+    _task_registry: dict[str, type]
+
+    async def _connect(self) -> None:
+        from config.redis_metrics import instrument_redis_client
+
+        settings = self._settings
+        if self._redis is None:
+            url = settings.redis.url
+            self._redis = aioredis.from_url(
+                url,
+                socket_connect_timeout=5.0,
+            )
+            instrument_redis_client(self._redis, component="worker")
+            await ping_async_redis_or_exit(self._redis, url=url)
+        if self._queue is None:
+            self._queue = RedisQueue(self._redis, settings)
+        self._claims = CooperativeClaims(self._redis)
+
+        inst_key = _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id)
+        # ``current_task_*`` / ``current_scenario`` / ``last_overlay_match_*``
+        # are deliberately NOT reset here — they're the only breadcrumbs left
+        # of a task that was in flight when the previous worker died, and
+        # ``_fail_stuck_running_on_boot`` reads them to write a history entry
+        # when ``wos:queue:running:<iid>`` has already TTL'd away (restart
+        # more than 180s after the crash). The boot cleanup wipes them after.
+        # ``worker_started_at`` is intentionally NOT written here. The
+        # supervisor stamps it once when it boots a fresh wave of workers
+        # (see ``Supervisor.run``); leaving it alone here means a crash +
+        # auto-restart of this subprocess preserves the original session's
+        # uptime instead of resetting to "0s" every time we reconnect.
+        # Restore the last-identified player from the durable device registry so
+        # a worker restart skips the ``who_i_am`` probe (gated on
+        # ``active_player == ""``). Falls back to "" when nothing was ever
+        # identified — the probe then runs as before. A game relaunch clears
+        # ``active_player`` again (see ``_restart_instance`` /
+        # ``game_health_watchdog``) so an account switch is re-verified lazily.
+        restored_player = ""
+        with suppress(Exception):
+            from config.devices import get_last_active_player
+
+            restored_player = get_last_active_player(
+                self._cfg.instance_id, self._cfg.bluestacks_window_title
+            )
+        active_player_mapping: dict[str, str] = {"active_player": restored_player}
+        if restored_player:
+            active_player_mapping["active_player_at"] = str(time.time())
+        await self._redis.hset(
+            inst_key,
+            mapping={
+                "state": InstanceState.READY,
+                **active_player_mapping,
+                "paused": "0",
+                "last_seen_at": str(time.time()),
+                "last_error": "",
+                "nav_error": "",
+                "nav_target": "",
+                "current_screen": "",
+                # The game this worker is actually running. Persisted so the
+                # dashboard's per-instance game badge reflects what's live (or
+                # last ran) rather than the static device-profile config — the
+                # field survives worker stop, so it doubles as "last game run".
+                "game": str(getattr(self._cfg, "game", "") or ""),
+            },
+        )
+        if restored_player:
+            logger.info(
+                "identity restore: active_player=%s from durable store instance=%s",
+                restored_player,
+                self._cfg.instance_id,
+            )
+        # Fallback for hosts that came up without supervisor seeding (legacy
+        # path, embedded mode racing with worker boot, or a manual Redis
+        # flushdb between stop/start) — set the field only if absent so we
+        # never clobber the supervisor's value.
+        await self._redis.hsetnx(inst_key, "worker_started_at", str(time.time()))
+
+    async def _disconnect_redis(self) -> None:
+        """Drain async Redis connections before the supervisor event loop stops."""
+        client = self._redis
+        self._redis = None
+        self._queue = None
+        self._claims = None
+        if client is None or not self._owns_redis:
+            return
+        try:
+            await client.aclose()
+        except Exception:
+            logger.debug(
+                "Redis aclose failed for instance %s",
+                self._cfg.instance_id,
+                exc_info=True,
+            )
+
+    async def _set_instance_state(self, state: InstanceState, *, error: str = "") -> None:
+        """Persist instance state to Redis for UI/debugging."""
+        self._instance_state = state
+        if self._redis is None:
+            return
+        mapping: dict[str, str] = {"state": str(state)}
+        if error:
+            mapping["last_error"] = error[:500]
+        else:
+            mapping["last_error"] = ""
+        try:
+            await self._redis.hset(
+                _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+                mapping=mapping,
+            )
+        except Exception:
+            logger.debug("Failed to persist instance state to Redis", exc_info=True)
+
+    async def _pop_next_task(self) -> QueueItem | None:
+        assert self._queue is not None
+        current_screen = ""
+        inst_key = _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id)
+        if self._redis is not None:
+            raw = await self._redis.hget(
+                inst_key,
+                "current_screen",
+            )
+            if raw is not None:
+                current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
+                current_screen = current_screen.strip()
+        item = await self._queue.pop_due(
+            self._cfg.instance_id,
+            current_screen=current_screen,
+        )
+        if item is not None or self._redis is None:
+            if item is not None and self._redis is not None:
+                with suppress(Exception):
+                    await self._redis.hset(inst_key, "queue_blocked_reason", "")
+            return item
+
+        reason = await self._queue_blocked_reason(current_screen=current_screen)
+        with suppress(Exception):
+            await self._redis.hset(inst_key, "queue_blocked_reason", reason)
+        return None
+
+    async def _queue_blocked_reason(self, *, current_screen: str) -> str:
+        if self._redis is None:
+            return ""
+        inst = self._cfg.instance_id
+        qkey = f"wos:queue:{inst}"
+        try:
+            rows = await self._redis.zrangebyscore(qkey, "-inf", time.time())
+        except Exception:
+            logger.debug("queue blocked reason: zrange failed", exc_info=True)
+            return ""
+        if not rows:
+            return ""
+        if str(current_screen or "").strip().lower() == "loading":
+            return f"{len(rows)} due item(s) blocked: current_screen is loading"
+        active_raw = await self._redis.hget(
+            _INST_STATE_KEY_FMT.format(instance_id=inst),
+            "active_player",
+        )
+        active = (
+            active_raw.decode() if isinstance(active_raw, bytes) else str(active_raw or "")
+        ).strip()
+        if not active:
+            return f"{len(rows)} due item(s) blocked: active_player is empty"
+        if not str(current_screen or "").strip():
+            return f"{len(rows)} due item(s) blocked: current_screen is empty"
+        sample: list[str] = []
+        for raw in rows[:3]:
+            try:
+                data = json.loads(raw)
+            except Exception:
+                continue
+            sample.append(
+                f"{data.get('task_type') or '?'!s}[{data.get('player_id') or 'device'!s}]"
+            )
+        detail = ", ".join(sample)
+        return f"{len(rows)} due item(s) not runnable for this instance/player: {detail}"
+
+    async def _resolve_queue_item_player(self, item: QueueItem) -> QueueItem:
+        """Resolve device-level queue items (player_id="") to an actual player id."""
+        if item.player_id:
+            return item
+
+        active = None
+        if self._redis is not None:
+            raw = await self._redis.hget(
+                _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id), "active_player"
+            )
+            if raw:
+                active = (raw.decode() if isinstance(raw, bytes) else str(raw)).strip()
+
+        # Non-DSL tasks must run under a player id; DSL tasks may be device-level.
+        # Some tests construct InstanceWorker via object.__new__ (no __init__), so
+        # _task_registry may be missing; fall back to the module-level registry.
+        registry = getattr(self, "_task_registry", None)
+        if not isinstance(registry, dict):
+            from worker.instance_worker import _TASK_REGISTRY  # local import to avoid cycle
+
+            registry = _TASK_REGISTRY
+
+        if registry.get(item.task_type) is None:
+            if not active:
+                return item
+            resolved = active
+        else:
+            # Import via worker.instance_worker so tests can monkeypatch it there.
+            from worker import instance_worker
+
+            _pids_fn = getattr(instance_worker, "player_ids_for_device_candidates", None)
+            if callable(_pids_fn):
+                _cfg_pids = _pids_fn(self._cfg.bluestacks_window_title, self._cfg.instance_id)
+            else:
+                _cfg_pids = instance_worker.player_ids_for_device(self._cfg.bluestacks_window_title)
+            resolved = (active or (_cfg_pids[0] if _cfg_pids else "")).strip()
+            if not resolved:
+                return item
+
+        # ``replace`` preserves all other fields verbatim — notably
+        # ``created_at`` (tie-breaker for ranking) and ``effective_priority``
+        # (carried through to DslScenarioTask for preemption comparisons in
+        # ``instance_worker.py``). Hand-listed field copies dropped these
+        # silently because their dataclass defaults (0.0 / 0) made the bug
+        # invisible until a high-priority overlay tried to preempt a resolved
+        # device-level task and lost the comparison.
+        return dataclasses.replace(item, player_id=resolved)
+
+    async def _ensure_account(self, player_id: str) -> None:
+        # An empty id here means the caller could not resolve identity (no
+        # active_player in Redis, no device→pid mapping). Writing "" would
+        # wipe the previously-identified player from the instance state and
+        # desync identity until the next who_i_am probe re-bootstraps it.
+        if self._redis is None or not str(player_id or "").strip():
+            return
+        await self._redis.hset(
+            _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+            "active_player",
+            player_id,
+        )
+
+    def _note_boot_interactive_screen(self, screen: str) -> None:
+        """Start the post-load boot grace window once UI leaves ``loading``."""
+        s = str(screen or "").strip().lower()
+        if not s or s == "loading":
+            return
+        if float(getattr(self, "_boot_interactive_at", 0.0) or 0.0) <= 0.0:
+            self._boot_interactive_at = time.monotonic()
+
+    async def _instance_current_screen(self) -> str:
+        r = self._redis
+        if r is None:
+            return str(getattr(self, "_last_current_screen", None) or "").strip()
+        try:
+            raw = await r.hget(
+                _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+                "current_screen",
+            )
+        except Exception:
+            return str(getattr(self, "_last_current_screen", None) or "").strip()
+        return (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
+
+    async def _maybe_enqueue_who_i_am_when_active_player_missing(self) -> None:
+        """Enqueue ``who_i_am`` whenever ``active_player`` is empty.
+
+        Called both at boot and from each rolling tick — the dedup gate
+        (``skip_if_duplicate=True`` plus the in-flight / queued checks below)
+        keeps this idempotent.
+        """
+        if getattr(self, "_stopping", False) or getattr(self, "_ui_paused", False):
+            return
+        q = self._queue
+        r = self._redis
+        if q is None or r is None:
+            return
+
+        current_screen = (await self._instance_current_screen()).lower()
+        if current_screen == "loading":
+            logger.debug(
+                "identity probe: deferred — game still loading instance=%s",
+                self._cfg.instance_id,
+            )
+            return
+
+        inst = self._cfg.instance_id
+        inst_key = _INST_STATE_KEY_FMT.format(instance_id=inst)
+        try:
+            raw_ap = await r.hget(inst_key, "active_player")
+        except Exception:
+            logger.debug(
+                "identity probe: active_player read failed instance=%s",
+                inst,
+                exc_info=True,
+            )
+            return
+        ap = (raw_ap.decode() if isinstance(raw_ap, bytes) else str(raw_ap or "")).strip()
+        if ap:
+            return
+
+        # Onboarding gate: the chief profile (and a readable player id) isn't
+        # available until the tutorial is done. Defer until the Sawmill is built
+        # (``buildings.levels.sawmill`` in instance state) — the onboarding
+        # build-recorder writes it. Gating here — not via a scenario cond —
+        # keeps who_i_am out of the queue entirely during onboarding instead of
+        # enqueuing it every tick only to bail with ``scenario_cond_false``.
+        from worker.onboarding_phase import onboarding_active
+
+        if current_screen != "main_city" and await onboarding_active(r, inst):
+            logger.debug(
+                "identity probe: deferred — onboarding (no sawmill yet) instance=%s",
+                inst,
+            )
+            return
+
+        running_key = f"wos:queue:running:{inst}"
+        try:
+            raw_run = await r.get(running_key)
+        except Exception:
+            raw_run = None
+        if raw_run:
+            try:
+                pl = json.loads(
+                    raw_run.decode() if isinstance(raw_run, bytes) else str(raw_run)
+                )
+            except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
+                pl = {}
+            if str(pl.get("task_type") or "").strip() == "who_i_am":
+                return
+
+        try:
+            raw_cs = await r.hget(inst_key, "current_scenario")
+            cs = (raw_cs.decode() if isinstance(raw_cs, bytes) else str(raw_cs or "")).strip()
+        except Exception:
+            cs = ""
+        if cs == "who_i_am":
+            return
+
+        root = repo_root()
+        try:
+            from dsl.dsl_schema import dsl_scenario_yaml_priority
+
+            prio = int(dsl_scenario_yaml_priority(root, "who_i_am") or 101_000)
+        except Exception:
+            prio = 101_000
+
+        run_at = time.time()
+        task_id = f"identity:{inst}:who_i_am:{uuid.uuid4().hex[:8]}"
+        try:
+            ok = await q.schedule(
+                task_id=task_id,
+                player_id="",
+                task_type="who_i_am",
+                priority=prio,
+                run_at=run_at,
+                instance_id=inst,
+                skip_if_duplicate=True,
+                dedup_ignore_region=True,
+            )
+        except Exception:
+            logger.exception(
+                "identity probe: enqueue who_i_am failed instance=%s",
+                inst,
+            )
+            return
+        if ok:
+            logger.info(
+                "identity probe: enqueued who_i_am (active_player empty) instance=%s",
+                inst,
+            )
+
+    async def _maybe_identify_active_player_from_avatar(
+        self,
+        image_bgr: Any,
+        *,
+        current_screen: str,
+    ) -> bool:
+        """Set ``active_player`` from the main-city avatar reference if possible."""
+        from dashboard.dashboard_events import publish_dashboard_event_async
+        from services.player_avatar_identity import is_main_city_screen, match_player_avatar
+
+        if not is_main_city_screen(current_screen):
+            return False
+        r = self._redis
+        if r is None:
+            return False
+        inst = self._cfg.instance_id
+        inst_key = _INST_STATE_KEY_FMT.format(instance_id=inst)
+        try:
+            raw_ap = await r.hget(inst_key, "active_player")
+        except Exception:
+            logger.debug("avatar identity: active_player read failed", exc_info=True)
+            return False
+        active = (raw_ap.decode() if isinstance(raw_ap, bytes) else str(raw_ap or "")).strip()
+        if active:
+            return False
+
+        candidate_ids: list[str] = []
+        with suppress(Exception):
+            from config.devices import player_ids_for_device_candidates
+
+            candidate_ids = player_ids_for_device_candidates(
+                self._cfg.bluestacks_window_title,
+                self._cfg.instance_id,
+            )
+        try:
+            match = match_player_avatar(
+                image_bgr,
+                candidate_player_ids=candidate_ids or None,
+            )
+        except Exception:
+            logger.debug("avatar identity: match failed", exc_info=True)
+            return False
+        if match is None:
+            return False
+
+        now = time.time()
+        player_id = match.player_id
+        try:
+            await r.hset(
+                inst_key,
+                mapping={
+                    "active_player": player_id,
+                    "active_player_at": str(now),
+                    "active_player_identity_source": "avatar",
+                    "active_player_avatar_score": f"{match.score:.4f}",
+                    "active_player_avatar_at": str(now),
+                },
+            )
+        except Exception:
+            logger.debug("avatar identity: active_player write failed", exc_info=True)
+            return False
+        with suppress(Exception):
+            from config.devices import set_last_active_player
+
+            set_last_active_player(inst, player_id)
+        await publish_dashboard_event_async(
+            r,
+            topic="player",
+            instance_id=inst,
+            player_id=player_id,
+            reason="avatar_identity",
+        )
+        logger.info(
+            "avatar identity: active_player=%s score=%.3f margin=%.3f instance=%s",
+            player_id,
+            match.score,
+            match.margin,
+            inst,
+        )
+        return True

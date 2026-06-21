@@ -1,0 +1,9 @@
+id: tundra_trading_station
+title: Tundra Trading Station
+description: Tundra Trading Station deals sub-tab; opens via main_city event strip or deals hub.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: tundra_trading_station
+wiki: false

@@ -1,0 +1,22 @@
+edges:
+  deals:
+    journey_of_light.journey_of_light:
+      resolver: tab_index
+      region: deals.tabs_strip
+      index: 0
+    journey_of_light.my_treasures:
+    - journey_of_light.my_treasures.title
+  journey_of_light.journey_of_light:
+    journey_of_light.my_treasures:
+    - journey_of_light.my_treasures.title
+    deals:
+    - icon.page.back
+    main_city:
+    - icon.page.back
+  journey_of_light.my_treasures:
+    journey_of_light.journey_of_light:
+    - journey_of_light.journey_of_light.title
+    deals:
+    - icon.page.back
+    main_city:
+    - icon.page.back

@@ -1,0 +1,22 @@
+enabled: true
+name: Onboarding click · Chapter Claim
+device_level: true
+priority: 100_010
+steps:
+  # Chapter / growth panel: claim every completed (green) mission reward plus the
+  # bottom chapter-reward "Claim". The list reflows up after each claim, so
+  # re-probe and drain a few rows per run. isSearch finds the button wherever it
+  # lands. Each claim opens a reward popup that hides the next Claim — dismiss it
+  # via the shared `button.tap_anywhere_to_exit` (same pattern the chapter module
+  # uses) before re-probing.
+  - while_match: onboarding.button.claim
+    max: 5
+    steps:
+      - click: onboarding.button.claim
+      - wait: 0.8s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 0.8s

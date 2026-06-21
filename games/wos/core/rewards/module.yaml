@@ -1,0 +1,12 @@
+id: rewards
+title: Rewards
+description: >-
+  Generic reward-claim popup ("Tap anywhere to exit") shared across
+  exploration, VIP daily, events, and other claim flows. Owns the
+  ``page.rewards`` screen detection and the generic exit-to-main_city
+  scenario; per-flow claim sequences live with the feature module that
+  triggers them (exploration, vip, …).
+area: area.yaml
+references: references
+scenarios: scenarios
+wiki: false

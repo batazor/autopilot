@@ -1,0 +1,25 @@
+overlay:
+  - name: honey_language_mall.main_menu.mall.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.honey_language_mall.honey_language_mall.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.honey_language_mall
+          ttl: 1m
+  - name: honey_language_mall.main_menu.sweet_whispers_shop.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.honey_language_mall.sweet_whispers_shop.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.honey_language_mall
+          ttl: 1m

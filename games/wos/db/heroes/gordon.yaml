@@ -1,0 +1,250 @@
+id: gordon
+name: Gordon
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/gordon/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '7126'
+    def: '7126'
+    health: '71262'
+  expedition:
+    attack: 650.52%
+    defense: 650.52%
+story: 'Gordon is a terrifying presence despite his scholarly demeanor, particularly
+  for those he deems not to have the best interest of the Tundra''s civilians and
+  its cities at heart. Plunderers and pillagers, in other words, have much to fear
+  from Gordon''s reputation as the ''great poisoner of our time".
+
+
+  The strongest shield and the toughest armor will do nothing against Gordon''s weapon
+  of choice: the slow toxin for the man he wishes to immobilize or elixir of pain
+  for the man he wishes to torture without leaving a mark. Nor does the poison-resistant
+  Gordon have anything to fear from his own devices. As Bahiti has noted with joy:
+  "We should thank our lucky stars Gordon only deploys his unusual talents on those
+  seeking to do harm."
+
+
+  By day Gordon does nothing more adventurous than teaching, by wich he shares his
+  extraordinary scientific knowledge with the most brilliant minds of the next generations.
+  His students have little to fear from the erudite professor who has killed thousands,
+  because his reputation is improved by his teachning ability and charisma.
+
+
+  It is only outside the city, against those threatening the lives of innocent, that
+  Gordon exercices his peculiar poisons without mercy against the "locusts" as he
+  describes them. And in so doing he becomes a madman, willing to deploy fast-acting
+  poisons and deadly mists across every corner of the battlefield to asphyxiate those
+  who do not "deserve" to live.
+
+
+  Gordon''s strange mix of elegance and rage can be traced back to his horrific experience
+  as mayor of a wealthy city turned hellish wasteland through the efforts of Phateon
+  and Dr. Toxin Theodore. To Dr. Toxin, Phaethon represented the hole to his key of
+  continued scientific experimentation, ideological difference notwithstanding. Dr.
+  Toxin ordered a full-scale chemical bombardment. He had finally found his "experimental
+  subjects." As mayor, Gordon was selected for special treatment-he was submerged
+  in a cellar filled with a toxic goo of unknown effect. There he was left to rot
+  for seven days and nigths by cruel observers eager to understand more. It was seven
+  days of pure torture.
+
+
+  As the saying goes, "What doesn''t kill you makes you stronger". This was certainly
+  true in Gordon''s case.
+
+
+  Seven days later Gordon''s experimenters had an answer: the chemical goo was painful,yes,
+  but produced no long-lasting physical deformities. And when the Dawn Alliance finally
+  wrested control of the ruins from Dr. Toxin''s hands, Gordon was surprised to discover
+  he was hardly injured and, unlike most other residents, remained of sound mind.
+  Furthermore, his lengthy immersion seemed to have made him immune to many other
+  common toxins as well.
+
+
+  Gordon''s life mission is now to inflict such horros on Dr. Toxin Theodore as to
+  horrify the world, yet his thirst for revenge has not twisted his mind beyond reason.
+  He knows the past cannot be fixed, but feelsa moral duty to prevent similar tragedies
+  from occuring. Thus, Gordon has become a great crusader against the evil locusts
+  and to "return their poison for poison".'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+skills:
+- name: Poison Blast
+  description: Gordon throws a vase that disintegrates into a toxic mist, dealing
+    Attack by 50%/55%/60%/65%/70% damage to nearby enemy every 0.5s for 3s.
+- name: Toxic Molotov
+  description: Gordon hurls a chemical flask with precision and poisons the target,
+    dealing Attack 25%/27.5%/30%/32.5%/35% damage every 0.5s and increasing its Damage
+    Taken by 5%/10%/15%/20%/25% for 2s.
+- name: Tolerization
+  description: Gordon's body has adapted to toxic over-exposure by generating new
+    responses, increasing his Defense by 25%/37.5%/50%/62.5%/75% .
+- name: Venom Infusion
+  description: Gordon dips Lancer's weapons in venom. Every 2 attacks, Lancers deals
+    20%/40%/60%/80%/100% extra damage and apply poison to the target for 1 turn. Posioned
+    ennemies deals 4%/8%/12%/16%/20% less damage.
+- name: Chemical Terror
+  description: Gordon's envenomed weapons terorizes the field, increasing Lancer's
+    Damage Dealt by 30%/60%/90%/120%/150% and reducing Damage Dealt by 6%/12%/18%/24%/30%
+    for all ennemy troops for 1 turn, every 3 turns.
+- name: Toxic Release
+  description: Gordon generates a defensive bio-toxic fog, confusing enemy frontline
+    Infantry, increasing their Damage Taken by 6%/12%/18%/24%/30% , while blocking
+    enemy Marksmen's line of sigth to reduce their Damage Dealt by 6%/12%/15%/24%/30%
+    for 2 turns every 4 turns.
+- name: 'Potion #1325 (Lv. 5)'
+  description: Gordon's chemical arsenal increases his Damage Dealt by 25% and reduces
+    the Attack of poisoned target by 15%.
+- name: Bio Assault (Lv. 5)
+  description: Gordon privileges his allies with special envenomed weaponry, increasing
+    Rally Squad's Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 96300
+      attack: 192
+      defense: 192
+      health: 1926
+      lethality_l: 16.05
+      health_l: 16.05
+      skill_1: Gordon Damage Dealt +5% and reduces the Attack of poisoned enemies
+        by 15%.
+    2:
+      power: 163710
+      attack: 327
+      defense: 327
+      health: 3274
+      lethality_l: 32.1
+      health_l: 32.1
+      skill_1: Gordon Damage Dealt +5% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 231120
+      attack: 462
+      defense: 462
+      health: 4622
+      lethality_l: 48.15
+      health_l: 48.15
+      skill_1: Gordon Damage Dealt +10% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 298530
+      attack: 597
+      defense: 597
+      health: 5970
+      lethality_l: 64.2
+      health_l: 64.2
+      skill_1: Gordon Damage Dealt +10% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 365940
+      attack: 731
+      defense: 731
+      health: 7318
+      lethality_l: 80.25
+      health_l: 80.25
+      skill_1: Gordon Damage Dealt +15% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 433350
+      attack: 866
+      defense: 866
+      health: 8667
+      lethality_l: 96.3
+      health_l: 96.3
+      skill_1: Gordon Damage Dealt +15% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 500760
+      lethality_l: 112.35
+      health_l: 112.35
+      skill_1: Gordon Damage Dealt +20% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 568170
+      attack: 1136
+      defense: 1136
+      health: 11363
+      lethality_l: 128.4
+      health_l: 128.4
+      skill_1: Gordon Damage Dealt +20% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      lethality_l: 144.45
+      health_l: 144.45
+      skill_1: Gordon Damage Dealt +25% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 722250
+      attack: 1444
+      defense: 1444
+      health: 14445
+      lethality_l: 160.5
+      health_l: 160.5
+      skill_1: Gordon Damage Dealt +25% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +15%

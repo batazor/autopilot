@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "lancer",
+      "regions": []
+    },
+    {
+      "id": 2,
+      "screen_id": "main_city",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "lancer.complete",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 45.87766804946814,
+            "y": 42.98426962731723,
+            "width": 7.661006313515073,
+            "height": 4.510546348478623,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

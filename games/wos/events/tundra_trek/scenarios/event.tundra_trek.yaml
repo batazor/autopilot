@@ -1,0 +1,18 @@
+enabled: true
+name: Tundra Trek
+priority: 70_000
+node: event.tundra_trek
+icon: tundra_trek
+
+# Tundra Trek is a multi-state mini-game (story stops with "Next Stop", tactical
+# battles with "Fight" + a Victory/Defeat result, milestone "Skip" cutscenes, and
+# embedded "Start Game" mini-games). A declarative while_match loop can't drive
+# that robustly, so the work is done by a Python FSM — see exec.py
+# (drive_tundra_trek). It plays the trek to a per-run budget, escapes any
+# unrecognised sub-screen by backing out (so it can't strand the bot), and
+# returns to main_city.
+steps:
+  - exec: drive_tundra_trek
+  # The FSM stops on a recognised screen (the trek hub or main_city); let the
+  # framework navigate home from there so the bot never lingers on the trek.
+  - push_scenario: check_main_city

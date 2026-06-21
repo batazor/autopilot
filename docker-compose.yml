@@ -1,0 +1,60 @@
+# Local development: builds bot + ocr from sources on this checkout.
+# For pre-built images from GHCR, use ``docker-compose.prod.yml`` instead:
+#     docker compose -f docker-compose.prod.yml up -d
+#
+# Why no unix socket here (unlike prod): the dev workflow runs Redis in
+# Docker but ``uv run play`` (bot + api + web) on the host. Bridging a unix
+# socket from a Docker volume to the host is fragile on Docker Desktop
+# (file-sharing perms / VirtioFS overhead), and loopback TCP on a single
+# machine is already fast. Prod runs everything in containers and shares
+# the socket via a named volume — see ``docker-compose.prod.yml``.
+
+services:
+  redis:
+    image: redis:alpine
+    command: redis-server --appendonly yes
+    ports:
+      # Bind to loopback only — Redis has no auth here and is only used by the
+      # local worker/scheduler/UI. Exposing 0.0.0.0:6379 on a shared machine or
+      # VPS gives anonymous read/write access to the queue and state.
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Roboflow object-detection inference server. Used by feature debuggers that
+  # locate objects a fixed template can't match (Fishing Tournament fish
+  # detector → model find-fish-ssnpa/6). The host process (``uv run play`` /
+  # ``uv run bot``) reaches it at http://127.0.0.1:9001 — matched by the
+  # ``WOS_INFERENCE_URL`` default. Set ROBOFLOW_API_KEY in ``.env`` so the
+  # server can pull model weights on first request (cached in the volume).
+  #
+  # OPTIONAL — gated behind the ``full`` / ``inference`` profile so the default
+  # ``docker compose up -d`` does not pull this image. Enable it with:
+  #     docker compose --profile full up -d
+  #     docker compose up -d inference   # (naming the service also starts it)
+  inference:
+    image: roboflow/roboflow-inference-server-cpu:latest
+    profiles: ["full", "inference"]
+    ports:
+      - "127.0.0.1:9001:9001"
+    environment:
+      ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
+    volumes:
+      - inference_cache:/tmp/cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9001/info')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  redis_data:
+  inference_cache:

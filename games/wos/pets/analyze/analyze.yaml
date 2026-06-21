@@ -1,0 +1,13 @@
+overlay:
+  - name: pets.main_city.icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: games/wos/pets/references/main_city.pets.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: pets.pet_skill
+          ttl: 1m

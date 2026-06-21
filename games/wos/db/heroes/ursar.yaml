@@ -1,0 +1,145 @@
+id: ursar
+name: Ursar
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/ursar/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: 36,984
+    def: 36,984
+    health: 369,852
+  expedition:
+    attack: 2131.70%
+    defense: 2131.70%
+story: 'Ursar''s ancestors made a choice to forge a new life in the underground places
+  of the world. Wisely or not, they believed in a source of light and healing untouched
+  by wars above ground. There they carved out their own unique Windbreaker civilization.
+
+
+  As one of the foremost warriors of the modern-day Windbreakers, Ursar has been brought
+  up in the ways of battle. His courage, agility, and accuracy are unquestioned. Ursar
+  also displays great promise as a future chieftain of the tribe, a natural leader
+  with an encouraging word for any situation and tactical skill. Great power, responsibility,
+  and the blessings of the ancestors will reside with him soon.
+
+
+  Being a future chief of the Windbreaker tribe is as much a cultural career as a
+  political and military one. This is why it is good that Ursar is very skilled in
+  traditional Windbreaker flutes and the hand-drums, well-versed in Windbreaker dances,
+  classical and ritual. He must also take on the role of a master storyteller to pass
+  on the legends of his people, all the way back to the birth of the Windbreaker tribe
+  and the creation of the world in their mythology. Tales, which as far as outsiders
+  are able to say, contain an interesting mix of real history and myth interwoven
+  together in beautiful poems. Many times Ursar has been asked to recount these rhymes
+  for the benefit of Dawn Alliance explorers. And Dawn Alliance researchers have found
+  much to like in the Windbreaker concept of the world itself being "a living being".
+
+
+  Ursar first encountered explorers from above in their hour of need. Dawn Alliance
+  adventurers had foolishly wandered into a toxic underground cave system covered
+  in hallucinogenic fungal spores. Only Ursar''s antidotes saved the explorers from
+  being utterly lost. Bahiti and Ursar struck up a fast friendship that day. Windbreaker
+  explorer Xura had already left for the surface world long before, giving Bahiti
+  some acquaintance with Ursar''s ancient dialect. Ursar was very pleased to hear
+  of Xura glad tidings, and the two exchanged much knowledge of the under- and over-world.
+
+
+  Ursar also shared a warning with the Dawn Alliance to stay clear of the more recent
+  undergrounders: Thaleira and its ruler, Vulcanus. About the only good thing Ursar
+  could say about Thaleira is they shared a reverence for the holy artifacts scattered
+  throughout the caves. The war between Ursar''s people and Vulcanus would probably
+  be going on still were it not for the invasion of an even worse group of surface-dwellers:
+  Phaethon. Tramplers of all that is holy, Phaethon has invaded like a swarm of locusts
+  followed by countless bandits.
+
+
+  The arrival of Phaethon has forced an uneasy truce between Windbreakers and the
+  newcomers of Thaleira. Traditional warriors met the innovations of Thaleiran craftsmanship
+  to great effect as the two sides reluctantly allied. The establishment of a Dawn
+  Alliance outpost has also thrown new weight against Phaethon. Their greatest victory
+  so far is winning a certain degree of freedom from fear of Phaethon.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Ancestral Totem
+  description: Ursar summons a totemic Windbreaker spirit from the elders to encourage
+    troops by increasing Attack Speed by 20%/30%/40%/50%/60% , Dodge by 10%/15%/20%/25%/30%
+    , and Movement Speed by 25% for 5 seconds.
+- name: Wind Tip
+  description: Ursar throws a mighty spear with power enough to inflict Attack* 100%/110%/120%/130%/140%
+    and stun the target for 2 seconds.
+- name: Dance of the Windbreakers
+  description: The ancient Windbreaker dancers have trained Ursar well in the agility
+    of combat, increasing Attack Speed by 10%/15%/20%/25%/30% .
+- name: Forest Spores
+  description: Ursar is not above using the hallucinogenic spores of the underground
+    to bewilder opponents, reducing enemy troops' Attack by 5%/10%/15%/20%/25% .
+- name: Horn of the Ancients
+  description: The horn of the elders encourages friends and terrifies foes, increasing
+    Lancer and Marksman Lethality by 6%/12%/18%/24%/30% for 2 turns and reducing enemy
+    troops' Defense by 6%/12%/18%/24%/30% for 1 turn.
+- name: Poison Tips
+  description: Ursar's poison-tipped spears ensure Lancers deal 20%/40%/60%/80%/100%
+    extra damage every 2 attacks and increase damage received by targets by 5%/10%/15%/20%/25%
+    for 1 turn.
+- name: Venomous Edge
+  description: Adding poison to the edge of Ursar's blade ensures targets of normal
+    attacks and Wind Tip are poisoned for Attack*30% damage every 0.5 seconds for
+    3 seconds. Max 3 stacks.
+- name: Typhoon Drums
+  description: The drumbeat of the ancients is a call to arms for every warrior spirit,
+    increasing Rally Troops' Attack by 15%.

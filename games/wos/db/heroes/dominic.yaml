@@ -1,0 +1,154 @@
+id: dominic
+name: Dominic
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/dominic/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: 25,684
+    def: 25,684
+    health: 256,854
+  expedition:
+    attack: 1791.43%
+    defense: 1791.43%
+story: 'Dominic is the most brilliant magician to be found on the tundra. Not even
+  Mia, renowned for her mastery of illusions, can match his remarkable skill and boundless
+  imagination. So impressed was she by his extraordinary talent that she invited him
+  to join her caravan on its journey across the land.
+
+
+  From teleportation and telekinesis to levitating the caravan, conjuring elegant
+  ladies from paintings, or transforming audience into portraits—his inventive performances
+  never fail to bring the house down. Thanks to him, the caravan rakes in a fortune.
+  Yet, the applause of the crowd seems to leave him indifferent, as his sole passion
+  lies in crafting even more breathtaking magic.
+
+
+  Beyond the elaborate setups for his illusions, Dominic also excels at designing
+  a range of concealable weapons, such as umbrellas that fire tranquilizer darts and
+  boxes that unleash powerful punches. These ingenious tools help the caravan to turn
+  the tables in the face of unexpected ambushes.
+
+
+  Physically strong and fearless, Dominic never fails to slip away from danger, using
+  his masterful escape techniques to defy the odds.
+
+
+  On top of all his talents, Dominic is a master of disguise, able to gather vital
+  intelligence for Mia with impeccable personas. What baffles her, however, is that
+  while he effortlessly mingles with people in disguise, once he reverts to his true
+  self, he becomes cold and utterly unapproachable.
+
+
+  In contrast to many members of the caravan, who have complex backgrounds or are
+  on the run from enemies, Dominic is just an average man, making him an anomaly.
+
+
+  Dominic was once a wanderer with no place to call home, but that was due to his
+  eccentric personality putting him at odds with the powerful. Joining the caravan
+  has granted him true freedom, allowing him to focus entirely on perfecting his magic
+  without needing to interact much with his quirky companions. With Mia''s wealth,
+  even his wildest ideas can be brought to life.
+
+
+  Dominic''s father was once the most prominent magician in town, until the arrival
+  of an engineer who ruined everything by seeing through even the most intricately
+  designed tricks before they were completed. As the magic shows quickly lost their
+  appeal, Dominic''s father, disheartened, left home in search of greater skill.
+
+
+  In the beginning, Dominic''s passion for magic was fueled by a desire to create
+  the perfect illusion his father had always dreamed of, believing it would make his
+  father stay if he ever returned. As he grew, he eventually crafted the ultimate
+  trick that fooled everyone, including the engineer, but he never saw his father
+  again. Still, the genius was not disappointed; he realized that magic was the only
+  thing that truly mattered to him.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Chiefs
+- King of Icefield
+- State of Power
+- Daily Deals
+- Hero Rally
+- Foundry Shop
+skills:
+- name: Box Trick
+  description: Dominic conjures three magical boxes around the target, each delivering
+    heavy punches the deal Attack* 200%/220%/240%/260%/280% Area Damage and stun the
+    target for 1s
+- name: Scorching Roses
+  description: Dominic hurls rose that transforms into flames, dealing Attack* 100%/110%/120%/130%/140%
+    damage and setting the target on fire which deal Attack* 4%/6%/8%/10%/12% damage
+    every 0.5s for 2s
+- name: Double Trouble
+  description: Dominic uses illusions to escape. When his Health drops to zero, he
+    vanishes and reappears in a magical box 5 seconds later with 10%/20%/30%/40%/50%
+    Health. This skill can be used once per battle.
+- name: Mystic Mechanism
+  description: Dominic equips his troops with weapons cleverly crafted from magic
+    props, increasing damage dealt by 4%/8%/12%/16%/20% for all troops.
+- name: Spiky Assault
+  description: Dominic equips his Lancers with secret deices that launch poisonous
+    spikes, increasing their damage dealt per attack by 12%/24%/36%/48%/60% . Poisoned
+    targets receive 5%/10%/15%/20%/25% more damage for 1 turn.
+- name: Mirror Maze
+  description: Dominic disrupts enemy strategies by performing optical tricks with
+    a mirror, reducing damage take by Infantry and Marksmen by 3%/6%/9%/12%/15% and
+    increasing their damage dealt by 3%/6%/9%/12%/15%
+- name: Illusion Mastery
+  description: Dominic perfects his magical skills through dedicated practice, increasing
+    his damage dealt by 25%
+- name: Grand Fantasy
+  description: Dominic turns the battlefield into his stage, increasing Rally Troops'
+    Lethality by 15%

@@ -1,0 +1,26 @@
+id: saber_tooth_tiger
+name: Saber-tooth Tiger
+wiki_url: https://www.whiteoutsurvival.wiki/pets/saber-tooth-tiger/
+rarity: SSR
+unlock: Unlock after 280 days and Iron Rhino LV.30
+max_refinement: 49.16%
+skill:
+  name: Apex Assault
+  cooldown: '20:00:00'
+  effect: Elite predators join the ranks, increasing Troops Lethality by 2.50% / 3.00% / 3.50% / 4.00%
+    / 5.00% / 6.00%/ 7.00% / 8.00% / 9.00% / 10.00% for 2 hours.
+  values:
+  - 2.50%
+  - 3.00%
+  - 3.50%
+  - 4.00%
+  - 5.00%
+  - 6.00%
+  - 7.00%
+  - 8.00%
+  - 9.00%
+  - 10.00%
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 31.46%
+  max_defense: 31.46%

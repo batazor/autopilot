@@ -1,0 +1,26 @@
+# Populate the player's hero roster into state.heroes.entries.<id>.
+#
+# `scan_heroes_grid` (exec) grayscale-NCC matches every visible tile against the
+# 62 wiki icons and merges name / available(owned) / level / shards / red_dot per
+# hero — verified: 12 owned heroes detected on a real grid frame at 0.91–0.98.
+#
+# Owned heroes are sorted first (full colour), so the first scan captures every
+# owned hero that fits the top screen (covers most accounts). The swipe+scan loop
+# pages down for larger rosters; the merge is idempotent, so re-scanning the same
+# heroes is harmless. NOTE: the matcher reads fixed grid rows, so a scroll that
+# lands between rows contributes nothing that pass (no harm) — large-roster
+# multi-screen capture is best-effort until the matcher handles a scroll offset.
+enabled: true
+name: 🔍 Scan heroes grid
+node: heroes
+steps:
+- exec: scan_heroes_grid
+- loop:
+    max: 5
+    steps:
+    - swipe_direction:
+        direction: up
+        delta: 1080
+        duration_ms: 500
+    - wait: 1s
+    - exec: scan_heroes_grid

@@ -1,0 +1,9 @@
+id: rose_defense_battle
+title: Rose Defense Battle
+description: Limited-time rose defense battle; aliases include Bloom Battle and Flower-Eating Beasts.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: rose_defense_battle
+wiki: false

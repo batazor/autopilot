@@ -1,0 +1,11 @@
+edges:
+  main_city:
+    conquest: [main_city.to.conquest]
+    heroes: [main_city.to.heroes]
+    backpack: [main_city.to.backpack]
+    shop: [main_city.to.shop]
+    main_world: [main_city.to.world]
+    mail: [mail.new]
+    governor_profile: [to_governor_profile]
+    chief_profile: [to_governor_profile]
+    vip: [page.vip]

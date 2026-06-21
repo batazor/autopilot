@@ -1,0 +1,88 @@
+enabled: true
+name: "Arena: spend daily free challenges"
+priority: 70_000
+
+# Bound to the Arena of Glory screen. NOTE: navigation INTO the Arena building
+# is not wired yet (no labelled city entry / edge tap), so this runs only once
+# the bot is already on the Arena of Glory screen. Reaching it from main_city is
+# the open follow-up; the fight loop below is the valuable, reusable part.
+node: arena
+
+steps:
+  # Ranking screen → open the Challenge List.
+  - match: arena.title
+    threshold: 0.7
+    steps:
+      - click: arena.challenge
+      - wait: 2s
+
+  # OPTIONAL: buy extra challenge attempts with gems before fighting.
+  # The "+" by "Daily challenges: N" opens a buy dialog; one tap on the gem
+  # button purchases one attempt (price ramps up; capped at 5/day). This SPENDS
+  # GEMS, so it is OFF by default — set this loop's `max:` to 1 or 2 to top up a
+  # small gem budget. Bought attempts are then fought by the loop below.
+  - loop:
+      max: 0          # operator config: 0 = never buy; 1-2 = buy that many
+      steps:
+        - cond: "currentNode != arena.challenge_list"
+          steps:
+            - break: loop
+        - click: arena.buy_attempt
+        - wait: 1s
+        # Confirm the buy dialog opened, purchase one attempt, then it closes
+        # back to the Challenge List with the daily count +1.
+        - match: arena.buy.title
+          threshold: 0.7
+          steps:
+            - click: arena.buy.confirm
+            - wait: 1.5s
+          else:
+            # Dialog didn't open — the 5/day purchase cap is reached. Stop.
+            - break: loop
+
+  # Spend every available challenge (free + any bought above). Arena points are
+  # only gained by attacking and are never lost on defeat (wiki), so every
+  # challenge is worth taking — no opponent-strength check needed. Cap at 10
+  # (5 free + up to 5 bought).
+  - loop:
+      max: 10
+      steps:
+        # Only fight from the Challenge List; stop once we've left it (e.g. a
+        # "no challenges left" popup, or the list closed).
+        - cond: "currentNode != arena.challenge_list"
+          steps:
+            - break: loop
+
+        # Pick an opponent and open their deploy screen. Default = the top
+        # opponent (identical to the old direct click). With the per-account
+        # `planner.arena.exclude_own_alliance` toggle on, it skips
+        # your own alliance, fighting the first non-own row and rerolling via
+        # Free Refresh when every visible opponent is yours. See arena/exec.py.
+        - exec: arena_pick_and_open
+          max_refresh: 3
+        - wait: 2s
+
+        # Confirm Squad Settings opened, then start the battle.
+        - match: arena.squad.title
+          threshold: 0.7
+          retry: { attempts: 3, interval: 700ms }
+          steps:
+            - click: arena.squad.fight
+            - wait: 8s
+
+            # Battle length varies a lot (~15s vs a weak guard, ~40s vs a strong
+            # chief). Wait for the Victory/Defeat popup ("Tap anywhere to exit")
+            # to appear — retry the initial probe for ~40s — then dismiss it (a
+            # few taps for the layered reward popups) before the next iteration.
+            # TODO: the in-battle pause→exit shortcut resolves the result
+            # instantly (operator tip) — wire it here once the pause button is
+            # labelled to cut the per-fight wait.
+            - while_match: arena.result.exit
+              retry: { attempts: 20, interval: 2s }
+              max: 5
+              steps:
+                - click: arena.result.exit
+                - wait: 1.5s
+          else:
+            # Deploy screen never opened — challenges exhausted or list changed.
+            - break: loop

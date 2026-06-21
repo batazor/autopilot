@@ -1,0 +1,8 @@
+id: frostsea_speedup_chest
+name: Frostsea Speedup Chest
+wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-speedup-chest/
+category: ''
+description: Randomly contains 5 5m General Speedups, 1 1h General Speedup, or 1 3h
+  General Speedup.
+sources:
+- Fishing Event

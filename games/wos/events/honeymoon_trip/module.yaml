@@ -1,0 +1,9 @@
+id: honeymoon_trip
+title: Honeymoon Trip
+description: March skin module for Honeymoon Trip; usually surfaced through the event shop.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: honeymoon_trip
+wiki: false

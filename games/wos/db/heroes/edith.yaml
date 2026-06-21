@@ -1,0 +1,257 @@
+id: edith
+name: Edith
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/edith/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '5466'
+    def: '7126'
+    health: '106892'
+  expedition:
+    attack: 650.52%
+    defense: 650.52%
+story: 'It would be harder to find a more mismatched duo than the nimble Edith and
+  towering Mr. Tin in any city. And yet this odd pair have done far more for local
+  residents than most, and earned whatever supplies they require many time over.
+
+
+  Edith cannot remember a time when the metal humanoid affectionately named "Mr. Tin"
+  wasn''t a part of her life. His origins are a mystery -- as much a mystery as her
+  own origins at least. But such mysteries pale in significance to the very real help
+  by which Mr. Tin has made himself indispensable in every settlement and a favorite
+  of children everywhere.
+
+
+  Mr. Tin did not always have a name nor a home, unless it were considered the enless
+  Tundra. And so it would have a remained until his parts had rusted or the end of
+  the world but for encountering a strange cradle heated by intriguing mechanic. A
+  baby slept within.
+
+
+  Why did Mr. Tin shield the cradle in its arms until its deliverance to a nearby
+  city? Instinct? Her cries certainly made impression on the terrified resident shrinking
+  back from the metallic monstrosity. But actions speak louder than words. The cityfolk
+  decided to welcome the duo with open arms. It is from this day forward that Mr Tiun
+  earned this name.
+
+
+  Mr.Tin had won a permanent home amongst humans although nothing is free in an eternal
+  winter. Mr Tin worked tirelessly to assist the growing Edith and ensure the city
+  never lacked for manpower.
+
+
+  Edith grew into a precocious scientist, endlessly fascinated by her local library
+  and the inner workings of mechanical devices of all shapes and sizes, especially
+  her humanoid benefactor. She was a quick study, and soon became relied upon by Mr.
+  Tin exclusively for repairs in wich she was more skilled than any other city craftspeople.
+
+
+  Edith graduated into the role of Mr. Tin''s spokesperson, substituting body language
+  and his simple vocalizations for a language by wich the pair seemed to easily communicate.
+  It was easy enough as, instead of parting ways as the years wore on, Edith and Mr.
+  Tin were increasingly drawn into shared endeavors and each other''s company.
+
+
+  Mr. Tin''s source of power was not exactly a secret although in these times only
+  the most well-educated could guess at the mysterious Fire Crsytal that lay humming
+  beneath his shiny exterior. Yet how the Fire Crystal had been installed and the
+  colossus created remained unanswered. In fact, the entity had begun as a prized
+  masterpiece of a power-hungry maniac intent on a source of authority not reliant
+  upon human subjects. A humanoid form and Fire Crystal were chosen, the which also
+  imbued it with a primitive form of thinking, reasoning, and even what one migth
+  call a kind of living vitality. The mechanical beast was trained with ruthless efficiency
+  against mock targets yet failed to translate its destructive skills against enemies
+  of flesh and blood. Nor did any amount of threating or shouting by the angry maniac
+  make any difference.
+
+
+  The maniac''s pet project, despite its early success, had failed. Mr. Tin was discarded
+  to the silvery wastes of snow with contempt and, until Edith, a solidarity existence
+  except for the occacional bird or animal. It proved the existence of a deep.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Chiefs
+- King of Icefield
+- State of Power
+- Daily Deals
+- Hero Rally
+skills:
+- name: Ironclad Punch
+  description: Mr. Tin unleashes ironclad fury against Edith's assailants, punching
+    all enemies in a dan-shaped area ahead, dealing attack 100%/110%/120%/130%/140%
+    damage and stuns the targets by 1s, while increasing his own Attack by 20%/40%/60%/80%/100%
+    for 2s.
+- name: Escape Capsule
+  description: Mr. Tin ejects his core as an escape capsule for Edith at 0 health,
+    detonating the rest of his body in a fiery explosion, dealing attack 200%/220%/240%/260%/280%
+    damage to nearby enemies.
+- name: Preemptive Alerts
+  description: Edith's battlefield intel warns Mr. Tin of potential dangers, granting
+    him a 10%/20%/30%/40%/50% chance of reducing damage taken by 50%
+- name: Strategic Balance
+  description: Mr. Tin's colossal presence automatically shields friendly ranged units,
+    reducing damage taken by 4%/8%/12%/16%/20% for Marksmen, and supresses the ennemy,
+    increasing damage dealt by 4%/8%/12%/16%/20% for Lancers.
+- name: Ironclad
+  description: Mr. Tin's metallic body functions as a fortified wall on the field,
+    reducing damage taken by 4%/8%/12%/16%/20% for Infantry.
+- name: Steel Sentinel
+  description: Edith's mobile defence system is reliable, increasing helth by 5%/10%/15%/20%/25%
+    for all troops.
+- name: Pocket Engineer (Lv. 5)
+  description: Edith take car of Mr. Tin and restores an amount of health (35% of
+    Max Health) to Mr. Tin when frist under 50% Health while increassing Defnse by
+    30% until the end of battle.
+- name: Fortworks (Lv. 5)
+  description: Edith and Mr. Tin are a formidable defensive duo, increasing Defender
+    Troop's Health by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 96300
+      attack: 147
+      defense: 192
+      health: 2889
+      lethality_i: 16.05
+      health_i: 16.05
+      skill_1: Restores 15% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 10% until end of battle.
+    2:
+      power: 163710
+      attack: 250
+      defense: 327
+      health: 4911
+      lethality_i: 32.1
+      health_i: 32.1
+      skill_1: Restores 15% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 10% until end of battle.
+      skill_2: Defender Troop Health +5%
+    3:
+      power: 231120
+      attack: 353
+      defense: 462
+      health: 6933
+      lethality_i: 48.15
+      health_i: 48.15
+      skill_1: Restores 20% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 15% until end of battle.
+      skill_2: Defender Troop Health +5%
+    4:
+      power: 298530
+      attack: 455
+      defense: 597
+      health: 8955
+      lethality_i: 64.2
+      health_i: 64.2
+      skill_1: Restores 20% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 15% until end of battle.
+      skill_2: Defender Troop Health +7.5%
+    5:
+      power: 365940
+      attack: 561
+      defense: 731
+      health: 10978
+      lethality_i: 80.25
+      health_i: 80.25
+      skill_1: Restores 25% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 20% until end of battle.
+      skill_2: Defender Troop Health +7.5%
+    6:
+      power: 433350
+      lethality_i: 96.3
+      health_i: 96.3
+      skill_1: Restores 25% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 20% until end of battle.
+      skill_2: Defender Troop Health +10%
+    7:
+      power: 500760
+      attack: 767
+      defense: 1001
+      health: 15022
+      lethality_i: 112.35
+      health_i: 112.35
+      skill_1: Restores 30% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 25% until end of battle.
+      skill_2: Defender Troop Health +10%
+    8:
+      power: 568170
+      attack: 869
+      defense: 1136
+      health: 17045
+      lethality_i: 128.4
+      health_i: 128.4
+      skill_1: Restores 30% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 25% until end of battle.
+      skill_2: Defender Troop Health +12.5%
+    9:
+      lethality_i: 144.45
+      health_i: 144.45
+      skill_1: Restores 35% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 30% until end of battle.
+      skill_2: Defender Troop Health +12.5%
+    10:
+      power: 722250
+      attack: 1107
+      defense: 1444
+      health: 21667
+      lethality_i: 160.5
+      health_i: 160.5
+      skill_1: Restores 35% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 30% until end of battle.
+      skill_2: Defender Troop Health +15%

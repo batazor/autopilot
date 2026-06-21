@@ -1,0 +1,4 @@
+edges:
+  shelter:
+    main_city:
+      - from.building.to.main_city

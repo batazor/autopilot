@@ -1,0 +1,11 @@
+overlay:
+  - name: deals.dead_shot.page
+    region: dead_shot.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - deals.dead_shot
+    steps:
+      - push_scenario:
+          name: deals.dead_shot
+          ttl: 1m

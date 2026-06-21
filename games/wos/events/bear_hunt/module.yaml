@@ -1,0 +1,9 @@
+id: bear_hunt
+title: Bear Hunt
+description: Limited-time Bear Hunt event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: bear_hunt
+wiki: false

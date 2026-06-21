@@ -1,0 +1,75 @@
+enabled: true
+name: 🏗️ Building upgrade · ${building_name}
+
+# Target-driven variant of ``building.upgrade``: bound to one concrete building
+# node via the ``building`` template axis (see ``dsl/template_resolver.py``). The
+# key is ``building.upgrade_<id>`` for any id in ``games/wos/db/buildings/index.yaml``
+# (e.g. ``building.upgrade_furnace``); ``${building}`` / ``${building_name}`` are
+# filled at load time from that id.
+#
+# The upgrade loop body (upgrade → next → build → big-button) is identical to the
+# untargeted ``building.upgrade.yaml`` — the only thing the target adds is the
+# ``node:`` binding so the bot knows WHICH building this run is for.
+#
+# ``navigate: false`` for now: forward navigation ``main_city → <building>`` is
+# not solved (the screen graph's ``main_city → <building>: [chapter.task]`` edge
+# is a placeholder — ``chapter.task`` jumps to whatever building the current
+# chapter task points at, not an arbitrary target). So this runs in place when
+# already on the ``${building}`` screen. Flip to ``navigate: true`` once real
+# per-building navigation lands.
+navigate: false
+node: ${building}
+steps:
+  # Best-effort level read for the build planner (``record_building_level`` parses
+  # "<Name> Lv. N" out of the header). ``building.title`` covers the shared
+  # building chrome; furnace/cookhouse/shelter keep their own dedicated readers,
+  # so the guard simply no-ops when this region isn't the right one.
+  - while_match: building.title
+    max: 1
+    steps:
+      - ocr: building.title
+        store: building.name
+      - exec: sync_building_name
+  - loop:
+      max: 10
+      steps:
+        - while_match: upgrade_button
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 5
+          steps:
+            - wait: 2s
+            - long_click: upgrade_button
+              wait: 5s
+            - wait: 1s
+        - while_match: button.next
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 1
+          steps:
+            - wait: 2s
+            - click: button.next
+            - wait: 2s
+        - while_match: build_building_item
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 1
+          steps:
+            - wait: 2s
+            - click: build_building_item
+            - wait: 2s
+        - while_match: upgrade_big_button
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 1
+          steps:
+            - wait: 2s
+            - click: upgrade_big_button
+            - wait: 2s
+  - ocr: building.upgrading.time
+    type: time
+    throttle_push: building.upgrade

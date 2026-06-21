@@ -1,0 +1,1646 @@
+id: gloves_belt_infantry
+slot: gloves_belt
+troop_class: infantry
+title: Gloves & Belt (Infantry)
+stats:
+- power
+- defense
+- health
+- inf_health
+tiers:
+- grey
+- green
+- blue
+- purple
+- gold
+source:
+  sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+  gid: 982509375
+  fetched_at: '2026-05-13'
+levels:
+  0:
+    grey:
+      power: 1000
+      defense: 12
+      health: 90
+      inf_health: 1.33
+    green:
+      power: 1375
+      defense: 16
+      health: 123
+      inf_health: 1.83
+    blue:
+      power: 1625
+      defense: 19
+      health: 146
+      inf_health: 2.16
+    purple:
+      power: 2000
+      defense: 24
+      health: 180
+      inf_health: 2.66
+    gold:
+      power: 2500
+      defense: 30
+      health: 225
+      inf_health: 3.33
+  1:
+    grey:
+      power: 1160
+      defense: 13
+      health: 102
+      inf_health: 1.52
+    green:
+      power: 1595
+      defense: 18
+      health: 141
+      inf_health: 2.09
+    blue:
+      power: 1885
+      defense: 22
+      health: 166
+      inf_health: 2.47
+    purple:
+      power: 2320
+      defense: 27
+      health: 205
+      inf_health: 3.04
+    gold:
+      power: 2900
+      defense: 34
+      health: 256
+      inf_health: 3.8
+  2:
+    grey:
+      power: 1330
+      defense: 15
+      health: 115
+      inf_health: 1.7
+    green:
+      power: 1828
+      defense: 20
+      health: 158
+      inf_health: 2.34
+    blue:
+      power: 2161
+      defense: 24
+      health: 187
+      inf_health: 2.77
+    purple:
+      power: 2660
+      defense: 30
+      health: 230
+      inf_health: 3.41
+    gold:
+      power: 3325
+      defense: 38
+      health: 288
+      inf_health: 4.26
+  3:
+    grey:
+      power: 1510
+      defense: 17
+      health: 127
+      inf_health: 1.89
+    green:
+      power: 2076
+      defense: 23
+      health: 175
+      inf_health: 2.6
+    blue:
+      power: 2453
+      defense: 27
+      health: 207
+      inf_health: 3.07
+    purple:
+      power: 3020
+      defense: 34
+      health: 255
+      inf_health: 3.78
+    gold:
+      power: 3775
+      defense: 42
+      health: 319
+      inf_health: 4.73
+  4:
+    grey:
+      power: 1690
+      defense: 18
+      health: 140
+      inf_health: 2.08
+    green:
+      power: 2323
+      defense: 25
+      health: 193
+      inf_health: 2.86
+    blue:
+      power: 2746
+      defense: 30
+      health: 228
+      inf_health: 3.38
+    purple:
+      power: 3380
+      defense: 37
+      health: 280
+      inf_health: 4.16
+    gold:
+      power: 4225
+      defense: 46
+      health: 351
+      inf_health: 5.2
+  5:
+    grey:
+      power: 1880
+      defense: 20
+      health: 153
+      inf_health: 2.26
+    green:
+      power: 2585
+      defense: 28
+      health: 210
+      inf_health: 3.11
+    blue:
+      power: 3055
+      defense: 33
+      health: 248
+      inf_health: 3.68
+    purple:
+      power: 3760
+      defense: 40
+      health: 306
+      inf_health: 4.53
+    gold:
+      power: 4700
+      defense: 51
+      health: 382
+      inf_health: 5.66
+  6:
+    grey:
+      power: 2070
+      defense: 22
+      health: 165
+      inf_health: 2.45
+    green:
+      power: 2846
+      defense: 30
+      health: 227
+      inf_health: 3.37
+    blue:
+      power: 3363
+      defense: 35
+      health: 269
+      inf_health: 3.98
+    purple:
+      power: 4140
+      defense: 44
+      health: 331
+      inf_health: 4.9
+    gold:
+      power: 5175
+      defense: 55
+      health: 414
+      inf_health: 6.13
+  7:
+    grey:
+      power: 2270
+      defense: 23
+      health: 178
+      inf_health: 2.64
+    green:
+      power: 3121
+      defense: 32
+      health: 245
+      inf_health: 3.63
+    blue:
+      power: 3688
+      defense: 38
+      health: 289
+      inf_health: 4.29
+    purple:
+      power: 4540
+      defense: 47
+      health: 356
+      inf_health: 5.28
+    gold:
+      power: 5675
+      defense: 59
+      health: 445
+      inf_health: 6.6
+  8:
+    grey:
+      power: 2480
+      defense: 25
+      health: 190
+      inf_health: 2.82
+    green:
+      power: 3410
+      defense: 34
+      health: 262
+      inf_health: 3.88
+    blue:
+      power: 4030
+      defense: 41
+      health: 310
+      inf_health: 4.59
+    purple:
+      power: 4960
+      defense: 50
+      health: 381
+      inf_health: 5.65
+    gold:
+      power: 6200
+      defense: 63
+      health: 477
+      inf_health: 7.06
+  9:
+    grey:
+      power: 2700
+      defense: 27
+      health: 203
+      inf_health: 3.01
+    green:
+      power: 3712
+      defense: 37
+      health: 279
+      inf_health: 4.14
+    blue:
+      power: 4387
+      defense: 43
+      health: 330
+      inf_health: 4.89
+    purple:
+      power: 5400
+      defense: 54
+      health: 406
+      inf_health: 6.02
+    gold:
+      power: 6750
+      defense: 67
+      health: 508
+      inf_health: 7.53
+  10:
+    grey:
+      power: 2930
+      defense: 28
+      health: 216
+      inf_health: 3.2
+    green:
+      power: 4028
+      defense: 39
+      health: 297
+      inf_health: 4.4
+    blue:
+      power: 4761
+      defense: 46
+      health: 351
+      inf_health: 5.2
+    purple:
+      power: 5860
+      defense: 57
+      health: 432
+      inf_health: 6.4
+    gold:
+      power: 7325
+      defense: 72
+      health: 540
+      inf_health: 8.0
+  11:
+    grey:
+      power: 3160
+      defense: 30
+      health: 228
+      inf_health: 3.38
+    green:
+      power: 4345
+      defense: 41
+      health: 314
+      inf_health: 4.65
+    blue:
+      power: 5135
+      defense: 49
+      health: 371
+      inf_health: 5.5
+    purple:
+      power: 6320
+      defense: 60
+      health: 457
+      inf_health: 6.77
+    gold:
+      power: 7900
+      defense: 76
+      health: 571
+      inf_health: 8.46
+  12:
+    grey:
+      power: 3400
+      defense: 32
+      health: 241
+      inf_health: 3.57
+    green:
+      power: 4675
+      defense: 44
+      health: 331
+      inf_health: 4.91
+    blue:
+      power: 5525
+      defense: 52
+      health: 391
+      inf_health: 5.8
+    purple:
+      power: 6800
+      defense: 64
+      health: 482
+      inf_health: 7.14
+    gold:
+      power: 8500
+      defense: 80
+      health: 603
+      inf_health: 8.93
+  13:
+    grey:
+      power: 3650
+      defense: 33
+      health: 253
+      inf_health: 3.76
+    green:
+      power: 5018
+      defense: 46
+      health: 348
+      inf_health: 5.17
+    blue:
+      power: 5931
+      defense: 54
+      health: 412
+      inf_health: 6.11
+    purple:
+      power: 7300
+      defense: 67
+      health: 507
+      inf_health: 7.52
+    gold:
+      power: 9125
+      defense: 84
+      health: 634
+      inf_health: 9.4
+  14:
+    grey:
+      power: 3910
+      defense: 35
+      health: 266
+      inf_health: 3.94
+    green:
+      power: 5376
+      defense: 48
+      health: 366
+      inf_health: 5.42
+    blue:
+      power: 6353
+      defense: 57
+      health: 432
+      inf_health: 6.41
+    purple:
+      power: 7820
+      defense: 70
+      health: 532
+      inf_health: 7.89
+    gold:
+      power: 9775
+      defense: 88
+      health: 666
+      inf_health: 9.86
+  15:
+    grey:
+      power: 4170
+      defense: 37
+      health: 279
+      inf_health: 4.13
+    green:
+      power: 5733
+      defense: 51
+      health: 383
+      inf_health: 5.68
+    blue:
+      power: 6776
+      defense: 60
+      health: 453
+      inf_health: 6.71
+    purple:
+      power: 8340
+      defense: 74
+      health: 558
+      inf_health: 8.26
+    gold:
+      power: 10425
+      defense: 93
+      health: 697
+      inf_health: 10.33
+  16:
+    grey:
+      power: 4450
+      defense: 38
+      health: 291
+      inf_health: 4.32
+    green:
+      power: 6118
+      defense: 53
+      health: 400
+      inf_health: 5.94
+    blue:
+      power: 7231
+      defense: 63
+      health: 473
+      inf_health: 7.02
+    purple:
+      power: 8900
+      defense: 77
+      health: 583
+      inf_health: 8.64
+    gold:
+      power: 11125
+      defense: 97
+      health: 729
+      inf_health: 10.8
+  17:
+    grey:
+      power: 4730
+      defense: 40
+      health: 304
+      inf_health: 4.5
+    green:
+      power: 6503
+      defense: 55
+      health: 418
+      inf_health: 6.19
+    blue:
+      power: 7686
+      defense: 65
+      health: 494
+      inf_health: 7.32
+    purple:
+      power: 9460
+      defense: 80
+      health: 608
+      inf_health: 9.01
+    gold:
+      power: 11825
+      defense: 101
+      health: 760
+      inf_health: 11.26
+  18:
+    grey:
+      power: 5030
+      defense: 42
+      health: 316
+      inf_health: 4.69
+    green:
+      power: 6916
+      defense: 58
+      health: 435
+      inf_health: 6.45
+    blue:
+      power: 8173
+      defense: 68
+      health: 514
+      inf_health: 7.62
+    purple:
+      power: 10060
+      defense: 84
+      health: 633
+      inf_health: 9.38
+    gold:
+      power: 12575
+      defense: 105
+      health: 792
+      inf_health: 11.73
+  19:
+    grey:
+      power: 5330
+      defense: 43
+      health: 329
+      inf_health: 4.88
+    green:
+      power: 7328
+      defense: 60
+      health: 452
+      inf_health: 6.71
+    blue:
+      power: 8661
+      defense: 71
+      health: 535
+      inf_health: 7.93
+    purple:
+      power: 10660
+      defense: 87
+      health: 658
+      inf_health: 9.76
+    gold:
+      power: 13325
+      defense: 109
+      health: 823
+      inf_health: 12.2
+  20:
+    grey:
+      power: 5650
+      defense: 45
+      health: 342
+      inf_health: 5.06
+    green:
+      power: 7768
+      defense: 62
+      health: 470
+      inf_health: 6.96
+    blue:
+      power: 9181
+      defense: 74
+      health: 555
+      inf_health: 8.23
+    purple:
+      power: 11300
+      defense: 91
+      health: 684
+      inf_health: 10.13
+    gold:
+      power: 14125
+      defense: 114
+      health: 855
+      inf_health: 12.66
+  21:
+    green:
+      power: 8208
+      defense: 64
+      health: 487
+      inf_health: 7.22
+    blue:
+      power: 9701
+      defense: 76
+      health: 576
+      inf_health: 8.53
+    purple:
+      power: 11940
+      defense: 94
+      health: 709
+      inf_health: 10.5
+    gold:
+      power: 14925
+      defense: 118
+      health: 886
+      inf_health: 13.13
+  22:
+    green:
+      power: 8676
+      defense: 67
+      health: 504
+      inf_health: 7.48
+    blue:
+      power: 10253
+      defense: 79
+      health: 596
+      inf_health: 8.84
+    purple:
+      power: 12620
+      defense: 97
+      health: 734
+      inf_health: 10.88
+    gold:
+      power: 15775
+      defense: 122
+      health: 918
+      inf_health: 13.6
+  23:
+    green:
+      power: 9143
+      defense: 69
+      health: 522
+      inf_health: 7.73
+    blue:
+      power: 10806
+      defense: 82
+      health: 617
+      inf_health: 9.14
+    purple:
+      power: 13300
+      defense: 101
+      health: 759
+      inf_health: 11.25
+    gold:
+      power: 16625
+      defense: 126
+      health: 949
+      inf_health: 14.06
+  24:
+    green:
+      power: 9638
+      defense: 71
+      health: 539
+      inf_health: 7.99
+    blue:
+      power: 11391
+      defense: 84
+      health: 637
+      inf_health: 9.44
+    purple:
+      power: 14020
+      defense: 104
+      health: 784
+      inf_health: 11.62
+    gold:
+      power: 17525
+      defense: 130
+      health: 981
+      inf_health: 14.53
+  25:
+    green:
+      power: 10147
+      defense: 74
+      health: 556
+      inf_health: 8.25
+    blue:
+      power: 11992
+      defense: 87
+      health: 658
+      inf_health: 9.75
+    purple:
+      power: 14760
+      defense: 108
+      health: 810
+      inf_health: 12.0
+    gold:
+      power: 18450
+      defense: 135
+      health: 1012
+      inf_health: 15.0
+  26:
+    green:
+      power: 10670
+      defense: 76
+      health: 574
+      inf_health: 8.5
+    blue:
+      power: 12610
+      defense: 90
+      health: 678
+      inf_health: 10.05
+    purple:
+      power: 15520
+      defense: 111
+      health: 835
+      inf_health: 12.37
+    gold:
+      power: 19400
+      defense: 139
+      health: 1044
+      inf_health: 15.46
+  27:
+    green:
+      power: 11220
+      defense: 78
+      health: 591
+      inf_health: 8.76
+    blue:
+      power: 13260
+      defense: 92
+      health: 699
+      inf_health: 10.35
+    purple:
+      power: 16320
+      defense: 114
+      health: 860
+      inf_health: 12.74
+    gold:
+      power: 20400
+      defense: 143
+      health: 1075
+      inf_health: 15.93
+  28:
+    green:
+      power: 11783
+      defense: 81
+      health: 608
+      inf_health: 9.02
+    blue:
+      power: 13926
+      defense: 95
+      health: 719
+      inf_health: 10.66
+    purple:
+      power: 17140
+      defense: 118
+      health: 885
+      inf_health: 13.12
+    gold:
+      power: 21425
+      defense: 147
+      health: 1107
+      inf_health: 16.4
+  29:
+    green:
+      power: 12361
+      defense: 83
+      health: 626
+      inf_health: 9.27
+    blue:
+      power: 14608
+      defense: 98
+      health: 740
+      inf_health: 10.96
+    purple:
+      power: 17980
+      defense: 121
+      health: 910
+      inf_health: 13.49
+    gold:
+      power: 22475
+      defense: 151
+      health: 1138
+      inf_health: 16.86
+  30:
+    green:
+      power: 12952
+      defense: 85
+      health: 643
+      inf_health: 9.53
+    blue:
+      power: 15307
+      defense: 101
+      health: 760
+      inf_health: 11.26
+    purple:
+      power: 18840
+      defense: 124
+      health: 936
+      inf_health: 13.86
+    gold:
+      power: 23550
+      defense: 156
+      health: 1170
+      inf_health: 17.33
+  31:
+    green:
+      power: 13571
+      defense: 88
+      health: 660
+      inf_health: 9.79
+    blue:
+      power: 16038
+      defense: 104
+      health: 780
+      inf_health: 11.57
+    purple:
+      power: 19740
+      defense: 128
+      health: 961
+      inf_health: 14.24
+    gold:
+      power: 24675
+      defense: 160
+      health: 1201
+      inf_health: 17.8
+  32:
+    green:
+      power: 14203
+      defense: 90
+      health: 678
+      inf_health: 10.04
+    blue:
+      power: 16786
+      defense: 106
+      health: 801
+      inf_health: 11.87
+    purple:
+      power: 20660
+      defense: 131
+      health: 986
+      inf_health: 14.61
+    gold:
+      power: 25825
+      defense: 164
+      health: 1233
+      inf_health: 18.26
+  33:
+    green:
+      power: 14850
+      defense: 92
+      health: 695
+      inf_health: 10.3
+    blue:
+      power: 17550
+      defense: 109
+      health: 821
+      inf_health: 12.17
+    purple:
+      power: 21600
+      defense: 134
+      health: 1011
+      inf_health: 14.98
+    gold:
+      power: 27000
+      defense: 168
+      health: 1264
+      inf_health: 18.73
+  34:
+    green:
+      power: 15523
+      defense: 94
+      health: 712
+      inf_health: 10.56
+    blue:
+      power: 18346
+      defense: 112
+      health: 842
+      inf_health: 12.48
+    purple:
+      power: 22580
+      defense: 138
+      health: 1036
+      inf_health: 15.36
+    gold:
+      power: 28225
+      defense: 172
+      health: 1296
+      inf_health: 19.2
+  35:
+    green:
+      power: 16225
+      defense: 97
+      health: 730
+      inf_health: 10.81
+    blue:
+      power: 19175
+      defense: 115
+      health: 862
+      inf_health: 12.78
+    purple:
+      power: 23600
+      defense: 141
+      health: 1062
+      inf_health: 15.73
+    gold:
+      power: 29500
+      defense: 177
+      health: 1327
+      inf_health: 19.66
+  36:
+    green:
+      power: 16940
+      defense: 99
+      health: 747
+      inf_health: 11.07
+    blue:
+      power: 20020
+      defense: 117
+      health: 883
+      inf_health: 13.08
+    purple:
+      power: 24640
+      defense: 144
+      health: 1087
+      inf_health: 16.1
+    gold:
+      power: 30800
+      defense: 181
+      health: 1359
+      inf_health: 20.13
+  37:
+    green:
+      power: 17682
+      defense: 101
+      health: 764
+      inf_health: 11.33
+    blue:
+      power: 20897
+      defense: 120
+      health: 903
+      inf_health: 13.39
+    purple:
+      power: 25720
+      defense: 148
+      health: 1112
+      inf_health: 16.48
+    gold:
+      power: 32150
+      defense: 185
+      health: 1390
+      inf_health: 20.6
+  38:
+    green:
+      power: 18438
+      defense: 104
+      health: 782
+      inf_health: 11.58
+    blue:
+      power: 21791
+      defense: 123
+      health: 924
+      inf_health: 13.69
+    purple:
+      power: 26820
+      defense: 151
+      health: 1137
+      inf_health: 16.85
+    gold:
+      power: 33525
+      defense: 189
+      health: 1422
+      inf_health: 21.06
+  39:
+    green:
+      power: 19222
+      defense: 106
+      health: 799
+      inf_health: 11.84
+    blue:
+      power: 22717
+      defense: 125
+      health: 944
+      inf_health: 13.99
+    purple:
+      power: 27960
+      defense: 154
+      health: 1162
+      inf_health: 17.22
+    gold:
+      power: 34950
+      defense: 193
+      health: 1453
+      inf_health: 21.53
+  40:
+    green:
+      power: 20033
+      defense: 108
+      health: 816
+      inf_health: 12.1
+    blue:
+      power: 23676
+      defense: 128
+      health: 965
+      inf_health: 14.3
+    purple:
+      power: 29140
+      defense: 158
+      health: 1188
+      inf_health: 17.6
+    gold:
+      power: 36425
+      defense: 198
+      health: 1485
+      inf_health: 22.0
+  41:
+    blue:
+      power: 24667
+      defense: 131
+      health: 985
+      inf_health: 14.6
+    purple:
+      power: 30360
+      defense: 161
+      health: 1213
+      inf_health: 17.97
+    gold:
+      power: 37950
+      defense: 202
+      health: 1516
+      inf_health: 22.46
+  42:
+    blue:
+      power: 25691
+      defense: 133
+      health: 1006
+      inf_health: 14.9
+    purple:
+      power: 31620
+      defense: 164
+      health: 1238
+      inf_health: 18.34
+    gold:
+      power: 39525
+      defense: 206
+      health: 1548
+      inf_health: 22.93
+  43:
+    blue:
+      power: 26731
+      defense: 136
+      health: 1026
+      inf_health: 15.21
+    purple:
+      power: 32900
+      defense: 168
+      health: 1263
+      inf_health: 18.72
+    gold:
+      power: 41125
+      defense: 210
+      health: 1579
+      inf_health: 23.4
+  44:
+    blue:
+      power: 27803
+      defense: 139
+      health: 1047
+      inf_health: 15.51
+    purple:
+      power: 34220
+      defense: 171
+      health: 1288
+      inf_health: 19.09
+    gold:
+      power: 42775
+      defense: 214
+      health: 1611
+      inf_health: 23.86
+  45:
+    blue:
+      power: 28925
+      defense: 142
+      health: 1067
+      inf_health: 15.81
+    purple:
+      power: 35600
+      defense: 175
+      health: 1314
+      inf_health: 19.46
+    gold:
+      power: 44500
+      defense: 219
+      health: 1642
+      inf_health: 24.33
+  46:
+    blue:
+      power: 30062
+      defense: 144
+      health: 1088
+      inf_health: 16.12
+    purple:
+      power: 37000
+      defense: 178
+      health: 1339
+      inf_health: 19.84
+    gold:
+      power: 46250
+      defense: 223
+      health: 1674
+      inf_health: 24.8
+  47:
+    blue:
+      power: 31248
+      defense: 147
+      health: 1108
+      inf_health: 16.42
+    purple:
+      power: 38460
+      defense: 181
+      health: 1364
+      inf_health: 20.21
+    gold:
+      power: 48075
+      defense: 227
+      health: 1705
+      inf_health: 25.26
+  48:
+    blue:
+      power: 32451
+      defense: 150
+      health: 1129
+      inf_health: 16.72
+    purple:
+      power: 39940
+      defense: 185
+      health: 1389
+      inf_health: 20.58
+    gold:
+      power: 49925
+      defense: 231
+      health: 1737
+      inf_health: 25.73
+  49:
+    blue:
+      power: 33702
+      defense: 153
+      health: 1149
+      inf_health: 17.03
+    purple:
+      power: 41480
+      defense: 188
+      health: 1414
+      inf_health: 20.96
+    gold:
+      power: 51850
+      defense: 235
+      health: 1768
+      inf_health: 26.2
+  50:
+    blue:
+      power: 34986
+      defense: 156
+      health: 1170
+      inf_health: 17.33
+    purple:
+      power: 43060
+      defense: 192
+      health: 1440
+      inf_health: 21.33
+    gold:
+      power: 53825
+      defense: 240
+      health: 1800
+      inf_health: 26.66
+  51:
+    blue:
+      power: 36318
+      defense: 158
+      health: 1190
+      inf_health: 17.63
+    purple:
+      power: 44700
+      defense: 195
+      health: 1465
+      inf_health: 21.7
+    gold:
+      power: 55875
+      defense: 244
+      health: 1831
+      inf_health: 27.13
+  52:
+    blue:
+      power: 37683
+      defense: 161
+      health: 1210
+      inf_health: 17.94
+    purple:
+      power: 46380
+      defense: 198
+      health: 1490
+      inf_health: 22.08
+    gold:
+      power: 57975
+      defense: 248
+      health: 1863
+      inf_health: 27.6
+  53:
+    blue:
+      power: 39081
+      defense: 164
+      health: 1231
+      inf_health: 18.24
+    purple:
+      power: 48100
+      defense: 202
+      health: 1515
+      inf_health: 22.45
+    gold:
+      power: 60125
+      defense: 252
+      health: 1894
+      inf_health: 28.06
+  54:
+    blue:
+      power: 40527
+      defense: 166
+      health: 1251
+      inf_health: 18.54
+    purple:
+      power: 49880
+      defense: 205
+      health: 1540
+      inf_health: 22.82
+    gold:
+      power: 62350
+      defense: 256
+      health: 1926
+      inf_health: 28.53
+  55:
+    blue:
+      power: 42006
+      defense: 169
+      health: 1272
+      inf_health: 18.85
+    purple:
+      power: 51700
+      defense: 208
+      health: 1566
+      inf_health: 23.2
+    gold:
+      power: 64625
+      defense: 261
+      health: 1957
+      inf_health: 29.0
+  56:
+    blue:
+      power: 43550
+      defense: 172
+      health: 1292
+      inf_health: 19.15
+    purple:
+      power: 53600
+      defense: 212
+      health: 1591
+      inf_health: 23.57
+    gold:
+      power: 67000
+      defense: 265
+      health: 1989
+      inf_health: 29.46
+  57:
+    blue:
+      power: 45110
+      defense: 174
+      health: 1313
+      inf_health: 19.45
+    purple:
+      power: 55520
+      defense: 215
+      health: 1616
+      inf_health: 23.94
+    gold:
+      power: 69400
+      defense: 269
+      health: 2020
+      inf_health: 29.93
+  58:
+    blue:
+      power: 46735
+      defense: 177
+      health: 1333
+      inf_health: 19.76
+    purple:
+      power: 57520
+      defense: 218
+      health: 1641
+      inf_health: 24.32
+    gold:
+      power: 71900
+      defense: 273
+      health: 2052
+      inf_health: 30.4
+  59:
+    blue:
+      power: 48408
+      defense: 180
+      health: 1354
+      inf_health: 20.06
+    purple:
+      power: 59580
+      defense: 222
+      health: 1666
+      inf_health: 24.69
+    gold:
+      power: 74475
+      defense: 277
+      health: 2083
+      inf_health: 30.86
+  60:
+    blue:
+      power: 50115
+      defense: 183
+      health: 1374
+      inf_health: 20.36
+    purple:
+      power: 61680
+      defense: 225
+      health: 1692
+      inf_health: 25.06
+    gold:
+      power: 77100
+      defense: 282
+      health: 2115
+      inf_health: 31.33
+  61:
+    purple:
+      power: 63860
+      defense: 228
+      health: 1717
+      inf_health: 25.44
+    gold:
+      power: 79825
+      defense: 286
+      health: 2146
+      inf_health: 31.8
+  62:
+    purple:
+      power: 66080
+      defense: 232
+      health: 1742
+      inf_health: 25.81
+    gold:
+      power: 82600
+      defense: 290
+      health: 2178
+      inf_health: 32.26
+  63:
+    purple:
+      power: 68380
+      defense: 235
+      health: 1767
+      inf_health: 26.18
+    gold:
+      power: 85475
+      defense: 294
+      health: 2209
+      inf_health: 32.73
+  64:
+    purple:
+      power: 70740
+      defense: 238
+      health: 1792
+      inf_health: 26.56
+    gold:
+      power: 88425
+      defense: 298
+      health: 2241
+      inf_health: 33.2
+  65:
+    purple:
+      power: 73180
+      defense: 242
+      health: 1818
+      inf_health: 26.93
+    gold:
+      power: 91475
+      defense: 303
+      health: 2272
+      inf_health: 33.66
+  66:
+    purple:
+      power: 75680
+      defense: 245
+      health: 1843
+      inf_health: 27.3
+    gold:
+      power: 94600
+      defense: 307
+      health: 2304
+      inf_health: 34.13
+  67:
+    purple:
+      power: 78240
+      defense: 248
+      health: 1868
+      inf_health: 27.68
+    gold:
+      power: 97800
+      defense: 311
+      health: 2335
+      inf_health: 34.6
+  68:
+    purple:
+      power: 80880
+      defense: 252
+      health: 1893
+      inf_health: 28.05
+    gold:
+      power: 101100
+      defense: 315
+      health: 2367
+      inf_health: 35.06
+  69:
+    purple:
+      power: 83600
+      defense: 255
+      health: 1918
+      inf_health: 28.42
+    gold:
+      power: 104500
+      defense: 319
+      health: 2398
+      inf_health: 35.53
+  70:
+    purple:
+      power: 86400
+      defense: 259
+      health: 1944
+      inf_health: 28.8
+    gold:
+      power: 108000
+      defense: 324
+      health: 2430
+      inf_health: 36.0
+  71:
+    purple:
+      power: 89260
+      defense: 262
+      health: 1969
+      inf_health: 29.17
+    gold:
+      power: 111575
+      defense: 328
+      health: 2461
+      inf_health: 36.46
+  72:
+    purple:
+      power: 92220
+      defense: 265
+      health: 1994
+      inf_health: 29.65
+    gold:
+      power: 115275
+      defense: 332
+      health: 2493
+      inf_health: 36.93
+  73:
+    purple:
+      power: 95240
+      defense: 269
+      health: 2019
+      inf_health: 29.92
+    gold:
+      power: 119050
+      defense: 336
+      health: 2524
+      inf_health: 37.4
+  74:
+    purple:
+      power: 98360
+      defense: 272
+      health: 2044
+      inf_health: 30.29
+    gold:
+      power: 122950
+      defense: 340
+      health: 2556
+      inf_health: 37.86
+  75:
+    purple:
+      power: 101560
+      defense: 276
+      health: 2070
+      inf_health: 30.66
+    gold:
+      power: 126950
+      defense: 345
+      health: 2587
+      inf_health: 38.33
+  76:
+    purple:
+      power: 104860
+      defense: 279
+      health: 2095
+      inf_health: 31.04
+    gold:
+      power: 131075
+      defense: 349
+      health: 2619
+      inf_health: 38.8
+  77:
+    purple:
+      power: 108240
+      defense: 282
+      health: 2120
+      inf_health: 31.41
+    gold:
+      power: 135300
+      defense: 353
+      health: 2650
+      inf_health: 39.26
+  78:
+    purple:
+      power: 111720
+      defense: 286
+      health: 2145
+      inf_health: 31.78
+    gold:
+      power: 139650
+      defense: 357
+      health: 2682
+      inf_health: 39.73
+  79:
+    purple:
+      power: 115280
+      defense: 289
+      health: 2170
+      inf_health: 32.16
+    gold:
+      power: 144100
+      defense: 361
+      health: 2713
+      inf_health: 40.2
+  80:
+    purple:
+      power: 118960
+      defense: 292
+      health: 2196
+      inf_health: 32.53
+    gold:
+      power: 148700
+      defense: 366
+      health: 2745
+      inf_health: 40.66
+  81:
+    gold:
+      power: 153425
+      defense: 370
+      health: 2776
+      inf_health: 41.13
+  82:
+    gold:
+      power: 158250
+      defense: 374
+      health: 2808
+      inf_health: 41.6
+  83:
+    gold:
+      power: 163225
+      defense: 378
+      health: 2839
+      inf_health: 42.06
+  84:
+    gold:
+      power: 168350
+      defense: 382
+      health: 2871
+      inf_health: 42.53
+  85:
+    gold:
+      power: 173600
+      defense: 387
+      health: 2902
+      inf_health: 43.0
+  86:
+    gold:
+      power: 179000
+      defense: 391
+      health: 2934
+      inf_health: 43.46
+  87:
+    gold:
+      power: 184525
+      defense: 395
+      health: 2965
+      inf_health: 43.93
+  88:
+    gold:
+      power: 190225
+      defense: 399
+      health: 2997
+      inf_health: 44.4
+  89:
+    gold:
+      power: 196075
+      defense: 403
+      health: 3028
+      inf_health: 44.86
+  90:
+    gold:
+      power: 202075
+      defense: 408
+      health: 3060
+      inf_health: 45.33
+  91:
+    gold:
+      power: 208225
+      defense: 412
+      health: 3091
+      inf_health: 45.8
+  92:
+    gold:
+      power: 214550
+      defense: 416
+      health: 3123
+      inf_health: 46.26
+  93:
+    gold:
+      power: 221050
+      defense: 420
+      health: 3154
+      inf_health: 46.73
+  94:
+    gold:
+      power: 227725
+      defense: 424
+      health: 3186
+      inf_health: 47.2
+  95:
+    gold:
+      power: 234575
+      defense: 429
+      health: 3217
+      inf_health: 47.66
+  96:
+    gold:
+      power: 241625
+      defense: 433
+      health: 3249
+      inf_health: 48.13
+  97:
+    gold:
+      power: 248825
+      defense: 437
+      health: 3280
+      inf_health: 48.6
+  98:
+    gold:
+      power: 256250
+      defense: 441
+      health: 3312
+      inf_health: 49.06
+  99:
+    gold:
+      power: 263850
+      defense: 445
+      health: 3343
+      inf_health: 49.53
+  100:
+    gold:
+      power: 271675
+      defense: 450
+      health: 3375
+      inf_health: 50.0

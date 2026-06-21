@@ -1,0 +1,13 @@
+edges:
+  main_menu:
+    event.honey_language_mall:
+      resolver: main_menu_panel_row
+      section: honey_language_mall
+      rows:
+        - honey_language_mall
+        - sweet_whispers_shop
+      approval_region: main_menu.panel.honey_language_mall
+
+  event.honey_language_mall:
+    main_menu: [icon.page.back]
+    main_city: [icon.page.back]

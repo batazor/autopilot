@@ -1,0 +1,33 @@
+enabled: true
+name: Alliance Tech Contribute
+node: alliance.tech
+priority: 70_000
+cond: "active_player != null"
+
+steps:
+  - while_match: alliance.tech.add
+    max: 1
+    retry:
+      attempts: 5
+      interval: 500ms
+    steps:
+      - click: alliance.tech.add
+      - wait: 500ms
+      - wait_screen:
+          any: [alliance.tech.contribute]
+          max: 6
+          interval: 500ms
+      - while_match: alliance.tech.contribute.blue
+        max: 25
+        retry:
+          attempts: 1
+          interval: 100ms
+        steps:
+          - long_click: alliance.tech.contribute
+            wait: 1s
+          - wait: 100ms
+      - click: alliance.tech.contribute.close
+      - wait_screen:
+          any: [alliance.tech]
+          max: 6
+          interval: 500ms

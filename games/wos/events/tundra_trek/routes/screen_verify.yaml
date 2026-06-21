@@ -1,0 +1,15 @@
+screens:
+  event.tundra_trek:
+    rules:
+      - match: tundra_trek.title
+        threshold: 0.9
+  # The travel/stop sub-screen (story + rewards + the orange "Next Stop" button).
+  # Recognized as its own node so the bot can route back out (→ event.tundra_trek
+  # → main_city) instead of stranding on an "unknown" screen if a run is
+  # interrupted mid-trek. min_match_saturation rejects the desaturated snow bg.
+  event.tundra_trek.stop:
+    priority: 25
+    rules:
+      - match: tundra_trek.next_stop
+        threshold: 0.9
+        min_match_saturation: 60

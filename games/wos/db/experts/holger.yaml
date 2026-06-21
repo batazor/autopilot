@@ -1,0 +1,47 @@
+id: holger
+name: Holger
+wiki_url: https://www.whiteoutsurvival.wiki/experts/holger/
+role: Arena Legend
+type: Expedition
+base_stats:
+- stat: Troops Attack
+  value: +15%
+- stat: Troops Defense
+  value: +15%
+affinity:
+  stat: Troops Attack & Defense
+  max: +15.00%
+skills:
+- name: Arena Elite
+  effect: Tough training gets tough trainee results. Holger's rigorous program increases Arena heroes'
+    Attack and Health by 2% → 20%.
+  values:
+  - 2%
+  - 20%
+- name: Crowd Pleaser
+  effect: Holger knows how to put on a show and so will his heroes. Holger's classic crowd-pleasers increase
+    both daily and weekly Arena Tokens earned by 5% → 50%.
+  values:
+  - 5%
+  - 50%
+- name: Arena Star
+  effect: 3 more items in the Arena Shop at a 50% discount with random item selection from six reward
+    types.
+  values:
+  - '3'
+  - 50%
+- name: Legacy
+  effect: Holger is in the Arena legend-creation process, giving heroes 2% → 20% additional Attack and
+    Health in the Arena.
+  values:
+  - 2%
+  - 20%
+talent:
+  name: Blade Dancing
+  effect: 'Holger knows the best rewards in the Arena are often won from the crowd. Holger''s winsome
+    techniques give 100% chance of audience reward: 3 Arena Star Chest(s).'
+  max_level: 11
+story: Holger was once an undefeated Arena champion until his rival Conrad poisoned him during a match,
+  ending his career. Years later, seeing Conrad become a coach inspired Holger to pursue coaching himself
+  to "defeat him in the arena of honor." Despite struggling to attract talented students and battling
+  his own temperament, Holger seeks redemption through training the next generation of fighters.

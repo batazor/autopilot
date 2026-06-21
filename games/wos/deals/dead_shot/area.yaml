@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "deals.dead_shot",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "dead_shot.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.277777777777778,
+            "y": 16.40625,
+            "width": 31.25,
+            "height": 3.75,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.next.left",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.4235356831141384,
+            "y": 8.916627277349546,
+            "width": 4.506640424164709,
+            "height": 2.5815926068729462,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

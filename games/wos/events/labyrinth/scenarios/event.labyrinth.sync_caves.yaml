@@ -1,0 +1,109 @@
+enabled: true
+name: "Labyrinth: Sync Caves"
+priority: 80_000
+node: event.labyrinth
+
+# Read each cave slot (title + countdown) and route to the matching cave
+# scenario. Caves rotate daily and each slot is independently open or closed:
+#   - OPEN  → the countdown is the *closing* window. Push the cave scenario now,
+#             expiring it when the window ends.
+#   - CLOSED → the banner reads "Opens in HH:MM:SS". Store that countdown as a
+#              durable event timer and push the cave scenario with `delay:` set
+#              to it, so the bot runs the cave the moment it opens.
+# `ocr: ... event_timer:` snapshots the countdown to SQLite (survives restarts);
+# `delay:`/`expires:` then resolve the remaining seconds from that snapshot.
+steps:
+  - ocr: labyrinth.left_cave.title
+    store: labyrinth.left_cave.title
+  - ocr: labyrinth.left_cave.ttl
+    store: labyrinth.left_cave.ttl
+    event_timer: labyrinth.left_cave.ttl
+  - ocr: labyrinth.right_cave.title
+    store: labyrinth.right_cave.title
+  - ocr: labyrinth.right_cave.ttl
+    store: labyrinth.right_cave.ttl
+    event_timer: labyrinth.right_cave.ttl
+  - ocr: labyrinth.bottom_cave.title
+    store: labyrinth.bottom_cave.title
+  - ocr: labyrinth.bottom_cave.status
+    store: labyrinth.bottom_cave.status
+  - ocr: labyrinth.bottom_cave.ttl
+    event_timer: labyrinth.bottom_cave.ttl
+
+  # ── Left slot: Land of Heroes / Cave of Monsters / Research Center ──────────
+  - cond: labyrinth.left_cave.title ~~ "Land of Heroes"
+    steps:
+      - cond: labyrinth.left_cave.ttl_text ~= "Opens in"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.land_of_heroes
+              delay: labyrinth.left_cave.ttl
+      - cond: labyrinth.left_cave.ttl_text !~ "Opens in|Locked"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.land_of_heroes
+              expires: labyrinth.left_cave.ttl
+  - cond: labyrinth.left_cave.title ~~ "Cave of Monsters"
+    steps:
+      - cond: labyrinth.left_cave.ttl_text ~= "Opens in"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.cave_of_monsters
+              delay: labyrinth.left_cave.ttl
+      - cond: labyrinth.left_cave.ttl_text !~ "Opens in|Locked"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.cave_of_monsters
+              expires: labyrinth.left_cave.ttl
+  - cond: labyrinth.left_cave.title ~~ "Research Center"
+    steps:
+      - cond: labyrinth.left_cave.ttl_text ~= "Opens in"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.research_center
+              delay: labyrinth.left_cave.ttl
+      - cond: labyrinth.left_cave.ttl_text !~ "Opens in|Locked"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.research_center
+              expires: labyrinth.left_cave.ttl
+
+  # ── Right slot: Charm Mine / Gear Forge ────────────────────────────────────
+  - cond: labyrinth.right_cave.title ~~ "Charm Mine"
+    steps:
+      - cond: labyrinth.right_cave.ttl_text ~= "Opens in"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.charm_mine
+              delay: labyrinth.right_cave.ttl
+      - cond: labyrinth.right_cave.ttl_text !~ "Opens in|Locked"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.charm_mine
+              expires: labyrinth.right_cave.ttl
+  - cond: labyrinth.right_cave.title ~~ "Gear Forge"
+    steps:
+      - cond: labyrinth.right_cave.ttl_text ~= "Opens in"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.gear_forge
+              delay: labyrinth.right_cave.ttl
+      - cond: labyrinth.right_cave.ttl_text !~ "Opens in|Locked"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.gear_forge
+              expires: labyrinth.right_cave.ttl
+
+  # ── Bottom slot: Gaia Heart (dedicated status region) ───────────────────────
+  - cond: labyrinth.bottom_cave.title ~~ "Gaia Heart"
+    steps:
+      - cond: labyrinth.bottom_cave.status ~= "Opens in"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.gaia_heart
+              delay: labyrinth.bottom_cave.ttl
+      - cond: labyrinth.bottom_cave.status !~ "Opens in|Locked"
+        steps:
+          - push_scenario:
+              name: event.labyrinth.gaia_heart
+              expires: labyrinth.bottom_cave.ttl

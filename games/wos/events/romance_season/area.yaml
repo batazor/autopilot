@@ -1,0 +1,137 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.romance_season",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.64183759263238,
+            "y": 25.558090379517278,
+            "width": 6.70854271356778,
+            "height": 2.9207842215102175,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "event.romance_season",
+      "ocr": "references/main.png",
+      "screen_region": "romance_season.title",
+      "regions": [
+        {
+          "name": "romance_season.go",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.926050485892517,
+            "y": 88.32451267939695,
+            "width": 41.758793969849286,
+            "height": 6.412745069221961,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "romance_season.attack_count",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 64.29501593570961,
+            "y": 85.41585290019397,
+            "width": 3.3165829145727916,
+            "height": 2.7091502307398647,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "romance_season.ttl",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.280918209725654,
+            "y": 26.316903358614525,
+            "width": 21.4070351758794,
+            "height": 2.4975162399694364,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "romance_season.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.896364116301367,
+            "y": 1.1738109126807401,
+            "width": 37.04773869346732,
+            "height": 4.084771170747487,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "romance_season.target",
+      "ocr": "references/attack.png",
+      "screen_region": "romance_season.attack",
+      "regions": [
+        {
+          "name": "romance_season.attack",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 54.088584948086655,
+            "y": 74.92991973685947,
+            "width": 21.78391959799001,
+            "height": 3.873137179977072,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "romance_season.rosarion",
+      "ocr": "references/rosarion.png",
+      "screen_region": "rosarion.title",
+      "regions": [
+        {
+          "name": "rosarion.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.244515378448671,
+            "y": 1.0679939172955346,
+            "width": 20.84170854271354,
+            "height": 4.296405161517889,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

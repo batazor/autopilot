@@ -1,0 +1,20 @@
+enabled: true
+name: "Sync troop training status"
+priority: 70_000
+
+node: main_menu
+
+steps:
+  - ocr: main_menu.training.infantry.time
+    store: main_menu.training.infantry.remaining_s
+  - ocr: main_menu.training.infantry.status
+    store: main_menu.training.infantry.status
+  - ocr: main_menu.training.lancer.time
+    store: main_menu.training.lancer.remaining_s
+  - ocr: main_menu.training.lancer.status
+    store: main_menu.training.lancer.status
+  - ocr: main_menu.training.marksman.time
+    store: main_menu.training.marksman.remaining_s
+  - ocr: main_menu.training.marksman.status
+    store: main_menu.training.marksman.status
+  - exec: sync_main_menu_training_status

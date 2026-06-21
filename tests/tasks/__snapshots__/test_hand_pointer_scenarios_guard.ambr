@@ -1,0 +1,67 @@
+# serializer version: 1
+# name: test_hand_pointer_scenarios_check_visibility_before_click[onboarding.click.hand_pointer]
+  dict({
+    'device_level': True,
+    'enabled': True,
+    'name': 'Onboarding click · Hand pointer',
+    'priority': 100000,
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'hand_pointer',
+          }),
+          dict({
+            'wait': '0.5s',
+          }),
+        ]),
+        'while_match': 'hand_pointer',
+      }),
+    ]),
+  })
+# ---
+# name: test_hand_pointer_scenarios_check_visibility_before_click[onboarding.click.hand_pointer_small]
+  dict({
+    'device_level': True,
+    'enabled': True,
+    'name': 'Onboarding click · Small hand pointer',
+    'priority': 100000,
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'hand_pointer_small',
+          }),
+          dict({
+            'wait': '0.5s',
+          }),
+        ]),
+        'while_match': 'hand_pointer_small',
+      }),
+    ]),
+  })
+# ---
+# name: test_hand_pointer_scenarios_check_visibility_before_click[onboarding.click.hand_pointer_small_reverse]
+  dict({
+    'device_level': True,
+    'enabled': True,
+    'name': 'Onboarding click · Small reverse hand pointer',
+    'priority': 100000,
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'hand_pointer_small_reverse',
+          }),
+          dict({
+            'wait': '0.5s',
+          }),
+        ]),
+        'while_match': 'hand_pointer_small_reverse',
+      }),
+    ]),
+  })
+# ---

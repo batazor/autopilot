@@ -1,0 +1,7 @@
+enabled: true
+name: "Shop: Get Gems"
+priority: 80_000
+
+node: shop.get_gems
+
+steps: []

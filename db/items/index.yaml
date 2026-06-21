@@ -1,0 +1,1625 @@
+source:
+  name: whiteoutsurvival.wiki
+  url: https://www.whiteoutsurvival.wiki/items/
+  fetched_at: '2026-05-09'
+items:
+- id: rechargeable_protection_shield_8h
+  name: (Rechargeable) Protection Shield (8h)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rechargeable-protection-shield-8h/
+  file: rechargeable_protection_shield_8h.yaml
+- id: 1st_anniversary_badge
+  name: 1st Anniversary Badge
+  wiki_url: https://www.whiteoutsurvival.wiki/items/1st-anniversary-badge/
+  file: 1st_anniversary_badge.yaml
+- id: 2023_birthday_card
+  name: 2023 Birthday Card
+  wiki_url: https://www.whiteoutsurvival.wiki/items/2023-birthday-card/
+  file: 2023_birthday_card.yaml
+- id: 2024_birthday_card
+  name: 2024 Birthday Card
+  wiki_url: https://www.whiteoutsurvival.wiki/items/2024-birthday-card/
+  file: 2024_birthday_card.yaml
+- id: 2025_birthday_card
+  name: 2025 Birthday Card
+  wiki_url: https://www.whiteoutsurvival.wiki/items/2025-birthday-card/
+  file: 2025_birthday_card.yaml
+- id: 2026_birthday_card
+  name: 2026 Birthday Card
+  wiki_url: https://www.whiteoutsurvival.wiki/items/2026-birthday-card/
+  file: 2026_birthday_card.yaml
+- id: 24h_counter_recon
+  name: 24h Counter-Recon
+  wiki_url: https://www.whiteoutsurvival.wiki/items/24h-counter-recon/
+  file: 24h_counter_recon.yaml
+- id: 24h_shield
+  name: 24h Shield
+  wiki_url: https://www.whiteoutsurvival.wiki/items/24h-shield/
+  file: 24h_shield.yaml
+- id: 2h_counter_recon
+  name: 2h Counter-Recon
+  wiki_url: https://www.whiteoutsurvival.wiki/items/counter-recon/
+  file: 2h_counter_recon.yaml
+- id: 2h_shield
+  name: 2h Shield
+  wiki_url: https://www.whiteoutsurvival.wiki/items/2h-shield/
+  file: 2h_shield.yaml
+- id: 2nd_anniversary_badge
+  name: 2nd Anniversary Badge
+  wiki_url: https://www.whiteoutsurvival.wiki/items/2nd-anniversary-badge/
+  file: 2nd_anniversary_badge.yaml
+- id: 3rd_anniversary_badge
+  name: 3rd Anniversary Badge
+  wiki_url: https://www.whiteoutsurvival.wiki/items/3rd-anniversary-badge/
+  file: 3rd_anniversary_badge.yaml
+- id: 72h_shield
+  name: 72h Shield
+  wiki_url: https://www.whiteoutsurvival.wiki/items/72h-shield/
+  file: 72h_shield.yaml
+- id: 8h_counter_recon
+  name: 8h Counter-recon
+  wiki_url: https://www.whiteoutsurvival.wiki/items/8h-counter-recon/
+  file: 8h_counter_recon.yaml
+- id: 8h_shield
+  name: 8h Shield
+  wiki_url: https://www.whiteoutsurvival.wiki/items/8h-shield/
+  file: 8h_shield.yaml
+- id: hero_lucky_box
+  name: '[Hero] Lucky Box'
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ahmose-lucky-chest/
+  file: hero_lucky_box.yaml
+- id: abundance_scent
+  name: Abundance Scent
+  wiki_url: https://www.whiteoutsurvival.wiki/items/abundance-scent/
+  file: abundance_scent.yaml
+- id: ace_adventure
+  name: Ace Adventure
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ace-adventure/
+  file: ace_adventure.yaml
+- id: advanced_teleporter
+  name: Advanced Teleporter
+  wiki_url: https://www.whiteoutsurvival.wiki/items/advanced-teleporter/
+  file: advanced_teleporter.yaml
+- id: advanced_wild_mark
+  name: Advanced Wild Mark
+  wiki_url: https://www.whiteoutsurvival.wiki/items/advanced-wild-mark/
+  file: advanced_wild_mark.yaml
+- id: adventure_coin
+  name: Adventure Coin
+  wiki_url: https://www.whiteoutsurvival.wiki/items/adventure-coin/
+  file: adventure_coin.yaml
+- id: agnes_sigil
+  name: Agnes Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/agnes-sigil/
+  file: agnes_sigil.yaml
+- id: alliance_showdown_points
+  name: Alliance Showdown Points
+  wiki_url: https://www.whiteoutsurvival.wiki/items/alliance-showdown-points/
+  file: alliance_showdown_points.yaml
+- id: alliance_teleporter
+  name: Alliance Teleporter
+  wiki_url: https://www.whiteoutsurvival.wiki/items/alliance-teleporter/
+  file: alliance_teleporter.yaml
+- id: alliance_token
+  name: Alliance Token
+  wiki_url: https://www.whiteoutsurvival.wiki/items/alliance-token/
+  file: alliance_token.yaml
+- id: ally_s_chest
+  name: Ally’s Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/allys-chest/
+  file: ally_s_chest.yaml
+- id: arena_of_stars
+  name: Arena of Stars
+  wiki_url: https://www.whiteoutsurvival.wiki/items/arena-of-stars/
+  file: arena_of_stars.yaml
+- id: arena_star_chest
+  name: Arena Star Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/arena-star-chest/
+  file: arena_star_chest.yaml
+- id: arena_token
+  name: Arena Token
+  wiki_url: https://www.whiteoutsurvival.wiki/items/arena-token/
+  file: arena_token.yaml
+- id: arsenal_tokens
+  name: Arsenal Tokens
+  wiki_url: https://www.whiteoutsurvival.wiki/items/arsenal-tokens/
+  file: arsenal_tokens.yaml
+- id: auspicious_beast
+  name: Auspicious Beast
+  wiki_url: https://www.whiteoutsurvival.wiki/items/auspicious-beast/
+  file: auspicious_beast.yaml
+- id: authority
+  name: Authority
+  wiki_url: https://www.whiteoutsurvival.wiki/items/authority/
+  file: authority.yaml
+- id: autumn_reverie
+  name: Autumn Reverie
+  wiki_url: https://www.whiteoutsurvival.wiki/items/autumn-reverie-3/
+  file: autumn_reverie.yaml
+- id: baldur_s_sigil
+  name: Baldur’s Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/baldurs-sigil/
+  file: baldur_s_sigil.yaml
+- id: bear_party
+  name: Bear Party
+  wiki_url: https://www.whiteoutsurvival.wiki/items/bear-party/
+  file: bear_party.yaml
+- id: birthday_avatar_frame
+  name: Birthday Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/birthday-avatar-frame/
+  file: birthday_avatar_frame.yaml
+- id: birthday_nameplate
+  name: Birthday Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/birthday-nameplate/
+  file: birthday_nameplate.yaml
+- id: blazing_meteor
+  name: Blazing Meteor
+  wiki_url: https://www.whiteoutsurvival.wiki/items/blazing-metro/
+  file: blazing_meteor.yaml
+- id: blazing_meteor_ii
+  name: Blazing Meteor II
+  wiki_url: https://www.whiteoutsurvival.wiki/items/blazing-meteor-ii/
+  file: blazing_meteor_ii.yaml
+- id: blazing_meteor_puzzle_piece
+  name: Blazing Meteor Puzzle Piece
+  wiki_url: https://www.whiteoutsurvival.wiki/items/blazing-meteor-puzzle-piece/
+  file: blazing_meteor_puzzle_piece.yaml
+- id: blue_flame_avatar_frame
+  name: Blue Flame Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/blue-flame-avatar-frame/
+  file: blue_flame_avatar_frame.yaml
+- id: book_of_knowledge
+  name: Book of Knowledge
+  wiki_url: https://www.whiteoutsurvival.wiki/items/book-of-knowledge/
+  file: book_of_knowledge.yaml
+- id: bountiful_dream
+  name: Bountiful Dream
+  wiki_url: https://www.whiteoutsurvival.wiki/items/bountiful-dream/
+  file: bountiful_dream.yaml
+- id: brute_mammoth
+  name: Brute Mammoth
+  wiki_url: https://www.whiteoutsurvival.wiki/items/brute-mammamoth/
+  file: brute_mammoth.yaml
+- id: bubble_fantasy
+  name: Bubble Fantasy
+  wiki_url: https://www.whiteoutsurvival.wiki/items/bubble-fantasy/
+  file: bubble_fantasy.yaml
+- id: budding_life
+  name: Budding Life
+  wiki_url: https://www.whiteoutsurvival.wiki/items/budding-life/
+  file: budding_life.yaml
+- id: bunny_special_forces
+  name: Bunny Special Forces
+  wiki_url: https://www.whiteoutsurvival.wiki/items/bunny-special-forces/
+  file: bunny_special_forces.yaml
+- id: candy_kaboom
+  name: Candy Kaboom
+  wiki_url: https://www.whiteoutsurvival.wiki/items/candy-kaboom/
+  file: candy_kaboom.yaml
+- id: celebration_firework
+  name: Celebration Firework
+  wiki_url: https://www.whiteoutsurvival.wiki/items/celebration-firework/
+  file: celebration_firework.yaml
+- id: celebration_firework_2nd_anniversary
+  name: Celebration Firework (2nd Anniversary)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/celebration-firework-2nd-anniversary/
+  file: celebration_firework_2nd_anniversary.yaml
+- id: champion_stake
+  name: Champion Stake
+  wiki_url: https://www.whiteoutsurvival.wiki/items/champion-stake/
+  file: champion_stake.yaml
+- id: championship_badge
+  name: Championship Badge
+  wiki_url: https://www.whiteoutsurvival.wiki/items/championship-badge/
+  file: championship_badge.yaml
+- id: charm_design
+  name: Charm Design
+  wiki_url: https://www.whiteoutsurvival.wiki/items/charm-design/
+  file: charm_design.yaml
+- id: charm_guide
+  name: Charm Guide
+  wiki_url: https://www.whiteoutsurvival.wiki/items/charm-guide/
+  file: charm_guide.yaml
+- id: charm_secrets
+  name: Charm Secrets
+  wiki_url: https://www.whiteoutsurvival.wiki/items/charm-secrets/
+  file: charm_secrets.yaml
+- id: chief_charm
+  name: Chief Charm
+  wiki_url: https://www.whiteoutsurvival.wiki/items/chief-charm/
+  file: chief_charm.yaml
+- id: chief_gear_materials_chest
+  name: Chief Gear Materials Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/chief-gear-materials-chest/
+  file: chief_gear_materials_chest.yaml
+- id: chief_gear_variety_chest
+  name: Chief Gear Variety Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/chief-gear-variety-chest/
+  file: chief_gear_variety_chest.yaml
+- id: chief_rename_card
+  name: Chief Rename Card
+  wiki_url: https://www.whiteoutsurvival.wiki/items/chief-rename-card/
+  file: chief_rename_card.yaml
+- id: chief_stamina
+  name: Chief Stamina
+  wiki_url: https://www.whiteoutsurvival.wiki/items/chief-stamina/
+  file: chief_stamina.yaml
+- id: childhood_painting
+  name: Childhood Painting
+  wiki_url: https://www.whiteoutsurvival.wiki/items/childhood-painting/
+  file: childhood_painting.yaml
+- id: chilly_beginnings
+  name: Chilly Beginnings
+  wiki_url: https://www.whiteoutsurvival.wiki/items/chilly-beginnings/
+  file: chilly_beginnings.yaml
+- id: christmas_carol
+  name: Christmas Carol
+  wiki_url: https://www.whiteoutsurvival.wiki/items/christmas-carol/
+  file: christmas_carol.yaml
+- id: chrono_flow
+  name: Chrono Flow
+  wiki_url: https://www.whiteoutsurvival.wiki/items/chrono-flow/
+  file: chrono_flow.yaml
+- id: cloud_fantasy
+  name: Cloud Fantasy
+  wiki_url: https://www.whiteoutsurvival.wiki/items/cloud-fantasy/
+  file: cloud_fantasy.yaml
+- id: coal
+  name: Coal
+  wiki_url: https://www.whiteoutsurvival.wiki/items/coal/
+  file: coal.yaml
+- id: common_expert_sigil
+  name: Common Expert Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/common-expert-sigil/
+  file: common_expert_sigil.yaml
+- id: common_radiance_treasure
+  name: Common Radiance Treasure
+  wiki_url: https://www.whiteoutsurvival.wiki/items/common-radiance-treasure/
+  file: common_radiance_treasure.yaml
+- id: common_wild_mark
+  name: Common Wild Mark
+  wiki_url: https://www.whiteoutsurvival.wiki/items/common-wild-mark/
+  file: common_wild_mark.yaml
+- id: compass
+  name: Compass
+  wiki_url: https://www.whiteoutsurvival.wiki/items/compass/
+  file: compass.yaml
+- id: controller_s_chest
+  name: Controller’s Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/controllers-chest/
+  file: controller_s_chest.yaml
+- id: crescent_wish
+  name: Crescent Wish
+  wiki_url: https://www.whiteoutsurvival.wiki/items/crescent-wish/
+  file: crescent_wish.yaml
+- id: crystallite_core
+  name: Crystallite Core
+  wiki_url: https://www.whiteoutsurvival.wiki/items/crystallite-core/
+  file: crystallite_core.yaml
+- id: cupid_patrol
+  name: Cupid Patrol
+  wiki_url: https://www.whiteoutsurvival.wiki/items/cupid-patrol/
+  file: cupid_patrol.yaml
+- id: cupid_s_arrow_avatar_frame
+  name: Cupid’s Arrow Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/cupids-arrow-avatar-frame/
+  file: cupid_s_arrow_avatar_frame.yaml
+- id: custom_city_skin_chest
+  name: Custom City Skin Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/custom-city-skin-chest/
+  file: custom_city_skin_chest.yaml
+- id: custom_epic_hero_gear_chest
+  name: Custom Epic Hero Gear Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/custom-epic-hero-gear-chest/
+  file: custom_epic_hero_gear_chest.yaml
+- id: custom_epic_hero_shard_chest
+  name: Custom Epic Hero Shard Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/custom-epic-hero-shard-chest/
+  file: custom_epic_hero_shard_chest.yaml
+- id: custom_march_skin_chest
+  name: Custom March Skin Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/custom-march-skin-chest/
+  file: custom_march_skin_chest.yaml
+- id: custom_mission_voucher
+  name: Custom Mission Voucher
+  wiki_url: https://www.whiteoutsurvival.wiki/items/custom-mission-voucher/
+  file: custom_mission_voucher.yaml
+- id: custom_mythic_hero_gear_chest
+  name: Custom Mythic Hero Gear Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/custom-mythic-hero-gear-chest/
+  file: custom_mythic_hero_gear_chest.yaml
+- id: custom_teleport_skin_chest
+  name: Custom Teleport Skin Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/custom-teleport-skin-chest/
+  file: custom_teleport_skin_chest.yaml
+- id: cyclone_runner
+  name: Cyclone Runner
+  wiki_url: https://www.whiteoutsurvival.wiki/items/cyclone-runner/
+  file: cyclone_runner.yaml
+- id: cyrille_sigil
+  name: Cyrille Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/cyrille-sigil/
+  file: cyrille_sigil.yaml
+- id: dancing_lion
+  name: Dancing Lion
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dancing-lion/
+  file: dancing_lion.yaml
+- id: dazzling_radiance_treasure
+  name: Dazzling Radiance Treasure
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dazzling-radiance-treasure/
+  file: dazzling_radiance_treasure.yaml
+- id: deep_connection
+  name: Deep Connection
+  wiki_url: https://www.whiteoutsurvival.wiki/items/deep-connection/
+  file: deep_connection.yaml
+- id: deployment_capacity_boost_i_2hrs
+  name: Deployment Capacity Boost I (2hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/deployment-capacity-boost-i-2hrs/
+  file: deployment_capacity_boost_i_2hrs.yaml
+- id: deployment_capacity_boost_ii_12hrs
+  name: Deployment Capacity Boost II (12hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/deployment-capacity-boost-ii-12hrs/
+  file: deployment_capacity_boost_ii_12hrs.yaml
+- id: design_plans
+  name: Design Plans
+  wiki_url: https://www.whiteoutsurvival.wiki/items/design-plans/
+  file: design_plans.yaml
+- id: disguise_wand
+  name: Disguise Wand
+  wiki_url: https://www.whiteoutsurvival.wiki/items/disguise-wand/
+  file: disguise_wand.yaml
+- id: dragon_dominion
+  name: Dragon Dominion
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dragon-dominion/
+  file: dragon_dominion.yaml
+- id: dragonhold
+  name: Dragonhold
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dragonhold/
+  file: dragonhold.yaml
+- id: dragonmark
+  name: Dragonmark
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dragonmark/
+  file: dragonmark.yaml
+- id: dragon_s_blessing
+  name: Dragon’s Blessing
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dragons-blessing/
+  file: dragon_s_blessing.yaml
+- id: dream_fishbit
+  name: Dream Fishbit
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dream-fishbit/
+  file: dream_fishbit.yaml
+- id: dream_keeper
+  name: Dream Keeper
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dream-keeper-3/
+  file: dream_keeper.yaml
+- id: dream_mark
+  name: Dream Mark
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dream-mark/
+  file: dream_mark.yaml
+- id: dream_odyssey
+  name: Dream Odyssey
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dream-odyssey/
+  file: dream_odyssey.yaml
+- id: dream_of_atlantis
+  name: Dream of Atlantis
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dream-of-atlantis/
+  file: dream_of_atlantis.yaml
+- id: dreambell
+  name: Dreambell
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dreambell/
+  file: dreambell.yaml
+- id: dreamheart
+  name: Dreamheart
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dreamheart/
+  file: dreamheart.yaml
+- id: dreamlike_fantasy
+  name: Dreamlike Fantasy
+  wiki_url: https://www.whiteoutsurvival.wiki/items/dreamlike-fantasy/
+  file: dreamlike_fantasy.yaml
+- id: easter_bunny_nameplate
+  name: Easter Bunny Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/easter-bunny-nameplate/
+  file: easter_bunny_nameplate.yaml
+- id: easter_egg_plant
+  name: Easter Egg-Plant
+  wiki_url: https://www.whiteoutsurvival.wiki/items/easter-egg-plant/
+  file: easter_egg_plant.yaml
+- id: easter_eggs_party_avatar_frame
+  name: Easter Eggs Party Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/easter-egg-party-avatar-frame/
+  file: easter_eggs_party_avatar_frame.yaml
+- id: egg_pert
+  name: Egg-pert
+  wiki_url: https://www.whiteoutsurvival.wiki/items/egg-pert/
+  file: egg_pert.yaml
+- id: egg_topia
+  name: Egg-topia
+  wiki_url: https://www.whiteoutsurvival.wiki/items/egg-topia/
+  file: egg_topia.yaml
+- id: emperor_penguin_slopes
+  name: Emperor Penguin Slopes
+  wiki_url: https://www.whiteoutsurvival.wiki/items/emperor-penguin-slopes/
+  file: emperor_penguin_slopes.yaml
+- id: enchanting_power
+  name: Enchanting Power
+  wiki_url: https://www.whiteoutsurvival.wiki/items/enchanting-power/
+  file: enchanting_power.yaml
+- id: endless_bounty
+  name: Endless Bounty
+  wiki_url: https://www.whiteoutsurvival.wiki/items/endless-bounty/
+  file: endless_bounty.yaml
+- id: enemy_troops_attack_down_i_2hrs
+  name: Enemy Troops Attack Down I (2hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/enemy-attack/
+  file: enemy_troops_attack_down_i_2hrs.yaml
+- id: enemy_troops_attack_down_ii_12hrs
+  name: Enemy Troops Attack Down II (12hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/enemy-troops-attack-down-ii-12hrs/
+  file: enemy_troops_attack_down_ii_12hrs.yaml
+- id: enemy_troops_defense_down_i_2hrs
+  name: Enemy Troops Defense Down I (2hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/enemy-troops-defense-down-i-2hrs/
+  file: enemy_troops_defense_down_i_2hrs.yaml
+- id: enemy_troops_defense_down_ii_12hrs
+  name: Enemy Troops Defense Down II (12hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/enemy-troops-defense-down-ii-12hrs/
+  file: enemy_troops_defense_down_ii_12hrs.yaml
+- id: energizing_potion
+  name: Energizing potion
+  wiki_url: https://www.whiteoutsurvival.wiki/items/energizing-potion/
+  file: energizing_potion.yaml
+- id: enhancement_xp_component
+  name: Enhancement XP Component
+  wiki_url: https://www.whiteoutsurvival.wiki/items/enhancement-xp-component/
+  file: enhancement_xp_component.yaml
+- id: epic_expedition_skill_manual
+  name: Epic Expedition Skill Manual
+  wiki_url: https://www.whiteoutsurvival.wiki/items/epic-expedition-skill-manual/
+  file: epic_expedition_skill_manual.yaml
+- id: epic_exploration_skill_manual
+  name: Epic Exploration Skill Manual
+  wiki_url: https://www.whiteoutsurvival.wiki/items/epic-exploration-skill-manual/
+  file: epic_exploration_skill_manual.yaml
+- id: epic_general_hero_shard
+  name: Epic General Hero Shard
+  wiki_url: https://www.whiteoutsurvival.wiki/items/epic-general-hero-shard/
+  file: epic_general_hero_shard.yaml
+- id: epic_general_scene_fragment_pack
+  name: Epic General Scene Fragment Pack
+  wiki_url: https://www.whiteoutsurvival.wiki/items/epic-general-scene-fragment-pack/
+  file: epic_general_scene_fragment_pack.yaml
+- id: essence_stones
+  name: Essence Stones
+  wiki_url: https://www.whiteoutsurvival.wiki/items/essence-stones/
+  file: essence_stones.yaml
+- id: expedition
+  name: Expedition
+  wiki_url: https://www.whiteoutsurvival.wiki/items/expedition/
+  file: expedition.yaml
+- id: explosive_arrowhead
+  name: Explosive Arrowhead
+  wiki_url: https://www.whiteoutsurvival.wiki/items/explosive-arrowhead/
+  file: explosive_arrowhead.yaml
+- id: exquisite_radiance_treasure
+  name: Exquisite Radiance Treasure
+  wiki_url: https://www.whiteoutsurvival.wiki/items/exquisite-radiance-treasure/
+  file: exquisite_radiance_treasure.yaml
+- id: fabian_sigil
+  name: Fabian Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fabian-sigil/
+  file: fabian_sigil.yaml
+- id: fantasy_mushroom_avatar_frame
+  name: Fantasy Mushroom Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fantasy-mushroom-avatar-frame/
+  file: fantasy_mushroom_avatar_frame.yaml
+- id: fantasy_mushroom_nameplate
+  name: Fantasy Mushroom Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fantasy-mushroom-nameplate/
+  file: fantasy_mushroom_nameplate.yaml
+- id: feast_of_fidelity
+  name: Feast of Fidelity
+  wiki_url: https://www.whiteoutsurvival.wiki/items/feast-of-fidelity/
+  file: feast_of_fidelity.yaml
+- id: festive_moment
+  name: Festive Moment
+  wiki_url: https://www.whiteoutsurvival.wiki/items/festive-moment/
+  file: festive_moment.yaml
+- id: fiery_heart
+  name: Fiery Heart
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fiery-heart/
+  file: fiery_heart.yaml
+- id: fiery_melody
+  name: Fiery Melody
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fiery-melody/
+  file: fiery_melody.yaml
+- id: fire_crystal
+  name: Fire Crystal
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fire-crystal/
+  file: fire_crystal.yaml
+- id: fire_crystal_chest
+  name: Fire Crystal Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fyre-crystal-chest/
+  file: fire_crystal_chest.yaml
+- id: fire_crystal_ember
+  name: Fire Crystal Ember
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fire-crystal-ember-2/
+  file: fire_crystal_ember.yaml
+- id: fire_crystal_shard
+  name: Fire Crystal Shard
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fire-crystal-shard/
+  file: fire_crystal_shard.yaml
+- id: fireclaw_hunter
+  name: Fireclaw Hunter
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fireclaw-hunter/
+  file: fireclaw_hunter.yaml
+- id: flame_dance
+  name: Flame Dance
+  wiki_url: https://www.whiteoutsurvival.wiki/items/flame-dance/
+  file: flame_dance.yaml
+- id: forgetown
+  name: Forgetown
+  wiki_url: https://www.whiteoutsurvival.wiki/items/forgetown/
+  file: forgetown.yaml
+- id: fortune_token
+  name: Fortune Token
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fortune-token/
+  file: fortune_token.yaml
+- id: freeze_patrol
+  name: Freeze Patrol
+  wiki_url: https://www.whiteoutsurvival.wiki/items/freeze-patrol/
+  file: freeze_patrol.yaml
+- id: frontier_supply
+  name: Frontier Supply
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frontier-supply/
+  file: frontier_supply.yaml
+- id: frost_domain_avatar_frame
+  name: Frost Domain Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-domain-avatar-frame/
+  file: frost_domain_avatar_frame.yaml
+- id: frost_dragon
+  name: Frost Dragon
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-dragon/
+  file: frost_dragon.yaml
+- id: frost_sphere
+  name: Frost Sphere
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-sphere/
+  file: frost_sphere.yaml
+- id: frost_sphere_ii
+  name: Frost Sphere II
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-sphere-ii/
+  file: frost_sphere_ii.yaml
+- id: frost_sphere_iii
+  name: Frost Sphere III
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-sphere-iii/
+  file: frost_sphere_iii.yaml
+- id: frost_sphere_iv
+  name: Frost Sphere IV
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-sphere-iv/
+  file: frost_sphere_iv.yaml
+- id: frost_sphere_puzzle_piece
+  name: Frost Sphere Puzzle Piece
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-sphere-puzzle-piece/
+  file: frost_sphere_puzzle_piece.yaml
+- id: frost_sphere_v
+  name: Frost Sphere V
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-sphere-v/
+  file: frost_sphere_v.yaml
+- id: frost_sphere_vi
+  name: Frost Sphere VI
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-sphere-vi/
+  file: frost_sphere_vi.yaml
+- id: frost_star
+  name: Frost Star
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frost-star/
+  file: frost_star.yaml
+- id: frostdragon_battlefield_rally_speedup_i
+  name: Frostdragon Battlefield Rally Speedup I
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostdragon-battlefield-rally-speedup-i/
+  file: frostdragon_battlefield_rally_speedup_i.yaml
+- id: frostdragon_battlefield_rally_speedup_ii
+  name: Frostdragon Battlefield Rally Speedup II
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostdragon-battlefield-rally-speedup-ii/
+  file: frostdragon_battlefield_rally_speedup_ii.yaml
+- id: frostjade
+  name: Frostjade
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostjade/
+  file: frostjade.yaml
+- id: frostsea_chief_chest
+  name: Frostsea Chief Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-chief-chest/
+  file: frostsea_chief_chest.yaml
+- id: frostsea_construction_chest
+  name: Frostsea Construction Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-construction-chest/
+  file: frostsea_construction_chest.yaml
+- id: frostsea_fishing_chest
+  name: Frostsea Fishing Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-fishing-chest/
+  file: frostsea_fishing_chest.yaml
+- id: frostsea_gear_chest
+  name: Frostsea Gear Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-gear-chest/
+  file: frostsea_gear_chest.yaml
+- id: frostsea_hero_chest
+  name: Frostsea Hero Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-hero-chest/
+  file: frostsea_hero_chest.yaml
+- id: frostsea_mastery_chest
+  name: Frostsea Mastery Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-mastery-chest/
+  file: frostsea_mastery_chest.yaml
+- id: frostsea_speedup_chest
+  name: Frostsea Speedup Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-speedup-chest/
+  file: frostsea_speedup_chest.yaml
+- id: frostsea_tech_chest
+  name: Frostsea Tech Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-tech-chest/
+  file: frostsea_tech_chest.yaml
+- id: frostsea_training_chest
+  name: Frostsea Training Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-training-chest/
+  file: frostsea_training_chest.yaml
+- id: frostsea_xp_chest
+  name: Frostsea XP Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostsea-xp-chest/
+  file: frostsea_xp_chest.yaml
+- id: frostwing_avatar_frame
+  name: Frostwing Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostwing-avatar-frame/
+  file: frostwing_avatar_frame.yaml
+- id: frostwing_nameplate
+  name: Frostwing Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frostwing-nameplate/
+  file: frostwing_nameplate.yaml
+- id: frosty_prospector
+  name: Frosty Prospector
+  wiki_url: https://www.whiteoutsurvival.wiki/items/frosty-prospector/
+  file: frosty_prospector.yaml
+- id: fuel_supply_chest
+  name: Fuel Supply Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/fuel-supply-chest/
+  file: fuel_supply_chest.yaml
+- id: garden_of_delights
+  name: Garden of Delights
+  wiki_url: https://www.whiteoutsurvival.wiki/items/garden-of-delights/
+  file: garden_of_delights.yaml
+- id: gate_of_time
+  name: Gate of Time
+  wiki_url: https://www.whiteoutsurvival.wiki/items/gate-of-time/
+  file: gate_of_time.yaml
+- id: gathering_speed_boost_24h
+  name: Gathering Speed Boost (24h)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/gathering-speed-boost-24h/
+  file: gathering_speed_boost_24h.yaml
+- id: gathering_speed_boost_8h
+  name: Gathering Speed Boost (8h)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/gathering-speed-boost-8h/
+  file: gathering_speed_boost_8h.yaml
+- id: gem_of_enigma
+  name: Gem of Enigma
+  wiki_url: https://www.whiteoutsurvival.wiki/items/gem-of-enigma/
+  file: gem_of_enigma.yaml
+- id: gems
+  name: Gems
+  wiki_url: https://www.whiteoutsurvival.wiki/items/gems/
+  file: gems.yaml
+- id: general_accessory_construction_contract
+  name: General Accessory Construction Contract
+  wiki_url: https://www.whiteoutsurvival.wiki/items/general-accessory-construction-contract/
+  file: general_accessory_construction_contract.yaml
+- id: general_master_fragment
+  name: General Master Fragment
+  wiki_url: https://www.whiteoutsurvival.wiki/items/general-master-fragment/
+  file: general_master_fragment.yaml
+- id: generosity_emblem
+  name: Generosity Emblem
+  wiki_url: https://www.whiteoutsurvival.wiki/items/generosity-emblem/
+  file: generosity_emblem.yaml
+- id: gilded_dragonboat
+  name: Gilded Dragonboat
+  wiki_url: https://www.whiteoutsurvival.wiki/items/gilded-dragonboat/
+  file: gilded_dragonboat.yaml
+- id: gleaming_crescent
+  name: Gleaming Crescent
+  wiki_url: https://www.whiteoutsurvival.wiki/items/gleaming-crescent/
+  file: gleaming_crescent.yaml
+- id: glowstone
+  name: Glowstone
+  wiki_url: https://www.whiteoutsurvival.wiki/items/glowstone/
+  file: glowstone.yaml
+- id: gold_key
+  name: Gold key
+  wiki_url: https://www.whiteoutsurvival.wiki/items/gold-key/
+  file: gold_key.yaml
+- id: golden_symphony
+  name: Golden Symphony
+  wiki_url: https://www.whiteoutsurvival.wiki/items/golden-symphony-2/
+  file: golden_symphony.yaml
+- id: golden_symphony_nameplate
+  name: Golden Symphony Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/golden-symphony-nameplate/
+  file: golden_symphony_nameplate.yaml
+- id: halloween_fright_night
+  name: Halloween Fright Night
+  wiki_url: https://www.whiteoutsurvival.wiki/items/halloween-fright-night/
+  file: halloween_fright_night.yaml
+- id: harbor_of_hope_blueprint
+  name: Harbor of Hope Blueprint
+  wiki_url: https://www.whiteoutsurvival.wiki/items/harbor-of-hope-blueprint/
+  file: harbor_of_hope_blueprint.yaml
+- id: hardened_alloy
+  name: Hardened Alloy
+  wiki_url: https://www.whiteoutsurvival.wiki/items/hardened-alloy/
+  file: hardened_alloy.yaml
+- id: harvest_hymn
+  name: Harvest Hymn
+  wiki_url: https://www.whiteoutsurvival.wiki/items/harvest-hymn/
+  file: harvest_hymn.yaml
+- id: helios_lion_avatar_frame
+  name: Helios Lion Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/helios-lion-avatar-frame/
+  file: helios_lion_avatar_frame.yaml
+- id: hero_xp
+  name: Hero XP
+  wiki_url: https://www.whiteoutsurvival.wiki/items/hero-xp/
+  file: hero_xp.yaml
+- id: high_diver
+  name: High Diver
+  wiki_url: https://www.whiteoutsurvival.wiki/items/high-diver/
+  file: high_diver.yaml
+- id: holger_sigil
+  name: Holger Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/holger-sigil/
+  file: holger_sigil.yaml
+- id: honeymoon_trip
+  name: Honeymoon Trip
+  wiki_url: https://www.whiteoutsurvival.wiki/items/honeymoon-trip/
+  file: honeymoon_trip.yaml
+- id: honor_feather_nameplate
+  name: Honor Feather Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/honor-feather-nameplate/
+  file: honor_feather_nameplate.yaml
+- id: horn_of_poseidon
+  name: Horn of Poseidon
+  wiki_url: https://www.whiteoutsurvival.wiki/items/horn-of-poseidon/
+  file: horn_of_poseidon.yaml
+- id: horn_of_the_cryptid
+  name: Horn of the Cryptid
+  wiki_url: https://www.whiteoutsurvival.wiki/items/horn-of-the-cryptid/
+  file: horn_of_the_cryptid.yaml
+- id: hornwrath_herald
+  name: Hornwrath Herald
+  wiki_url: https://www.whiteoutsurvival.wiki/items/hornwrath-herald/
+  file: hornwrath_herald.yaml
+- id: hunter_pouch
+  name: Hunter Pouch
+  wiki_url: https://www.whiteoutsurvival.wiki/items/hunter-pouch/
+  file: hunter_pouch.yaml
+- id: hymn_of_the_aurora
+  name: Hymn of the Aurora
+  wiki_url: https://www.whiteoutsurvival.wiki/items/hymn-of-the-aurora/
+  file: hymn_of_the_aurora.yaml
+- id: ice_age_avatar_frame
+  name: Ice Age Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ice-age-avatar-frame/
+  file: ice_age_avatar_frame.yaml
+- id: ice_age_nameplate
+  name: Ice Age Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ice-age-nameplate/
+  file: ice_age_nameplate.yaml
+- id: ice_journey
+  name: Ice Journey
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ice-journey/
+  file: ice_journey.yaml
+- id: icefisher_voucher
+  name: Icefisher Voucher
+  wiki_url: https://www.whiteoutsurvival.wiki/items/icefisher-voucher/
+  file: icefisher_voucher.yaml
+- id: incubus_knight
+  name: Incubus Knight
+  wiki_url: https://www.whiteoutsurvival.wiki/items/incubus-knight/
+  file: incubus_knight.yaml
+- id: iron
+  name: Iron
+  wiki_url: https://www.whiteoutsurvival.wiki/items/iron/
+  file: iron.yaml
+- id: island_prosperity
+  name: Island Prosperity
+  wiki_url: https://www.whiteoutsurvival.wiki/items/island-prosperity/
+  file: island_prosperity.yaml
+- id: jarred_universe
+  name: Jarred Universe
+  wiki_url: https://www.whiteoutsurvival.wiki/items/jarred-universe/
+  file: jarred_universe.yaml
+- id: jubilee_pact
+  name: Jubilee Pact
+  wiki_url: https://www.whiteoutsurvival.wiki/items/jubilee-pact-2/
+  file: jubilee_pact.yaml
+- id: kathy_sigil
+  name: Kathy Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/kathy-sigil/
+  file: kathy_sigil.yaml
+- id: knight_of_conquest
+  name: Knight of Conquest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/knight-of-conquest/
+  file: knight_of_conquest.yaml
+- id: knight_of_the_watch
+  name: Knight of the Watch
+  wiki_url: https://www.whiteoutsurvival.wiki/items/knight-of-the-watch/
+  file: knight_of_the_watch.yaml
+- id: knight_s_glory_avatar_frame
+  name: Knight’s Glory Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/knights-glory-avatar-frame/
+  file: knight_s_glory_avatar_frame.yaml
+- id: knight_s_glory_nameplate
+  name: Knight’s Glory Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/knights-glory-nameplate/
+  file: knight_s_glory_nameplate.yaml
+- id: koi_lantern
+  name: Koi Lantern
+  wiki_url: https://www.whiteoutsurvival.wiki/items/koi-lantern/
+  file: koi_lantern.yaml
+- id: labyrinth_core
+  name: Labyrinth Core
+  wiki_url: https://www.whiteoutsurvival.wiki/items/labyrinth-core/
+  file: labyrinth_core.yaml
+- id: labyrinth_treasure
+  name: Labyrinth Treasure
+  wiki_url: https://www.whiteoutsurvival.wiki/items/labyrinth-treasure/
+  file: labyrinth_treasure.yaml
+- id: lantern
+  name: Lantern
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lantern/
+  file: lantern.yaml
+- id: leaping_koi
+  name: Leaping Koi
+  wiki_url: https://www.whiteoutsurvival.wiki/items/leaping-koi/
+  file: leaping_koi.yaml
+- id: life_essence
+  name: Life Essence
+  wiki_url: https://www.whiteoutsurvival.wiki/items/life-essence/
+  file: life_essence.yaml
+- id: loot
+  name: Loot
+  wiki_url: https://www.whiteoutsurvival.wiki/items/loot-2/
+  file: loot.yaml
+- id: lost_city
+  name: Lost City
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lost-city/
+  file: lost_city.yaml
+- id: lost_coin
+  name: Lost Coin
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lost-coin/
+  file: lost_coin.yaml
+- id: lotus_lanternshine
+  name: Lotus Lanternshine
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lotus-lanternshine/
+  file: lotus_lanternshine.yaml
+- id: love_melody_avatar_frame
+  name: Love Melody Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/love-melody-avatar-frame/
+  file: love_melody_avatar_frame.yaml
+- id: love_s_offering
+  name: Love’s Offering
+  wiki_url: https://www.whiteoutsurvival.wiki/items/loves-offering/
+  file: love_s_offering.yaml
+- id: loyalty
+  name: Loyalty
+  wiki_url: https://www.whiteoutsurvival.wiki/items/loyalty/
+  file: loyalty.yaml
+- id: loyalty_tag
+  name: Loyalty Tag
+  wiki_url: https://www.whiteoutsurvival.wiki/items/loyalty-tag/
+  file: loyalty_tag.yaml
+- id: lucky_chip
+  name: Lucky Chip
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lucky-chip/
+  file: lucky_chip.yaml
+- id: lucky_hero_gear_chest
+  name: Lucky Hero Gear Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lucky-hero-gear-chest/
+  file: lucky_hero_gear_chest.yaml
+- id: lucky_pouch
+  name: Lucky Pouch
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lucky-pouch/
+  file: lucky_pouch.yaml
+- id: luminous_waves
+  name: Luminous Waves
+  wiki_url: https://www.whiteoutsurvival.wiki/items/luminous-waves-2/
+  file: luminous_waves.yaml
+- id: lunar_amber
+  name: Lunar Amber
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lunar-amber/
+  file: lunar_amber.yaml
+- id: lv_1_custom_ressource_chest
+  name: Lv.1 Custom Ressource Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lv-1-custom-ressource-chest/
+  file: lv_1_custom_ressource_chest.yaml
+- id: lv_2_custom_ressource_chest
+  name: Lv.2 Custom Ressource Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lv-2-custom-ressource-chest/
+  file: lv_2_custom_ressource_chest.yaml
+- id: lv_3_custom_ressource_chest
+  name: Lv.3 Custom Ressource Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/lv-3-custom-ressource-chest/
+  file: lv_3_custom_ressource_chest.yaml
+- id: magic_teddy
+  name: Magic Teddy
+  wiki_url: https://www.whiteoutsurvival.wiki/items/magic-teddy/
+  file: magic_teddy.yaml
+- id: magician_s_cloak
+  name: Magician’s Cloak
+  wiki_url: https://www.whiteoutsurvival.wiki/items/magicians-cloak/
+  file: magician_s_cloak.yaml
+- id: map_fragment
+  name: Map Fragment
+  wiki_url: https://www.whiteoutsurvival.wiki/items/map-fragment/
+  file: map_fragment.yaml
+- id: march_accelerator_i
+  name: March Accelerator I
+  wiki_url: https://www.whiteoutsurvival.wiki/items/march-accelerator-i/
+  file: march_accelerator_i.yaml
+- id: march_accelerator_ii
+  name: March Accelerator II
+  wiki_url: https://www.whiteoutsurvival.wiki/items/march-accelerator-ii/
+  file: march_accelerator_ii.yaml
+- id: mark_of_valor
+  name: Mark Of Valor
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mark-of-valor/
+  file: mark_of_valor.yaml
+- id: marry_christmas
+  name: Marry Christmas
+  wiki_url: https://www.whiteoutsurvival.wiki/items/marry-christmas/
+  file: marry_christmas.yaml
+- id: marvelous_tile_reconstruct
+  name: 'Marvelous Tile: Reconstruct'
+  wiki_url: https://www.whiteoutsurvival.wiki/items/marvelous-tile-reconstruct/
+  file: marvelous_tile_reconstruct.yaml
+- id: marvelous_tile_remove
+  name: 'Marvelous Tile: Remove'
+  wiki_url: https://www.whiteoutsurvival.wiki/items/marvelous-tile-remove/
+  file: marvelous_tile_remove.yaml
+- id: marvelous_tile_withdraw
+  name: 'Marvelous Tile: Withdraw'
+  wiki_url: https://www.whiteoutsurvival.wiki/items/marvelous-tile-withdraw/
+  file: marvelous_tile_withdraw.yaml
+- id: master_artisan
+  name: Master Artisan
+  wiki_url: https://www.whiteoutsurvival.wiki/items/master-artisan/
+  file: master_artisan.yaml
+- id: master_builder
+  name: Master Builder
+  wiki_url: https://www.whiteoutsurvival.wiki/items/master-builder/
+  file: master_builder.yaml
+- id: master_of_the_seas_avatar_frame
+  name: Master of the Seas Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/master-of-the-seas-avatar-frame/
+  file: master_of_the_seas_avatar_frame.yaml
+- id: master_of_the_seas_nameplate
+  name: Master of the Seas Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/master-of-the-seas-nameplate/
+  file: master_of_the_seas_nameplate.yaml
+- id: match_stake
+  name: Match Stake
+  wiki_url: https://www.whiteoutsurvival.wiki/items/match-stake/
+  file: match_stake.yaml
+- id: meat
+  name: Meat
+  wiki_url: https://www.whiteoutsurvival.wiki/items/meat/
+  file: meat.yaml
+- id: mecha_pincer
+  name: Mecha Pincer
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mecha-pincer/
+  file: mecha_pincer.yaml
+- id: medal_of_dawn
+  name: Medal Of Dawn
+  wiki_url: https://www.whiteoutsurvival.wiki/items/medal-of-dawn/
+  file: medal_of_dawn.yaml
+- id: medal_of_honor
+  name: Medal of Honor
+  wiki_url: https://www.whiteoutsurvival.wiki/items/medal-of-honor/
+  file: medal_of_honor.yaml
+- id: mercenary_help_chest
+  name: Mercenary Help Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mercenary-help-chest/
+  file: mercenary_help_chest.yaml
+- id: mithril
+  name: Mithril
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mithril/
+  file: mithril.yaml
+- id: mobilization_chest
+  name: Mobilization Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mobilization-chest/
+  file: mobilization_chest.yaml
+- id: moonlight_milkyway
+  name: Moonlight Milkyway
+  wiki_url: https://www.whiteoutsurvival.wiki/items/moonlight-milkyway/
+  file: moonlight_milkyway.yaml
+- id: moonlight_serenade
+  name: Moonlight Serenade
+  wiki_url: https://www.whiteoutsurvival.wiki/items/moonlight-serenade/
+  file: moonlight_serenade.yaml
+- id: mushroom_fairy
+  name: Mushroom Fairy
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mushroom-fairy/
+  file: mushroom_fairy.yaml
+- id: mystery_badge
+  name: Mystery Badge
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mystery-badge/
+  file: mystery_badge.yaml
+- id: mythic_expedition_skill_manual
+  name: Mythic Expedition Skill Manual
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mythic-expedition-skill-manual/
+  file: mythic_expedition_skill_manual.yaml
+- id: mythic_exploration_skill_manual
+  name: Mythic Exploration Skill Manual
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mythic-exploration-skill-manual/
+  file: mythic_exploration_skill_manual.yaml
+- id: mythic_general_decoration_component
+  name: Mythic General Decoration Component
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mythic-general-decoration-component/
+  file: mythic_general_decoration_component.yaml
+- id: mythic_general_hero_shard
+  name: Mythic General Hero Shard
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mythic-general-hero-shard/
+  file: mythic_general_hero_shard.yaml
+- id: mythic_general_scene_fragment_pack
+  name: Mythic General Scene Fragment Pack
+  wiki_url: https://www.whiteoutsurvival.wiki/items/mythic-general-scene-fragment-pack/
+  file: mythic_general_scene_fragment_pack.yaml
+- id: naver_honorary_player_avatar_frame
+  name: Naver Honorary Player Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/naver-honorary-player-avatar-frame/
+  file: naver_honorary_player_avatar_frame.yaml
+- id: new_year_celebration
+  name: New Year Celebration
+  wiki_url: https://www.whiteoutsurvival.wiki/items/new-year-celebration/
+  file: new_year_celebration.yaml
+- id: new_year_flame
+  name: New Year Flame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/new-year-flame/
+  file: new_year_flame.yaml
+- id: new_year_s_wish
+  name: New Year’s Wish
+  wiki_url: https://www.whiteoutsurvival.wiki/items/new-years-wish/
+  file: new_year_s_wish.yaml
+- id: nightmare_jack_o_mobile
+  name: Nightmare Jack-o-Mobile
+  wiki_url: https://www.whiteoutsurvival.wiki/items/nightmare-jack-o-mobile/
+  file: nightmare_jack_o_mobile.yaml
+- id: ninja_meow
+  name: Ninja Meow
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ninja-meow/
+  file: ninja_meow.yaml
+- id: o_holy_night
+  name: O Holy Night
+  wiki_url: https://www.whiteoutsurvival.wiki/items/o-holy-night/
+  file: o_holy_night.yaml
+- id: ocean_scanner
+  name: Ocean Scanner
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ocean-scanner/
+  file: ocean_scanner.yaml
+- id: panda_fury
+  name: Panda Fury
+  wiki_url: https://www.whiteoutsurvival.wiki/items/panda-fury/
+  file: panda_fury.yaml
+- id: perpetual_treads
+  name: Perpetual Treads
+  wiki_url: https://www.whiteoutsurvival.wiki/items/perpetual-treads/
+  file: perpetual_treads.yaml
+- id: pet_advancement_materials_custom_chest
+  name: Pet Advancement Materials Custom Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/pet-advancement-materials-custom-chest/
+  file: pet_advancement_materials_custom_chest.yaml
+- id: pet_food
+  name: Pet Food
+  wiki_url: https://www.whiteoutsurvival.wiki/items/pet-food/
+  file: pet_food.yaml
+- id: petal_rain
+  name: Petal Rain
+  wiki_url: https://www.whiteoutsurvival.wiki/items/petal-rain/
+  file: petal_rain.yaml
+- id: phantom_envoy
+  name: Phantom Envoy
+  wiki_url: https://www.whiteoutsurvival.wiki/items/phantom-envoy/
+  file: phantom_envoy.yaml
+- id: phantom_magician
+  name: Phantom Magician
+  wiki_url: https://www.whiteoutsurvival.wiki/items/phantom-magician/
+  file: phantom_magician.yaml
+- id: phlegon
+  name: Phlegon
+  wiki_url: https://www.whiteoutsurvival.wiki/items/phlegon/
+  file: phlegon.yaml
+- id: pickaxe
+  name: Pickaxe
+  wiki_url: https://www.whiteoutsurvival.wiki/items/pickaxe/
+  file: pickaxe.yaml
+- id: pious_soul
+  name: Pious Soul
+  wiki_url: https://www.whiteoutsurvival.wiki/items/pious-soul/
+  file: pious_soul.yaml
+- id: platinum_key
+  name: Platinum Key
+  wiki_url: https://www.whiteoutsurvival.wiki/items/platinum-key/
+  file: platinum_key.yaml
+- id: pocket_watch
+  name: Pocket Watch
+  wiki_url: https://www.whiteoutsurvival.wiki/items/pocket-watch/
+  file: pocket_watch.yaml
+- id: polishing_solution
+  name: Polishing Solution
+  wiki_url: https://www.whiteoutsurvival.wiki/items/polishing-solution/
+  file: polishing_solution.yaml
+- id: premium_radiance_treasure
+  name: Premium Radiance Treasure
+  wiki_url: https://www.whiteoutsurvival.wiki/items/premium-radiance-treasure/
+  file: premium_radiance_treasure.yaml
+- id: prestige_badge
+  name: Prestige Badge
+  wiki_url: https://www.whiteoutsurvival.wiki/items/prestige-badge/
+  file: prestige_badge.yaml
+- id: pumpkin_head
+  name: Pumpkin Head
+  wiki_url: https://www.whiteoutsurvival.wiki/items/pumpkin-head/
+  file: pumpkin_head.yaml
+- id: pyrois
+  name: Pyrois
+  wiki_url: https://www.whiteoutsurvival.wiki/items/pyrois/
+  file: pyrois.yaml
+- id: rainbow_unicorn
+  name: Rainbow Unicorn
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rainbow-unicorn/
+  file: rainbow_unicorn.yaml
+- id: rally
+  name: Rally
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rally/
+  file: rally.yaml
+- id: random_chief_charm_material_chest
+  name: Random Chief Charm Material Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/random-chief-charm-material-chest/
+  file: random_chief_charm_material_chest.yaml
+- id: random_teleporter
+  name: Random Teleporter
+  wiki_url: https://www.whiteoutsurvival.wiki/items/random-teleporter/
+  file: random_teleporter.yaml
+- id: rare_expedition_skill_manual
+  name: Rare Expedition Skill Manual
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rare-expedition-skill-manual/
+  file: rare_expedition_skill_manual.yaml
+- id: rare_exploration_skill_manual
+  name: Rare Exploration Skill Manual
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rare-exploration-skill-manual/
+  file: rare_exploration_skill_manual.yaml
+- id: rare_general_hero_shard
+  name: Rare General Hero Shard
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rare-general-hero-shard/
+  file: rare_general_hero_shard.yaml
+- id: rare_general_scene_fragment_pack
+  name: Rare General Scene Fragment Pack
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rare-general-scene-fragment-pack/
+  file: rare_general_scene_fragment_pack.yaml
+- id: recall_xp
+  name: Recall XP
+  wiki_url: https://www.whiteoutsurvival.wiki/items/recall-xp/
+  file: recall_xp.yaml
+- id: reel_stabilizer
+  name: Reel Stabilizer
+  wiki_url: https://www.whiteoutsurvival.wiki/items/reel-stabilizer/
+  file: reel_stabilizer.yaml
+- id: refined_fire_crystal
+  name: Refined Fire Crystal
+  wiki_url: https://www.whiteoutsurvival.wiki/items/refined-fire-crystal/
+  file: refined_fire_crystal.yaml
+- id: resource_chest
+  name: Resource Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ressource-chest/
+  file: resource_chest.yaml
+- id: ressources_supply_chest
+  name: Ressources Supply Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ressources-supply-chest/
+  file: ressources_supply_chest.yaml
+- id: romantic_gentleman_avatar_frame
+  name: Romantic Gentleman Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/romantic-gentleman-avatar-frame/
+  file: romantic_gentleman_avatar_frame.yaml
+- id: romantic_gentleman_nameplate
+  name: Romantic Gentleman Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/romantic-gentleman-nameplate/
+  file: romantic_gentleman_nameplate.yaml
+- id: romulus_sigil
+  name: Romulus Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/romulus-sigil/
+  file: romulus_sigil.yaml
+- id: ronne_sigil
+  name: Ronne Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/ronne-sigil/
+  file: ronne_sigil.yaml
+- id: rose_lady_avatar_frame
+  name: Rose Lady Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rose-lady-avatar-frame/
+  file: rose_lady_avatar_frame.yaml
+- id: rose_lady_nameplate
+  name: Rose Lady Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rose-lady-nameplate/
+  file: rose_lady_nameplate.yaml
+- id: ruler_s_chest
+  name: Ruler’s Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/rulers-chest/
+  file: ruler_s_chest.yaml
+- id: sail_of_conquest
+  name: Sail of Conquest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sail-of-conquest/
+  file: sail_of_conquest.yaml
+- id: santa_s_reindeer
+  name: Santa’s Reindeer
+  wiki_url: https://www.whiteoutsurvival.wiki/items/santas-reindeer/
+  file: santa_s_reindeer.yaml
+- id: scaled_crystal
+  name: Scaled Crystal
+  wiki_url: https://www.whiteoutsurvival.wiki/items/scaled-crystal/
+  file: scaled_crystal.yaml
+- id: scarlet_lion
+  name: Scarlet Lion
+  wiki_url: https://www.whiteoutsurvival.wiki/items/scarlet-lion/
+  file: scarlet_lion.yaml
+- id: scattered_parts
+  name: Scattered Parts
+  wiki_url: https://www.whiteoutsurvival.wiki/items/scattered-parts/
+  file: scattered_parts.yaml
+- id: scattered_supplies
+  name: Scattered Supplies
+  wiki_url: https://www.whiteoutsurvival.wiki/items/scattered-supplies/
+  file: scattered_supplies.yaml
+- id: seeker_s_chest
+  name: Seeker’s Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/seekers-chest/
+  file: seeker_s_chest.yaml
+- id: shot_token
+  name: Shot Token
+  wiki_url: https://www.whiteoutsurvival.wiki/items/shot-token/
+  file: shot_token.yaml
+- id: silver_shell
+  name: Silver Shell
+  wiki_url: https://www.whiteoutsurvival.wiki/items/silver-shell/
+  file: silver_shell.yaml
+- id: skin_token
+  name: Skin Token
+  wiki_url: https://www.whiteoutsurvival.wiki/items/skin-token/
+  file: skin_token.yaml
+- id: sky_roamer
+  name: Sky Roamer
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sky-roamer/
+  file: sky_roamer.yaml
+- id: snapshot_of_time_2025
+  name: Snapshot of Time 2025
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snapshot-of-time-2025/
+  file: snapshot_of_time_2025.yaml
+- id: snow_kiss
+  name: Snow Kiss
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snow-kiss/
+  file: snow_kiss.yaml
+- id: snow_shovel
+  name: Snow Shovel
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snow-shovel/
+  file: snow_shovel.yaml
+- id: snow_sovereign
+  name: Snow Sovereign
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snow-sovereign/
+  file: snow_sovereign.yaml
+- id: snowbuster_squad_avatar_frame
+  name: Snowbuster Squad Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snowbuster-squad-avatar-frame/
+  file: snowbuster_squad_avatar_frame.yaml
+- id: snowbuster_toolkit_chest
+  name: Snowbuster Toolkit Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snowbuster-toolkit-chest/
+  file: snowbuster_toolkit_chest.yaml
+- id: snowbusters_squad_nameplate
+  name: Snowbusters Squad Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snowbusters-squad-nameplate/
+  file: snowbusters_squad_nameplate.yaml
+- id: snowhare_scholar
+  name: Snowhare Scholar
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snowhare-scholar/
+  file: snowhare_scholar.yaml
+- id: snowman_rhapsody
+  name: Snowman Rhapsody
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snowman-rhapsody/
+  file: snowman_rhapsody.yaml
+- id: snowmobile
+  name: Snowmobile
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snowmobile/
+  file: snowmobile.yaml
+- id: snowy_bells
+  name: Snowy Bells
+  wiki_url: https://www.whiteoutsurvival.wiki/items/snowy-bells/
+  file: snowy_bells.yaml
+- id: song_of_ocean_avatar_frame
+  name: Song of Ocean Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/song-of-ocean-avatar-frame/
+  file: song_of_ocean_avatar_frame.yaml
+- id: song_of_ocean_nameplate
+  name: Song of Ocean Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/song-of-ocean-nameplate/
+  file: song_of_ocean_nameplate.yaml
+- id: splendid_labyrinth_treasure
+  name: Splendid Labyrinth Treasure
+  wiki_url: https://www.whiteoutsurvival.wiki/items/splendid-labyrinth-treasure/
+  file: splendid_labyrinth_treasure.yaml
+- id: sporehaven
+  name: Sporehaven
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sporehaven/
+  file: sporehaven.yaml
+- id: spring_watcher
+  name: Spring Watcher
+  wiki_url: https://www.whiteoutsurvival.wiki/items/spring-watcher/
+  file: spring_watcher.yaml
+- id: star_radiance
+  name: Star Radiance
+  wiki_url: https://www.whiteoutsurvival.wiki/items/star-radiance/
+  file: star_radiance.yaml
+- id: starry_lighthouse_blueprint
+  name: Starry Lighthouse Blueprint
+  wiki_url: https://www.whiteoutsurvival.wiki/items/starry-lighthouse-blueprint/
+  file: starry_lighthouse_blueprint.yaml
+- id: steam_mania_avatar_frame
+  name: Steam Mania Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/steam-mania-avatar-frame/
+  file: steam_mania_avatar_frame.yaml
+- id: steam_mania_nameplate
+  name: Steam Mania Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/steam-mania-nameplate/
+  file: steam_mania_nameplate.yaml
+- id: steel
+  name: Steel
+  wiki_url: https://www.whiteoutsurvival.wiki/items/steel/
+  file: steel.yaml
+- id: storm_of_destruction
+  name: Storm of Destruction
+  wiki_url: https://www.whiteoutsurvival.wiki/items/storm-of-destruction/
+  file: storm_of_destruction.yaml
+- id: stormhold_fortress
+  name: Stormhold Fortress
+  wiki_url: https://www.whiteoutsurvival.wiki/items/stromhold-fortress/
+  file: stormhold_fortress.yaml
+- id: strengthening_serum
+  name: Strengthening Serum
+  wiki_url: https://www.whiteoutsurvival.wiki/items/strengthening-serum/
+  file: strengthening_serum.yaml
+- id: sun_crown_nameplate
+  name: Sun Crown Nameplate
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sun-crown-nameplate/
+  file: sun_crown_nameplate.yaml
+- id: sunfire_token
+  name: Sunfire Token
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sunfire-token/
+  file: sunfire_token.yaml
+- id: sunseeker_express
+  name: Sunseeker Express
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sunseeker-express/
+  file: sunseeker_express.yaml
+- id: supersonic_bunny
+  name: Supersonic Bunny
+  wiki_url: https://www.whiteoutsurvival.wiki/items/supersonic-bunny/
+  file: supersonic_bunny.yaml
+- id: sweet_bliss
+  name: Sweet Bliss
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sweet-bliss/
+  file: sweet_bliss.yaml
+- id: sweet_memories
+  name: Sweet Memories
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sweet-memories/
+  file: sweet_memories.yaml
+- id: sword_of_ice
+  name: Sword of Ice
+  wiki_url: https://www.whiteoutsurvival.wiki/items/sword-of-ice/
+  file: sword_of_ice.yaml
+- id: symphonic_parade
+  name: Symphonic Parade
+  wiki_url: https://www.whiteoutsurvival.wiki/items/symphonic-parade/
+  file: symphonic_parade.yaml
+- id: taming_manual
+  name: Taming Manual
+  wiki_url: https://www.whiteoutsurvival.wiki/items/taming-manual/
+  file: taming_manual.yaml
+- id: territory_teleporter
+  name: Territory Teleporter
+  wiki_url: https://www.whiteoutsurvival.wiki/items/territory-teleporter/
+  file: territory_teleporter.yaml
+- id: thorn_of_enigma
+  name: Thorn of Enigma
+  wiki_url: https://www.whiteoutsurvival.wiki/items/thorn-of-enigma/
+  file: thorn_of_enigma.yaml
+- id: thunder_summon
+  name: Thunder Summon
+  wiki_url: https://www.whiteoutsurvival.wiki/items/thunder-summon/
+  file: thunder_summon.yaml
+- id: top_fan_avatar_frame
+  name: Top Fan Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/top-fan-avatar-frame/
+  file: top_fan_avatar_frame.yaml
+- id: torchbright
+  name: Torchbright
+  wiki_url: https://www.whiteoutsurvival.wiki/items/torchbright/
+  file: torchbright.yaml
+- id: toy_army
+  name: Toy Army
+  wiki_url: https://www.whiteoutsurvival.wiki/items/toy-army/
+  file: toy_army.yaml
+- id: trade_voucher
+  name: Trade Voucher
+  wiki_url: https://www.whiteoutsurvival.wiki/items/trade-voucher/
+  file: trade_voucher.yaml
+- id: training_capacity_enhance_2h
+  name: Training Capacity Enhance (2h)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/training-capacity-enhance-2h/
+  file: training_capacity_enhance_2h.yaml
+- id: transfer_pass
+  name: Transfer Pass
+  wiki_url: https://www.whiteoutsurvival.wiki/items/transfer-pass/
+  file: transfer_pass.yaml
+- id: treasure_box
+  name: Treasure Box
+  wiki_url: https://www.whiteoutsurvival.wiki/items/treasure-box/
+  file: treasure_box.yaml
+- id: treasure_hunt_chest
+  name: Treasure Hunt Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/treasure-hunt-chest/
+  file: treasure_hunt_chest.yaml
+- id: treasure_hunt_points
+  name: Treasure Hunt Points
+  wiki_url: https://www.whiteoutsurvival.wiki/items/treasure-hunt-points/
+  file: treasure_hunt_points.yaml
+- id: treasure_stronghold
+  name: Treasure Stronghold
+  wiki_url: https://www.whiteoutsurvival.wiki/items/treasure-stronghold/
+  file: treasure_stronghold.yaml
+- id: trek_supplies
+  name: Trek Supplies
+  wiki_url: https://www.whiteoutsurvival.wiki/items/trek-supplies/
+  file: trek_supplies.yaml
+- id: troops_attack_up_i_2hrs
+  name: Troops Attack Up I (2hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/troops-attack-up-i-2hrs/
+  file: troops_attack_up_i_2hrs.yaml
+- id: troops_attack_up_ii_12hrs
+  name: Troops Attack Up II (12hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/troops-attack-up-ii-12hrs/
+  file: troops_attack_up_ii_12hrs.yaml
+- id: troops_damage_up_i_2hrs
+  name: Troops Damage Up I (2hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/troops-damage-up-i-2hrs/
+  file: troops_damage_up_i_2hrs.yaml
+- id: troops_damage_up_ii_12hrs
+  name: Troops Damage Up II (12hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/troops-damage-up-ii-12hrs/
+  file: troops_damage_up_ii_12hrs.yaml
+- id: troops_defense_up_i_2hrs
+  name: Troops Defense Up I (2hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/troops-defense-up-i-2hrs/
+  file: troops_defense_up_i_2hrs.yaml
+- id: troops_defense_up_ii_12hrs
+  name: Troops Defense Up II (12hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/troops-defense-up-ii-12hrs/
+  file: troops_defense_up_ii_12hrs.yaml
+- id: troops_health_up_i_2hrs
+  name: Troops Health Up I (2hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/troops-health-up-i-2hrs/
+  file: troops_health_up_i_2hrs.yaml
+- id: troops_health_up_ii_12hrs
+  name: Troops Health Up II (12hrs)
+  wiki_url: https://www.whiteoutsurvival.wiki/items/troops-health-up-ii-12hrs/
+  file: troops_health_up_ii_12hrs.yaml
+- id: truck_voucher
+  name: Truck Voucher
+  wiki_url: https://www.whiteoutsurvival.wiki/items/truck-voucher/
+  file: truck_voucher.yaml
+- id: tundra_adventure
+  name: Tundra Adventure
+  wiki_url: https://www.whiteoutsurvival.wiki/items/tundra-adventure/
+  file: tundra_adventure.yaml
+- id: tundra_cannon
+  name: Tundra Cannon
+  wiki_url: https://www.whiteoutsurvival.wiki/items/tundra-cannon/
+  file: tundra_cannon.yaml
+- id: turkey_dash
+  name: Turkey Dash
+  wiki_url: https://www.whiteoutsurvival.wiki/items/turkey-dash/
+  file: turkey_dash.yaml
+- id: turkey_tornado
+  name: Turkey Tornado
+  wiki_url: https://www.whiteoutsurvival.wiki/items/turkey-tornado/
+  file: turkey_tornado.yaml
+- id: valeria_sigil
+  name: Valeria Sigil
+  wiki_url: https://www.whiteoutsurvival.wiki/items/valeria-sigil/
+  file: valeria_sigil.yaml
+- id: vip_points
+  name: VIP Points
+  wiki_url: https://www.whiteoutsurvival.wiki/items/vip-xp/
+  file: vip_points.yaml
+- id: vip_time
+  name: VIP Time
+  wiki_url: https://www.whiteoutsurvival.wiki/items/vip-time/
+  file: vip_time.yaml
+- id: vivid_flames
+  name: Vivid Flames
+  wiki_url: https://www.whiteoutsurvival.wiki/items/vivid-falmes/
+  file: vivid_flames.yaml
+- id: war_chant_custom_chest
+  name: War Chant Custom Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/war-chant-custom-chest/
+  file: war_chant_custom_chest.yaml
+- id: warhymn_testament
+  name: Warhymn Testament
+  wiki_url: https://www.whiteoutsurvival.wiki/items/warhymn-testament/
+  file: warhymn_testament.yaml
+- id: warrior_s_chest
+  name: Warrior’s Chest
+  wiki_url: https://www.whiteoutsurvival.wiki/items/warriors-chest/
+  file: warrior_s_chest.yaml
+- id: whale_waves
+  name: Whale Waves
+  wiki_url: https://www.whiteoutsurvival.wiki/items/whale-waves/
+  file: whale_waves.yaml
+- id: wilderness_warrior
+  name: Wilderness Warrior
+  wiki_url: https://www.whiteoutsurvival.wiki/items/wilderness-warrior/
+  file: wilderness_warrior.yaml
+- id: wind_charger
+  name: Wind Charger
+  wiki_url: https://www.whiteoutsurvival.wiki/items/wind-charger/
+  file: wind_charger.yaml
+- id: windmill_village
+  name: Windmill Village
+  wiki_url: https://www.whiteoutsurvival.wiki/items/windmill-village/
+  file: windmill_village.yaml
+- id: wing_of_the_icy_wind
+  name: Wing of the Icy Wind
+  wiki_url: https://www.whiteoutsurvival.wiki/items/wing-of-the-icy-wind/
+  file: wing_of_the_icy_wind.yaml
+- id: winged_dreams
+  name: Winged Dreams
+  wiki_url: https://www.whiteoutsurvival.wiki/items/winged-dreams/
+  file: winged_dreams.yaml
+- id: wings_of_victory_avatar_frame
+  name: Wings of Victory Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/wings-of-victory-avatar-frame/
+  file: wings_of_victory_avatar_frame.yaml
+- id: winter_of_plenty
+  name: Winter of Plenty
+  wiki_url: https://www.whiteoutsurvival.wiki/items/winter-of-plenty/
+  file: winter_of_plenty.yaml
+- id: winter_triumph
+  name: Winter Triumph
+  wiki_url: https://www.whiteoutsurvival.wiki/items/winter-triumph/
+  file: winter_triumph.yaml
+- id: winter_watcher
+  name: Winter Watcher
+  wiki_url: https://www.whiteoutsurvival.wiki/items/winter-watcher/
+  file: winter_watcher.yaml
+- id: wish_express
+  name: Wish Express
+  wiki_url: https://www.whiteoutsurvival.wiki/items/wish-express/
+  file: wish_express.yaml
+- id: wish_voucher
+  name: Wish Voucher
+  wiki_url: https://www.whiteoutsurvival.wiki/items/wish-voucher/
+  file: wish_voucher.yaml
+- id: wispwafter
+  name: Wispwafter
+  wiki_url: https://www.whiteoutsurvival.wiki/items/wispwafter/
+  file: wispwafter.yaml
+- id: wood
+  name: Wood
+  wiki_url: https://www.whiteoutsurvival.wiki/items/wood/
+  file: wood.yaml
+- id: x_honorary_player_avatar_frame
+  name: X Honorary Player Avatar Frame
+  wiki_url: https://www.whiteoutsurvival.wiki/items/top-fan-avatar-frame-2/
+  file: x_honorary_player_avatar_frame.yaml
+- id: yuletide_glee
+  name: Yuletide Glee
+  wiki_url: https://www.whiteoutsurvival.wiki/items/yuletide-glee/
+  file: yuletide_glee.yaml

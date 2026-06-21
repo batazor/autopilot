@@ -1,0 +1,15 @@
+id: mythic_expedition_skill_manual
+name: Mythic Expedition Skill Manual
+wiki_url: https://www.whiteoutsurvival.wiki/items/mythic-expedition-skill-manual/
+category: ''
+description: 'The manuals will be used to improve hero skills. There are 3 levels
+  of rarity : Mythic / Epic / Rare'
+sources:
+- Nomadic Merchant
+- Arena Shop
+- Vip Shop
+- SVS Shop
+- Lighthouse Intel Missions
+- Daily Missions
+- Hero Recruitment
+- Growth Missions

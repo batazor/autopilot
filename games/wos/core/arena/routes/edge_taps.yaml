@@ -1,0 +1,8 @@
+# Leave the Arena of Glory entry screen via its top-left back arrow. The
+# challenge-list / squad / result screens are marked `terminal: true` in
+# screen_verify.yaml — the arena.fight scenario taps through them itself, so the
+# navigator never has to route between them.
+edges:
+  arena:
+    main_city:
+      - icon.page.back

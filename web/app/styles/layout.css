@@ -1,0 +1,79 @@
+@layer components {
+  .app-main {
+    @apply mx-auto w-full max-w-[90rem] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8;
+  }
+
+  .app-main:has(.external-doc-page) {
+    @apply max-w-none px-0 py-0 sm:px-0 sm:py-0 lg:px-0 lg:py-0;
+  }
+
+  .external-doc-page {
+    @apply flex min-h-0 flex-1 flex-col bg-wos-bg;
+  }
+
+  .external-doc-page__frame {
+    @apply min-h-0 flex-1 border-0 bg-wos-bg;
+    width: 100%;
+  }
+
+  .app-header {
+    @apply mb-6 flex flex-col gap-2 border-b border-wos-border-subtle/80 pb-5 sm:flex-row sm:items-end sm:justify-between;
+  }
+
+  .app-header h1 {
+    @apply m-0 text-2xl font-semibold tracking-tight text-wos-text;
+  }
+
+  .fleet-header-bar {
+    @apply flex w-full shrink-0 flex-wrap items-end justify-end gap-3 sm:w-auto;
+  }
+
+  .theme-toggle {
+    @apply inline-flex items-center gap-1.5 rounded-lg border border-wos-border-subtle bg-wos-surface px-2.5 py-1.5 text-xs font-medium text-wos-text-secondary transition-colors hover:border-wos-border hover:bg-wos-panel-raised hover:text-wos-text;
+  }
+
+  .theme-toggle__icon {
+    @apply text-sm leading-none;
+  }
+
+  .theme-toggle__label {
+    @apply capitalize;
+  }
+
+  .panel--spaced {
+    @apply mt-4;
+  }
+
+  .panel--mb {
+    @apply mb-4;
+  }
+
+  .page-stack {
+    @apply flex flex-col gap-5;
+  }
+
+  .toolbar--spaced {
+    @apply mt-4;
+  }
+
+  .probe-legend {
+    @apply flex flex-wrap gap-x-3 gap-y-1 text-xs text-wos-text-secondary;
+  }
+
+  .probe-legend__search {
+    color: var(--wos-probe-search);
+  }
+
+  .probe-legend__match {
+    color: var(--wos-probe-match);
+  }
+
+  .probe-legend__miss {
+    color: var(--wos-probe-miss);
+  }
+
+  .probe-legend__tap {
+    color: var(--wos-probe-tap);
+  }
+
+}

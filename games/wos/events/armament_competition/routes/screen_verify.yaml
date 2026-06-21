@@ -1,0 +1,5 @@
+screens:
+  event.armament_competition:
+    rules:
+      - match: event.armament_competition
+        threshold: 0.9

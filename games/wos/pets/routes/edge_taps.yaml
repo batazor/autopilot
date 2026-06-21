@@ -1,0 +1,11 @@
+edges:
+  main_city:
+    pets:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/pets/references/main_city.pets.png
+      threshold: 0.9
+
+  pets:
+    pets.pet_skill: [pets.skills]
+    main_city: [icon.page.back]

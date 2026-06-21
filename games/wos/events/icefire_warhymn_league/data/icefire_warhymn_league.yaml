@@ -1,0 +1,135 @@
+# Icefire Warhymn League — reference / strategy data.
+#
+# Static reference data (mission reward tables, Warhymn Testament economy, and
+# shop purchase priorities) for the limited-time Icefire Warhymn League event.
+# This is a planning aid, not a live reader: it tells the bot/operator what each
+# mission tier pays out and how the Testament currency flows.
+#
+# Source: user-provided Google Sheet "Icefire Testament Shield"
+#   https://docs.google.com/spreadsheets/d/1_6TTDF1b7zYbz0AGFeRL2ipsJRQDDbQfWdt_frwLSfk/edit?gid=0
+#   Author: Shield (ShieldGamingEsports) — YouTube/Discord/Twitch credits below.
+#
+# Currency: every mission tier pays "Warhymn Testament" (the event currency),
+# plus a fixed bundle of secondary rewards that is constant across the 7 tiers
+# of each mission track.
+
+source: "user Google Sheet (Icefire Testament Shield)"
+source_url: "https://docs.google.com/spreadsheets/d/1_6TTDF1b7zYbz0AGFeRL2ipsJRQDDbQfWdt_frwLSfk/edit?gid=0"
+currency: Warhymn Testament
+
+# --- Sheet 1: League Missions Tracker ----------------------------------------
+# Five mission tracks, 7 tiers each. `requirement` is the cumulative threshold
+# for that tier (unit given by `requirement_unit`). `testament` is the Warhymn
+# Testament payout; `rewards` is the fixed secondary bundle for that track.
+missions:
+  - track: login
+    label: "Login for day(s)"
+    requirement_unit: days
+    testament_per_tier: 20
+    rewards:
+      - {item: "Gems 1K", qty: 1}
+      - {item: "Meat 100K", qty: 10}
+      - {item: "Wood 100K", qty: 10}
+    tiers: [1, 2, 3, 4, 5, 6, 7]
+
+  - track: alliance_contribution
+    label: "Make Alliance Contribution"
+    requirement_unit: tech
+    testament_per_tier: 10
+    rewards:
+      - {item: "Stone", qty: 1}
+      - {item: "Coal 10K", qty: 20}
+      - {item: "Iron 10K", qty: 5}
+    tiers: [20, 40, 60, 80, 100, 120, 150]
+
+  - track: gather_resources
+    label: "Gather resources"
+    requirement_unit: qty
+    testament_per_tier: 10
+    rewards:
+      - {item: "Fire Crystals", qty: 2}
+      - {item: "Meat 100K", qty: 10}
+      - {item: "Wood 100K", qty: 10}
+    tiers: [10000000, 20000000, 30000000, 40000000, 50000000, 60000000, 70000000]
+
+  - track: hunt_polar_terror
+    label: "Hunt Polar Terror(s)"
+    requirement_unit: kills
+    testament_per_tier: 10
+    rewards:
+      - {item: "Lucky Hero Gear Chest", qty: 1}
+      - {item: "Coal 10K", qty: 20}
+      - {item: "Iron 10K", qty: 5}
+    tiers: [5, 10, 15, 20, 25, 30, 35]
+
+  - track: use_speedup
+    label: "Use m of Any Speedup"
+    requirement_unit: minutes
+    testament_per_tier: 10
+    rewards:
+      - {item: "Fire Crystals", qty: 2}
+      - {item: "Gear XP 100", qty: 1}
+      - {item: "RSS Chest 100K", qty: 10}
+    tiers: [1000, 2000, 3000, 4000, 5000, 6000, 7000]
+
+# --- Sheet 2: Possible Reward (Warhymn Testament economy) ---------------------
+# How Testament is earned. Qualifier/Elimination/Rank are the PvP-bracket side;
+# Prediction is the betting mechanic.
+testament_economy:
+  total_from_missions: 420       # all 35 mission tiers combined
+  signup_bonus: 300
+  qualifier:
+    per_victory: 100
+    per_loss: 50                 # losing still refunds 50 (e.g. 3 losses = 150)
+    ten_victory_bonus: 1000
+  elimination_per_round: 200     # noted "impossible for F2P"
+  event_rank:
+    min: 1000
+    max: 12000                   # noted "impossible for F2P"
+  prediction:
+    cost_per_battle: 200
+    total_predictions: 22
+    shield_min_wins: 15          # author's claim: a player can win >=15 predictions
+    win_payout: double           # correct prediction pays double the stake
+    loss_payout: refund          # wrong prediction refunds all Testament
+
+# --- Sheet 3: Shield's Case (worked earnings example) -------------------------
+worked_example:
+  by: Shield
+  breakdown:
+    - {source: "Qualifier wins (6)", testament: 600}
+    - {source: "Qualifier losses (3)", testament: 150}
+    - {source: "Signup bonus", testament: 300}
+    - {source: "Missions", testament: 420}
+    - {source: "Prediction", testament: 4000}
+  total: 5470
+
+# --- Sheet 4: What to Purchase (shop priority) --------------------------------
+# Author's spending priority for the event shop, paid in Warhymn Testament.
+# "Get Mithril and Mythic Gear chest first."
+shop:
+  recommended_first: ["Mithril", "Mythic gear chest"]
+  items:
+    - {name: "Frostflame Gloria", qty: 1, price_each: 8000, price_total: 8000}
+    - {name: "Mythic gear chest", qty: 2, price_each: 2500, price_total: 5000}
+    - {name: "Mithril", qty: 5, price_each: 500, price_total: 2500}
+    - {name: "Mythic Shard", qty: 20, price_each: 100, price_total: 2000}
+    - {name: "Lucky Hero Chest", qty: 5, price_each: 160, price_total: 800}
+    - {name: "Essence stone", qty: 5, price_each: 160, price_total: 800}
+    - {name: "Charm Design", qty: 5, price_each: 100, price_total: 500}
+    - {name: "Charm Guide", qty: 5, price_each: 100, price_total: 500}
+    - {name: "Design Plan", qty: 5, price_each: 100, price_total: 500}
+    - {name: "Polishing Solution", qty: 5, price_each: 100, price_total: 500}
+    - {name: "Hardended Alloy", qty: 5, price_each: 100, price_total: 500}
+    - {name: "Custom Pet chest", qty: 5, price_each: 160, price_total: 800}
+    - {name: "Advanced Wildmark", qty: 5, price_each: 120, price_total: 600}
+    - {name: "Fire Crystal", qty: 15, price_each: 50, price_total: 750}
+    - {name: "1 Hour Speedup", qty: 30, price_each: 80, price_total: 2400}
+    - {name: "lv3 custom resource", qty: 30, price_each: 10, price_total: 300}
+  grand_total: 26450
+
+# --- Credits (from the source sheet) -----------------------------------------
+credits:
+  youtube: "https://www.youtube.com/c/ShieldGamingEsports"
+  discord: "https://discord.gg/jX4Rk8aGJd"
+  twitch: "https://www.twitch.tv/boss_shield"

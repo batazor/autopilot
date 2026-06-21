@@ -1,0 +1,89 @@
+# Server-age unlock schedule — what opens at which server age (days since the
+# server opened). Profiles let different server types carry different timings; the
+# bot derives the current Hero Hall generation + pet generation from server age and
+# anticipates upcoming windows (save recruits/gear before a tier opens).
+#
+# Read by games/wos/core/calendar/server_unlocks.py. Days are server age in days.
+profiles:
+  # Beta server (Whiteout Survival beta). Source: in-game progress description.
+  beta:
+    # Hero Hall recruitable generations. Gens 1-8 are open from day 0; gens 9-16
+    # unlock progressively; gen 17 is hidden (no public unlock day).
+    hero_generations:
+      9: 22
+      10: 64
+      11: 106
+      12: 148
+      13: 190
+      14: 232
+      15: 274
+      16: 316
+    # Pet generations 1-7 (mirrors the per-pet catalog unlock gate; kept here for
+    # the age→pet-generation derivation + anticipation).
+    pet_generations:
+      1: 5
+      2: 15
+      3: 30
+      4: 60
+      5: 90
+      6: 120
+      7: 160
+    # Other play modes / systems → the server age they unlock at.
+    modes:
+      red_equipment: 22          # red (mythic) equipment
+      huojing_3: 59              # Huojing tier 3
+      expert_1: 60               # Experts, group of 3 (60 / 80 / 100)
+      expert_2: 80
+      huojing_5: 90              # Huojing tier 5
+      war_academy: 100
+      expert_3: 100
+      huojing_8: 130             # Huojing tier 8
+      huojing_10: 180            # Huojing tier 10
+      chiyan_technology: 210     # Chiyan technology tree
+
+  # Standard (live) server. Re-encoded game facts from the public WoS server
+  # timeline (deepfriedmind/wos-toolkit, AGPL — facts only, no code). Gens unlock
+  # one at a time here (gen 1 from day 0), so the base is generation 1.
+  live:
+    base_hero_generation: 1
+    base_pet_generation: 0
+    # gen → day. Full ladder from whiteoutsurvival.wiki/server-timeline-server-age
+    # (the catalog's own source; gens 2-9 already matched it). Gens 10-16 follow the
+    # documented +80-day cadence; 10/11 realigned 700/800→680/760 to that source.
+    hero_generations:
+      2: 40
+      3: 120
+      4: 195
+      5: 270
+      6: 360
+      7: 440
+      8: 520
+      9: 600
+      10: 680
+      11: 760
+      12: 840
+      13: 920
+      14: 1000
+      15: 1080
+      16: 1160
+    # gen → day, derived from the pet catalog's own "Unlock after N days" chain
+    # (web-confirmed: Saber-tooth 280, Mammoth 370, Frostscale 450). Previously
+    # mis-numbered: gen 6 (Mammoth, 370) was absent, gen 7 mislabeled 370, and a
+    # spurious gen 8:430 had no catalog pet (Frostscale is 450, not 430).
+    pet_generations:
+      1: 54
+      2: 90
+      3: 140
+      4: 200
+      5: 280
+      6: 370
+      7: 450
+    modes:
+      sunfire_castle: 53
+      fire_crystal_age: 60       # FC buildings unlock (Furnace 30)
+      svs: 80                    # State of Power / King of Icefield
+      fire_crystal_5: 150        # FC5 + Crystal Laboratory
+      legendary_chief_gear: 180
+      war_academy: 220
+      fire_crystal_8: 330        # FC6-8 + Refined Fire Crystals
+      fire_crystal_10: 500       # FC9-10

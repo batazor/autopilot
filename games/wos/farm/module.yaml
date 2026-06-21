@@ -1,0 +1,12 @@
+id: farm
+title: Farm
+description: Farm-account automation. In development.
+# Skeleton: no scenarios/regions yet, so it stays inert (flip to true once the
+# first flow + labeled regions land).
+enabled: false
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: farm
+wiki: false

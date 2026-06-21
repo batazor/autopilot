@@ -1,0 +1,120 @@
+name: "Chief Orders: Enact Available"
+enabled: true
+node: chief_order
+
+# Enact available governor orders from the Chief Orders page.
+# Productivity Day and Rush Job are intentionally treated as one combo:
+# Productivity Day first, then Rush Job, then Festivities if it is still lit.
+device_level: true
+priority: 70_000
+
+steps:
+  - ocr: chief_order.money
+    store: chief_order.money
+
+  # Urgent Mobilization
+  - while_match: chief.order.urgent
+    max: 1
+    steps:
+      - click: chief.order.urgent.tap
+      - wait: 2s
+      - match: chief.enact
+        threshold: 0.85
+        steps:
+          - click: chief.enact
+          - wait: 3s
+          - wait_screen:
+              any: [main_city]
+              max: 8
+              interval: 500ms
+          - click: main_city.to.chief_order
+          - wait: 2s
+
+  # Comprehensive Care
+  - while_match: chief.order.comprehensive_care
+    max: 1
+    steps:
+      - click: chief.order.comprehensive_care.tap
+      - wait: 2s
+      - match: chief.enact
+        threshold: 0.85
+        steps:
+          - click: chief.enact
+          - wait: 3s
+          - wait_screen:
+              any: [main_city]
+              max: 8
+              interval: 500ms
+          - click: main_city.to.chief_order
+          - wait: 2s
+
+  # Double Time
+  - while_match: chief.order.double_time
+    max: 1
+    steps:
+      - click: chief.order.double_time.tap
+      - wait: 2s
+      - match: chief.enact
+        threshold: 0.85
+        steps:
+          - click: chief.enact
+          - wait: 3s
+          - wait_screen:
+              any: [main_city]
+              max: 8
+              interval: 500ms
+          - click: main_city.to.chief_order
+          - wait: 2s
+
+  # Productivity Day -> Rush Job combo. If either badge is missing, skip both.
+  - match: chief.order.productivity
+    steps:
+      - match: chief.order.rush
+        steps:
+          - click: chief.order.productivity.tap
+          - wait: 2s
+          - match: chief.enact
+            threshold: 0.85
+            steps:
+              - click: chief.enact
+              - wait: 3s
+              - wait_screen:
+                  any: [main_city]
+                  max: 8
+                  interval: 500ms
+              - click: main_city.to.chief_order
+              - wait: 2s
+
+          - match: chief.order.rush
+            steps:
+              - click: chief.order.rush.tap
+              - wait: 2s
+              - match: chief.enact
+                threshold: 0.85
+                steps:
+                  - click: chief.enact
+                  - wait: 3s
+                  - wait_screen:
+                      any: [main_city]
+                      max: 8
+                      interval: 500ms
+                  - click: main_city.to.chief_order
+                  - wait: 2s
+
+  # Festivities can be used standalone, and also naturally compensates the
+  # Productivity Day -> Rush Job combo when it remains available afterward.
+  - while_match: chief.order.festivities
+    max: 1
+    steps:
+      - click: chief.order.festivities.tap
+      - wait: 2s
+      - match: chief.enact
+        threshold: 0.85
+        steps:
+          - click: chief.enact
+          - wait: 3s
+          - wait_screen:
+              any: [main_city]
+              max: 8
+              interval: 500ms
+          - push_scenario: dismiss_unknown_popup

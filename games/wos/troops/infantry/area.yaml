@@ -1,0 +1,235 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "infantry",
+      "regions": []
+    },
+    {
+      "id": 2,
+      "screen_id": "main_city",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "infantry.complete",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 45.87766804946814,
+            "y": 42.98426962731723,
+            "width": 7.661006313515073,
+            "height": 4.510546348478623,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "main_city",
+      "ocr": "references/options.png",
+      "regions": [
+        {
+          "name": "troops.options.details",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.11111111111111,
+            "y": 63.203125,
+            "width": 13.88888888888889,
+            "height": 9.296875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops.options.upgrade",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.611111111111114,
+            "y": 63.59375,
+            "width": 13.472222222222221,
+            "height": 11.796875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops.options.train",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 62.91666666666667,
+            "y": 64.609375,
+            "width": 8.611111111111112,
+            "height": 4.21875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/tap_anywhere.png",
+      "regions": [
+        {
+          "name": "troops.tap_anywhere",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 22.22222222222222,
+            "y": 92.96875,
+            "width": 55.55555555555556,
+            "height": 3.515625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/train.png",
+      "regions": [
+        {
+          "name": "train.upgrade",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.9291985217918346,
+            "y": 46.3545107382177,
+            "width": 8.592964824120601,
+            "height": 3.132418212280612,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops.train.start",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 51.388888888888886,
+            "y": 84.296875,
+            "width": 44.166666666666664,
+            "height": 6.5625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "train.to.infantry",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.0555555555555554,
+            "y": 92.734375,
+            "width": 30.97222222222222,
+            "height": 7.265625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "train.to.lancer",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.583333333333336,
+            "y": 92.734375,
+            "width": 30.97222222222222,
+            "height": 7.265625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "train.to.marksman",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 65.97222222222221,
+            "y": 92.734375,
+            "width": 30.97222222222222,
+            "height": 7.265625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops.train.timer",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 63.19444444444444,
+            "y": 71.25,
+            "width": 26.38888888888889,
+            "height": 4.375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "screen_id": "",
+      "ocr": "references/upgrade.png",
+      "regions": [
+        {
+          "name": "troops.upgrade.start",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.17349881704253,
+            "y": 43.09857782535791,
+            "width": 8.781407035175848,
+            "height": 4.719673143058696,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "screen_id": "",
+      "ocr": "references/promotion.png",
+      "regions": [
+        {
+          "name": "troops.promotion",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 53.54562207926789,
+            "y": 67.51723591385579,
+            "width": 36.29396984924614,
+            "height": 5.566209106140407,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

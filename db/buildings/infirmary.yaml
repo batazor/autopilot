@@ -1,0 +1,259 @@
+id: infirmary
+name: Infirmary
+category: unknown
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/infirmary/
+requirements_by_level:
+  '1':
+    prerequisites: Furnace Lv. 8
+    build_cost: []
+    construction_time: 00:00:02
+    building_power: 300
+  '2':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: '100'
+    construction_time: 00:00:09
+    building_power: 570
+  '3':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: '460'
+    construction_time: 00:00:40
+    building_power: 975
+  '4':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 1K
+    - item: item_icon_104
+      amount: '205'
+    construction_time: 00:02:05
+    building_power: null
+  '5':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 4.3K
+    - item: item_icon_104
+      amount: '865'
+    construction_time: 00:04:10
+    building_power: null
+  '6':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 10K
+    - item: item_icon_104
+      amount: 2.1K
+    - item: item_icon_105
+      amount: '545'
+    construction_time: 00:08:20
+    building_power: null
+  '7':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 39K
+    - item: item_icon_104
+      amount: 7.8K
+    - item: item_icon_105
+      amount: 1.9K
+    construction_time: 00:16:30
+    building_power: null
+  '8':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 72K
+    - item: item_icon_104
+      amount: 14K
+    - item: item_icon_105
+      amount: 3.6K
+    construction_time: 00:25:00
+    building_power: null
+  '9':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 140K
+    - item: item_icon_104
+      amount: 29K
+    - item: item_icon_105
+      amount: 7.4K
+    construction_time: 00:27:30
+    building_power: null
+  '10':
+    prerequisites: Furnace Lv. 10
+    build_cost:
+    - item: item_icon_103
+      amount: 260K
+    - item: item_icon_104
+      amount: 52K
+    - item: item_icon_105
+      amount: 13K
+    construction_time: 00:50:00
+    building_power: null
+  '11':
+    prerequisites: Furnace Lv. 11
+    build_cost:
+    - item: item_icon_100011
+      amount: 320K
+    - item: item_icon_103
+      amount: 320K
+    - item: item_icon_104
+      amount: 65K
+    - item: item_icon_105
+      amount: 16K
+    construction_time: 01:03:00
+    building_power: null
+  '12':
+    prerequisites: Furnace Lv. 12
+    build_cost:
+    - item: item_icon_100011
+      amount: 420K
+    - item: item_icon_103
+      amount: 420K
+    - item: item_icon_104
+      amount: 54K
+    - item: item_icon_105
+      amount: 21K
+    construction_time: 01:15:30
+    building_power: null
+  '13':
+    prerequisites: Furnace Lv. 13
+    build_cost:
+    - item: item_icon_100011
+      amount: 590K
+    - item: item_icon_103
+      amount: 590K
+    - item: item_icon_104
+      amount: 110K
+    - item: item_icon_105
+      amount: 29K
+    construction_time: 01:32:00
+    building_power: null
+  '14':
+    prerequisites: Furnace Lv. 14
+    build_cost:
+    - item: item_icon_100011
+      amount: 780K
+    - item: item_icon_103
+      amount: 780K
+    - item: item_icon_104
+      amount: 150K
+    - item: item_icon_105
+      amount: 39K
+    construction_time: 01:57:30
+    building_power: null
+  '15':
+    prerequisites: Furnace Lv. 15
+    build_cost:
+    - item: item_icon_104
+      amount: 230K
+    - item: item_icon_105
+      amount: 58K
+    construction_time: 02:31:00
+    building_power: null
+  '16':
+    prerequisites: Furnace Lv.  16
+    build_cost:
+    - item: item_icon_104
+      amount: 290K
+    - item: item_icon_105
+      amount: 74K
+    construction_time: 04:16:00
+    building_power: null
+  '17':
+    prerequisites: Furnace Lv. 17
+    build_cost:
+    - item: item_icon_104
+      amount: 460K
+    - item: item_icon_105
+      amount: 110K
+    construction_time: 05:07:00
+    building_power: null
+  '18':
+    prerequisites: Furnace Lv. 18
+    build_cost:
+    - item: item_icon_104
+      amount: 620K
+    - item: item_icon_105
+      amount: 150K
+    construction_time: 06:08:30
+    building_power: null
+  '19':
+    prerequisites: Furnace Lv. 19
+    build_cost:
+    - item: item_icon_104
+      amount: 780K
+    - item: item_icon_105
+      amount: 190K
+    construction_time: 09:13:00
+    building_power: null
+  '20':
+    prerequisites: Furnace Lv. 20
+    build_cost:
+    - item: item_icon_105
+      amount: 260K
+    construction_time: '11:31:00'
+    building_power: null
+  '21':
+    prerequisites: Furnace Lv. 21
+    build_cost:
+    - item: item_icon_105
+      amount: 340K
+    construction_time: '14:58:30'
+    building_power: null
+  '22':
+    prerequisites: Furnace Lv. 22
+    build_cost:
+    - item: item_icon_105
+      amount: 450K
+    construction_time: '22:28:00'
+    building_power: null
+  '23':
+    prerequisites: Furnace Lv. 23
+    build_cost:
+    - item: item_icon_105
+      amount: 560K
+    construction_time: 1d 07:27:00
+    building_power: null
+  '24':
+    prerequisites: Furnace Lv. 24
+    build_cost:
+    - item: item_icon_105
+      amount: 750K
+    construction_time: 1d 20:02:00
+    building_power: null
+  '25':
+    prerequisites: Furnace Lv. 25
+    build_cost: []
+    construction_time: 2d 13:39:00
+    building_power: null
+  '26':
+    prerequisites: Furnace Lv. 26
+    build_cost: []
+    construction_time: 2d 22:54:00
+    building_power: null
+  '27':
+    prerequisites: Furnace Lv. 27
+    build_cost: []
+    construction_time: 3d 13:04:00
+    building_power: null
+  '28':
+    prerequisites: Furnace Lv. 28
+    build_cost: []
+    construction_time: 4d 01:50:00
+    building_power: null
+  '29':
+    prerequisites: Furnace Lv. 29
+    build_cost: []
+    construction_time: 4d 16:31:00
+    building_power: null
+  '30':
+    prerequisites: Furnace Lv. 30
+    build_cost: []
+    construction_time: 5d 15:01:00
+    building_power: null

@@ -1,0 +1,236 @@
+id: norah
+name: Norah
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/gwen/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '4928'
+    def: '4928'
+    health: '49284'
+  expedition:
+    attack: 444.35%
+    defense: 444.35%
+story: 'Norah''s three defining qualities must be her remarkable courage, leadership
+  of a light mechanized brigade, and identity as one of very few truly exceptional
+  leaders in the Dawn Alliance.Norah and her brigade often penetrate deep into enemy
+  territory with the speed of an arrow,undertaking reconnaissance missions, strikes,
+  and rescue operations. And the combination of Norah''s tactical brilliance, timing
+  on the battlefield, and weapons expertise makes her an absolute nightmare for Phaethon.Norah''s
+  exceptional calmness under pressure and decisive demeanor impress even the most
+  seasoned soldiers-even against near-insurmountable odds. If anything could possibly
+  disturb Norah''s resolve, it must be fears for her younger sister Gwen''s safety.
+
+
+  Norah may have been part of the same training cohort as Bahiti at the Academy, but
+  the two could not be more different. Unlike Bahiti, Norah is a a master battlefield
+  commander and tactician with little interest in anything unrelated to the intricacies
+  of fighting since her scientist father''s tragic fate.Norah has developed the firm
+  belief no amount of knowledge can compare to what truly matters:safeguarding those
+  she holds dear.
+
+
+  Norah was only a child when she spotted Phaethon''s columns advancing toward her
+  father''s laboratory.All her father''s brilliance, his vast wealth of knowledge,
+  proved powerless in saving him from the dreadful fate that followed. Norah stood
+  resolute by her father''s side, receiving his final testament and instructions on
+  how to flee, all while her baby sister Gwen remained cradled in swaddling clothes.
+  With aheavy heart, Norah carried Gwen to their father''s steam-powered sled and
+  escaped with the great
+
+
+  driving skills he had carefully fostered.Eventually, she stopped to look back at
+  the lab. All she could see was rising smoke.
+
+
+  Norah and her sister were rescued by her father''s colleagues at the Dawn Alliance.
+  This encounter ignited a burning hatred for Phaethon, an unyielding dedication to
+  her younger sister, and zeal for the path of the warrior-soldier within Norah.In
+  the course of time Norah''s younger sister has become something of a weak spot in
+  Norah''s rigid life-or perhaps Norah''s only soft spot. Unlike Norah, Gwen showed
+  extraordinary talent as an inventor, a challenge for Norah who would have preferred
+  Gwen to focus more on ordinary combat skills. Yet Norah could not bring herself
+  to spar against Gwen even in a controlled setting, the thought of an accident and
+  fresh grief too much to bear. Yet Norah has since grown to value Gwen''s ingenuity
+  on the battlefield, especially when rescuing fellow soldiers.And over time Norah
+  has gradually come to terms with the reality that Gwen has found her own strong
+  and independent footing.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- King of Icefield
+- State of Power
+- Daily Deals
+- Mythic General Hero Shard
+skills:
+- name: Barrage
+  description: Norah unleashes a 5-grenade cascade against random target (heroes first),
+    dealing Attack 60%/66%/72%/78%/84% Area of Effect damage.
+- name: Flashbang
+  description: Norah throws the flasbang, dealing Attack 50%/55%/60%/65%/70% damage
+    and stuns the target for 1.5s.
+- name: Valkyrie Cry
+  description: Norah blitzes the ennemy, boosting all Troops Attack by 3%/3.5%/4%/4.5%/5%
+    .
+- name: Combined Arms
+  description: Norah is well trained in combined arms tactics, decreasing Damage Taken
+    by 3%/6%/9%/12%/15% and boosting Damage Dealt by 3%/6%/9%/12%/15% for Infantry
+    and Marksman.
+- name: Sneak Strike
+  description: Norah has an eye for weaknesses, granting her Lancers a 20% chance
+    of dealing 20%/40%/60%/80%/100% extra damage to all enemies on attack.
+- name: Momentum
+  description: Norah motivates our troops, increasing all troops' Damage Dealt by
+    5%/10%/15%/20%/25% and reducing their damage taken by 5%/10%/15%/20%/25% every
+    5 attack made by lancer for 2 turns.
+- name: Disruptor (Lv. 5)
+  description: Norah improves her Barrage grenades, granting a 35% chance of stunning
+    the target for 1s.
+- name: True Grit (Lv. 5)
+  description: Norah inspires other with her courage under fire, boosting Defender
+    Troops Deffense by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 66600
+      attack: 133
+      defense: 133
+      health: 1332
+      lethality_l: 11.1
+      health_l: 11.1
+      skill_1: 25% chance of stunning target for 0.6s during Barrage
+    2:
+      power: 113220
+      attack: 226
+      defense: 226
+      health: 2264
+      lethality_l: 22.2
+      health_l: 22.2
+      skill_1: 25% chance of stunning target for 0.6s during Barrage
+      skill_2: Defender Troop Defense +5%
+    3:
+      power: 159840
+      attack: 319
+      defense: 319
+      health: 3196
+      lethality_l: 33.3
+      health_l: 33.3
+      skill_1: 27.5% chance of stunning target for 0.7s during Barrage
+      skill_2: Defender Troop Defense +5%
+    4:
+      power: 206460
+      attack: 412
+      defense: 412
+      health: 4129
+      lethality_l: 44.4
+      health_l: 44.4
+      skill_1: 27.5% chance of stunning target for 0.7s during Barrage
+      skill_2: Defender Troop Defense +7.5%
+    5:
+      power: 253080
+      attack: 506
+      defense: 506
+      health: 5061
+      lethality_l: 55.5
+      health_l: 55.5
+      skill_1: 30% chance of stunning target for 0.8s during Barrage
+      skill_2: Defender Troop Defense +7.5%
+    6:
+      power: 299700
+      attack: 599
+      defense: 599
+      health: 5994
+      lethality_l: 66.6
+      health_l: 66.6
+      skill_1: 30% chance of stunning target for 0.8s during Barrage
+      skill_2: Defender Troop Defense +10%
+    7:
+      power: 346320
+      attack: 692
+      defense: 692
+      health: 6926
+      lethality_l: 77.7
+      health_l: 77.7
+      skill_1: 32.5% chance of stunning target for 0.9s during Barrage
+      skill_2: Defender Troop Defense +10%
+    8:
+      power: 392940
+      attack: 785
+      defense: 785
+      health: 7858
+      lethality_l: 88.8
+      health_l: 88.8
+      skill_1: 32.5% chance of stunning target for 0.9s during Barrage
+      skill_2: Defender Troop Defense +12.5%
+    9:
+      power: 439560
+      attack: 879
+      defense: 879
+      health: 8791
+      lethality_l: 99.9
+      health_l: 99.9
+      skill_1: 35% chance of stunning target for 1s during Barrage
+      skill_2: Defender Troop Defense +12.5%
+    10:
+      power: 499500
+      attack: 999
+      defense: 999
+      health: 9990
+      lethality_l: 111.0
+      health_l: 111.0
+      skill_1: 35% chance of stunning target for 1s during Barrage
+      skill_2: Defender Troop Defense +15%

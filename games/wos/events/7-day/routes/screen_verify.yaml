@@ -1,0 +1,5 @@
+screens:
+  event.7-day:
+    rules:
+    - match: event.7-day
+      threshold: 0.9

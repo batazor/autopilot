@@ -1,0 +1,47 @@
+overlay:
+- name: journey_of_light.dispatch_all.visible
+  region: journey_of_light.dispatch_all
+  action: findIcon
+  threshold: 0.75
+  template: games/wos/events/journey_of_light/references/crop/main_journey_of_light.dispatch_all.text.png
+  min_match_saturation: 80
+  min_patch_bright_ratio: 0.05
+  screens:
+  - journey_of_light.journey_of_light
+  steps:
+  - push_scenario:
+      name: journey_of_light.dispatch_all
+      ttl: 1m
+- name: journey_of_light.claim_all.visible
+  region: journey_of_light.claim_all
+  action: findIcon
+  threshold: 0.75
+  template: games/wos/core/common/references/crop/claim_all_claim_all.png
+  min_match_saturation: 80
+  min_patch_bright_ratio: 0.05
+  screens:
+  - journey_of_light.journey_of_light
+  steps:
+  - push_scenario:
+      name: journey_of_light.claim_all
+      ttl: 1m
+- name: journey_of_light.add.has_red_dot
+  region: journey_of_light.add
+  action: red_dot
+  screens:
+  - journey_of_light.journey_of_light
+  steps:
+  - push_scenario:
+      name: journey_of_light
+      ttl: 1m
+- name: journey_of_light.my_treasures.has_red_dot
+  region: journey_of_light.my_treasures.title
+  action: red_dot
+  screens:
+  - deals
+  - journey_of_light.journey_of_light
+  - journey_of_light.my_treasures
+  steps:
+  - push_scenario:
+      name: journey_of_light.my_treasures
+      ttl: 1m

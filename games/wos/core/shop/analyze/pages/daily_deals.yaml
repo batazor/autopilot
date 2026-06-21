@@ -1,0 +1,11 @@
+overlay:
+  - name: shop.daily_deals.free.visible
+    region: box.free
+    action: findIcon
+    threshold: 0.70
+    screens:
+      - shop.daily_deals
+    steps:
+      - push_scenario:
+          name: shop.daily_deals
+          ttl: 5s

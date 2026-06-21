@@ -1,0 +1,116 @@
+# Build context exclusion list. Anything not listed here is uploaded to the
+# Docker daemon on every build — keep this aggressive.
+#
+# The COPY directives in Dockerfile.bot / Dockerfile.web are the source of
+# truth for what ends up in images; entries here only affect what's *available*
+# to those COPYs.
+
+# --- VCS ---------------------------------------------------------------------
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# --- Python ------------------------------------------------------------------
+.venv/
+.venv-easyocr-bench/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ty-cache/
+.ty-baseline.json
+*.egg-info/
+dist/
+build/
+
+# --- Node / Next.js ----------------------------------------------------------
+node_modules/
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/
+web/tsconfig.tsbuildinfo
+
+# --- Editor / IDE / agent state ---------------------------------------------
+.idea/
+.vscode/
+.claude/
+.cursor/
+*.swp
+*~
+
+# --- OS junk -----------------------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# --- Secrets / per-host data -------------------------------------------------
+.env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+.npmrc
+npmrc
+pip.conf
+auth.json
+.secrets/
+# NOTE: src/config/_telemetry_secrets.py is deliberately NOT ignored here — it
+# must reach the build context so the bot image bakes the OTLP creds (gitignored
+# in source, written from a GitHub secret in CI; see .github/workflows/docker.yml
+# and grafana/README.md). Excluding it silently disables ALL telemetry.
+*.key
+*.p12
+*.pfx
+*.crt
+# Durable runtime state: configured devices, accounts, player ids, queues,
+# screenshots metadata, and SQLite sidecars. Never upload it to the Docker
+# daemon or bake it into images; prod compose mounts a fresh named volume here.
+db/state/
+src/modules/notify/data/
+
+# --- Docker / CI artifacts (image doesn't need its own build inputs) --------
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# --- Logs / scratch ----------------------------------------------------------
+*.log
+*.tmp
+*.bak
+coverage/
+htmlcov/
+runs/
+captures/
+.tmp_ocr/
+temporal/
+
+# --- Test code (not needed at runtime) ---------------------------------------
+**/tests/
+**/test_*.py
+**/conftest.py
+!src/config/test_module.py
+# Runtime references stay in the image, but pending Labeling captures and
+# pytest rehearsal frames do not. They are recreated locally as needed and can
+# otherwise add tens of megabytes to every bot build context.
+**/references/temporal/
+**/references/rehearsal/fixtures/
+
+# --- Local-only / unused-at-runtime directories ------------------------------
+# Not COPY'd by Dockerfile.bot / Dockerfile.web — keeping them out of the
+# build context shaves seconds off ``docker build`` and keeps the daemon's
+# tar upload small.
+stubs/
+data/                  # kNN training images (training pipeline only)
+temporal/              # runtime scratch — regenerated per tick
+docs/                  # docs site sources
+grafana/               # local Grafana provisioning
+modules/               # pre-Phase-3 module tree (replaced by games/)
+draft/                 # WIP / scratch
+page/                  # standalone submodule (not consumed by bot image)
+cmd/                   # standalone helper scripts
+.streamlit/            # legacy Streamlit config

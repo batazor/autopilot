@@ -1,0 +1,11 @@
+edges:
+  main_city:
+    event.mercenary_prestige: [main_city.to.mercenary_prestige]
+
+  # The event icon sits on the world map too, so allow direct entry without
+  # detouring back to the city first.
+  main_world:
+    event.mercenary_prestige: [main_city.to.mercenary_prestige]
+
+  event.mercenary_prestige:
+    main_city: [icon.page.back]

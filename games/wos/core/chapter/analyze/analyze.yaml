@@ -1,0 +1,90 @@
+overlay:
+  # The chapter banner sits in the same bottom-left corner on both hubs and
+  # shows a red counter badge when missions are claimable — push the claim
+  # scenario (it navigates to the chapter.daily_missions tab).
+  - name: chapter.badge.visible
+    region: chapter.new
+    isRedDot: true
+    # The labeled bbox is tall enough to include the counter badge slot in its
+    # top-right corner — probe that corner of the matched template (offsets are
+    # % of template size; slight overshoot above covers badge jitter).
+    red_dot_bbox: { x: 55.0, y: -15.0, width: 55.0, height: 55.0 }
+    device_level: true
+    priority: 90_000
+    screens:
+      - main_city
+      - main_world
+    steps:
+      - push_scenario: chapter.claim_missions
+
+  # On the chapter panel itself: the green "Claim All" template only matches its
+  # lit (claimable) state, so finding it on a tab means rewards are waiting.
+  # This complements the main_city badge rule so the page self-claims when it is
+  # already open (badge missed, or the bot entered the panel directly) — the same
+  # on-page contract the deals sub-pages use. Each tab is its own node now, so
+  # the rule pushes the scenario bound to that node (which sweeps Claim All +
+  # the per-row Claim buttons on that tab).
+  - name: chapter.claim_all.visible.daily
+    region: chapter.button.claim_all
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - chapter.daily_missions
+    steps:
+      - push_scenario:
+          name: chapter.claim_missions
+          ttl: 1m
+
+  - name: chapter.claim_all.visible.growth
+    region: chapter.button.claim_all
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - chapter.growth_missions
+    steps:
+      - push_scenario:
+          name: chapter.growth.claim
+          ttl: 1m
+
+  # Growth often has only per-row "Claim" buttons, no Claim All. The
+  # chapter.button.claim bbox anchors the right-hand CTA column; green_button
+  # scans that column for any green claimable row button, so it is resilient to
+  # text/template drift across chapter variants.
+  - name: chapter.claim.visible.daily
+    region: chapter.button.claim
+    action: cta_button
+    color: green
+    threshold: 0.5
+    screens:
+      - chapter.daily_missions
+    steps:
+      - push_scenario:
+          name: chapter.claim_missions
+          ttl: 1m
+
+  - name: chapter.claim.visible.growth
+    region: chapter.button.claim
+    action: cta_button
+    color: green
+    threshold: 0.5
+    screens:
+      - chapter.growth_missions
+    steps:
+      - push_scenario:
+          name: chapter.growth.claim
+          ttl: 1m
+
+  # Generic fallback node: if active-tab landmarks miss but the common Chapter
+  # title is detected, push a small scenario that claims the visible row button
+  # via the Chapter-local dynamic search region.
+  - name: chapter.claim.visible.generic
+    region: chapter.button.claim
+    action: cta_button
+    color: green
+    device_level: true
+    threshold: 0.5
+    ttl: 5s
+    screens:
+      - chapter
+    steps:
+      - click: chapter.button.claim

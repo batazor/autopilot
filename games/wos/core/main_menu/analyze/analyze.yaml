@@ -1,0 +1,41 @@
+overlay:
+  # Full-panel sweep: scans every City-list row (queues, training, research,
+  # expert, contribution, recruits, events) regardless of scroll position.
+  - name: main_menu.panel.sweep
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    ttl: 30m
+    steps:
+      - push_scenario: sync_main_menu_panel
+  - name: main_menu.training.visible
+    region: main_menu.training.infantry.status
+    action: text
+    expected:
+      - Infantry
+    threshold: 0.7
+    screens:
+      - main_menu
+    ttl: 5m
+    steps:
+      - push_scenario: sync_training_status
+  - name: main_menu.research.visible
+    region: main_menu.research.slot.status
+    action: text
+    threshold: 0.7
+    screens:
+      - main_menu
+    ttl: 5m
+    steps:
+      - push_scenario: sync_research_status
+  - name: main_menu.marching.visible
+    region: main_menu.marching.count
+    action: text
+    threshold: 0.7
+    screens:
+      - main_menu
+    ttl: 1m
+    steps:
+      - push_scenario: sync_marching_status

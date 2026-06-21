@@ -1,0 +1,103 @@
+id: frost_sphere_ii
+name: Frost Sphere II
+wiki_url: https://www.whiteoutsurvival.wiki/items/frost-sphere-ii/
+category: ''
+description: 'Bonus:
+
+
+  Troops Attack +5.0%
+
+
+  Domain Bonuses for Allies:
+
+
+  1. A
+
+
+  Chief''s City
+
+
+  must be located within
+
+
+  2 tiles
+
+
+  of the
+
+
+  Domain''s area of effect
+
+
+  .
+
+
+  2. If a Chief is within range of multiple Domains of the
+
+
+  same type
+
+
+  , the effect of the
+
+
+  higher-level Domain
+
+
+  will apply. If there are multiple Domains of the same type and level, one will be
+  applied at
+
+
+  random
+
+
+  .
+
+
+  Domain Effect:
+
+
+  Nearby cities affected: 8
+
+
+  Domain Bonus:
+
+
+  Allies within 2 tiles of your city gain the following effects:
+
+
+  - Defender Troops Attack When Defending Own City +10.0%
+
+
+  - Defender Troops Defense When Defending Own City +10.0%
+
+
+  - Training Speed +4.0%
+
+
+  - Resource Gathering Speed +10.0%'
+sources:
+- 'Bonus:'
+- Troops Attack +5.0%
+- 'Domain Bonuses for Allies:'
+- 1. A
+- Chief's City
+- must be located within
+- 2 tiles
+- of the
+- Domain's area of effect
+- .
+- 2. If a Chief is within range of multiple Domains of the
+- same type
+- ', the effect of the'
+- higher-level Domain
+- random
+- 'Domain Effect:'
+- 'Nearby cities affected: 8'
+- 'Domain Bonus:'
+- 'Allies within 2 tiles of your city gain the following effects:'
+- '- Defender Troops Attack When Defending Own City +10.0%'
+- '- Defender Troops Defense When Defending Own City +10.0%'
+- '- Training Speed +4.0%'
+- '- Resource Gathering Speed +10.0%'
+- Prestige Merit Shop 75M Points

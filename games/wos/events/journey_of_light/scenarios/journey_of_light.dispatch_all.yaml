@@ -1,0 +1,18 @@
+enabled: true
+name: 'Journey of Light: Dispatch All'
+priority: 80000
+node: journey_of_light.journey_of_light
+icon: journey_of_light
+steps:
+- while_match: journey_of_light.dispatch_all
+  threshold: 0.75
+  template: games/wos/events/journey_of_light/references/crop/main_journey_of_light.dispatch_all.text.png
+  max: 1
+  min_match_saturation: 80
+  min_patch_bright_ratio: 0.05
+  retry:
+    attempts: 2
+    interval: 500ms
+  steps:
+  - click: journey_of_light.dispatch_all
+  - wait: 1s

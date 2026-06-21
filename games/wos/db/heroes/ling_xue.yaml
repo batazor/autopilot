@@ -1,0 +1,126 @@
+id: ling_xue
+name: Ling Xue
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/ling-shuang/
+rarity: Epic
+class: Lancer
+sub_class: Growth
+stats:
+  exploration:
+    attack: '1776'
+    def: '2220'
+    health: '17760'
+  expedition:
+    attack: 140.11%
+    defense: 140.11%
+story: 'Like many who survived the fall of the Old Empire, Ling Xue grew up with a
+  spear in one hand and a sword in the other. Even before the Great Chill, her legion
+  of elite soldiers were the terror of bandits everywhere. Unlike other border armies
+  who bunkered behind city gates, Ling Xue''s Iron Eagles preferred to go out and
+  fight. And fight they did with devastating precision, always striking at the very
+  heart of the enemy.
+
+
+  One of Ling Xue''s advantages is an uncanny mastery of terrain. This often allows
+  her to splinter and crush much larger forces by moving, for example, against an
+  enemy camp at night to sow confusion. Most commanders would not dare to enter into
+  so much danger. Yet Ling Xue trusts full well in her ability to extricate her men
+  from any situation as long as they have the advantage of surprise.
+
+
+  And so Ling Xue became the terror of the borderlands, a fiery six-armed, three-headed
+  hydra of outlaw folklore. The truth is that Ling Xue would not be recognized in
+  a crowd easily without her armor. In fact, her rich and varied life outside the
+  art of war includes a fondness for unconventional baking techniques—as awkward as
+  that makes some grizzled veterans feel.
+
+
+  Ling Xue''s practical childhood training with wasters was accompanied by plenty
+  of theoretical book-study. But Ling Xue is not academic. Her skills lie more in
+  the kind of adaptability scorned by other generals unaccustomed to spontaneous tactics.
+  Ling Xue was never going to win any favors with the upper military establishment
+  simply because of her ancestors. The only way to climb the ranks at the border is
+  by proving oneself in battle. And she eagerly watched and looked forward to whenever
+  that day would come.
+
+
+  There''s a reason why crisis and opportunity go hand-in-hand. Ling Xue was no more
+  than a centurion accompanying the emperor''s nephew on a routine inspection as an
+  unusually large bandit army decided to attack. Outnumbered 3-to-1, The emperor''s
+  nephew began panicking. Ling Xue looked him straight in the eye and declared the
+  bandit leader had no idea how much trouble was in.
+
+
+  The bandits quickly moved to flank Ling Xue''s smaller bodyguard well outside the
+  gates. It was a fatal mistake. Ling Xue''s unit immediately charged. The bandit
+  leader had his hands tied behind his back before most of them realized what was
+  going on. The rest quickly turned and fled at the sight of their hostage leader.\nThe
+  emperor''s nephew returned home safe and sound. And the Capitol soon sent word Ling
+  Xue had been promoted to provincial general.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources: []
+skills:
+- name: Hurricane Whirl
+  description: Ling Xue slashes the area ahead with stormlike fury, dealing Attack*
+    300%/330%/360%/390%/420% damage.
+- name: Galeforce
+  description: Ling Xue commands the Iron Eagles with strength and honor, increasing
+    Attack by 16%/24%/32%/40%/48% when over 50% Health.
+- name: Desperate Measures
+  description: Ling Xue is at her most cunning when cornered, gaining 50%/75%/100%/125%/150%
+    Defense when under 50% Health.
+- name: Fearsome Aura
+  description: Ling Xue's withering assault has disturbed enemies' formation, reducing
+    all enemy Troops' Attack by 4%/8%/12%/16%/20% .
+- name: Total Control
+  description: Ling Xue's hands-on, disciplined instruction increases Training Speed
+    by 4%/8%/12%/16%/20% .

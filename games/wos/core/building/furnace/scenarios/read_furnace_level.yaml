@@ -1,0 +1,9 @@
+enabled: true
+name: 🔥 Read furnace level
+device_level: true
+priority: 50_000
+steps:
+  # OCR the "Furnace Lv. N" header and record it into buildings.levels.furnace
+  # (durable profile + instance-state mirror) for the build planner.
+  - ocr: furnace.title
+  - exec: record_building_level

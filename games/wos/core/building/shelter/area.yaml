@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "shelter",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "shelter.title",
+          "action": "text",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 2.4455204035742915,
+            "y": 40.02170968274679,
+            "width": 40.439698492462306,
+            "height": 3.9789541753622935,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "shelter.next",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 75.18482490272376,
+            "y": 49.128403103793616,
+            "width": 14.999999999999993,
+            "height": 5.354575115369959,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1646 @@
+id: goggles_boots_infantry
+slot: goggles_boots
+troop_class: infantry
+title: Goggles & Boots (Infantry)
+stats:
+- power
+- attack
+- health
+- lethality
+tiers:
+- grey
+- green
+- blue
+- purple
+- gold
+source:
+  sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+  gid: 1218774117
+  fetched_at: '2026-05-13'
+levels:
+  0:
+    grey:
+      power: 1000
+      attack: 9
+      health: 90
+      lethality: 1.33
+    green:
+      power: 1375
+      attack: 12
+      health: 123
+      lethality: 1.83
+    blue:
+      power: 1625
+      attack: 14
+      health: 146
+      lethality: 2.16
+    purple:
+      power: 2000
+      attack: 18
+      health: 180
+      lethality: 2.66
+    gold:
+      power: 2500
+      attack: 23
+      health: 225
+      lethality: 3.33
+  1:
+    grey:
+      power: 1160
+      attack: 10
+      health: 102
+      lethality: 1.52
+    green:
+      power: 1595
+      attack: 14
+      health: 141
+      lethality: 2.09
+    blue:
+      power: 1885
+      attack: 16
+      health: 166
+      lethality: 2.47
+    purple:
+      power: 2320
+      attack: 20
+      health: 205
+      lethality: 3.04
+    gold:
+      power: 2900
+      attack: 26
+      health: 256
+      lethality: 3.8
+  2:
+    grey:
+      power: 1330
+      attack: 11
+      health: 115
+      lethality: 1.7
+    green:
+      power: 1828
+      attack: 15
+      health: 158
+      lethality: 2.34
+    blue:
+      power: 2161
+      attack: 18
+      health: 187
+      lethality: 2.77
+    purple:
+      power: 2660
+      attack: 23
+      health: 230
+      lethality: 3.41
+    gold:
+      power: 3325
+      attack: 29
+      health: 288
+      lethality: 4.26
+  3:
+    grey:
+      power: 1510
+      attack: 13
+      health: 127
+      lethality: 1.89
+    green:
+      power: 2076
+      attack: 17
+      health: 175
+      lethality: 2.6
+    blue:
+      power: 2453
+      attack: 21
+      health: 207
+      lethality: 3.07
+    purple:
+      power: 3020
+      attack: 26
+      health: 255
+      lethality: 3.78
+    gold:
+      power: 3775
+      attack: 32
+      health: 319
+      lethality: 4.73
+  4:
+    grey:
+      power: 1690
+      attack: 14
+      health: 140
+      lethality: 2.08
+    green:
+      power: 2323
+      attack: 19
+      health: 193
+      lethality: 2.86
+    blue:
+      power: 2746
+      attack: 23
+      health: 228
+      lethality: 3.38
+    purple:
+      power: 3380
+      attack: 28
+      health: 280
+      lethality: 4.16
+    gold:
+      power: 4225
+      attack: 35
+      health: 351
+      lethality: 5.2
+  5:
+    grey:
+      power: 1880
+      attack: 15
+      health: 153
+      lethality: 2.26
+    green:
+      power: 2585
+      attack: 21
+      health: 210
+      lethality: 3.11
+    blue:
+      power: 3055
+      attack: 25
+      health: 248
+      lethality: 3.68
+    purple:
+      power: 3760
+      attack: 31
+      health: 306
+      lethality: 4.53
+    gold:
+      power: 4700
+      attack: 39
+      health: 382
+      lethality: 5.66
+  6:
+    grey:
+      power: 2070
+      attack: 16
+      health: 165
+      lethality: 2.45
+    green:
+      power: 2846
+      attack: 23
+      health: 227
+      lethality: 3.37
+    blue:
+      power: 3363
+      attack: 27
+      health: 269
+      lethality: 3.98
+    purple:
+      power: 4140
+      attack: 33
+      health: 331
+      lethality: 4.9
+    gold:
+      power: 5175
+      attack: 42
+      health: 414
+      lethality: 6.13
+  7:
+    grey:
+      power: 2270
+      attack: 18
+      health: 178
+      lethality: 2.64
+    green:
+      power: 3121
+      attack: 25
+      health: 245
+      lethality: 3.63
+    blue:
+      power: 3688
+      attack: 29
+      health: 289
+      lethality: 4.29
+    purple:
+      power: 4540
+      attack: 36
+      health: 356
+      lethality: 5.28
+    gold:
+      power: 5675
+      attack: 45
+      health: 445
+      lethality: 6.6
+  8:
+    grey:
+      power: 2480
+      attack: 19
+      health: 190
+      lethality: 2.82
+    green:
+      power: 3410
+      attack: 26
+      health: 262
+      lethality: 3.88
+    blue:
+      power: 4030
+      attack: 31
+      health: 310
+      lethality: 4.59
+    purple:
+      power: 4960
+      attack: 38
+      health: 381
+      lethality: 5.65
+    gold:
+      power: 6200
+      attack: 48
+      health: 477
+      lethality: 7.06
+  9:
+    grey:
+      power: 2700
+      attack: 20
+      health: 203
+      lethality: 3.01
+    green:
+      power: 3712
+      attack: 28
+      health: 279
+      lethality: 4.14
+    blue:
+      power: 4387
+      attack: 33
+      health: 330
+      lethality: 4.89
+    purple:
+      power: 5400
+      attack: 41
+      health: 406
+      lethality: 6.02
+    gold:
+      power: 6750
+      attack: 52
+      health: 508
+      lethality: 7.53
+  10:
+    grey:
+      power: 2930
+      attack: 22
+      health: 216
+      lethality: 3.2
+    green:
+      power: 4028
+      attack: 30
+      health: 297
+      lethality: 4.4
+    blue:
+      power: 4761
+      attack: 35
+      health: 351
+      lethality: 5.2
+    purple:
+      power: 5860
+      attack: 44
+      health: 432
+      lethality: 6.4
+    gold:
+      power: 7325
+      attack: 55
+      health: 540
+      lethality: 8.0
+  11:
+    grey:
+      power: 3160
+      attack: 23
+      health: 228
+      lethality: 3.38
+    green:
+      power: 4345
+      attack: 31
+      health: 314
+      lethality: 4.65
+    blue:
+      power: 5135
+      attack: 37
+      health: 371
+      lethality: 5.5
+    purple:
+      power: 6320
+      attack: 46
+      health: 457
+      lethality: 6.77
+    gold:
+      power: 7900
+      attack: 58
+      health: 571
+      lethality: 8.46
+  12:
+    grey:
+      power: 3400
+      attack: 24
+      health: 241
+      lethality: 3.57
+    green:
+      power: 4675
+      attack: 33
+      health: 331
+      lethality: 4.91
+    blue:
+      power: 5525
+      attack: 39
+      health: 391
+      lethality: 5.8
+    purple:
+      power: 6800
+      attack: 49
+      health: 482
+      lethality: 7.14
+    gold:
+      power: 8500
+      attack: 61
+      health: 603
+      lethality: 8.93
+  13:
+    grey:
+      power: 3650
+      attack: 25
+      health: 253
+      lethality: 3.76
+    green:
+      power: 5018
+      attack: 35
+      health: 348
+      lethality: 5.17
+    blue:
+      power: 5931
+      attack: 41
+      health: 412
+      lethality: 6.11
+    purple:
+      power: 7300
+      attack: 51
+      health: 507
+      lethality: 7.52
+    gold:
+      power: 9125
+      attack: 64
+      health: 634
+      lethality: 9.4
+  14:
+    grey:
+      power: 3910
+      attack: 27
+      health: 266
+      lethality: 3.94
+    green:
+      power: 5376
+      attack: 37
+      health: 366
+      lethality: 5.42
+    blue:
+      power: 6353
+      attack: 44
+      health: 432
+      lethality: 6.41
+    purple:
+      power: 7820
+      attack: 54
+      health: 532
+      lethality: 7.89
+    gold:
+      power: 9775
+      attack: 68
+      health: 666
+      lethality: 9.86
+  15:
+    grey:
+      power: 4170
+      attack: 28
+      health: 279
+      lethality: 4.13
+    green:
+      power: 5733
+      attack: 39
+      health: 383
+      lethality: 5.68
+    blue:
+      power: 6776
+      attack: 46
+      health: 453
+      lethality: 6.71
+    purple:
+      power: 8340
+      attack: 56
+      health: 558
+      lethality: 8.26
+    gold:
+      power: 10425
+      attack: 71
+      health: 697
+      lethality: 10.33
+  16:
+    grey:
+      power: 4450
+      attack: 29
+      health: 291
+      lethality: 4.32
+    green:
+      power: 6118
+      attack: 40
+      health: 400
+      lethality: 5.94
+    blue:
+      power: 7231
+      attack: 48
+      health: 473
+      lethality: 7.02
+    purple:
+      power: 8900
+      attack: 59
+      health: 583
+      lethality: 8.64
+    gold:
+      power: 11125
+      attack: 74
+      health: 729
+      lethality: 10.8
+  17:
+    grey:
+      power: 4730
+      attack: 31
+      health: 304
+      lethality: 4.5
+    green:
+      power: 6503
+      attack: 42
+      health: 418
+      lethality: 6.19
+    blue:
+      power: 7686
+      attack: 50
+      health: 494
+      lethality: 7.32
+    purple:
+      power: 9460
+      attack: 62
+      health: 608
+      lethality: 9.01
+    gold:
+      power: 11825
+      attack: 77
+      health: 760
+      lethality: 11.26
+  18:
+    grey:
+      power: 5030
+      attack: 32
+      health: 316
+      lethality: 4.69
+    green:
+      power: 6916
+      attack: 44
+      health: 435
+      lethality: 6.45
+    blue:
+      power: 8173
+      attack: 52
+      health: 514
+      lethality: 7.62
+    purple:
+      power: 10060
+      attack: 64
+      health: 633
+      lethality: 9.38
+    gold:
+      power: 12575
+      attack: 81
+      health: 792
+      lethality: 11.73
+  19:
+    grey:
+      power: 5330
+      attack: 33
+      health: 329
+      lethality: 4.88
+    green:
+      power: 7328
+      attack: 46
+      health: 452
+      lethality: 6.71
+    blue:
+      power: 8661
+      attack: 54
+      health: 535
+      lethality: 7.93
+    purple:
+      power: 10660
+      attack: 67
+      health: 658
+      lethality: 9.76
+    gold:
+      power: 13325
+      attack: 84
+      health: 823
+      lethality: 12.2
+  20:
+    grey:
+      power: 5650
+      attack: 35
+      health: 342
+      lethality: 5.06
+    green:
+      power: 7768
+      attack: 48
+      health: 470
+      lethality: 6.96
+    blue:
+      power: 9181
+      attack: 56
+      health: 555
+      lethality: 8.23
+    purple:
+      power: 11300
+      attack: 70
+      health: 684
+      lethality: 10.13
+    gold:
+      power: 14125
+      attack: 87
+      health: 855
+      lethality: 12.66
+  21:
+    green:
+      power: 8208
+      attack: 49
+      health: 487
+      lethality: 7.22
+    blue:
+      power: 9701
+      attack: 58
+      health: 576
+      lethality: 8.53
+    purple:
+      power: 11940
+      attack: 72
+      health: 709
+      lethality: 10.5
+    gold:
+      power: 14925
+      attack: 90
+      health: 886
+      lethality: 13.13
+  22:
+    green:
+      power: 8676
+      attack: 51
+      health: 504
+      lethality: 7.48
+    blue:
+      power: 10253
+      attack: 60
+      health: 596
+      lethality: 8.84
+    purple:
+      power: 12620
+      attack: 74
+      health: 734
+      lethality: 10.88
+    gold:
+      power: 15775
+      attack: 93
+      health: 918
+      lethality: 13.6
+  23:
+    green:
+      power: 9143
+      attack: 53
+      health: 522
+      lethality: 7.73
+    blue:
+      power: 10806
+      attack: 63
+      health: 617
+      lethality: 9.14
+    purple:
+      power: 13300
+      attack: 77
+      health: 759
+      lethality: 11.25
+    gold:
+      power: 16625
+      attack: 97
+      health: 949
+      lethality: 14.06
+  24:
+    green:
+      power: 9638
+      attack: 55
+      health: 539
+      lethality: 7.99
+    blue:
+      power: 11391
+      attack: 65
+      health: 637
+      lethality: 9.44
+    purple:
+      power: 14020
+      attack: 80
+      health: 784
+      lethality: 11.62
+    gold:
+      power: 17525
+      attack: 100
+      health: 981
+      lethality: 14.53
+  25:
+    green:
+      power: 10147
+      attack: 56
+      health: 556
+      lethality: 8.25
+    blue:
+      power: 11992
+      attack: 67
+      health: 658
+      lethality: 9.75
+    purple:
+      power: 14760
+      attack: 82
+      health: 810
+      lethality: 12.0
+    gold:
+      power: 18450
+      attack: 103
+      health: 1012
+      lethality: 15.0
+  26:
+    green:
+      power: 10670
+      attack: 58
+      health: 574
+      lethality: 8.5
+    blue:
+      power: 12610
+      attack: 69
+      health: 678
+      lethality: 10.05
+    purple:
+      power: 15520
+      attack: 85
+      health: 835
+      lethality: 12.37
+    gold:
+      power: 19400
+      attack: 106
+      health: 1044
+      lethality: 15.46
+  27:
+    green:
+      power: 11220
+      attack: 60
+      health: 591
+      lethality: 8.76
+    blue:
+      power: 13260
+      attack: 71
+      health: 699
+      lethality: 10.35
+    purple:
+      power: 16320
+      attack: 88
+      health: 860
+      lethality: 12.74
+    gold:
+      power: 20400
+      attack: 110
+      health: 1075
+      lethality: 15.93
+  28:
+    green:
+      power: 11783
+      attack: 62
+      health: 608
+      lethality: 9.02
+    blue:
+      power: 13926
+      attack: 73
+      health: 719
+      lethality: 10.66
+    purple:
+      power: 17140
+      attack: 90
+      health: 885
+      lethality: 13.12
+    gold:
+      power: 21425
+      attack: 113
+      health: 1107
+      lethality: 16.4
+  29:
+    green:
+      power: 12361
+      attack: 64
+      health: 626
+      lethality: 9.27
+    blue:
+      power: 14608
+      attack: 75
+      health: 740
+      lethality: 10.96
+    purple:
+      power: 17980
+      attack: 93
+      health: 910
+      lethality: 13.49
+    gold:
+      power: 22475
+      attack: 116
+      health: 1138
+      lethality: 16.86
+  30:
+    green:
+      power: 12952
+      attack: 65
+      health: 643
+      lethality: 9.53
+    blue:
+      power: 15307
+      attack: 77
+      health: 760
+      lethality: 11.26
+    purple:
+      power: 18840
+      attack: 95
+      health: 936
+      lethality: 13.86
+    gold:
+      power: 23550
+      attack: 119
+      health: 1170
+      lethality: 17.33
+  31:
+    green:
+      power: 13571
+      attack: 67
+      health: 660
+      lethality: 9.79
+    blue:
+      power: 16038
+      attack: 79
+      health: 780
+      lethality: 11.57
+    purple:
+      power: 19740
+      attack: 98
+      health: 961
+      lethality: 14.24
+    gold:
+      power: 24675
+      attack: 122
+      health: 1201
+      lethality: 17.8
+  32:
+    green:
+      power: 14203
+      attack: 69
+      health: 678
+      lethality: 10.04
+    blue:
+      power: 16786
+      attack: 81
+      health: 801
+      lethality: 11.87
+    purple:
+      power: 20660
+      attack: 100
+      health: 986
+      lethality: 14.61
+    gold:
+      power: 25825
+      attack: 126
+      health: 1233
+      lethality: 18.26
+  33:
+    green:
+      power: 14850
+      attack: 70
+      health: 695
+      lethality: 10.3
+    blue:
+      power: 17550
+      attack: 83
+      health: 821
+      lethality: 12.17
+    purple:
+      power: 21600
+      attack: 103
+      health: 1011
+      lethality: 14.98
+    gold:
+      power: 27000
+      attack: 129
+      health: 1264
+      lethality: 18.73
+  34:
+    green:
+      power: 15523
+      attack: 72
+      health: 712
+      lethality: 10.56
+    blue:
+      power: 18346
+      attack: 86
+      health: 842
+      lethality: 12.48
+    purple:
+      power: 22580
+      attack: 106
+      health: 1036
+      lethality: 15.36
+    gold:
+      power: 28225
+      attack: 132
+      health: 1296
+      lethality: 19.2
+  35:
+    green:
+      power: 16225
+      attack: 74
+      health: 730
+      lethality: 10.81
+    blue:
+      power: 19175
+      attack: 88
+      health: 862
+      lethality: 12.78
+    purple:
+      power: 23600
+      attack: 108
+      health: 1062
+      lethality: 15.73
+    gold:
+      power: 29500
+      attack: 135
+      health: 1327
+      lethality: 19.66
+  36:
+    green:
+      power: 16940
+      attack: 76
+      health: 747
+      lethality: 11.07
+    blue:
+      power: 20020
+      attack: 90
+      health: 883
+      lethality: 13.08
+    purple:
+      power: 24640
+      attack: 111
+      health: 1087
+      lethality: 16.1
+    gold:
+      power: 30800
+      attack: 139
+      health: 1359
+      lethality: 20.13
+  37:
+    green:
+      power: 17682
+      attack: 78
+      health: 764
+      lethality: 11.33
+    blue:
+      power: 20897
+      attack: 92
+      health: 903
+      lethality: 13.39
+    purple:
+      power: 25720
+      attack: 113
+      health: 1112
+      lethality: 16.48
+    gold:
+      power: 32150
+      attack: 142
+      health: 1390
+      lethality: 20.6
+  38:
+    green:
+      power: 18438
+      attack: 80
+      health: 782
+      lethality: 11.58
+    blue:
+      power: 21791
+      attack: 94
+      health: 924
+      lethality: 13.69
+    purple:
+      power: 26820
+      attack: 116
+      health: 1137
+      lethality: 16.85
+    gold:
+      power: 33525
+      attack: 145
+      health: 1422
+      lethality: 21.06
+  39:
+    green:
+      power: 19222
+      attack: 81
+      health: 799
+      lethality: 11.84
+    blue:
+      power: 22717
+      attack: 96
+      health: 944
+      lethality: 13.99
+    purple:
+      power: 27960
+      attack: 118
+      health: 1162
+      lethality: 17.22
+    gold:
+      power: 34950
+      attack: 148
+      health: 1453
+      lethality: 21.53
+  40:
+    green:
+      power: 20033
+      attack: 83
+      health: 816
+      lethality: 12.1
+    blue:
+      power: 23676
+      attack: 98
+      health: 965
+      lethality: 14.3
+    purple:
+      power: 29140
+      attack: 121
+      health: 1188
+      lethality: 17.6
+    gold:
+      power: 36425
+      attack: 151
+      health: 1485
+      lethality: 22.0
+  41:
+    blue:
+      power: 24667
+      attack: 100
+      health: 985
+      lethality: 14.6
+    purple:
+      power: 30360
+      attack: 124
+      health: 1213
+      lethality: 17.97
+    gold:
+      power: 37950
+      attack: 155
+      health: 1516
+      lethality: 22.46
+  42:
+    blue:
+      power: 25691
+      attack: 102
+      health: 1006
+      lethality: 14.9
+    purple:
+      power: 31620
+      attack: 126
+      health: 1238
+      lethality: 18.34
+    gold:
+      power: 39525
+      attack: 158
+      health: 1548
+      lethality: 22.93
+  43:
+    blue:
+      power: 26731
+      attack: 104
+      health: 1026
+      lethality: 15.21
+    purple:
+      power: 32900
+      attack: 129
+      health: 1263
+      lethality: 18.72
+    gold:
+      power: 41125
+      attack: 161
+      health: 1579
+      lethality: 23.4
+  44:
+    blue:
+      power: 27803
+      attack: 106
+      health: 1047
+      lethality: 15.51
+    purple:
+      power: 34220
+      attack: 131
+      health: 1288
+      lethality: 19.09
+    gold:
+      power: 42775
+      attack: 164
+      health: 1611
+      lethality: 23.86
+  45:
+    blue:
+      power: 28925
+      attack: 109
+      health: 1067
+      lethality: 15.81
+    purple:
+      power: 35600
+      attack: 134
+      health: 1314
+      lethality: 19.46
+    gold:
+      power: 44500
+      attack: 168
+      health: 1642
+      lethality: 24.33
+  46:
+    blue:
+      power: 30062
+      attack: 111
+      health: 1088
+      lethality: 16.12
+    purple:
+      power: 37000
+      attack: 136
+      health: 1339
+      lethality: 19.84
+    gold:
+      power: 46250
+      attack: 171
+      health: 1674
+      lethality: 24.8
+  47:
+    blue:
+      power: 31248
+      attack: 113
+      health: 1108
+      lethality: 16.42
+    purple:
+      power: 38460
+      attack: 139
+      health: 1364
+      lethality: 20.21
+    gold:
+      power: 48075
+      attack: 174
+      health: 1705
+      lethality: 25.26
+  48:
+    blue:
+      power: 32451
+      attack: 115
+      health: 1129
+      lethality: 16.72
+    purple:
+      power: 39940
+      attack: 142
+      health: 1389
+      lethality: 20.58
+    gold:
+      power: 49925
+      attack: 177
+      health: 1737
+      lethality: 25.73
+  49:
+    blue:
+      power: 33702
+      attack: 117
+      health: 1149
+      lethality: 17.03
+    purple:
+      power: 41480
+      attack: 144
+      health: 1414
+      lethality: 20.96
+    gold:
+      power: 51850
+      attack: 180
+      health: 1768
+      lethality: 26.2
+  50:
+    blue:
+      power: 34986
+      attack: 119
+      health: 1170
+      lethality: 17.33
+    purple:
+      power: 43060
+      attack: 147
+      health: 1440
+      lethality: 21.33
+    gold:
+      power: 53825
+      attack: 184
+      health: 1800
+      lethality: 26.66
+  51:
+    blue:
+      power: 36318
+      attack: 121
+      health: 1190
+      lethality: 17.63
+    purple:
+      power: 44700
+      attack: 149
+      health: 1465
+      lethality: 21.7
+    gold:
+      power: 55875
+      attack: 187
+      health: 1831
+      lethality: 27.13
+  52:
+    blue:
+      power: 37683
+      attack: 123
+      health: 1210
+      lethality: 17.94
+    purple:
+      power: 46380
+      attack: 152
+      health: 1490
+      lethality: 22.08
+    gold:
+      power: 57975
+      attack: 190
+      health: 1863
+      lethality: 27.6
+  53:
+    blue:
+      power: 39081
+      attack: 125
+      health: 1231
+      lethality: 18.24
+    purple:
+      power: 48100
+      attack: 154
+      health: 1515
+      lethality: 22.45
+    gold:
+      power: 60125
+      attack: 193
+      health: 1894
+      lethality: 28.06
+  54:
+    blue:
+      power: 40527
+      attack: 128
+      health: 1251
+      lethality: 18.54
+    purple:
+      power: 49880
+      attack: 157
+      health: 1540
+      lethality: 22.82
+    gold:
+      power: 62350
+      attack: 197
+      health: 1926
+      lethality: 28.53
+  55:
+    blue:
+      power: 42006
+      attack: 130
+      health: 1272
+      lethality: 18.85
+    purple:
+      power: 51700
+      attack: 160
+      health: 1566
+      lethality: 23.2
+    gold:
+      power: 64625
+      attack: 200
+      health: 1957
+      lethality: 29.0
+  56:
+    blue:
+      power: 43550
+      attack: 132
+      health: 1292
+      lethality: 19.15
+    purple:
+      power: 53600
+      attack: 162
+      health: 1591
+      lethality: 23.57
+    gold:
+      power: 67000
+      attack: 203
+      health: 1989
+      lethality: 29.46
+  57:
+    blue:
+      power: 45110
+      attack: 134
+      health: 1313
+      lethality: 19.45
+    purple:
+      power: 55520
+      attack: 165
+      health: 1616
+      lethality: 23.94
+    gold:
+      power: 69400
+      attack: 206
+      health: 2020
+      lethality: 29.93
+  58:
+    blue:
+      power: 46735
+      attack: 136
+      health: 1333
+      lethality: 19.76
+    purple:
+      power: 57520
+      attack: 168
+      health: 1641
+      lethality: 24.32
+    gold:
+      power: 71900
+      attack: 210
+      health: 2052
+      lethality: 30.4
+  59:
+    blue:
+      power: 48408
+      attack: 138
+      health: 1354
+      lethality: 20.06
+    purple:
+      power: 59580
+      attack: 170
+      health: 1666
+      lethality: 24.69
+    gold:
+      power: 74475
+      attack: 213
+      health: 2083
+      lethality: 30.86
+  60:
+    blue:
+      power: 50115
+      attack: 140
+      health: 1374
+      lethality: 20.36
+    purple:
+      power: 61680
+      attack: 172
+      health: 1692
+      lethality: 25.06
+    gold:
+      power: 77100
+      attack: 216
+      health: 2115
+      lethality: 31.33
+  61:
+    purple:
+      power: 63860
+      attack: 175
+      health: 1717
+      lethality: 25.44
+    gold:
+      power: 79825
+      attack: 219
+      health: 2146
+      lethality: 31.8
+  62:
+    purple:
+      power: 66080
+      attack: 178
+      health: 1742
+      lethality: 25.81
+    gold:
+      power: 82600
+      attack: 222
+      health: 2178
+      lethality: 32.26
+  63:
+    purple:
+      power: 68380
+      attack: 180
+      health: 1767
+      lethality: 26.18
+    gold:
+      power: 85475
+      attack: 226
+      health: 2209
+      lethality: 32.73
+  64:
+    purple:
+      power: 70740
+      attack: 183
+      health: 1792
+      lethality: 26.56
+    gold:
+      power: 88425
+      attack: 229
+      health: 2241
+      lethality: 33.2
+  65:
+    purple:
+      power: 73180
+      attack: 186
+      health: 1818
+      lethality: 26.93
+    gold:
+      power: 91475
+      attack: 232
+      health: 2272
+      lethality: 33.66
+  66:
+    purple:
+      power: 75680
+      attack: 188
+      health: 1843
+      lethality: 27.3
+    gold:
+      power: 94600
+      attack: 235
+      health: 2304
+      lethality: 34.13
+  67:
+    purple:
+      power: 78240
+      attack: 191
+      health: 1868
+      lethality: 27.68
+    gold:
+      power: 97800
+      attack: 239
+      health: 2335
+      lethality: 34.6
+  68:
+    purple:
+      power: 80880
+      attack: 193
+      health: 1893
+      lethality: 28.05
+    gold:
+      power: 101100
+      attack: 242
+      health: 2367
+      lethality: 35.06
+  69:
+    purple:
+      power: 83600
+      attack: 196
+      health: 1918
+      lethality: 28.42
+    gold:
+      power: 104500
+      attack: 245
+      health: 2398
+      lethality: 35.53
+  70:
+    purple:
+      power: 86400
+      attack: 198
+      health: 1944
+      lethality: 28.8
+    gold:
+      power: 108000
+      attack: 248
+      health: 2430
+      lethality: 36.0
+  71:
+    purple:
+      power: 89260
+      attack: 201
+      health: 1969
+      lethality: 29.17
+    gold:
+      power: 111575
+      attack: 251
+      health: 2461
+      lethality: 36.46
+  72:
+    purple:
+      power: 92220
+      attack: 204
+      health: 1994
+      lethality: 29.65
+    gold:
+      power: 115275
+      attack: 255
+      health: 2493
+      lethality: 36.93
+  73:
+    purple:
+      power: 95240
+      attack: 206
+      health: 2019
+      lethality: 29.92
+    gold:
+      power: 119050
+      attack: 258
+      health: 2524
+      lethality: 37.4
+  74:
+    purple:
+      power: 98360
+      attack: 209
+      health: 2044
+      lethality: 30.29
+    gold:
+      power: 122950
+      attack: 261
+      health: 2556
+      lethality: 37.86
+  75:
+    purple:
+      power: 101560
+      attack: 211
+      health: 2070
+      lethality: 30.66
+    gold:
+      power: 126950
+      attack: 264
+      health: 2587
+      lethality: 38.33
+  76:
+    purple:
+      power: 104860
+      attack: 214
+      health: 2095
+      lethality: 31.04
+    gold:
+      power: 131075
+      attack: 268
+      health: 2619
+      lethality: 38.8
+  77:
+    purple:
+      power: 108240
+      attack: 216
+      health: 2120
+      lethality: 31.41
+    gold:
+      power: 135300
+      attack: 271
+      health: 2650
+      lethality: 39.26
+  78:
+    purple:
+      power: 111720
+      attack: 219
+      health: 2145
+      lethality: 31.78
+    gold:
+      power: 139650
+      attack: 274
+      health: 2682
+      lethality: 39.73
+  79:
+    purple:
+      power: 115280
+      attack: 222
+      health: 2170
+      lethality: 32.16
+    gold:
+      power: 144100
+      attack: 277
+      health: 2713
+      lethality: 40.2
+  80:
+    purple:
+      power: 118960
+      attack: 224
+      health: 2196
+      lethality: 32.53
+    gold:
+      power: 148700
+      attack: 280
+      health: 2745
+      lethality: 40.66
+  81:
+    gold:
+      power: 153425
+      attack: 284
+      health: 2776
+      lethality: 41.13
+  82:
+    gold:
+      power: 158250
+      attack: 287
+      health: 2808
+      lethality: 41.6
+  83:
+    gold:
+      power: 163225
+      attack: 290
+      health: 2839
+      lethality: 42.06
+  84:
+    gold:
+      power: 168350
+      attack: 293
+      health: 2871
+      lethality: 42.53
+  85:
+    gold:
+      power: 173600
+      attack: 297
+      health: 2902
+      lethality: 43.0
+  86:
+    gold:
+      power: 179000
+      attack: 300
+      health: 2934
+      lethality: 43.46
+  87:
+    gold:
+      power: 184525
+      attack: 303
+      health: 2965
+      lethality: 43.93
+  88:
+    gold:
+      power: 190225
+      attack: 306
+      health: 2997
+      lethality: 44.4
+  89:
+    gold:
+      power: 196075
+      attack: 309
+      health: 3028
+      lethality: 44.86
+  90:
+    gold:
+      power: 202075
+      attack: 313
+      health: 3060
+      lethality: 45.33
+  91:
+    gold:
+      power: 208225
+      attack: 316
+      health: 3091
+      lethality: 45.8
+  92:
+    gold:
+      power: 214550
+      attack: 319
+      health: 3123
+      lethality: 46.26
+  93:
+    gold:
+      power: 221050
+      attack: 322
+      health: 3154
+      lethality: 46.73
+  94:
+    gold:
+      power: 227725
+      attack: 326
+      health: 3186
+      lethality: 47.2
+  95:
+    gold:
+      power: 234575
+      attack: 329
+      health: 3217
+      lethality: 47.66
+  96:
+    gold:
+      power: 241625
+      attack: 332
+      health: 3249
+      lethality: 48.13
+  97:
+    gold:
+      power: 248825
+      attack: 335
+      health: 3280
+      lethality: 48.6
+  98:
+    gold:
+      power: 256250
+      attack: 338
+      health: 3312
+      lethality: 49.06
+  99:
+    gold:
+      power: 263850
+      attack: 342
+      health: 3343
+      lethality: 49.53
+  100:
+    gold:
+      power: 271675
+      attack: 345
+      health: 3375
+      lethality: 50.0

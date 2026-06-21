@@ -1,0 +1,50 @@
+edges:
+  main_city:
+    event.trials:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/events/trials/references/event.trials.png
+      threshold: 0.9
+
+  event.trials:
+    event.trials.day.1: [trial.day.1]
+    event.trials.day.2: [trial.day.2]
+    event.trials.day.3: [trial.day.3]
+    event.trials.day.4: [trial.day.4]
+    event.trials.day.5: [trial.day.5]
+    main_city: [icon.page.back]
+
+  event.trials.day.1:
+    event.trials.day.2: [trial.day.2]
+    event.trials.day.3: [trial.day.3]
+    event.trials.day.4: [trial.day.4]
+    event.trials.day.5: [trial.day.5]
+    main_city: [icon.page.back]
+
+  event.trials.day.2:
+    event.trials.day.1: [trial.day.1]
+    event.trials.day.3: [trial.day.3]
+    event.trials.day.4: [trial.day.4]
+    event.trials.day.5: [trial.day.5]
+    main_city: [icon.page.back]
+
+  event.trials.day.3:
+    event.trials.day.1: [trial.day.1]
+    event.trials.day.2: [trial.day.2]
+    event.trials.day.4: [trial.day.4]
+    event.trials.day.5: [trial.day.5]
+    main_city: [icon.page.back]
+
+  event.trials.day.4:
+    event.trials.day.1: [trial.day.1]
+    event.trials.day.2: [trial.day.2]
+    event.trials.day.3: [trial.day.3]
+    event.trials.day.5: [trial.day.5]
+    main_city: [icon.page.back]
+
+  event.trials.day.5:
+    event.trials.day.1: [trial.day.1]
+    event.trials.day.2: [trial.day.2]
+    event.trials.day.3: [trial.day.3]
+    event.trials.day.4: [trial.day.4]
+    main_city: [icon.page.back]

@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 67,
+      "screen_id": "",
+      "ocr": "references/logo.png",
+      "regions": []
+    }
+  ]
+}

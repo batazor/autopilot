@@ -1,0 +1,49 @@
+# Chat screen detection / nav-verify.
+#
+# The shared OCR title confirms we're on the chat screen.
+# Each sub-tab additionally requires its own tab button to read as visually
+# "active" (`tab_active:` → programmatic HSV check, layout/tab_active_detector.py),
+# so the detector can tell World / Alliance / Personal apart. Sub-tabs sit at a
+# lower priority number than the parent so the more specific entry is evaluated
+# first (mirrors the mail module).
+#
+# `max_mean_saturation: 70` overrides the mail-calibrated default (120): chat's
+# inactive tabs are lighter (S_mean≈115) than mail's (S≈160-180), while the
+# active tab sits at S_mean≈27 — so 70 cleanly splits active from inactive here.
+screens:
+  chat:
+    priority: 30
+    rules:
+    - ocr: page.common.title
+      contains: Chat
+      threshold: 0.8
+
+  chat.world:
+    parent: chat
+    priority: 15
+    rules:
+    - ocr: page.common.title
+      contains: Chat
+      threshold: 0.8
+      tab_active: chat.world
+      max_mean_saturation: 70
+
+  chat.alliance:
+    parent: chat
+    priority: 15
+    rules:
+    - ocr: page.common.title
+      contains: Chat
+      threshold: 0.8
+      tab_active: chat.alliance
+      max_mean_saturation: 70
+
+  chat.personal:
+    parent: chat
+    priority: 15
+    rules:
+    - ocr: page.common.title
+      contains: Chat
+      threshold: 0.8
+      tab_active: chat.personal
+      max_mean_saturation: 70

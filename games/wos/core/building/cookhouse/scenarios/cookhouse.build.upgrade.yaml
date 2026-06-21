@@ -1,0 +1,21 @@
+enabled: true
+name: 🍲 Cookhouse upgrade · hold until grey
+priority: 80_000
+
+# Bound to the concrete ``cookhouse`` screen node (routes/screen_verify.yaml),
+# not the legacy generic ``building`` screen.
+node: cookhouse
+
+# Triggered by the cookhouse.build.blue analyzer (button is blue = upgrade
+# available). Hold the build button; the colour_check re-runs every iteration and
+# the loop ends once the button is no longer blue (grey = maxed / upgrading).
+# `cookhouse.build` is a colour_check/blue region, so `while_match` checks the
+# colour, and `long_click` taps its bbox.
+steps:
+  - while_match: cookhouse.build
+    threshold: 0.4
+    max: 10
+    steps:
+      - long_click: cookhouse.build
+        duration: 3s
+      - wait: 1s

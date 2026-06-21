@@ -1,0 +1,13 @@
+enabled: true
+name: Onboarding click · Upgrade confirm (build-detail)
+device_level: true
+priority: 100_000
+steps:
+  # Build/upgrade detail screen, bottom-centre confirm button reading "Upgrade"
+  # (an existing building leveling up; "Build" is the new-placement variant).
+  # Lit/blue means prerequisites + cost are met — tap to start the upgrade.
+  - while_match: onboarding.button.upgrade_confirm
+    max: 1
+    steps:
+      - click: onboarding.button.upgrade_confirm
+      - wait: 1.5s

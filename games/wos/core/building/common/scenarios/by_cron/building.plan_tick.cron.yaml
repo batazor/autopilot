@@ -1,0 +1,10 @@
+enabled: true
+name: 🧠 Build planner · pick next building
+device_level: true
+priority: 55_000
+# Recompute the furnace-first build recommendation from the levels read so far
+# and stash it in instance state (planner.next_building / .next_to_level).
+cron: "*/10 * * * *"
+cond: currentNode == main_city
+steps:
+  - exec: plan_next_building

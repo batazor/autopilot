@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "autopilot-bot": {
+      "command": "uv",
+      "args": ["run", "--extra", "agent", "botctl-mcp"]
+    }
+  }
+}

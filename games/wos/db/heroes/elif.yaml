@@ -1,0 +1,162 @@
+id: elif
+name: Elif
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/elif/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: 19,702
+    def: 25,684
+    health: 385,280
+  expedition:
+    attack: 1791.43%
+    defense: 1791.43%
+story: 'The deadly Tundra flower Elif bloomed in a distant land before coming to this
+  remnant of civilization.
+
+
+  A skilled dancer and martial artist, to her enemies Elif likes to be seen as adaptable
+  as water and dangerous as fire. Otherwise she tries to be as charming as possible
+  and, as far as it concerns the convoys or Cities she often joins, she is.
+
+
+  Unlike other members of the wandering kind, Elif seems to mainly use the convoys
+  as a way of safely traveling between Cities where she will plant herself for a time.
+  Elif''s performance and friend-making skills make her generally welcome, and she
+  will use the time profitably to make new contacts and pursue the next of leg whatever
+  mystery has caught hold of her.
+
+
+  Elif received her training in a remote part of the world late to be affected by
+  the plague of ice. This is reflected by a certain sadness in her performances, a
+  wistful longing for the much-remembered past. She is one of few of her age to remember
+  it well.
+
+
+  Elif has channeled her training into a very deadly routine she performs with twin
+  blades resembling the white dancing ribbons of her youth. It turns out that any
+  kind of extraordinary dexterity translate well to a battlefield, where Elif''s enemies
+  find her rather difficult to defend against. Where convoy cannot protect, Elif is
+  perfectly capable.
+
+
+  Elif is a lady on a mission that can be traced back to a tragedy that began many
+  years ago when a strange scientist visited her small hometown. No one knows exactly
+  why, but the stranger''s departure coincided with most of the children, including
+  Elif''s dear sister Defne, coming down with a terrible illness that left its mark
+  on their thoughts and feelings, including awful cravings like for fresh blood. It
+  was a terrible curse. Only to find relief from the chaos it brought did Elif and
+  her sister flee.
+
+
+  Having established herself here, Elif enlisted the help of one of Mia''s contacts,
+  Philly the physician, to look after Defne. A cure seems impossible, but the disease
+  can be stabilized with effort. Elif has turned her attention in recent years to
+  uncovering the stranger who brought this curse into her midst and who might hold
+  all the answers, including how to cure it.
+
+
+  Philly has done her own research and uncovered links between the Blood Moon Plague
+  and Defne''s curse. Side effects of both include increased strength and resistance
+  to cold. Philly speculates the visitor engineered an outbreak of a non-communicable
+  form of this disease soon after it was seen in the Abandoned City.
+
+
+  Elif only remembers bits and pieces: the lady wore a cloak and a white mask as if
+  hiding something.
+
+
+  Philly knows more. Very few alive today would be capable of such a feat, but Kaisha
+  is one of them. A fellow researcher in younger days expelled from academia for her
+  obsession with genetic modification and "forced evolution" , could Kaisha''s
+
+
+  misplaced belief in the end justifying the means have led to all this?
+
+
+  Rumor has it Kaisha has thrown in her lot with Phaethon in exchange for a blank
+  check on military experimentation. However Philly fears for Elif''s future if she
+  continues down this road, she knows Elif will never give up even in the eye of Phaethon''s
+  storm.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Spectral Glide Lv.5
+  description: Elif confuses enemies with her dazzling moves for 1s, gaining a 10/15/20/25/30%
+    chance of dodging enemy attacks for 5s.
+- name: Blade Dance Lv.5
+  description: Elif strikes unpredictably with her blade, dealing Attack* 100/110/120/130/140%
+    damage and confusing the target for 1s.
+- name: Ethereal Steps Lv.5
+  description: Elif bewilders enemies with her graceful combat moves, increasing her
+    chance of dodging enemy attacks by 7/10/13/16/20% . Her normal attacks have a
+    7/10/13/16/20% chance of confusing the target for 1s.
+- name: Shackling Veil Lv.5
+  description: Elif entangles enemy weapons with her veil, reducing all enemy Troops'
+    Attack by 5/10/15/20/25% .
+- name: Slash Formation Lv.5
+  description: Elif applies an exotic formation on the tundra, increasing Troops'
+    Attack by 3/6/9/12/15% and Troops' Defense by 2/4/6/8/10% .
+- name: Enchanting Tapestry Lv.5
+  description: Elif weaves ribbons into a curtain when her Infantry attacks, granting
+    them a Shield with protection equal to Attack* 6/12/18/24/30% for 1 turn.
+- name: Blazing Edge Lv.10
+  description: Elif dances freestyle, increasing her Attack Speed by 7/10/13/16/20%
+    and the Exploration confusion chance of Ethereal Steps by 7/10/13/16/20% .
+- name: Guardian's Grace Lv.10
+  description: Elif inspires the Defender Troops with a graceful dance, increasing
+    their Defense by 5/7.5/10/12.5/15% .

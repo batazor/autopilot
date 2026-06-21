@@ -1,0 +1,19 @@
+enabled: true
+name: Assign worker (open workers)
+
+node: survivor_status.status
+
+steps:
+  - loop:
+      max: 2
+      steps:
+        - while_match: button.add
+          max: 6
+          steps:
+            - click: button.add
+            - wait: 1s
+        - swipe_direction:
+            direction: up
+            delta: 200
+            duration_ms: 370
+        - wait: 0.5s

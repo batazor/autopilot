@@ -1,0 +1,11 @@
+id: lancer
+title: Lancer
+enabled: true
+description: >-
+  Lancer troop-training screen opened from the main menu. This module is a
+  navigation scaffold; add labeled regions after capturing the training screen.
+area: area.yaml
+references: references
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+wiki: false

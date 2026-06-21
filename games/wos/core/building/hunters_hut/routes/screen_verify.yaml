@@ -1,0 +1,7 @@
+screens:
+  hunters_hut:
+    priority: 31
+    rules:
+    - ocr: building.title
+      contains: Hunters
+      threshold: 0.8

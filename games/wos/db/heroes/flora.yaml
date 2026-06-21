@@ -1,0 +1,146 @@
+id: flora
+name: Flora
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/flora/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '21400'
+    def: '21400'
+    health: '214008'
+  expedition:
+    attack: 1621.29%
+    defense: 1621.29%
+story: 'Flora is not an inherently unfriendly person, nor is she arrogant. Her aloofness
+  comes from a deep-seated preference for interacting with nature and plants rather
+  than the rough-and-tumble world of complex social interactions. Flora would much
+  rather deal with the former and she does, sometimes for days at a time, in a special
+  greenhouse expertly constructed by Zinman and Jessie.
+
+
+  Flora does enjoy the company of others — she’s just particular about whose company
+  she keeps. Lydia, fellow botanist and agricultural expert, is a great source of
+  joy. Jessie too, whose ingenuity designed the greenhouse temperature regulator.
+  With these like-minded souls of deep thoughts Flora can enjoy many hours of spirited
+  conversation.
+
+
+  Horticulture is great expertise in these icy times. It was not so many years ago
+  that a Dawn Alliance patrol stumbled on a seed preservation facility left by scientists
+  unknown. Flora was given the task of categorizing and, if possible, reusing the
+  revitalized seeds to grow cold-resistant crops to meet food shortages. Many survivors
+  today owe their soft warm bread and fresh fruit to Flora''s pioneering work in the
+  cultivation of new seed varieties.
+
+
+  Flora''s love of plants began with books her parents read to her at bedtime, books
+  filled with pictures of the old world and its lush paradise. Could there really
+  have been such lush jungles as shown in the faded yellow pages? Such verdant gardens?
+  The thought tantalized and fascinated Flora.
+
+
+  Flora couldn''t stop imagining the fantastic potential within plants. What new and
+  magical varieties could be grown by careful cultivation? She would make it her life''s
+  work. Alongside classic food crops, Flora has also taken an interest in the darker
+  and more sinister varieties: poisonous, flesh-eating flowers and highly aggressive
+  climbing vines. Luckily, the terrors of these dangerous pests have been kept mostly
+  in check... mostly.
+
+
+  In these later years Flora has been deeply involved in the study of the great City
+  of Arcadia, which first enchanted her when she was a child with stories of its magnificence
+  and eyewitness accounts. Among them is Agnes, a living eyewitness scholar, who,
+  together with other diehard souls, has been trying to gather a team to restore their
+  lost home''s former glory.
+
+
+  Agnes'' dreams of a New Arcadia shine to Flora like a beacon of hope. New Arcadia
+  has big shoes to fill, but Flora is excited to be rebuilding paradise with the other
+  survivors on fertile volcanic soil. Flora is the official Dawn Alliance emissary
+  and this is her grandest project to date.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Envelopment
+  description: Flora summons a fast-moving vine against enemies, dealing Attack* 100%/110%/120%/130%/140%
+    Area Damage and stuns the target for 2s.
+- name: Rosebloom
+  description: Flora litters the target area with toxic Adoria bloom, dealing Attack*
+    20%/25%/30%/35%/40% Area Damage which sprouts into a flesh-eating Adoria Rose
+    versus heroes. It inherits 10%/15%/20%/25%/30% of Flora's attributes and attacks
+    nearby enemies.
+- name: Nature's Strength
+  description: What does not kill the cultivator and the cultivated makes them stronger.
+    Flora and summoned plants gain 2%/4%/6%/8%/10% Health and 4%/8%/12%/16%/20% Defense.
+- name: Enmiring Vines
+  description: Flora litters the ground with sharp vines to hobble enemy soldiers,
+    granting all troops a 50% chance of increasing enemies' Damage Taken by 10%/20%/30%/40%/50%
+    .
+- name: Plantage
+  description: Flora's defensive foliage reduces Infantry Damage Taken by 5%/10%/15%/20%/25%
+    while better Adoria Rose coordination with Lancers gives joint attacks dealing
+    5%/10%/15%/20%/25% extra damage.
+- name: Confusion Pollen
+  description: Flora's hallucinatory pollen increases enemy Infantry's Damage Taken
+    by 6%/12%/18%/24%/30% , and decreases enemy Marksmen's Damage Dealt by 6%/12%/18%/24%/30%
+    for 2 turns every 4 turns.
+- name: Venom's Heart (Lv. 5)
+  description: Adoria Roses and vines can always be more toxic. Targets now suffer
+    Attack*25% damage every 0.5s for 2s.
+- name: Fruit of Life (Lv. 5)
+  description: Flora's new fruit is highly rejuvenating, granting Defender Troops
+    15% increased Health.

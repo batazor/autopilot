@@ -1,0 +1,10 @@
+screens:
+  deals.dead_shot:
+    # Probe before the generic `deals` hub (priority 60): default priority 100
+    # let the hub win, so this resolved to plain `deals` and the scenario never
+    # ran. (Kept the template match here rather than OCR — "Dead Shot" is white
+    # text on a busy banner and OCRs unreliably; the title template is solid.)
+    priority: 52
+    rules:
+      - match: dead_shot.title
+        threshold: 0.9

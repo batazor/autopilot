@@ -1,0 +1,102 @@
+# Whiteout Survival yearly seasonal / festival calendar (date-anchored events).
+#
+# Wiki reference data + planning aid: unlike the live in-game calendar reader
+# (games/wos/core/calendar — reads what's actually running now), these are FIXED,
+# date-tied festival windows, so the bot can ANTICIPATE them (expect themed deals,
+# login rewards, packs) before the in-game calendar surfaces them.
+#
+# Source: user-provided Google Sheet (2026). Windows are approximate week-of-month
+# ranges. Movable feasts (lunar / computed) shift year to year — flagged
+# `approximate: true`; re-confirm their dates each year.
+#
+# Category: `festival` = cosmetic / packs / login (no activity boost), `activity`
+# = competition-style with point tasks. Note from the source: four mini-games
+# "cannot be added in Calendar" — the game swaps them with other events.
+source: "user Google Sheet (2026)"
+
+events:
+  - id: new_year
+    name: New Year
+    category: festival
+    windows:
+      - {month: 12, start_day: 20, end_day: 31}
+      - {month: 1, start_day: 1, end_day: 10}
+
+  - id: jade_spring
+    name: Jade Spring
+    category: festival
+    windows: [{month: 1, start_day: 18, end_day: 24}]
+
+  - id: valentines
+    name: Valentines
+    category: festival
+    windows: [{month: 2, start_day: 8, end_day: 14}]
+
+  - id: ramadan
+    name: Ramadan
+    category: festival
+    approximate: true
+    note: "Lunar — shifts ~11 days earlier each year"
+    windows: [{month: 2, start_day: 22, end_day: 28}]
+
+  - id: anniversary
+    name: Anniversary
+    category: festival
+    note: "Big-reward festival"
+    windows: [{month: 3, start_day: 8, end_day: 14}]
+
+  - id: easter
+    name: Easter
+    category: festival
+    approximate: true
+    note: "Movable feast — computed yearly"
+    windows: [{month: 3, start_day: 29, end_day: 31}]
+
+  - id: childhood
+    name: Childhood
+    category: festival
+    note: "Children's Day"
+    windows: [{month: 6, start_day: 1, end_day: 6}]
+
+  - id: kitty_rescue
+    name: Kitty Rescue
+    category: festival
+    windows: [{month: 7, start_day: 5, end_day: 11}]
+
+  - id: tundra_games
+    name: Tundra Games
+    category: activity
+    note: "Tundra-themed competition with point tasks"
+    windows: [{month: 8, start_day: 1, end_day: 8}]
+
+  - id: aurora_melody
+    name: Aurora Melody
+    category: festival
+    windows: [{month: 9, start_day: 1, end_day: 5}]
+
+  - id: moonlight
+    name: Moonlight
+    category: festival
+    approximate: true
+    note: "Mid-Autumn — lunar, shifts yearly"
+    windows: [{month: 9, start_day: 6, end_day: 12}]
+
+  - id: butler
+    name: Butler
+    category: festival
+    windows: [{month: 9, start_day: 20, end_day: 26}]
+
+  - id: halloween
+    name: Halloween
+    category: festival
+    windows: [{month: 10, start_day: 11, end_day: 17}]
+
+  - id: thanksgiving
+    name: Thanksgiving
+    category: festival
+    windows: [{month: 11, start_day: 8, end_day: 14}]
+
+  - id: christmas
+    name: Christmas
+    category: festival
+    windows: [{month: 12, start_day: 6, end_day: 12}]

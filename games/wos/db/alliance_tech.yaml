@@ -1,0 +1,3360 @@
+# Alliance Tech tree — sourced from https://www.whiteoutsurvival.wiki/alliance-tech/
+# Same schema as research.yaml (branches -> nodes -> levels); loaded by config.research.
+# Costs are alliance donations of base resources (wiki icons territory5/7/8/6 =
+# meat/wood/coal/iron). `gate` carries the wiki's per-level prerequisites verbatim;
+# `requires` are the level-1 prerequisites as node edges.
+game: wos
+label: Whiteout Survival
+source_url: https://www.whiteoutsurvival.wiki/alliance-tech/
+source_label: whiteoutsurvival.wiki/alliance-tech
+branches:
+- id: growth
+  label: Growth
+  blurb: 'Alliance fundamentals: membership cap, Alliance Help, training/research/build speed, wilderness gathering.'
+  nodes:
+  - id: treaties_i
+    name: Treaties I
+    line: treaties
+    tier: 1
+    bonus: Raises the Alliance Help cap.
+    requires:
+    - cooperative_protocols_i
+    levels:
+    - level: 1
+      effect: '1'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 30700
+        wood: 30700
+      gate: Cooperative Protocols I Lv.1
+    - level: 2
+      effect: '2'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 36800
+        wood: 36800
+      gate: Cooperative Protocols I Lv.2
+    - level: 3
+      effect: '3'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 46000
+        wood: 46000
+      gate: Cooperative Protocols I Lv.3
+    - level: 4
+      effect: '4'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 55200
+        wood: 55200
+        coal: 15400
+      gate: Cooperative Protocols I Lv.4
+    - level: 5
+      effect: '5'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 61400
+        wood: 61400
+        coal: 19100
+      gate: Cooperative Protocols I Lv.5
+  - id: advanced_training_i
+    name: Advanced Training I
+    line: advanced_training
+    tier: 1
+    bonus: Accelerates training for all alliance member troop types.
+    requires:
+    - treaties_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 30700
+        wood: 30700
+      gate: Treaties I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 36800
+        wood: 36800
+      gate: Treaties I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 46000
+        wood: 46000
+      gate: Treaties I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 55200
+        wood: 55200
+        coal: 15400
+      gate: Treaties I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 61400
+        wood: 61400
+        coal: 19100
+      gate: Treaties I Lv.5
+  - id: mechanisms_i
+    name: Mechanisms I
+    line: mechanisms
+    tier: 1
+    bonus: Speeds up alliance members' research.
+    requires:
+    - adaptive_tools_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 30700
+        wood: 30700
+      gate: Adaptive Tools I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 36800
+        wood: 36800
+      gate: Adaptive Tools I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 46000
+        wood: 46000
+      gate: Adaptive Tools I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 55200
+        wood: 55200
+        coal: 15400
+      gate: Adaptive Tools I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 61400
+        wood: 61400
+        coal: 19100
+      gate: Adaptive Tools I Lv.5
+  - id: adaptive_tools_i
+    name: Adaptive Tools I
+    line: adaptive_tools
+    tier: 1
+    bonus: Accelerates City construction for alliance members.
+    requires:
+    - alliance_regimentation_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 30700
+        wood: 30700
+      gate: Alliance Regimentation I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 36800
+        wood: 36800
+      gate: Alliance Regimentation I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 46000
+        wood: 46000
+      gate: Alliance Regimentation I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 55200
+        wood: 55200
+        coal: 15400
+      gate: Alliance Regimentation I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 61400
+        wood: 61400
+        coal: 19100
+      gate: Alliance Regimentation I Lv.5
+  - id: cooperative_protocols_i
+    name: Cooperative Protocols I
+    line: cooperative_protocols
+    tier: 1
+    bonus: Alliance Help will reduce more time.
+    requires: []
+    levels:
+    - level: 1
+      effect: '30'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 1700
+        wood: 1700
+      gate: ''
+    - level: 2
+      effect: '60'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 2000
+        wood: 2000
+      gate: ''
+    - level: 3
+      effect: '90'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 2500
+        wood: 2500
+      gate: ''
+    - level: 4
+      effect: '120'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 3000
+        wood: 3000
+      gate: ''
+    - level: 5
+      effect: '150'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 3400
+        wood: 3400
+      gate: ''
+  - id: alliance_regimentation_i
+    name: Alliance Regimentation I
+    line: alliance_regimentation
+    tier: 1
+    bonus: Increases alliance membership cap.
+    requires: []
+    levels:
+    - level: 1
+      effect: +2 members
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 1700
+        wood: 1700
+      gate: ''
+    - level: 2
+      effect: +4 members
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 2000
+        wood: 2000
+      gate: ''
+    - level: 3
+      effect: +6 members
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 2500
+        wood: 2500
+      gate: ''
+    - level: 4
+      effect: +8 members
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 3000
+        wood: 3000
+      gate: ''
+    - level: 5
+      effect: +10 members
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 3400
+        wood: 3400
+      gate: ''
+  - id: iron_mining_i
+    name: Iron Mining I
+    line: iron_mining
+    tier: 1
+    bonus: Speeds up alliance members' Iron mining in the wilderness.
+    requires:
+    - wood_gathering_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 188200
+        wood: 188200
+      gate: Wood Gathering I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 225800
+        wood: 225800
+      gate: Wood Gathering I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 282300
+        wood: 282300
+        coal: 101600
+      gate: Wood Gathering I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 338800
+        wood: 338800
+        coal: 208200
+        iron: 46400
+      gate: Wood Gathering I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 376400
+        wood: 376400
+        coal: 234100
+        iron: 130700
+      gate: Wood Gathering I Lv.5
+  - id: coal_mining_i
+    name: Coal Mining I
+    line: coal_mining
+    tier: 1
+    bonus: Speeds up alliance members' Coal mining in the wilderness.
+    requires:
+    - food_gathering_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 188200
+        wood: 188200
+      gate: Food Gathering I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 225800
+        wood: 225800
+      gate: Food Gathering I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 282300
+        wood: 282300
+        coal: 101600
+      gate: Food Gathering I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 338800
+        wood: 338800
+        coal: 208200
+        iron: 46400
+      gate: Food Gathering I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 376400
+        wood: 376400
+        coal: 234100
+        iron: 130700
+      gate: Food Gathering I Lv.5
+  - id: wood_gathering_i
+    name: Wood Gathering I
+    line: wood_gathering
+    tier: 1
+    bonus: Speeds up alliance members' Wood gathering in the wilderness.
+    requires:
+    - alliance_regimentation_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 188200
+        wood: 188200
+      gate: Alliance Regimentation II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 225800
+        wood: 225800
+      gate: Alliance Regimentation II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 282300
+        wood: 282300
+        coal: 101600
+      gate: Alliance Regimentation II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 338800
+        wood: 338800
+        coal: 208200
+        iron: 46400
+      gate: Alliance Regimentation II Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 376400
+        wood: 376400
+        coal: 234100
+        iron: 130700
+      gate: Alliance Regimentation II Lv.5
+  - id: food_gathering_i
+    name: Food Gathering I
+    line: food_gathering
+    tier: 1
+    bonus: Speeds up alliance members' Meat gathering in the wilderness.
+    requires:
+    - alliance_regimentation_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 188200
+        wood: 188200
+      gate: Alliance Regimentation II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 225800
+        wood: 225800
+      gate: Alliance Regimentation II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 282300
+        wood: 282300
+        coal: 101600
+      gate: Alliance Regimentation II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 338800
+        wood: 338800
+        coal: 208200
+        iron: 46400
+      gate: Alliance Regimentation II Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 376400
+        wood: 376400
+        coal: 234100
+        iron: 130700
+      gate: Alliance Regimentation II Lv.5
+  - id: tundra_surveying
+    name: Tundra Surveying
+    line: tundra_surveying
+    tier: 1
+    bonus: Alliance may place Alliance buildings on Tundra.
+    requires:
+    - alliance_regimentation_ii
+    levels:
+    - level: 1
+      effect: Unlock
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 253700
+        wood: 253700
+        coal: 58600
+      gate: Alliance Regimentation II
+  - id: alliance_regimentation_ii
+    name: Alliance Regimentation II
+    line: alliance_regimentation
+    tier: 2
+    bonus: Increases alliance membership cap.
+    requires:
+    - mechanisms_i
+    - advanced_training_i
+    levels:
+    - level: 1
+      effect: '4'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 71100
+        wood: 71100
+      gate: Mechanisms I Lv.1, Advanced Training I Lv.1
+    - level: 2
+      effect: '8'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 85300
+        wood: 85300
+      gate: Mechanisms I Lv.2, Advanced Training I Lv.2
+    - level: 3
+      effect: '12'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 106600
+        wood: 106600
+      gate: Mechanisms I Lv.3, Advanced Training I Lv.3
+    - level: 4
+      effect: '16'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 127900
+        wood: 127900
+        coal: 24000
+      gate: Mechanisms I Lv.4, Advanced Training I Lv.4
+    - level: 5
+      effect: '20'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 142200
+        wood: 142200
+        coal: 30100
+      gate: Mechanisms I Lv.5, Advanced Training I Lv.5
+  - id: iron_mining_ii
+    name: Iron Mining II
+    line: iron_mining
+    tier: 2
+    bonus: Speeds up alliance members' Iron mining in the wilderness.
+    requires:
+    - wood_gathering_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 849000
+        wood: 849000
+        coal: 664400
+        iron: 410600
+      gate: Wood Gathering II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 749100
+        iron: 464000
+      gate: Wood Gathering II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 970600
+        iron: 582600
+      gate: Wood Gathering II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 966000
+        iron: 604900
+      gate: Wood Gathering II Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1600000
+        wood: 1600000
+        coal: 990400
+        iron: 619700
+      gate: Wood Gathering II Lv.5
+  - id: coal_mining_ii
+    name: Coal Mining II
+    line: coal_mining
+    tier: 2
+    bonus: Speeds up alliance members' Coal mining in the wilderness.
+    requires:
+    - food_gathering_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 849000
+        wood: 849000
+        coal: 664400
+        iron: 410600
+      gate: Food Gathering II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 749100
+        iron: 464000
+      gate: Food Gathering II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 970600
+        iron: 582600
+      gate: Food Gathering II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 966000
+        iron: 604900
+      gate: Food Gathering II Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1600000
+        wood: 1600000
+        coal: 990400
+        iron: 619700
+      gate: Food Gathering II Lv.5
+  - id: wood_gathering_ii
+    name: Wood Gathering II
+    line: wood_gathering
+    tier: 2
+    bonus: Speeds up alliance members' Wood gathering in the wilderness.
+    requires:
+    - first_aid_techniques_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 849000
+        wood: 849000
+        coal: 664400
+        iron: 410600
+      gate: First Aid Techniques I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 749100
+        iron: 464000
+      gate: First Aid Techniques I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 970600
+        iron: 582600
+      gate: First Aid Techniques I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 966000
+        iron: 604900
+      gate: First Aid Techniques I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1600000
+        wood: 1600000
+        coal: 990400
+        iron: 619700
+      gate: First Aid Techniques I Lv.5
+  - id: food_gathering_ii
+    name: Food Gathering II
+    line: food_gathering
+    tier: 2
+    bonus: Speeds up alliance members' Meat gathering in the wilderness.
+    requires:
+    - first_aid_techniques_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 849000
+        wood: 849000
+        coal: 664400
+        iron: 410600
+      gate: First Aid Techniques I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 749100
+        iron: 464000
+      gate: First Aid Techniques I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 970600
+        iron: 582600
+      gate: First Aid Techniques I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 966000
+        iron: 604900
+      gate: First Aid Techniques I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1600000
+        wood: 1600000
+        coal: 990400
+        iron: 619700
+      gate: First Aid Techniques I Lv.5
+  - id: first_aid_techniques_i
+    name: First Aid Techniques I
+    line: first_aid_techniques
+    tier: 2
+    bonus: Speeds up alliance members' troop healing.
+    requires:
+    - mechanisms_ii
+    - advanced_training_ii
+    levels:
+    - level: 1
+      effect: 4%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 504900
+        wood: 504900
+        coal: 285900
+        iron: 173700
+      gate: Mechanisms II Lv.1, Advanced Training II Lv.1
+    - level: 2
+      effect: 8%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 605900
+        wood: 605900
+        coal: 342900
+        iron: 208300
+      gate: Mechanisms II Lv.2, Advanced Training II Lv.2
+    - level: 3
+      effect: 12%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 757400
+        wood: 757400
+        coal: 399800
+        iron: 242900
+      gate: Mechanisms II Lv.3, Advanced Training II Lv.3
+    - level: 4
+      effect: 16%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 908900
+        wood: 908900
+        coal: 755500
+        iron: 475700
+      gate: Mechanisms II Lv.4, Advanced Training II Lv.4
+    - level: 5
+      effect: 20%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 849700
+        iron: 535000
+      gate: Mechanisms II Lv.5, Advanced Training II Lv.5
+  - id: advanced_training_ii
+    name: Advanced Training II
+    line: advanced_training
+    tier: 2
+    bonus: Accelerates training for all alliance member troop types.
+    requires:
+    - treaties_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 462900
+        wood: 462900
+        coal: 350900
+        iron: 246200
+      gate: Treaties II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 555500
+        wood: 555500
+        coal: 415100
+        iron: 281300
+      gate: Treaties II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 694400
+        wood: 694400
+        coal: 572700
+        iron: 347900
+      gate: Treaties II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 833300
+        wood: 833300
+        coal: 578600
+        iron: 351500
+      gate: Treaties II Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 925900
+        wood: 925900
+        coal: 440000
+        iron: 267300
+      gate: Treaties II Lv.5
+  - id: treaties_ii
+    name: Treaties II
+    line: treaties
+    tier: 2
+    bonus: Raises the Alliance Help cap.
+    requires:
+    - alliance_regimentation_iii
+    levels:
+    - level: 1
+      effect: '+1'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 789700
+        wood: 789700
+        coal: 586900
+        iron: 411800
+      gate: Alliance Regimentation III Lv.1
+    - level: 2
+      effect: '+2'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 947700
+        wood: 947700
+        coal: 639900
+        iron: 388700
+      gate: Alliance Regimentation III Lv.2
+    - level: 3
+      effect: '+3'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1100000
+        wood: 1100000
+        coal: 1000000
+        iron: 632000
+      gate: Alliance Regimentation III Lv.3
+    - level: 4
+      effect: '+4'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1400000
+        wood: 1400000
+        coal: 1000000
+        iron: 632000
+      gate: Alliance Regimentation III Lv.4
+    - level: 5
+      effect: '+5'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 734100
+        iron: 445900
+      gate: Alliance Regimentation III Lv.5
+  - id: mechanisms_ii
+    name: Mechanisms II
+    line: mechanisms
+    tier: 2
+    bonus: Speeds up alliance members' research.
+    requires:
+    - adaptive_tools_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 591400
+        wood: 591400
+        coal: 350900
+        iron: 246200
+      gate: Adaptive Tools II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 709600
+        wood: 709600
+        coal: 384200
+        iron: 233400
+      gate: Adaptive Tools II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 887100
+        wood: 887100
+        coal: 623500
+        iron: 378700
+      gate: Adaptive Tools II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 623500
+        iron: 378800
+      gate: Adaptive Tools II Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1100000
+        wood: 1100000
+        coal: 1000000
+        iron: 600800
+      gate: Adaptive Tools II Lv.5
+  - id: adaptive_tools_ii
+    name: Adaptive Tools II
+    line: adaptive_tools
+    tier: 2
+    bonus: Accelerates City construction for alliance members.
+    requires:
+    - alliance_regimentation_iii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 831300
+        wood: 831300
+        coal: 566600
+        iron: 344200
+      gate: Alliance Regimentation III Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 997500
+        wood: 997500
+        coal: 639900
+        iron: 388700
+      gate: Alliance Regimentation III Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 807300
+        iron: 547100
+      gate: Alliance Regimentation III Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1400000
+        wood: 1400000
+        coal: 1000000
+        iron: 662900
+      gate: Alliance Regimentation III Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1600000
+        wood: 1600000
+        coal: 1000000
+        iron: 659300
+      gate: Alliance Regimentation III Lv.5
+  - id: fertile_land_expedition
+    name: Fertile Land Expedition
+    line: fertile_land_expedition
+    tier: 2
+    bonus: Alliance may place Alliance buildings on Fertile Land.
+    requires:
+    - alliance_regimentation_iii
+    levels:
+    - level: 1
+      effect: Unlock
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 1100000
+        wood: 1100000
+        coal: 765200
+        iron: 501600
+      gate: Alliance Regimentation III Lv.5
+  - id: alliance_regimentation_iii
+    name: Alliance Regimentation III
+    line: alliance_regimentation
+    tier: 3
+    bonus: Increases alliance membership cap.
+    requires:
+    - coal_mining_i
+    - iron_mining_i
+    levels:
+    - level: 1
+      effect: '4'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 402100
+        wood: 402100
+        coal: 179000
+      gate: Coal Mining I Lv.1, Iron Mining I Lv.1
+    - level: 2
+      effect: '8'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 482500
+        wood: 482500
+        coal: 214700
+      gate: Coal Mining I Lv.2, Iron Mining I Lv.2
+    - level: 3
+      effect: '12'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 603100
+        wood: 603100
+        coal: 500700
+        iron: 100100
+      gate: Coal Mining I Lv.3, Iron Mining I Lv.3
+    - level: 4
+      effect: '16'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 723800
+        wood: 723800
+        coal: 328500
+        iron: 209400
+      gate: Coal Mining I Lv.4, Iron Mining I Lv.4
+    - level: 5
+      effect: '20'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 804200
+        wood: 804200
+        coal: 369500
+        iron: 235500
+      gate: Coal Mining I Lv.5, Iron Mining I Lv.5
+- id: territory
+  label: Territory
+  blurb: 'Alliance territory: banner cap, storehouse, building durability, construction speed, march speed.'
+  nodes:
+  - id: alliance_engineering_i
+    name: Alliance Engineering I
+    line: alliance_engineering
+    tier: 1
+    bonus: Enhances Alliance Construction Speed.
+    requires:
+    - storehouse_expansion_i
+    levels:
+    - level: 1
+      effect: 2%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 50700
+        wood: 50700
+      gate: Storehouse Expansion I Lv.1
+    - level: 2
+      effect: 4%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 60900
+        wood: 60900
+      gate: Storehouse Expansion I Lv.2
+    - level: 3
+      effect: 6%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 76100
+        wood: 76100
+      gate: Storehouse Expansion I Lv.3
+    - level: 4
+      effect: 8%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 91300
+        wood: 91300
+        coal: 21400
+      gate: Storehouse Expansion I Lv.4
+    - level: 5
+      effect: 10%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 101400
+        wood: 101400
+        coal: 24500
+      gate: Storehouse Expansion I Lv.5
+  - id: storehouse_expansion_i
+    name: Storehouse Expansion I
+    line: storehouse_expansion
+    tier: 1
+    bonus: Increases Alliance Storehouse Capacity.
+    requires:
+    - tactical_expansion_i
+    levels:
+    - level: 1
+      effect: 50%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 50400
+        wood: 50400
+      gate: Tactical Expansion I Lv.1
+    - level: 2
+      effect: 100%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 60500
+        wood: 60500
+      gate: Tactical Expansion I Lv.2
+    - level: 3
+      effect: 200%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 75600
+        wood: 75600
+      gate: Tactical Expansion I Lv.3
+    - level: 4
+      effect: 300%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 90800
+        wood: 90800
+        coal: 21400
+      gate: Tactical Expansion I Lv.4
+    - level: 5
+      effect: 400%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 100900
+        wood: 100900
+        coal: 24000
+      gate: Tactical Expansion I Lv.5
+  - id: incendiary_bullets_i
+    name: Incendiary Bullets I
+    line: incendiary_bullets
+    tier: 1
+    bonus: Accelerates Enemy Alliance Building Destruction
+    requires:
+    - alliance_building_durability_i
+    levels:
+    - level: 1
+      effect: 2%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 50400
+        wood: 50400
+      gate: Alliance Building Durability I Lv.1
+    - level: 2
+      effect: 4%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 60500
+        wood: 60500
+      gate: Alliance Building Durability I Lv.2
+    - level: 3
+      effect: 6%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 75600
+        wood: 75600
+      gate: Alliance Building Durability I Lv.3
+    - level: 4
+      effect: 8%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 90700
+        wood: 90700
+        coal: 21400
+      gate: Alliance Building Durability I Lv.4
+    - level: 5
+      effect: 10%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 100800
+        wood: 100800
+        coal: 24000
+      gate: Alliance Building Durability I Lv.5
+  - id: alliance_building_durability_i
+    name: Alliance Building Durability I
+    line: alliance_building_durability
+    tier: 1
+    bonus: Enhances Alliance Building Durability.
+    requires:
+    - tactical_expansion_i
+    levels:
+    - level: 1
+      effect: '1000'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 29100
+        wood: 29100
+      gate: Tactical Expansion I Lv.1
+    - level: 2
+      effect: '2000'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 35700
+        wood: 35700
+      gate: Tactical Expansion I Lv.2
+    - level: 3
+      effect: '3000'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 43600
+        wood: 43600
+      gate: Tactical Expansion I Lv.3
+    - level: 4
+      effect: '4000'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 52400
+        wood: 52400
+      gate: Tactical Expansion I Lv.4
+    - level: 5
+      effect: '5000'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 58200
+        wood: 58200
+        coal: 21800
+      gate: Tactical Expansion I Lv.5
+  - id: tactical_expansion_i
+    name: Tactical Expansion I
+    line: tactical_expansion
+    tier: 1
+    bonus: Increases Alliance Banner cap.
+    requires:
+    - rapid_deployment_i
+    levels:
+    - level: 1
+      effect: '18'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 10200
+        wood: 10200
+      gate: Rapid Deployment I Lv.1
+    - level: 2
+      effect: '36'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 12300
+        wood: 12300
+      gate: Rapid Deployment I Lv.2
+    - level: 3
+      effect: '54'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 15400
+        wood: 15400
+      gate: Rapid Deployment I Lv.3
+    - level: 4
+      effect: '72'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 18500
+        wood: 18500
+      gate: Rapid Deployment I Lv.4
+    - level: 5
+      effect: '90'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 20500
+        wood: 20500
+      gate: Rapid Deployment I Lv.5
+  - id: rapid_deployment_i
+    name: Rapid Deployment I
+    line: rapid_deployment
+    tier: 1
+    bonus: Troops March Speed
+    requires: []
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 5300
+        wood: 5300
+      gate: ''
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 6300
+        wood: 6300
+      gate: Rapid Deployment I Lv.1
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 7900
+        wood: 7900
+      gate: Rapid Deployment I Lv.2
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 9500
+        wood: 9500
+      gate: Rapid Deployment I Lv.3
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 10600
+        wood: 10600
+      gate: Rapid Deployment I Lv.4
+  - id: alliance_engineering_ii
+    name: Alliance Engineering II
+    line: alliance_engineering
+    tier: 2
+    bonus: Enhances Alliance Construction Speed.
+    requires:
+    - storehouse_expansion_ii
+    levels:
+    - level: 1
+      effect: 2%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 315500
+        wood: 315500
+        coal: 181000
+        iron: 48600
+      gate: Storehouse Expansion II Lv.1
+    - level: 2
+      effect: 4%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 366700
+        wood: 366700
+        coal: 212600
+        iron: 31900
+      gate: Storehouse Expansion II Lv.2
+    - level: 3
+      effect: 6%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 473200
+        wood: 473200
+        coal: 342500
+        iron: 68500
+      gate: Storehouse Expansion II Lv.3
+    - level: 4
+      effect: 8%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 550100
+        wood: 550100
+        coal: 271400
+        iron: 78100
+      gate: Storehouse Expansion II Lv.4
+    - level: 5
+      effect: 10%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 611200
+        wood: 611200
+        coal: 422300
+        iron: 220000
+      gate: Storehouse Expansion II Lv.5
+  - id: storehouse_expansion_ii
+    name: Storehouse Expansion II
+    line: storehouse_expansion
+    tier: 2
+    bonus: Increases Alliance Storehouse Capacity.
+    requires:
+    - tactical_expansion_ii
+    levels:
+    - level: 1
+      effect: 50%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 315500
+        wood: 315500
+        coal: 181000
+        iron: 48600
+      gate: Tactical Expansion II Lv.1
+    - level: 2
+      effect: 100%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 366700
+        wood: 366700
+        coal: 212600
+        iron: 31900
+      gate: Tactical Expansion II Lv.2
+    - level: 3
+      effect: 200%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 473200
+        wood: 473200
+        coal: 342500
+        iron: 68500
+      gate: Tactical Expansion II Lv.3
+    - level: 4
+      effect: 300%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 550100
+        wood: 550100
+        coal: 271400
+        iron: 78100
+      gate: Tactical Expansion II Lv.4
+    - level: 5
+      effect: 400%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 611200
+        wood: 611200
+        coal: 422300
+        iron: 220000
+      gate: Tactical Expansion II Lv.5
+  - id: incendiary_bullets_ii
+    name: Incendiary Bullets II
+    line: incendiary_bullets
+    tier: 2
+    bonus: Accelerates Enemy Alliance Building Destruction
+    requires:
+    - alliance_building_durability_ii
+    levels:
+    - level: 1
+      effect: 2%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 305600
+        wood: 305600
+        coal: 181000
+        iron: 48600
+      gate: Alliance Building Durability II Lv.1
+    - level: 2
+      effect: 4%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 374500
+        wood: 374500
+        coal: 234200
+        iron: 58500
+      gate: Alliance Building Durability II Lv.2
+    - level: 3
+      effect: 6%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 473200
+        wood: 473200
+        coal: 342500
+        iron: 68500
+      gate: Alliance Building Durability II Lv.3
+    - level: 4
+      effect: 8%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 550100
+        wood: 550100
+        coal: 271400
+        iron: 78100
+      gate: Alliance Building Durability II Lv.4
+    - level: 5
+      effect: 10%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 624100
+        wood: 624100
+        coal: 440100
+        iron: 220000
+      gate: Alliance Building Durability II Lv.5
+  - id: alliance_building_durability_ii
+    name: Alliance Building Durability II
+    line: alliance_building_durability
+    tier: 2
+    bonus: Enhances Alliance Building Durability.
+    requires:
+    - tactical_expansion_ii
+    levels:
+    - level: 1
+      effect: '1000'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 296700
+        wood: 296700
+        coal: 181000
+        iron: 48600
+      gate: Tactical Expansion II Lv.1
+    - level: 2
+      effect: '2000'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 356000
+        wood: 356000
+        coal: 285600
+        iron: 58500
+      gate: Tactical Expansion II Lv.2
+    - level: 3
+      effect: '3000'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 473200
+        wood: 473200
+        coal: 342500
+        iron: 68500
+      gate: Tactical Expansion II Lv.3
+    - level: 4
+      effect: '4000'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 550100
+        wood: 550100
+        coal: 271400
+        iron: 78100
+      gate: Tactical Expansion II Lv.4
+    - level: 5
+      effect: '5000'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 611200
+        wood: 611200
+        coal: 422300
+        iron: 220000
+      gate: Tactical Expansion II Lv.5
+  - id: tactical_expansion_ii
+    name: Tactical Expansion II
+    line: tactical_expansion
+    tier: 2
+    bonus: Increases Alliance Banner cap.
+    requires:
+    - incendiary_bullets_i
+    - alliance_engineering_i
+    levels:
+    - level: 1
+      effect: '20'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 316400
+        wood: 316400
+        coal: 64100
+      gate: Incendiary Bullets I Lv.1, Alliance Engineering I Lv.1
+    - level: 2
+      effect: '40'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 379700
+        wood: 379700
+        coal: 96100
+      gate: Incendiary Bullets I Lv.2, Alliance Engineering I Lv.2
+    - level: 3
+      effect: '60'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 474600
+        wood: 474600
+        coal: 154160
+      gate: Incendiary Bullets I Lv.3, Alliance Engineering I Lv.3
+    - level: 4
+      effect: '80'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 569600
+        wood: 569600
+        coal: 173400
+      gate: Incendiary Bullets I Lv.4, Alliance Engineering I Lv.4
+    - level: 5
+      effect: '100'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 632900
+        wood: 632900
+        coal: 192700
+      gate: Incendiary Bullets I Lv.5, Alliance Engineering I Lv.5
+  - id: alliance_engineering_iii
+    name: Alliance Engineering III
+    line: alliance_engineering
+    tier: 3
+    bonus: Enhances Alliance Construction Speed.
+    requires:
+    - storehouse_expansion_iii
+    levels:
+    - level: 1
+      effect: 2%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 774100
+        iron: 509700
+      gate: Storehouse Expansion III Lv.1
+    - level: 2
+      effect: 4%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 948600
+        iron: 576200
+      gate: Storehouse Expansion III Lv.2
+    - level: 3
+      effect: 6%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 948500
+        iron: 576200
+      gate: Storehouse Expansion III Lv.3
+    - level: 4
+      effect: 8%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1900000
+        wood: 1900000
+        coal: 1600000
+        iron: 981700
+      gate: Storehouse Expansion III Lv.4
+    - level: 5
+      effect: 10%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 998400
+        iron: 657500
+      gate: Storehouse Expansion III Lv.5
+  - id: storehouse_expansion_iii
+    name: Storehouse Expansion III
+    line: storehouse_expansion
+    tier: 3
+    bonus: Increases Alliance Storehouse Capacity.
+    requires:
+    - tactical_expansion_iii
+    levels:
+    - level: 1
+      effect: 400%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 767400
+        wood: 767400
+        coal: 583600
+        iron: 384300
+      gate: Tactical Expansion III Lv.1
+    - level: 2
+      effect: 800%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 920900
+        wood: 920900
+        coal: 715400
+        iron: 434600
+      gate: Tactical Expansion III Lv.2
+    - level: 3
+      effect: 1200%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1100000
+        wood: 1100000
+        coal: 1200000
+        iron: 801000
+      gate: Tactical Expansion III Lv.3
+    - level: 4
+      effect: 1600%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1350000
+        wood: 1350000
+        coal: 715400
+        iron: 434600
+      gate: Tactical Expansion III Lv.4
+    - level: 5
+      effect: 2000%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 714600
+        iron: 434100
+      gate: Tactical Expansion III Lv.5
+  - id: incendiary_bullets_iii
+    name: Incendiary Bullets III
+    line: incendiary_bullets
+    tier: 3
+    bonus: Accelerates Enemy Alliance Building Destruction
+    requires:
+    - alliance_building_durability_iii
+    levels:
+    - level: 1
+      effect: 2%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 792000
+        wood: 792000
+        coal: 640700
+        iron: 389200
+      gate: Alliance Building Durability III Lv.1
+    - level: 2
+      effect: 4%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 950500
+        wood: 950500
+        coal: 652100
+        iron: 396100
+      gate: Alliance Building Durability III Lv.2
+    - level: 3
+      effect: 6%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1125000
+        wood: 1125000
+        coal: 949500
+        iron: 576800
+      gate: Alliance Building Durability III Lv.3
+    - level: 4
+      effect: 8%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1400000
+        wood: 1400000
+        coal: 1100000
+        iron: 748100
+      gate: Alliance Building Durability III Lv.4
+    - level: 5
+      effect: 10%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 998400
+        iron: 657500
+      gate: Alliance Building Durability III Lv.5
+  - id: alliance_building_durability_iii
+    name: Alliance Building Durability III
+    line: alliance_building_durability
+    tier: 3
+    bonus: Enhances Alliance Building Durability.
+    requires:
+    - tactical_expansion_iii
+    levels:
+    - level: 1
+      effect: '1000'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 850000
+        wood: 850000
+        coal: 917000
+        iron: 570100
+      gate: Tactical Expansion III Lv.1
+    - level: 2
+      effect: '2000'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 1000000
+        iron: 621600
+      gate: Tactical Expansion III Lv.2
+    - level: 3
+      effect: '3000'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 1000000
+        iron: 614600
+      gate: Tactical Expansion III Lv.3
+    - level: 4
+      effect: '4000'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1600000
+        wood: 1600000
+        coal: 949500
+        iron: 576800
+      gate: Tactical Expansion III Lv.4
+    - level: 5
+      effect: '5000'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1700000
+        wood: 1700000
+        coal: 949300
+        iron: 576700
+      gate: Tactical Expansion III Lv.5
+  - id: tactical_expansion_iii
+    name: Tactical Expansion III
+    line: tactical_expansion
+    tier: 3
+    bonus: Increases Alliance Banner cap.
+    requires:
+    - incendiary_bullets_ii
+    - alliance_engineering_ii
+    levels:
+    - level: 1
+      effect: '30'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 670000
+        wood: 670000
+        coal: 329100
+        iron: 164500
+      gate: Incendiary Bullets II Lv.1, Alliance Engineering II Lv.1
+    - level: 2
+      effect: '60'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 804000
+        wood: 804000
+        coal: 486300
+        iron: 366200
+      gate: Incendiary Bullets II Lv.2, Alliance Engineering II Lv.2
+    - level: 3
+      effect: '65'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 787100
+        iron: 570100
+      gate: Incendiary Bullets II Lv.3, Alliance Engineering II Lv.3
+    - level: 4
+      effect: '70'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 898600
+        iron: 650900
+      gate: Incendiary Bullets II Lv.4, Alliance Engineering II Lv.4
+    - level: 5
+      effect: '75'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 823600
+        iron: 504400
+      gate: Incendiary Bullets II Lv.5, Alliance Engineering II Lv.5
+- id: battle
+  label: Battle
+  blurb: 'Combat boosts: attack/defense/health/lethality per troop class plus rally capacity.'
+  nodes:
+  - id: troops_attack_i
+    name: Troops Attack I
+    line: troops_attack
+    tier: 1
+    bonus: Enhances all Troops' Attack.
+    requires:
+    - infantry_attack_i
+    - lancer_attack_i
+    - marksman_attack_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 22800
+        wood: 22800
+      gate: Infantry Attack I Lv.1, Lancer Attack I Lv.1, Marksman Attack I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 27400
+        wood: 27400
+      gate: Infantry Attack I Lv.2, Lancer Attack I Lv.2, Marksman Attack I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 34200
+        wood: 34200
+      gate: Infantry Attack I Lv.3, Lancer Attack I Lv.3, Marksman Attack I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 41000
+        wood: 41000
+      gate: Infantry Attack I Lv.4, Lancer Attack I Lv.4, Marksman Attack I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 45600
+        wood: 45600
+      gate: Infantry Attack I Lv.5, Lancer Attack I Lv.5, Marksman Attack I Lv.5
+  - id: marksman_attack_i
+    name: Marksman Attack I
+    line: marksman_attack
+    tier: 1
+    bonus: Enhances Marksman Attack.
+    requires:
+    - rally_expansion_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 22800
+        wood: 22800
+      gate: Rally Expansion I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 27400
+        wood: 27400
+      gate: Rally Expansion I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 34200
+        wood: 34200
+      gate: Rally Expansion I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 41000
+        wood: 41000
+      gate: Rally Expansion I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 45600
+        wood: 45600
+      gate: Rally Expansion I Lv.5
+  - id: lancer_attack_i
+    name: Lancer Attack I
+    line: lancer_attack
+    tier: 1
+    bonus: Enhances Lancer Attack.
+    requires:
+    - rally_expansion_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 22800
+        wood: 22800
+      gate: Rally Expansion I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 27400
+        wood: 27400
+      gate: Rally Expansion I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 34200
+        wood: 34200
+      gate: Rally Expansion I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 41000
+        wood: 41000
+      gate: ''
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 45600
+        wood: 45600
+      gate: ''
+  - id: infantry_attack_i
+    name: Infantry Attack I
+    line: infantry_attack
+    tier: 1
+    bonus: Enhances Infantry Troop Attack.
+    requires:
+    - rally_expansion_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 22800
+        wood: 22800
+      gate: Rally Expansion I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 27400
+        wood: 27400
+      gate: Rally Expansion I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 34200
+        wood: 34200
+      gate: Rally Expansion I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 41000
+        wood: 41000
+      gate: ''
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 45600
+        wood: 45600
+      gate: ''
+  - id: rally_expansion_i
+    name: Rally Expansion I
+    line: rally_expansion
+    tier: 1
+    bonus: Increases rally governor cap.
+    requires: []
+    levels:
+    - level: 1
+      effect: '1'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 10000
+        wood: 10000
+      gate: ''
+    - level: 2
+      effect: '2'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 20000
+        wood: 20000
+      gate: ''
+    - level: 3
+      effect: '3'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 30000
+        wood: 30000
+      gate: ''
+  - id: troops_defense_i
+    name: Troops Defense I
+    line: troops_defense
+    tier: 1
+    bonus: Enhances all Troops' Defense.
+    requires:
+    - infantry_defense_i
+    - lancer_defense_i
+    - marksman_defense_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 91600
+        wood: 91600
+        coal: 29600
+      gate: Infantry Defense I Lv.1, Lancer Defense I Lv.1, Marksman Defense I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 109900
+        wood: 109900
+        coal: 64300
+        iron: 14200
+      gate: Infantry Defense I Lv.2, Lancer Defense I Lv.2, Marksman Defense I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 137500
+        wood: 137500
+        coal: 83300
+        iron: 16600
+      gate: Infantry Defense I Lv.3, Lancer Defense I Lv.3, Marksman Defense I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 165000
+        wood: 165000
+        coal: 95200
+        iron: 47600
+      gate: Infantry Defense I Lv.4, Lancer Defense I Lv.4, Marksman Defense I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 183300
+        wood: 183300
+        coal: 107000
+        iron: 53500
+      gate: Infantry Defense I Lv.5, Lancer Defense I Lv.5, Marksman Defense I Lv.5
+  - id: marksman_defense_i
+    name: Marksman Defense I
+    line: marksman_defense
+    tier: 1
+    bonus: Enhances Marksman Defense.
+    requires:
+    - rally_expansion_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 91600
+        wood: 91600
+        coal: 29600
+      gate: Rally Expansion II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 109900
+        wood: 109900
+        coal: 64300
+        iron: 14200
+      gate: Rally Expansion II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 137500
+        wood: 137500
+        coal: 83300
+        iron: 16600
+      gate: Rally Expansion II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 165000
+        wood: 165000
+        coal: 95200
+        iron: 47600
+      gate: ''
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 183300
+        wood: 183300
+        coal: 107000
+        iron: 53500
+      gate: ''
+  - id: lancer_defense_i
+    name: Lancer Defense I
+    line: lancer_defense
+    tier: 1
+    bonus: Enhances Lancer Defense.
+    requires:
+    - rally_expansion_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 91600
+        wood: 91600
+        coal: 29600
+      gate: Rally Expansion II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 109900
+        wood: 109900
+        coal: 64300
+        iron: 14200
+      gate: Rally Expansion II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 137500
+        wood: 137500
+        coal: 83300
+        iron: 16600
+      gate: Rally Expansion II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 165000
+        wood: 165000
+        coal: 95200
+        iron: 47600
+      gate: ''
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 183300
+        wood: 183300
+        coal: 107000
+        iron: 53500
+      gate: ''
+  - id: infantry_defense_i
+    name: Infantry Defense I
+    line: infantry_defense
+    tier: 1
+    bonus: Enhances Infantry Defense.
+    requires:
+    - rally_expansion_ii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 91600
+        wood: 91600
+        coal: 29600
+      gate: Rally Expansion II Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 109900
+        wood: 109900
+        coal: 64300
+        iron: 14200
+      gate: Rally Expansion II Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 137500
+        wood: 137500
+        coal: 83300
+        iron: 16600
+      gate: Rally Expansion II Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 165000
+        wood: 165000
+        coal: 95200
+        iron: 47600
+      gate: ''
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 183300
+        wood: 183300
+        coal: 107000
+        iron: 53500
+      gate: ''
+  - id: rally_expansion_ii
+    name: Rally Expansion II
+    line: rally_expansion
+    tier: 2
+    bonus: Increases rally governor cap.
+    requires:
+    - troops_attack_i
+    levels:
+    - level: 1
+      effect: '1'
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 50000
+        wood: 50000
+      gate: Troops Attack I Lv.1
+    - level: 2
+      effect: '2'
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 70000
+        wood: 70000
+      gate: Troops Attack I Lv.2
+    - level: 3
+      effect: '3'
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 100000
+        wood: 100000
+      gate: Troops Attack I Lv.3
+  - id: long_live_our_alliance
+    name: Long Live Our Alliance
+    line: long_live_our_alliance
+    tier: 2
+    bonus: Permanent Alliance Tech Contributions
+    requires:
+    - troops_health_i
+    levels:
+    - level: 1
+      effect: Unlock
+      rc: null
+      time: ''
+      power: null
+      cost: {}
+      gate: Troops Health I Lv.1
+  - id: troops_health_i
+    name: Troops Health I
+    line: troops_health
+    tier: 2
+    bonus: Enhances all Troops' Health.
+    requires:
+    - infantry_health_i
+    - lancer_health_i
+    - marksman_health_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 752200
+        wood: 752200
+        coal: 558100
+        iron: 161100
+      gate: Infantry Health I Lv.1, Lancer Health I Lv.1, Marksman Health I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 902700
+        wood: 902700
+        coal: 639200
+        iron: 311100
+      gate: Infantry Health I Lv.2, Lancer Health I Lv.2, Marksman Health I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1100000
+        wood: 1100000
+        coal: 757100
+        iron: 320900
+      gate: Infantry Health I Lv.3, Lancer Health I Lv.3, Marksman Health I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 982100
+        iron: 616600
+      gate: Infantry Health I Lv.4, Lancer Health I Lv.4, Marksman Health I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 831900
+        iron: 505300
+      gate: Infantry Health I Lv.5, Lancer Health I Lv.5, Marksman Health I Lv.5
+  - id: marksman_health_i
+    name: Marksman Health I
+    line: marksman_health
+    tier: 2
+    bonus: Enhances Marksman Health.
+    requires:
+    - troops_lethality_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 752200
+        wood: 752200
+        coal: 558100
+        iron: 161100
+      gate: Troops Lethality I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 902700
+        wood: 902700
+        coal: 639200
+        iron: 311100
+      gate: Troops Lethality I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1100000
+        wood: 1100000
+        coal: 757100
+        iron: 320900
+      gate: Troops Lethality I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 982100
+        iron: 616600
+      gate: Troops Lethality I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 831900
+        iron: 505300
+      gate: Troops Lethality I Lv.5
+  - id: lancer_health_i
+    name: Lancer Health I
+    line: lancer_health
+    tier: 2
+    bonus: Enhances Lancer Health.
+    requires:
+    - troops_lethality_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 752200
+        wood: 752200
+        coal: 558100
+        iron: 161100
+      gate: Troops Lethality I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 902700
+        wood: 902700
+        coal: 639200
+        iron: 311100
+      gate: Troops Lethality I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1100000
+        wood: 1100000
+        coal: 757100
+        iron: 320900
+      gate: Troops Lethality I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 982100
+        iron: 616600
+      gate: Troops Lethality I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 831900
+        iron: 505300
+      gate: Troops Lethality I Lv.5
+  - id: infantry_health_i
+    name: Infantry Health I
+    line: infantry_health
+    tier: 2
+    bonus: Enhances Infantry Health.
+    requires:
+    - troops_lethality_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 752200
+        wood: 752200
+        coal: 558100
+        iron: 161100
+      gate: Troops Lethality I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 902700
+        wood: 902700
+        coal: 639200
+        iron: 311100
+      gate: Troops Lethality I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1100000
+        wood: 1100000
+        coal: 757100
+        iron: 320900
+      gate: Troops Lethality I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 982100
+        iron: 616600
+      gate: Troops Lethality I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1500000
+        wood: 1500000
+        coal: 831900
+        iron: 505300
+      gate: Troops Lethality I Lv.5
+  - id: troops_lethality_i
+    name: Troops Lethality I
+    line: troops_lethality
+    tier: 2
+    bonus: Enhances all Troops' Lethality.
+    requires:
+    - infantry_lethality_i
+    - lancer_lethality_i
+    - marksman_lethality_i
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 697600
+        wood: 697600
+        coal: 419100
+        iron: 154000
+      gate: Infantry Lethality I Lv.1, Lancer Lethality I Lv.1, Marksman Lethality I Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 837100
+        wood: 837100
+        coal: 606700
+        iron: 396500
+      gate: Infantry Lethality I Lv.2, Lancer Lethality I Lv.2, Marksman Lethality I Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 671300
+        iron: 427700
+      gate: Infantry Lethality I Lv.3, Lancer Lethality I Lv.3, Marksman Lethality I Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 876500
+        iron: 581300
+      gate: Infantry Lethality I Lv.4, Lancer Lethality I Lv.4, Marksman Lethality I Lv.4
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 936200
+        iron: 592700
+      gate: Infantry Lethality I Lv.5, Lancer Lethality I Lv.5, Marksman Lethality I Lv.5
+  - id: marksman_lethality_i
+    name: Marksman Lethality I
+    line: marksman_lethality
+    tier: 2
+    bonus: Enhances Marksman Lethality.
+    requires:
+    - rally_expansion_iii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 697600
+        wood: 697600
+        coal: 419100
+        iron: 154000
+      gate: Rally Expansion III Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 837100
+        wood: 837100
+        coal: 606700
+        iron: 396500
+      gate: Rally Expansion III Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 671300
+        iron: 427700
+      gate: Rally Expansion III Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 876500
+        iron: 581300
+      gate: ''
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 936200
+        iron: 592700
+      gate: ''
+  - id: lancer_lethality_i
+    name: Lancer Lethality I
+    line: lancer_lethality
+    tier: 2
+    bonus: Enhances Lancer Lethality.
+    requires:
+    - rally_expansion_iii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 697600
+        wood: 697600
+        coal: 419100
+        iron: 154000
+      gate: Rally Expansion III Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 837100
+        wood: 837100
+        coal: 606700
+        iron: 396500
+      gate: Rally Expansion III Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 671300
+        iron: 427700
+      gate: Rally Expansion III Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 876500
+        iron: 581300
+      gate: ''
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 936200
+        iron: 592700
+      gate: ''
+  - id: infantry_lethality_i
+    name: Infantry Lethality I
+    line: infantry_lethality
+    tier: 2
+    bonus: Enhances Infantry Lethality.
+    requires:
+    - rally_expansion_iii
+    levels:
+    - level: 1
+      effect: 1%
+      rc: null
+      time: '30:00'
+      power: null
+      cost:
+        meat: 697600
+        wood: 697600
+        coal: 419100
+        iron: 154000
+      gate: Rally Expansion III Lv.1
+    - level: 2
+      effect: 2%
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 837100
+        wood: 837100
+        coal: 606700
+        iron: 396500
+      gate: Rally Expansion III Lv.2
+    - level: 3
+      effect: 3%
+      rc: null
+      time: 01:30:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 671300
+        iron: 427700
+      gate: Rally Expansion III Lv.3
+    - level: 4
+      effect: 4%
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 876500
+        iron: 581300
+      gate: ''
+    - level: 5
+      effect: 5%
+      rc: null
+      time: 02:30:00
+      power: null
+      cost:
+        meat: 1300000
+        wood: 1300000
+        coal: 936200
+        iron: 592700
+      gate: ''
+  - id: rally_expansion_iii
+    name: Rally Expansion III
+    line: rally_expansion
+    tier: 3
+    bonus: Increases rally governor cap.
+    requires:
+    - troops_defense_i
+    levels:
+    - level: 1
+      effect: '1'
+      rc: null
+      time: 01:00:00
+      power: null
+      cost:
+        meat: 681100
+        wood: 681100
+        coal: 512200
+        iron: 165100
+      gate: Troops Defense I Lv.1
+    - level: 2
+      effect: '2'
+      rc: null
+      time: 02:00:00
+      power: null
+      cost:
+        meat: 817300
+        wood: 817300
+        coal: 690500
+        iron: 198000
+      gate: Troops Defense I Lv.2
+    - level: 3
+      effect: '3'
+      rc: null
+      time: 03:00:00
+      power: null
+      cost:
+        meat: 1000000
+        wood: 1000000
+        coal: 806200
+        iron: 530900
+      gate: Troops Defense I Lv.3
+    - level: 4
+      effect: '4'
+      rc: null
+      time: 04:00:00
+      power: null
+      cost:
+        meat: 1200000
+        wood: 1200000
+        coal: 635200
+        iron: 385900
+      gate: Troops Defense I Lv.4

@@ -1,0 +1,31 @@
+# Reads the current stamina off whichever screen shows it and stores it for the
+# allocator. The OCR step auto-writes a sibling `stamina_at` timestamp, so the
+# adapter can interpolate regen (1 / 5 min) between reads.
+#
+# Both branches are soft guards (match + steps): on a miss they just fall
+# through, so this is safe to run on any screen. Trigger wiring (overlay rule on
+# these screens / read-after-consume) is a follow-up — for now it runs when
+# pushed or when the bot already sits on chief_profile / intel.
+name: Read stamina
+enabled: true
+cron: "*/5 * * * *"                   # periodic; bot idles on home screens → bar read
+steps:
+  # main_city / main_world: measure the green fill-bar under the avatar. Self-
+  # validating — a no-op off those screens (the bbox won't look like a bar), so
+  # it's safe to run unguarded. Covers the screens the bot sits on most.
+  - exec: read_stamina_bar
+    region: stamina.bar
+
+  - match: chief_profile.title        # chief profile → current + max (bottom-left)
+    threshold: 0.85
+    steps:
+      - ocr: chief_profile.stamina
+        store: stamina
+      - ocr: chief_profile.stamina.max
+        store: stamina_max
+
+  - match: intel.title                # intel screen → current (top-right)
+    threshold: 0.85
+    steps:
+      - ocr: intel.stamina
+        store: stamina

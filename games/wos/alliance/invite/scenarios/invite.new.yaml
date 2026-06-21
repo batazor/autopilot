@@ -1,0 +1,7 @@
+enabled: false
+name: Alliance · Invite · New
+node: main_city
+priority: 100000
+steps:
+- click: main_city.new_alliance.mail.close
+- wait: 0.5s

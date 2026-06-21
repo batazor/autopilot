@@ -1,0 +1,18 @@
+version: 2
+screens:
+- id: 56
+  screen_id: event.7-day
+  ocr: references/page.7-day.png
+  screen_region: event.7-day
+  regions:
+  - name: event.7-day
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 27.953667953667956
+      y: 44.130434782608695
+      width: 13.799227799227799
+      height: 3.4999999999999996
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280

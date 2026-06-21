@@ -1,0 +1,8 @@
+enabled: true
+name: Scan alliance members frame
+node: alliance.members
+priority: 70_000
+cond: "active_player != null"
+
+steps:
+  - exec: scan_alliance_members_frame

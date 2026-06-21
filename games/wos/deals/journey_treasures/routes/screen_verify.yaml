@@ -1,0 +1,5 @@
+screens:
+  deals.journey_treasures:
+    rules:
+      - match: journey_treasures.title
+        threshold: 0.9

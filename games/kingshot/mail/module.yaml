@@ -1,0 +1,8 @@
+id: mail
+title: Mail (Kingshot)
+description: Kingshot mail automation - route to mailbox tabs and claim readable rewards.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

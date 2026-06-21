@@ -1,0 +1,9 @@
+id: state_of_power
+title: State of Power
+description: Limited-time State of Power event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: state_of_power
+wiki: false

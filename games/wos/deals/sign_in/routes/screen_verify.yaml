@@ -1,0 +1,6 @@
+screens:
+  deals.sign_in:
+    priority: 50
+    rules:
+    - match: deals.sign_in.title
+      threshold: 0.9

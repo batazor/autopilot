@@ -1,0 +1,5 @@
+screens:
+  event.fishing_tournament:
+    rules:
+      - match: event.fishing_tournament
+        threshold: 0.9

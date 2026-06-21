@@ -1,0 +1,16 @@
+edges:
+  main_city:
+    isNewPeople: [isNewPeople]
+    survivor_status: [isWorkers]
+  isNewPeople:
+    main_city: [button.welcome_in]
+  survivor_status:
+    survivor_status.status: [survivor_status.status]
+    survivor_status.details: [survivor_status.details]
+    main_city: [from.survivor_status.to.main_city]
+  survivor_status.status:
+    survivor_status.details: [survivor_status.details]
+    main_city: [from.survivor_status.to.main_city]
+  survivor_status.details:
+    survivor_status.status: [survivor_status.status]
+    main_city: [from.survivor_status.to.main_city]

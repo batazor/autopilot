@@ -1,0 +1,43 @@
+# serializer version: 1
+# name: test_claim_exploration_rewards_scenario_is_registered_with_expected_shape
+  dict({
+    'cron': '0 */4 * * *',
+    'enabled': True,
+    'name': 'Claim Exploration Rewards',
+    'node': 'exploration',
+    'steps': list([
+      dict({
+        'click': 'button.claim',
+      }),
+      dict({
+        'wait': '2s',
+      }),
+      dict({
+        'retry': dict({
+          'attempts': 3,
+          'interval': '1s',
+        }),
+        'steps': list([
+          dict({
+            'click': 'button.claim.big',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+          dict({
+            'match': 'button.tap_anywhere_to_exit',
+            'steps': list([
+              dict({
+                'click': 'button.tap_anywhere_to_exit',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+          }),
+        ]),
+        'while_match': 'button.claim.big',
+      }),
+    ]),
+  })
+# ---

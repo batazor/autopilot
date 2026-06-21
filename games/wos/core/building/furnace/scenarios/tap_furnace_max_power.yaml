@@ -1,0 +1,6 @@
+enabled: true
+name: 🔥 Tap Furnace max power
+device_level: true
+steps:
+- click: building.furnace.max_power
+- wait: 1s

@@ -1,0 +1,6 @@
+screens:
+  deals.home_and_beyond:
+    priority: 52
+    rules:
+    - match: deals.home_and_beyound.title
+      threshold: 0.9

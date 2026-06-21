@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord
+    url: https://discord.gg/62twnzKG9
+    about: Questions, help, and general discussion.
+  - name: Security report
+    url: https://github.com/batazor/autopilot/security/advisories/new
+    about: Privately report a security vulnerability (do not open a public issue).

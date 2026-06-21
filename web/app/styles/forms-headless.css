@@ -1,0 +1,79 @@
+@layer components {
+  .form-grid-2 {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .form-grid-3 {
+    @apply grid gap-3 sm:grid-cols-3;
+  }
+
+  .form-grid-4 {
+    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
+  }
+
+  .field-row {
+    @apply flex flex-col gap-1 text-sm;
+  }
+
+  .field-row > span:first-child {
+    @apply text-wos-text-muted;
+  }
+
+  .field-row input,
+  .field-row select {
+    @apply rounded-md border border-wos-border bg-wos-input px-2 py-1.5 text-wos-text;
+  }
+
+  .checkbox-row {
+    @apply flex-row items-center gap-2;
+  }
+
+  .btn-icon {
+    @apply cursor-pointer rounded border border-wos-border bg-wos-input px-2 py-0.5 text-sm hover:border-sky-500/50 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .scenario-tree {
+    @apply m-2 list-none p-0 pl-3;
+  }
+
+  .scenario-tree .tree-link {
+    @apply cursor-pointer border-0 bg-transparent px-1.5 py-0.5 text-left text-sm text-wos-text-secondary hover:text-sky-300;
+  }
+
+  .scenario-tree .tree-link.active {
+    @apply font-semibold text-sky-400;
+  }
+
+  .scenario-tree-wrap {
+    @apply w-full text-sm;
+  }
+
+  .scenario-tree-row {
+    @apply flex cursor-pointer items-center gap-1 rounded px-1.5 text-wos-text-secondary hover:bg-slate-800/60 hover:text-sky-300;
+  }
+
+  .scenario-tree-row.active {
+    @apply font-semibold text-sky-400;
+  }
+
+  .scenario-tree-row--dir {
+    @apply text-wos-text-muted;
+  }
+
+  .scenario-tree-row__caret {
+    @apply inline-block w-4 shrink-0 text-center text-xs text-wos-text-muted;
+  }
+
+  .scenario-tree-row__title {
+    @apply truncate;
+  }
+
+  .app-select-field {
+    @apply flex flex-col gap-1 text-sm text-wos-text-secondary;
+  }
+
+  .app-select-field > span:first-child {
+    @apply font-medium text-wos-text-muted;
+  }
+
+}

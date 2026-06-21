@@ -1,0 +1,17 @@
+# Read both Bear Hunt trap cooldowns off the event info panel and store the
+# next-ready time per trap in the alliance schedule (db.bear_hunt_traps).
+#
+# Bear Hunt is one shared event for the whole alliance, so a SET-NX lock (in the
+# exec) makes ONE member do the read; the rest return skip_locked. Navigates to
+# the info panel (node: event.bear_hunt.info), taps each trap tab, OCRs its
+# "On cooldown" timer, computes next-ready = now + remaining, and fans an
+# event_bear_hunt flag to player state. Daily — the cadence is ~2 days, so one
+# read per day keeps the projection fresh.
+name: Read Bear Hunt cooldowns
+enabled: true
+cron: "0 9 * * *"
+node: event.bear_hunt.info
+steps:
+  - match: bear_hunt.info.title
+    steps:
+      - exec: read_bear_hunt_cooldowns

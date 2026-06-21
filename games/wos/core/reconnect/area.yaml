@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "reconnect",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "reconnect",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 54.33910799131837,
+            "y": 59.74548487847419,
+            "width": 37.236180904522726,
+            "height": 5.460392110755128,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

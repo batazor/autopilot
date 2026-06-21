@@ -1,0 +1,204 @@
+---
+description: Overlay actions conventions (analyze YAML vs area.json), DSL guards, red-dot filter
+globs: "{area.json,analyze/**/*.yaml,scenarios/**/*.yaml,analysis/overlay_engine.py,analysis/overlay_rules.py,tasks/dsl_scenario.py,layout/red_dot_detector.py}"
+alwaysApply: false
+---
+
+# Overlay actions: analyze YAML vs `area.json`
+
+## Rule of thumb
+
+- **Overlay analyzers** (`modules/core/*/analyze/analyze.yaml`, feature `modules/*/analyze/`) use **overlay-engine actions**:
+  - `findIcon` — template match using cropped reference
+  - `text` — OCR match
+  - `color_check` — dominant color check
+  - **`isRedDot: true|false`** — instead of `action:` / `threshold`, runs the same
+    programmatic badge detector as DSL (`layout.red_dot_detector`). Requires the
+    region in `area.json` to have **`has_red_dot: true`** and a bbox. Matches when
+    the dot is **present** (`true`) or **absent** (`false`). Engine emits
+    `action: red_dot` in overlay flat state.
+
+- **`area.json`** (labeling editor output) uses **editor actions**:
+  - `exist` — this is the *editor* name for template match (maps to overlay `findIcon`)
+  - `text` — OCR region
+  - `color_check` — color region (uses `type` like `red|blue|gray|green`)
+  - `click` — tap target region (not a detector)
+
+## Do not mix
+
+- `area.yaml` is editable directly — hand-edit bbox/regions/crops when convenient,
+  keeping each `bbox` in sync with its crop. The Labeling UI is optional convenience.
+- **Do NOT put** `findIcon` in `area.json` (use `exist` there).
+- **Do NOT put** `exist` in analyzer YAML (use `findIcon` there).
+
+## Terminology: "node" vs "FSM"
+
+- The user-visible vocabulary is **node** / **node graph** (DSL uses `currentNode`,
+  `set_node:`). Runtime routing lives in `navigation/screen_graph.py` and
+  `ui/views/routes.py`; area manifests (`area.json`, module `area.yaml`) hold
+  only `version` + `screens`.
+- When writing docs, captions, scenarios — prefer **node**.
+
+## Overlay screen gate (`screens`)
+
+- Restrict when a rule runs using **`screens`**: a string or list of node ids
+  (e.g. `screens: [main_city]`, `screens: [mail]`). The field name is still
+  `screens` for historical reasons; conceptually these are node ids.
+- Omit **`screens`** entirely for rules that should run on **every** tick (global).
+- Use **`screens: [none]`** when the rule should run only while Redis
+  **`current_screen`** is empty / unknown (same semantics as the legacy `node: none`).
+- Matching against Redis is **case-insensitive**. The legacy **`node:`** field is
+  **not** read by the overlay engine anymore — migrate to **`screens`**.
+- Overlay rules can publish a node transition with **`set_node: <node_id>`** when
+  matched (writes Redis `current_screen`).
+
+## `findIcon` false-positive gates (automatic)
+
+When a `findIcon` rule uses a sliding `_search` window, the overlay engine runs
+automatic post-match gates — each gate can set `reason:` in overlay flat state
+when `score` cleared the threshold but the candidate was still rejected:
+
+1. **bright-detail gate**: when the reference crop is white-heavy enough, the live
+   patch must keep a matching share of bright low-saturation pixels; otherwise
+   `reason: low_bright_detail_ratio`. Threshold for “white-heavy” is defined in
+   `analysis/overlay_engine.py` (`_BRIGHT_DETAIL_TEMPLATE_MIN`).
+2. **`min_match_saturation`**: optional YAML (0–255). Reject the candidate patch when
+   its mean HSV S is below the threshold (`reason: low_saturation`).
+
+If multiple gates fail, `reason` is set in this order: bright → saturation.
+
+## `_search` / `_tap` naming + cascade delete
+
+- Detector region: `foo`
+- Optional search window: `foo_search` (usually `exist`/`text`/`color_check`,
+  `overlay_auxiliary: true`)
+- Optional tap target: `foo_tap` (`click`, `overlay_auxiliary: true`)
+
+The Labeling UI **deletes them as a group**: removing primary `foo` cascades to
+`foo_search` / `foo_tap` (when present) and unlinks the matching
+`references/crop/<ref_stem>_foo.png`. Deleting an aux directly does **not**
+cascade upwards (the primary stays). See
+`ui.overlay_yaml_sync.cascade_aux_region_names` and
+`ui.area_annotator.crop_path_for_entry_region`.
+
+## Red-dot indicator (`has_red_dot` + `isRedDot:`)
+
+A region can opt in to programmatic notification-badge detection — no template,
+no extra labeling — by setting **`has_red_dot: true`** in `area.json` (toggle
+the **"Has red dot"** checkbox in Labeling). The detector lives at
+`layout/red_dot_detector.py` and recognises **two variants**:
+
+1. **Plain red dot** — bright saturated red disc (with optional white counter
+   digit). Uses HSV mask + circularity + median-S/V floor (rejects pinkish/
+   salmon icons like cooked-meat).
+2. **Frost-event variant** — winter-event icy-cyan capsule with magenta
+   sparkle particles. Recognised statistically (cyan ≥ 8 % **and** magenta
+   sparkles ≥ 0.2 % of the patch — both conditions required, so plain blue
+   buttons or the sky never trigger).
+
+Both variants are surfaced through a single API:
+`has_red_dot_in_bbox_percent(image, bbox, accept_frost=True)`.
+
+**Two search modes (do not mix):**
+
+- **Within zone** — standalone overlay `isRedDot:` / `action: red_dot` on a labeled
+  region (no `isSearch`). The detector scans **only the region bbox** from
+  `area.json` (`red_dot_search_mode: within_zone`). Same rectangle as DSL
+  `match:` + `isRedDot:` via `_build_red_dot_only_row`.
+- **Dynamic** — `findIcon` with `isSearch: true` (full-frame template search) or
+  any sliding match that returns `top_left`. Badge probe runs in a slot
+  **relative to the found template** (`red_dot_bbox` from `red_dot_bbox` rule
+  key or default top-right offsets), **not** the static labeled tab bbox.
+  Emits `red_dot_search_mode: dynamic`. Standalone `isRedDot` on an `isSearch`
+  region is rejected (`reason: red_dot_within_zone_only`).
+
+DSL filter on `match:` / `while_match:` steps:
+
+```yaml
+- match: workers
+  isRedDot: true        # only "matched" when the bbox contains a red/frost badge
+  steps:
+    - click: workers
+```
+
+- `isRedDot: true` — region must currently show the indicator
+- `isRedDot: false` — region must currently be quiet
+- The step-level filter is a **post-match refiner**: the underlying overlay row
+  is computed first; the red-dot result then sets `matched: false` with
+  `reason: red_dot_missing | red_dot_unexpected | red_dot_capability_disabled`
+  for audit / Redis context.
+- A region used with `isRedDot:` **must** carry `has_red_dot: true` in
+  `area.json`; otherwise the step yields
+  `reason: red_dot_capability_disabled` (audit-only fail-fast — guards against
+  silent typos in region names).
+
+## DSL `cond` syntax (scenarios)
+
+`tasks/dsl_scenario.py` supports a small, intentionally-simple `cond:` language.
+
+- **Node guards** (based on instance Redis `current_screen`):
+  - `cond: currentNode == main_city`
+  - `cond: currentNode != main_city`
+
+- **Instance-state text guards** (based on Redis hash `wos:instance:<id>:state.<field>`):
+  - `cond: <field> ~= "text"` — **case-insensitive substring** (contains).
+    In the quoted RHS, **`|`** separates alternatives:
+    `~= "Upgrade|Build"` is true if the live field contains **any** of those substrings.
+  - `cond: <field> ~~ "text"` — **fuzzy contains** (rapidfuzz `partial_ratio`):
+    like `~=` but tolerant of OCR character noise, e.g. `~~ "victory"` still
+    matches a field reading `"Vlctory!"`. Optional inline threshold `~~90`
+    (0–100, default 85); RHS supports `|` alternatives just like `~=`.
+  - `cond: <field> == "text"` — **case-insensitive full-string** equality
+  - `cond: <field> != "text"` — **case-insensitive full-string** inequality
+
+Notes:
+- `<field>` is a Redis field name; it may include dots (e.g. `chapter.task`).
+- Use quotes for the RHS when it contains spaces (recommended always).
+- `|` is only interpreted as alternation inside the **`~=`** / **`~~`** RHS;
+  `==` / `!=` treat the whole quoted string literally.
+- Prefer `~=` (exact substring) by default; reach for `~~` only when the field
+  is OCR'd and prone to character noise — fuzzy matching can over-match.
+
+## DSL optional tap (region may be absent)
+
+Use this when a control should be tapped **only if it is actually visible**
+(e.g. a dismiss "X" after a popup).
+
+- **Do not** use a bare top-level `click:` if the UI is optional — it taps the
+  region center even when nothing is there.
+- **Do not** use a top-level `match:` as an optional guard — on failure the
+  scenario **exits early** (`match_guard_failed` / `match_region_not_found`).
+
+**Pattern:** wrap the tap in **`while_match: <region>`** with **`max: 1`**, and
+put **`click:`** (and optional **`wait:`**) under **`steps:`**. Inner steps run
+only when the region probe succeeds once (same probe logic as `match:`; action
+comes from `area.json`: template / `text` / `color_check`, etc.).
+
+**Why "zero iterations" can still mean success:** `tasks/dsl_scenario.py` ties
+`while_match` **strict** defaults to **`device_level`**. Scenarios with
+**`device_level: true`** (typical popup dismissals) default to **non-strict**
+`while_match`: **no match → zero iterations → task still succeeds** (no forced
+reschedule). Scenarios **without** `device_level: true` default to strict
+`while_match`; for an optional step there, add **`strict: false`** on that
+block or you get `while_match_no_iterations` with a delayed retry.
+
+Example (`modules/core/pop-up/scenarios/tap_claim_button.yaml`):
+
+```yaml
+  - while_match: claim_button_close
+    max: 1
+    steps:
+      - click: claim_button_close
+      - wait: 2s
+```
+
+Example combining the red-dot filter with optional tap:
+
+```yaml
+  - while_match: workers
+    max: 1
+    isRedDot: true       # only enter the body when the badge is currently lit
+    steps:
+      - click: workers
+      - wait: 1s
+```

@@ -1,0 +1,198 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "screen_id": "deals.bank",
+      "ocr": "references/bank.collect_ready.png",
+      "regions": [
+        {
+          "name": "bank.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.416666666666667,
+            "y": 16.5625,
+            "width": 15.972222222222221,
+            "height": 3.8281250000000004,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "bank.tab",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 40.0,
+            "y": 7.5,
+            "width": 26.805555555555554,
+            "height": 6.875000000000001,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "bank.completed.badge",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.555555555555555,
+            "y": 45.625,
+            "width": 31.38888888888889,
+            "height": 2.96875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "bank.withdraw.button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.555555555555555,
+            "y": 64.921875,
+            "width": 31.11111111111111,
+            "height": 4.84375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "screen_id": "deals.bank",
+      "ocr": "references/bank.no_deposit.png",
+      "regions": [
+        {
+          "name": "bank.storage_duration_1d.label",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.388888888888888,
+            "y": 45.625,
+            "width": 35.0,
+            "height": 2.96875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "bank.deposit_5.button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.555555555555555,
+            "y": 64.921875,
+            "width": 31.11111111111111,
+            "height": 4.84375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "screen_id": "deals.bank",
+      "ocr": "references/bank.after_deposit.png",
+      "regions": [
+        {
+          "name": "bank.deposit.timer",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.416666666666668,
+            "y": 45.625,
+            "width": 31.944444444444443,
+            "height": 2.8125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "bank.in_deposit.button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.694444444444445,
+            "y": 64.921875,
+            "width": 30.97222222222222,
+            "height": 4.84375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "screen_id": "bank.deposit_dialog",
+      "ocr": "references/bank.deposit_dialog.png",
+      "regions": [
+        {
+          "name": "bank.deposit_dialog.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.72222222222222,
+            "y": 26.953125,
+            "width": 50.69444444444444,
+            "height": 3.75,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "bank.deposit_dialog.max_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 82.77777777777777,
+            "y": 57.10937499999999,
+            "width": 7.916666666666666,
+            "height": 4.21875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "bank.deposit_dialog.deposit_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 51.80555555555556,
+            "y": 66.953125,
+            "width": 38.611111111111114,
+            "height": 5.78125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "bank.deposit_dialog.close",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.66666666666667,
+            "y": 27.109375,
+            "width": 5.0,
+            "height": 2.734375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

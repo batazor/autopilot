@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Notification Monitor</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --panel2: #1c2230; --border: #2a313c;
+    --text: #e6edf3; --muted: #8b949e; --accent: #3b82f6; --green: #3fb950;
+    --red: #f85149; --amber: #d29922; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 22px;
+           border-bottom: 1px solid var(--border); background: var(--panel); }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .pill { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .pill.on { color: var(--green); border-color: var(--green); }
+  .pill.off { color: var(--red); border-color: var(--red); }
+  nav { display: flex; gap: 4px; padding: 10px 22px 0; background: var(--panel); border-bottom: 1px solid var(--border); }
+  nav button { background: none; border: none; color: var(--muted); padding: 9px 14px; cursor: pointer;
+               border-bottom: 2px solid transparent; font-size: 14px; }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); }
+  main { padding: 22px; max-width: 1100px; margin: 0 auto; }
+  section { display: none; }
+  section.active { display: block; }
+  h2 { font-size: 15px; margin: 0 0 14px; font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .card .n { font-size: 26px; font-weight: 700; }
+  .card .l { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border);
+          border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  tr:last-child td { border-bottom: none; }
+  td.raw { color: var(--muted); max-width: 420px; }
+  .tag { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--border); }
+  .tag.wos { color: #58a6ff; } .tag.kingshot { color: #d2a8ff; }
+  input, select, textarea, button.btn { font: inherit; color: var(--text); background: var(--panel2);
+          border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px; }
+  input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); }
+  button.btn { cursor: pointer; }
+  button.btn:hover { border-color: var(--accent); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.btn.danger { color: var(--red); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .ok { color: var(--green); } .bad { color: var(--red); }
+  .toolbar { margin-left: auto; display: flex; gap: 8px; }
+  textarea { width: 100%; min-height: 60px; resize: vertical; }
+  .switch { cursor: pointer; }
+  #toast { position: fixed; bottom: 20px; right: 20px; background: var(--panel2); border: 1px solid var(--border);
+           padding: 10px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔔 Notification Monitor</h1>
+  <span id="monitorPill" class="pill">monitor: ?</span>
+  <span id="redisPill" class="pill">redis: ?</span>
+  <span id="lastPoll" class="muted" style="font-size:12px;"></span>
+  <div class="toolbar">
+    <button class="btn" onclick="pollNow()">Poll now</button>
+    <button class="btn" id="toggleMonitor" onclick="toggleMonitor()">Toggle</button>
+  </div>
+</header>
+
+<nav>
+  <button data-tab="dashboard" class="active">Dashboard</button>
+  <button data-tab="players">Players</button>
+  <button data-tab="patterns">Patterns</button>
+  <button data-tab="unrecognized">Unrecognized</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+
+<main>
+  <!-- DASHBOARD -->
+  <section id="dashboard" class="active">
+    <div class="cards" id="cards"></div>
+    <h2>Live event feed</h2>
+    <div class="row">
+      <select id="evGame"><option value="">All games</option></select>
+      <button class="btn" onclick="loadEvents()">Refresh</button>
+      <span class="muted" id="evMeta"></span>
+    </div>
+    <table>
+      <thead><tr><th>Time</th><th>Game</th><th>Player</th><th>Event</th><th>Raw text</th></tr></thead>
+      <tbody id="eventsBody"></tbody>
+    </table>
+  </section>
+
+  <!-- PLAYERS -->
+  <section id="players">
+    <h2>Monitored players</h2>
+    <div class="row">
+      <input id="pNick" placeholder="nickname" />
+      <select id="pGame"></select>
+      <button class="btn primary" onclick="addPlayer()">Add player</button>
+      <span class="muted">Players are also auto-discovered from recognized events.</span>
+    </div>
+    <table>
+      <thead><tr><th>Nickname</th><th>Game</th><th>Active</th><th>Added</th><th></th></tr></thead>
+      <tbody id="playersBody"></tbody>
+    </table>
+  </section>
+
+  <!-- PATTERNS -->
+  <section id="patterns">
+    <h2>Event patterns</h2>
+    <div class="row">
+      <select id="patFilter"><option value="">All games</option></select>
+      <button class="btn" onclick="loadPatterns()">Refresh</button>
+    </div>
+
+    <div class="card" style="margin-bottom:18px;">
+      <strong>Add pattern</strong>
+      <div class="row" style="margin-top:10px;">
+        <select id="npGame"></select>
+        <input id="npEvent" placeholder="event_type (e.g. construction_complete)" />
+        <input id="npRegex" placeholder="regex (case-insensitive)" style="min-width:260px;" class="mono" />
+        <input id="npDesc" placeholder="description" />
+        <input id="npScenario" placeholder="scenario to push (optional)" class="mono" />
+        <button class="btn primary" onclick="addPattern()">Add</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px;">
+      <strong>Test a pattern</strong>
+      <div class="row" style="margin-top:10px;">
+        <input id="tpRegex" placeholder="regex" class="mono" style="min-width:260px;" />
+        <input id="tpText" placeholder="sample notification text" style="min-width:320px;" />
+        <button class="btn" onclick="testPattern()">Test</button>
+        <span id="tpResult" class="mono"></span>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th>Game</th><th>Event type</th><th>Regex</th><th>Description</th><th>Scenario</th><th>Active</th><th></th></tr></thead>
+      <tbody id="patternsBody"></tbody>
+    </table>
+  </section>
+
+  <!-- UNRECOGNIZED -->
+  <section id="unrecognized">
+    <h2>Unrecognized notifications</h2>
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="incReviewed" onchange="loadUnrecognized()" /> show reviewed</label>
+      <button class="btn" onclick="loadUnrecognized()">Refresh</button>
+    </div>
+    <table>
+      <thead><tr><th>Time</th><th>Game</th><th>Raw text</th><th>Reviewed</th><th>Actions</th></tr></thead>
+      <tbody id="unrecBody"></tbody>
+    </table>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="settings">
+    <h2>Settings</h2>
+    <div class="card" style="max-width:520px;">
+      <div class="field" style="margin-bottom:14px;">
+        <label>Polling interval (seconds)</label>
+        <input id="sInterval" type="number" min="1" />
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label>ADB serial (blank = default device)</label>
+        <input id="sSerial" placeholder="e.g. emulator-5554" />
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label>ADB path</label>
+        <input id="sAdbPath" placeholder="adb" />
+      </div>
+      <div class="field" style="margin-bottom:16px;">
+        <label class="switch"><input type="checkbox" id="sEnabled" /> monitor enabled</label>
+      </div>
+      <button class="btn primary" onclick="saveSettings()">Save settings</button>
+      <span id="adbDevices" class="muted" style="margin-left:12px;"></span>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = async (url, opts) => {
+  const r = await fetch(url, opts);
+  let data = null;
+  try { data = await r.json(); } catch { /* empty */ }
+  if (!r.ok) throw new Error((data && data.detail) || r.statusText);
+  return data;
+};
+const post = (url, body) => api(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+const patch = (url, body) => api(url, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+const put = (url, body) => api(url, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+const del = url => api(url, { method: 'DELETE' });
+const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let toastTimer;
+function toast(msg, bad) {
+  const t = $('#toast'); t.textContent = msg; t.style.borderColor = bad ? 'var(--red)' : 'var(--border)';
+  t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function gameTag(g) { return `<span class="tag ${esc(g)}">${esc(g)}</span>`; }
+
+// --- tabs ---
+let GAMES = [];
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('section').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); $('#'+b.dataset.tab).classList.add('active');
+  refreshTab(b.dataset.tab);
+});
+function refreshTab(tab) {
+  ({ dashboard: loadDashboard, players: loadPlayers, patterns: loadPatterns,
+     unrecognized: loadUnrecognized, settings: loadSettings }[tab] || (()=>{}))();
+}
+
+// --- bootstrap games into selects ---
+async function loadGames() {
+  GAMES = await api('/api/games');
+  const opts = GAMES.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  const allOpt = '<option value="">All games</option>';
+  $('#pGame').innerHTML = opts;
+  $('#npGame').innerHTML = opts;
+  $('#evGame').innerHTML = allOpt + opts;
+  $('#patFilter').innerHTML = allOpt + opts;
+}
+
+// --- status header ---
+async function loadStatus() {
+  try {
+    const s = await api('/api/status');
+    const m = s.monitor;
+    const mp = $('#monitorPill');
+    mp.textContent = 'monitor: ' + (m.running ? 'on' : 'off');
+    mp.className = 'pill ' + (m.running ? 'on' : 'off');
+    const rp = $('#redisPill');
+    rp.textContent = 'redis: ' + (m.redis.connected ? 'connected' : 'down');
+    rp.className = 'pill ' + (m.redis.connected ? 'on' : 'off');
+    $('#lastPoll').textContent = m.last_poll_human ? ('last poll ' + m.last_poll_human + ' · ' + s.adb_devices.length + ' device(s)') : 'no poll yet';
+    return s;
+  } catch (e) { toast('status error: ' + e.message, true); }
+}
+
+// --- dashboard ---
+async function loadDashboard() {
+  const s = await loadStatus();
+  if (s) {
+    const c = s.counts, r = s.monitor.redis;
+    $('#cards').innerHTML = [
+      ['Active players', c.active_players + ' / ' + c.players],
+      ['Patterns', c.patterns],
+      ['Events logged', c.events],
+      ['Unrecognized', c.unrecognized],
+      ['Published', r.published_count],
+    ].map(([l,n]) => `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+  }
+  loadEvents();
+}
+async function loadEvents() {
+  const g = $('#evGame').value;
+  const ev = await api('/api/events?limit=100' + (g ? '&game='+g : ''));
+  $('#evMeta').textContent = ev.length + ' event(s)';
+  $('#eventsBody').innerHTML = ev.map(e => `<tr>
+    <td class="mono">${esc(e.timestamp)}</td><td>${gameTag(e.game)}</td>
+    <td>${esc(e.player)}</td><td><span class="tag">${esc(e.event_type)}</span></td>
+    <td class="raw">${esc(e.raw_text)}</td></tr>`).join('') || emptyRow(5);
+}
+
+// --- players ---
+async function loadPlayers() {
+  const ps = await api('/api/players');
+  $('#playersBody').innerHTML = ps.map(p => `<tr>
+    <td>${esc(p.nickname)}</td><td>${gameTag(p.game)}</td>
+    <td><input type="checkbox" ${p.active ? 'checked':''} onchange="togglePlayer(${p.id}, this.checked)"></td>
+    <td class="mono muted">${esc(p.created_at)}</td>
+    <td><button class="btn danger" onclick="removePlayer(${p.id})">Delete</button></td></tr>`).join('') || emptyRow(5);
+}
+async function addPlayer() {
+  const nickname = $('#pNick').value.trim(); if (!nickname) return toast('nickname required', true);
+  try { await post('/api/players', { nickname, game: $('#pGame').value }); $('#pNick').value=''; toast('player added'); loadPlayers(); }
+  catch (e) { toast(e.message, true); }
+}
+async function togglePlayer(id, active) { try { await patch('/api/players/'+id, { active }); } catch(e){ toast(e.message,true);} }
+async function removePlayer(id) { if (!confirm('Delete player?')) return; await del('/api/players/'+id); loadPlayers(); }
+
+// --- patterns ---
+async function loadPatterns() {
+  const g = $('#patFilter').value;
+  const ps = await api('/api/patterns' + (g ? '?game='+g : ''));
+  $('#patternsBody').innerHTML = ps.map(p => `<tr>
+    <td>${gameTag(p.game)}</td>
+    <td><input value="${esc(p.event_type)}" onchange="updatePattern(${p.id}, 'event_type', this.value)" style="width:170px"></td>
+    <td><input value="${esc(p.pattern_regex)}" class="mono" onchange="updatePattern(${p.id}, 'pattern_regex', this.value)" style="width:260px"></td>
+    <td><input value="${esc(p.description)}" onchange="updatePattern(${p.id}, 'description', this.value)" style="width:180px"></td>
+    <td><input value="${esc(p.scenario || '')}" class="mono" placeholder="—" onchange="updatePattern(${p.id}, 'scenario', this.value)" style="width:170px"></td>
+    <td><input type="checkbox" ${p.active ? 'checked':''} onchange="updatePattern(${p.id}, 'active', this.checked)"></td>
+    <td><button class="btn danger" onclick="removePattern(${p.id})">Delete</button></td></tr>`).join('') || emptyRow(7);
+}
+async function addPattern() {
+  const body = { game: $('#npGame').value, event_type: $('#npEvent').value.trim(),
+                 pattern_regex: $('#npRegex').value, description: $('#npDesc').value.trim(),
+                 scenario: $('#npScenario').value.trim() };
+  if (!body.event_type || !body.pattern_regex) return toast('event_type + regex required', true);
+  try { await post('/api/patterns', body); $('#npEvent').value=$('#npRegex').value=$('#npDesc').value=$('#npScenario').value=''; toast('pattern added'); loadPatterns(); }
+  catch (e) { toast(e.message, true); }
+}
+async function updatePattern(id, field, value) {
+  try { await patch('/api/patterns/'+id, { [field]: value }); toast('saved'); }
+  catch (e) { toast(e.message, true); loadPatterns(); }
+}
+async function removePattern(id) { if (!confirm('Delete pattern?')) return; await del('/api/patterns/'+id); loadPatterns(); }
+async function testPattern() {
+  const r = await post('/api/patterns/test', { pattern_regex: $('#tpRegex').value, sample_text: $('#tpText').value });
+  const el = $('#tpResult');
+  if (!r.ok) { el.innerHTML = '<span class="bad">error: '+esc(r.error)+'</span>'; return; }
+  el.innerHTML = r.matched
+    ? '<span class="ok">✓ match: "'+esc(r.match)+'"'+(Object.keys(r.groups).length?' groups='+esc(JSON.stringify(r.groups)):'')+'</span>'
+    : '<span class="bad">✗ no match</span>';
+}
+
+// --- unrecognized ---
+async function loadUnrecognized() {
+  const inc = $('#incReviewed').checked;
+  const us = await api('/api/unrecognized?include_reviewed=' + inc);
+  $('#unrecBody').innerHTML = us.map(u => `<tr>
+    <td class="mono">${esc(u.timestamp)}</td><td>${gameTag(u.game)}</td>
+    <td class="raw">${esc(u.raw_text)}</td>
+    <td>${u.reviewed ? '✓' : '—'}</td>
+    <td>
+      ${u.reviewed ? '' : `<button class="btn" onclick="reviewUnrec(${u.id})">Mark reviewed</button>`}
+      <button class="btn primary" onclick="promotePrompt(${u.id}, ${JSON.stringify(u.raw_text).replace(/"/g,'&quot;')})">Promote →</button>
+    </td></tr>`).join('') || emptyRow(5);
+}
+async function reviewUnrec(id) { await post('/api/unrecognized/'+id+'/review'); loadUnrecognized(); }
+async function promotePrompt(id, raw) {
+  const event_type = prompt('event_type for this notification:', '');
+  if (!event_type) return;
+  const suggested = (raw || '').slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern_regex = prompt('regex to match this event (case-insensitive):', suggested);
+  if (!pattern_regex) return;
+  try { await post('/api/unrecognized/'+id+'/promote', { event_type, pattern_regex, description: 'promoted from unrecognized' });
+        toast('pattern created'); loadUnrecognized(); }
+  catch (e) { toast(e.message, true); }
+}
+
+// --- settings ---
+async function loadSettings() {
+  const s = await api('/api/settings');
+  $('#sInterval').value = s.poll_interval || 10;
+  $('#sSerial').value = s.adb_serial || '';
+  $('#sAdbPath').value = s.adb_path || 'adb';
+  $('#sEnabled').checked = (s.monitor_enabled === '1');
+  const st = await api('/api/status');
+  $('#adbDevices').textContent = 'detected devices: ' + (st.adb_devices.join(', ') || 'none');
+}
+async function saveSettings() {
+  try {
+    await put('/api/settings', {
+      poll_interval: parseInt($('#sInterval').value, 10),
+      adb_serial: $('#sSerial').value, adb_path: $('#sAdbPath').value,
+      monitor_enabled: $('#sEnabled').checked,
+    });
+    toast('settings saved'); loadStatus();
+  } catch (e) { toast(e.message, true); }
+}
+
+// --- global actions ---
+async function pollNow() { try { const r = await post('/api/poll'); toast('polled: '+JSON.stringify(r.summary)); loadDashboard(); } catch(e){ toast(e.message,true);} }
+async function toggleMonitor() {
+  const s = await api('/api/status');
+  await post('/api/monitor/' + (s.monitor.running ? 'stop' : 'start'));
+  loadStatus();
+}
+function emptyRow(cols) { return `<tr><td colspan="${cols}" class="muted" style="text-align:center;padding:24px">no data</td></tr>`; }
+
+// --- init + polling refresh ---
+(async function init() {
+  await loadGames();
+  await loadDashboard();
+  setInterval(() => { const active = document.querySelector('section.active').id;
+    loadStatus(); if (active === 'dashboard') loadEvents(); }, 5000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+id: philly
+name: Philly
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/philly/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '2664'
+    def: '2220'
+    health: '26640'
+  expedition:
+    attack: 240.19%
+    defense: 240.19%
+story: 'The sight of a strange masked woman can be unsettling. What does she look
+  like behind that beaked mask? Or is it actually part of her? For that, people always
+  stayed away from Dr. Philly, until a plague struck several years ago.
+
+
+  The deadly disease hit the Cities without warning. The Chiefs designated a village
+  as the quarantine spot for all those infected. Although, without proper resources,
+  people in the village were practically left to die. When all hope was lost for the
+  sick and forsaken, Dr. Philly chose to enter the village in search of a cure.
+
+
+  And she succeeded. She was dubbed a miracle worker, an angel of the Cities. Philly
+  spends a lot of time in the City graveyards and often faced accusations of grave
+  robbery. Her studies of dead bodies are now encouraged by authorities, as her discoveries
+  often lead to new cures for diseases. Philly is still regarded as a somewhat mysterious
+  figure for spending long hours at the morgue and apothecary. This air of mystery
+  made some people believe that Philly possesses supernatural power against diseases.
+
+
+  The truth was far more mundane. Philly was a promising medical researcher in the
+  academy before a plague claimed the lives of all her families. Philly was the only
+  survivor in her house. After that, she became determined to push boundaries and
+  find new treatments for the plague.
+
+
+  Philly threw herself back into her studies with a vengeance. She has marked out
+  disease and death as her personal enemies. And with anger came courage to face whatever
+  dangers head on. However, Philly''s goal is not just to conquer disease. She believes
+  that one day she will be able to find a way to reverse death, even to the extent
+  of bringing her family back...'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- King of Icefield
+- State of Power
+- Daily Deals
+skills:
+- name: First Aid
+  description: Philly's advanced medical training immediately restores Health equal
+    to her Attack * 200%/220%/240%/260%/280% to all friendly heroes.
+- name: Restorative Hands
+  description: A master of first aid on the point of death, Philly immediately restores
+    Health equal to her Attack * 100%/110%/120%/130%/140% to the weakest friendly
+    hero.
+- name: Paralytic Lotion
+  description: Philly poisons the target, disabling the enemy for 1s while dealing
+    Attack* 140%/154%/168%/182%/196% damage.
+- name: Vigor Tactics
+  description: Philly's secret remedy strengthens the soldiers, increasing Attack
+    by 3%/6%/9%/12%/15% and Defense by 2%/4%/6%/8%/10% for all troops.
+- name: Dosage Boost
+  description: Philly's uses her secret tonic to enhance the warriors' strength, granting
+    all troops' attack a 25% chance of dealing + 120%/140%/160%/180%/200% damage.
+- name: Energizing Shot
+  description: Phillys special shot improves troops focus, granting a 40% chance of
+    reducing all troops Damage Taken by 10%/20%/30%/40%/50% .
+- name: Extraction (Lv. 5)
+  description: Philly has done much to raise the strength of her herbal skills, increasing
+    their healing effects by 70%.
+- name: First Aid Training (Lv. 5)
+  description: Philly imparts her basic first-aid and care techniques, increasing
+    Defender Troops' Health by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 36000
+      attack: 72
+      defense: 72
+      health: 720
+      lethality_l: 6.0
+      health_l: 6.0
+      skill_1: Philly Healing Effects +30%
+    2:
+      power: 61200
+      attack: 122
+      defense: 122
+      health: 1224
+      lethality_l: 12.0
+      health_l: 12.0
+      skill_1: Philly Healing Effects +30%
+      skill_2: Defender Troop Health +5%
+    3:
+      power: 86400
+      attack: 172
+      defense: 172
+      health: 1728
+      lethality_l: 18.0
+      health_l: 18.0
+      skill_1: Philly Healing Effects +40%
+      skill_2: Defender Troop Health +5%
+    4:
+      power: 111600
+      attack: 223
+      defense: 223
+      health: 2232
+      lethality_l: 24.0
+      health_l: 24.0
+      skill_1: Philly Healing Effects +40%
+      skill_2: Defender Troop Health +7.5%
+    5:
+      power: 136800
+      attack: 273
+      defense: 273
+      health: 2736
+      lethality_l: 30.0
+      health_l: 30.0
+      skill_1: Philly Healing Effects +50%
+      skill_2: Defender Troop Health +7.5%
+    6:
+      power: 162000
+      attack: 324
+      defense: 324
+      health: 3240
+      lethality_l: 36.0
+      health_l: 36.0
+      skill_1: Philly Healing Effects +50%
+      skill_2: Defender Troop Health +10%
+    7:
+      power: 187200
+      attack: 374
+      defense: 374
+      health: 3744
+      lethality_l: 42.0
+      health_l: 42.0
+      skill_1: Philly Healing Effects +60%
+      skill_2: Defender Troop Health +10%
+    8:
+      power: 212400
+      attack: 424
+      defense: 424
+      health: 4248
+      lethality_l: 48.0
+      health_l: 48.0
+      skill_1: Philly Healing Effects +60%
+      skill_2: Defender Troop Health +12.5%
+    9:
+      power: 237600
+      attack: 475
+      defense: 475
+      health: 4752
+      lethality_l: 54.0
+      health_l: 54.0
+      skill_1: Philly Healing Effects +70%
+      skill_2: Defender Troop Health +12.5%
+    10:
+      power: 270000
+      attack: 540
+      defense: 540
+      health: 5400
+      lethality_l: 60.0
+      health_l: 60.0
+      skill_1: Philly Healing Effects +70%
+      skill_2: Defender Troop Health +15%

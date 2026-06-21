@@ -1,0 +1,82 @@
+screens:
+  alliance:
+    priority: 30
+    retry:
+      attempts: 6
+      interval_seconds: 1.0
+    rules:
+      - ocr: page.common.title
+        contains: Alliance
+        threshold: 0.8
+  alliance.war:
+    priority: 65
+    rules:
+      - ocr: page.common.title
+        contains: War
+        threshold: 0.8
+      - from_screen: alliance
+  alliance.war.auto_join:
+    priority: 80
+    rules:
+      - match: alliance.war.auto_join.title
+        threshold: 0.85
+      - from_screen: alliance.war
+  alliance_chests:
+    priority: 55
+    rules:
+      - match: chest.to_gift
+        threshold: 0.85
+  alliance.territory:
+    priority: 65
+    rules:
+      - from_screen: alliance
+  alliance.battle:
+    priority: 65
+    rules:
+      - from_screen: alliance
+  alliance.shop:
+    priority: 65
+    rules:
+      - from_screen: alliance
+  alliance.tech:
+    priority: 65
+    rules:
+      - ocr: page.common.title
+        contains: Tech
+        threshold: 0.8
+      - from_screen: alliance
+  alliance.tech.contribute:
+    priority: 80
+    rules:
+      - match: alliance.tech.contribute.title
+        threshold: 0.85
+      - from_screen: alliance.tech
+  alliance.power_rankings:
+    priority: 65
+    rules:
+      - from_screen: alliance
+  alliance.help:
+    priority: 65
+    rules:
+      - from_screen: alliance
+  alliance.members:
+    priority: 65
+    rules:
+      - from_screen:
+          - alliance
+          - alliance.triumph
+          - alliance.settings
+  alliance.triumph:
+    priority: 65
+    rules:
+      - from_screen:
+          - alliance
+          - alliance.members
+          - alliance.settings
+  alliance.settings:
+    priority: 65
+    rules:
+      - from_screen:
+          - alliance
+          - alliance.members
+          - alliance.triumph

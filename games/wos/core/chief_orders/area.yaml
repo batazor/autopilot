@@ -1,0 +1,280 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "chief_order",
+      "ocr": "references/chief_order_notify.png",
+      "screen_region": "chief_order.title",
+      "regions": [
+        {
+          "name": "chief_order.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 37.77777777777778,
+            "y": 8.828125,
+            "width": 25.0,
+            "height": 2.8125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief_order.money",
+          "action": "text",
+          "threshold": 0.9,
+          "type": "string",
+          "bbox": {
+            "x": 82.5,
+            "y": 1.328125,
+            "width": 12.0,
+            "height": 3.125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.order.urgent",
+          "action": "exist",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 39.86111111111111,
+            "y": 17.734375,
+            "width": 2.2222222222222223,
+            "height": 1.25,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true,
+          "type": "red"
+        },
+        {
+          "name": "chief.order.urgent.tap",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 21.0,
+            "y": 20.5,
+            "width": 17.8,
+            "height": 12.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.order.rush",
+          "action": "exist",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 78.19444444444444,
+            "y": 17.734375,
+            "width": 2.361111111111111,
+            "height": 1.25,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true,
+          "type": "red"
+        },
+        {
+          "name": "chief.order.rush.tap",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.4,
+            "y": 20.5,
+            "width": 17.8,
+            "height": 12.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.order.comprehensive_care",
+          "action": "exist",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 39.86111111111111,
+            "y": 42.96875,
+            "width": 2.2222222222222223,
+            "height": 1.25,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true,
+          "type": "red"
+        },
+        {
+          "name": "chief.order.comprehensive_care.tap",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 21.0,
+            "y": 45.75,
+            "width": 17.8,
+            "height": 12.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.order.double_time",
+          "action": "exist",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 78.19444444444444,
+            "y": 42.96875,
+            "width": 2.361111111111111,
+            "height": 1.25,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true,
+          "type": "red"
+        },
+        {
+          "name": "chief.order.double_time.tap",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.4,
+            "y": 45.75,
+            "width": 17.8,
+            "height": 12.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.order.productivity",
+          "action": "exist",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 39.86111111111111,
+            "y": 68.203125,
+            "width": 2.2222222222222223,
+            "height": 1.25,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true,
+          "type": "red"
+        },
+        {
+          "name": "chief.order.productivity.tap",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 21.0,
+            "y": 71.0,
+            "width": 17.8,
+            "height": 12.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.order.festivities",
+          "action": "exist",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 78.19444444444444,
+            "y": 68.203125,
+            "width": 2.361111111111111,
+            "height": 1.25,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true,
+          "type": "red"
+        },
+        {
+          "name": "chief.order.festivities.tap",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.4,
+            "y": 71.0,
+            "width": 17.8,
+            "height": 12.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "chief_order_enact",
+      "ocr": "references/chief_order_enact.png",
+      "screen_region": "chief.enact",
+      "regions": [
+        {
+          "name": "chief.enact.back",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 1.1111111111111112,
+            "y": 0.8593750000000001,
+            "width": 10.555555555555555,
+            "height": 3.515625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.enact",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 32.5,
+            "y": 70.859375,
+            "width": 34.166666666666664,
+            "height": 3.4375000000000004,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "screen_region": "main_city.to.chief_order",
+      "regions": [
+        {
+          "name": "main_city.to.chief_order",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.36399499519031,
+            "y": 71.14822441348085,
+            "width": 10.291465262537528,
+            "height": 6.730788527122579,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

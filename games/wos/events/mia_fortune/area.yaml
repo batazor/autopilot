@@ -1,0 +1,149 @@
+version: 2
+screens:
+  - id: 1301
+    screen_id: deals.mia_fortune_hut
+    ocr: references/page.mia_fortune_hut.png
+    screen_region: mia_fortune_hut.title
+    regions:
+      - name: mia_fortune_hut.title
+        action: exist
+        threshold: 0.85
+        bbox:
+          x: 6.1
+          y: 16.5
+          width: 59.4
+          height: 3.5
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+      - name: mia_fortune_hut.token_counter
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 72.8
+          y: 20.7
+          width: 19.5
+          height: 2.9
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+      - name: mia_fortune_hut.select_reward_wish
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 31.8
+          y: 48.0
+          width: 39.0
+          height: 6.2
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+      - name: mia_fortune_hut.fortune_token_pack_box
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 6.0
+          y: 41.5
+          width: 14.0
+          height: 8.0
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+        has_red_dot: true
+      - name: mia_fortune_hut.crystal_balls
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 5.8
+          y: 63.2
+          width: 87.0
+          height: 32.8
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+  - id: 1302
+    screen_id: deals.mia_fortune_hut.fortune_token_pack
+    ocr: references/page.fortune_token_pack.png
+    regions:
+      - name: fortune_token_pack.title
+        action: exist
+        threshold: 0.85
+        bbox:
+          x: 13.0
+          y: 1.7
+          width: 53.0
+          height: 3.1
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+      - name: fortune_token_pack.free
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 58.0
+          y: 25.2
+          width: 26.2
+          height: 5.2
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+  - id: 1303
+    screen_id: deals.mia_fortune_hut.reward_wish
+    ocr: references/page.reward_wish.png
+    screen_region: mia_fortune_hut.reward_wish.free_button
+    regions:
+      - name: mia_fortune_hut.reward_wish.item_1
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 17.7
+          y: 53.2
+          width: 9.0
+          height: 5.2
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+      - name: mia_fortune_hut.reward_wish.item_2
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 35.3
+          y: 53.2
+          width: 9.0
+          height: 5.2
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+      - name: mia_fortune_hut.reward_wish.item_3
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 52.8
+          y: 53.2
+          width: 9.0
+          height: 5.2
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+      - name: mia_fortune_hut.reward_wish.item_4
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 70.4
+          y: 53.2
+          width: 9.0
+          height: 5.2
+          rotation: 0
+          original_width: 720
+          original_height: 1280
+      - name: mia_fortune_hut.reward_wish.free_button
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 30.0
+          y: 62.5
+          width: 40.0
+          height: 6.6
+          rotation: 0
+          original_width: 720
+          original_height: 1280

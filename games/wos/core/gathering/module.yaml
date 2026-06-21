@@ -1,0 +1,12 @@
+id: gathering
+title: Gathering
+description: >-
+  World-map resource gathering. Dispatches idle marches to gather the scarcest
+  resource (meat / wood / coal / iron) and redeploys as marches return.
+# Temporarily disabled.
+enabled: false
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

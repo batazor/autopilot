@@ -1,0 +1,32 @@
+# Arena of Glory screens — detected by OCR on their titles (robust to the
+# stylised banners the game reskins; the title text is stable). All four are
+# modal-ish full screens reached from inside the Arena building.
+screens:
+  # The three in-flight screens are driven entirely by the arena.fight scenario
+  # (tap-through), so the navigator never needs to route between them.
+  arena.result:
+    priority: 20
+    terminal: true
+    rules:
+      - ocr: arena.result.exit
+        contains: ["anywhere", "exit"]
+
+  arena.challenge_list:
+    priority: 24
+    terminal: true
+    rules:
+      - ocr: arena.challenge_list.title
+        contains: "Challenge List"
+
+  arena.squad:
+    priority: 24
+    terminal: true
+    rules:
+      - ocr: arena.squad.title
+        contains: ["Squad", "Settings"]
+
+  arena:
+    priority: 30
+    rules:
+      - ocr: arena.title
+        contains: ["Arena of Glory", "Glory"]

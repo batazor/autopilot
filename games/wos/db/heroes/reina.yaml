@@ -1,0 +1,233 @@
+id: reina
+name: Reina
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/reina/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '4106'
+    def: '4106'
+    health: '41070'
+  expedition:
+    attack: 370.29%
+    defense: 370.29%
+story: 'Mia’s group of traveling merchants is never short of people with extraordinary
+  abilities. Among them, there is a foreign young lady named Reina. Reina might not
+  stand out at first sight, but she is, only known to a few, an excellent juggler
+  during the day and a ninjutsu master at night.
+
+
+  Reina is a changed woman once she puts on her ninja attire. Leaving no traces when
+  moving around, she is good at disguising herself and sneaking into places. Her target
+  could hardly notice her presence even if she were close at hand. With this amazing
+  skill, Reina has collected a lot of vital intel for Mia.
+
+
+  Undoubtedly, assassination is Reina’s best skill. Whether using a ninjaken, a sword,
+  or her bare hands, she can easily finish off her target without causing a stir.
+
+
+  Reina is Mia’s right-hand woman as well as her best friend. From time to time, some
+  forces will go after Mia and the other merchants because they have discovered too
+  many secrets. Whenever Mia is in danger, Reina will put her life on the line to
+  protect Mia and help her deal with the crisis. Reina always goes all out for Mia,
+  not only to repay Mia’s kindness of taking her in but also for the sake of their
+  close friendship formed during their expedition.
+
+
+  Reina was unconscious when Mia met her for the first time, Mia''s caravan took Reina
+  in, and saved her life. At first, Reina was wary about things around her and was
+  unwilling to interact with other people. It was Mia’s pet cat, Bastet, that opened
+  Reina’s heart and provided her with warmth. Now, Reina and Bastet have become inseparable.
+
+
+  Reina was an orphan raised by the Phaethon Mercenaries. Together with her childhood
+  friends, she was trained to be an assassin. Despite performing her duties with dedication,
+  she became a target to be eliminated after finding out a crucial secret of the mercenaries.
+  Reina’s dark past leaves her tormented by guilt, but Mia believes that Reina is
+  capable of moving on. What is truly concerning for Mia is the possibility of the
+  Phaethon Mercenaries coming to their door again...'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Daily Deals
+skills:
+- name: Phantom Assault
+  description: Reina conjures an illusion to ambush enemy forces from behind, dealing
+    Attack* 300%/330%/360%/390%/420% Area of Effect Damage.
+- name: Vanishing Technique
+  description: Reina has a 5%/10%/15%/20%/25% chance of confusing the opponent with
+    Illusion and dodging the damage when receiving a Normal Attack.
+- name: Poison of Demon
+  description: Reina inflicts Illusion on enemy targets (hero first), dealing damage
+    equal to Attack* 100%/110%/120%/130%/140% and immobilizing them for 1.5s.
+- name: Assassin's Instinct
+  description: Reina targets enemy weak spots, increasing normal attack damage by
+    10%/15%/20%/25%/30% for all troops.
+- name: Swift Jive
+  description: Reina's adept leadership grants all troops a 4%/8%/12%/16%/20% chance
+    of dodging normal attacks.
+- name: Shadow Blade
+  description: With Reina's clever tactics, her lancers have a 25% chance of performing
+    an extra attack, dealing 120%/140%/160%/180%/200% damage.
+- name: Silhouette Strike (Lv. 5)
+  description: Reina has a 40% chance of throwing an extra kunai, dealing Attack*
+    45% damage with Normal Attack.
+- name: Fiery Invasion (Lv. 5)
+  description: Reina's unmatched precision increases Rally Troops' Lethality by15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 55000
+      attack: 111
+      defense: 111
+      health: 1110
+      lethality_l: 9.25
+      health_l: 9.25
+      skill_1: 40% chance of an extra attack dealing Attack * 25% damage alongside
+        a normal attack
+    2:
+      power: 94350
+      attack: 188
+      defense: 188
+      health: 1887
+      lethality_l: 18.5
+      health_l: 18.5
+      skill_1: 40% chance of an extra attack dealing Attack * 25% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 133200
+      attack: 266
+      defense: 266
+      health: 2664
+      lethality_l: 27.75
+      health_l: 27.75
+      skill_1: 40% chance of an extra attack dealing Attack * 30% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 172050
+      attack: 344
+      defense: 344
+      health: 3441
+      lethality_l: 37.0
+      health_l: 37.0
+      skill_1: 40% chance of an extra attack dealing Attack * 30% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 210900
+      attack: 421
+      defense: 421
+      health: 4218
+      lethality_l: 46.25
+      health_l: 46.25
+      skill_1: 40% chance of an extra attack dealing Attack * 35% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 249750
+      attack: 499
+      defense: 499
+      health: 4995
+      lethality_l: 55.5
+      health_l: 55.5
+      skill_1: 40% chance of an extra attack dealing Attack * 35% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 288600
+      attack: 577
+      defense: 577
+      health: 5772
+      lethality_l: 64.75
+      health_l: 64.75
+      skill_1: 40% chance of an extra attack dealing Attack * 40% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 327450
+      attack: 654
+      defense: 654
+      health: 6549
+      lethality_l: 74.0
+      health_l: 74.0
+      skill_1: 40% chance of an extra attack dealing Attack * 40% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 366300
+      attack: 732
+      defense: 732
+      health: 7326
+      lethality_l: 83.25
+      health_l: 83.25
+      skill_1: 40% chance of an extra attack dealing Attack * 45% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 416250
+      attack: 832
+      defense: 832
+      health: 8325
+      lethality_l: 92.5
+      health_l: 92.5
+      skill_1: 40% chance of an extra attack dealing Attack * 45% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +15%

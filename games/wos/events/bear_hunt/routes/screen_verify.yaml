@@ -1,0 +1,17 @@
+screens:
+  event.bear_hunt.info:
+    # Event info panel (Events → Bear Hunt tab): the trap tabs + cooldown timer.
+    # Full-screen panel, so anchor on its own header rather than gating on a
+    # parent (mirrors event.foundry_battle / event.alliance_championship).
+    rules:
+      - match: bear_hunt.info.title
+        threshold: 0.85
+  event.bear_hunt:
+    # World-map view focused on the bear: gate detection on main_world's
+    # city-return anchor and outrank the hub (priority 10) so the
+    # child wins first-match resolution when the title is on screen.
+    parent: main_world
+    priority: 9
+    rules:
+      - match: bear_hunt.title
+        threshold: 0.9

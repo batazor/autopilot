@@ -1,0 +1,74 @@
+enabled: true
+name: "Claim Trials ${day_name}"
+
+node: event.trials.day.${day}
+icon: trials
+
+steps:
+  - while_match: button.claim
+    max: 10
+    steps:
+      - click: button.claim
+      - wait: 2s
+
+  - while_match: trial.day.${day}
+    isRedDot: true
+    max: 5
+    steps:
+      - click: trial.day.${day}
+      - wait: 1s
+
+      - while_match: trial.task.1
+        isRedDot: true
+        max: 3
+        steps:
+          - click: trial.task.1
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 5
+            steps:
+              - click: button.claim
+              - wait: 2s
+
+      - while_match: trial.task.2
+        isRedDot: true
+        max: 3
+        steps:
+          - click: trial.task.2
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 5
+            steps:
+              - click: button.claim
+              - wait: 2s
+
+      - while_match: trial.task.3
+        isRedDot: true
+        max: 3
+        steps:
+          - click: trial.task.3
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 5
+            steps:
+              - click: button.claim
+              - wait: 2s
+
+      - while_match: trial.box
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.box
+          - wait: 2s
+          - while_match: button.claim
+            max: 5
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+          - while_match: button.claim
+            isWhiteBorder: true
+            max: 1
+            steps:
+              - click: button.claim
+              - wait: 2s
+              - click: increase_level.icon.close

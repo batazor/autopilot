@@ -1,0 +1,8 @@
+id: first_purchase
+title: 1st Purchase
+description: Limited-time 1st Purchase event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: first_purchase
+wiki: false

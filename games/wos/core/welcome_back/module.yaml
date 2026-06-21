@@ -1,0 +1,8 @@
+id: welcome_back
+title: Welcome back
+description: >-
+  "Welcome back!" offline-income popup — detect the dialog and tap Confirm to
+  dismiss it.
+area: area.yaml
+references: references
+wiki: false

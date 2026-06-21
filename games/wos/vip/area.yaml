@@ -1,0 +1,180 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 52,
+      "screen_id": "main_city",
+      "ocr": "references/page.main_city.png",
+      "regions": [
+        {
+          "name": "page.vip",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.45945945945946,
+            "y": 3.4782608695652173,
+            "width": 20.393822393822393,
+            "height": 3.5999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "screen_id": "vip",
+      "ocr": "references/page.vip.png",
+      "regions": [
+        {
+          "name": "page.vip.box",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 81.46718146718146,
+            "y": 18.26086956521739,
+            "width": 12.0,
+            "height": 6.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.vip.add",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 68.91891891891892,
+            "y": 19.02173913043478,
+            "width": 10.0,
+            "height": 5.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.vip.level",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 61.15830115830116,
+            "y": 9.673913043478262,
+            "width": 7.0,
+            "height": 3.2,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.vip.unlock",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.988416988416994,
+            "y": 89.23913043478261,
+            "width": 45.99999999999999,
+            "height": 8.100000000000001,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 78,
+      "screen_id": "increase_level",
+      "ocr": "references/increase_level.png",
+      "regions": [
+        {
+          "name": "increase_level.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.0965250965251,
+            "y": 8.478260869565217,
+            "width": 30.0,
+            "height": 3.8760869565217386,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "button.use",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 71.1969111969112,
+            "y": 27.608695652173914,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "increase_level.icon.close",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.42084942084942,
+            "y": 8.26086956521739,
+            "width": 7.142857142857142,
+            "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.use_all",
+          "action": "exist",
+          "threshold": 0.85,
+          "isSearch": true,
+          "bbox": {
+            "x": 41.5278,
+            "y": 27.3438,
+            "width": 10.0,
+            "height": 4.6875,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 79,
+      "screen_id": "",
+      "ocr": "references/page.vip.png",
+      "regions": [
+        {
+          "name": "vip.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.158301158301159,
+            "y": 0.7608695652173914,
+            "width": 10.200772200772201,
+            "height": 4.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

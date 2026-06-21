@@ -1,0 +1,161 @@
+id: aisling
+name: Aisling
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/aisling/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: 44,931
+    def: 36,984
+    health: 277,388
+  expedition:
+    attack: 2131.70%
+    defense: 2131.70%
+story: 'A Forest Guardian of Tair, Aisling comes from a traditional tribe steeped
+  in respect for nature and the art of combat. One of the Forest Guardian''s strongest
+  ranged defenders, Aisling''s skill with the sling is legendary. A weapon useless
+  in most hands can exact deadly blows against distant poachers in hers. Like all
+  good Forest Guardians, Aisling knows every nook and cranny of these woodlands, including
+  all the best ambush spots.
+
+
+  Most foreigners who come into contact with Aisling know her more for her extraordinary
+  singing and instrumental skills, her songs during common festivals, or forest-fairy
+  dances. Even the animals seem enchanted by Aisling''s voice. Many animals will gather
+  around Aisling''s performances, entranced as much as any human listener.
+
+
+  Aisling''s bond with the animal world goes far beyond any typical Forest Guardian,
+  forged in a near-tragedy.
+
+
+  Tair legend tells of mischievous forest spirits who lead children away on lost trails
+  from which they will never return. It is said that these children are selected for
+  the spirit realm, but Aisling''s parents refused to be comforted by this when it
+  happened to them. For seven days and seven nights Aisling''s parents encamped from
+  forest nook to woodland corner seeking their lost baby. They finally found little
+  Aisling inside a warm cavern surrounded by a cluster of woodland critters, sleeping
+  soundly through the night. Since that day Aisling has displayed an extraordinary
+  ability to understand forest-kin.
+
+
+  Aisling sings these stories and more to her audience at many cross-tribal gatherings.
+  But Aisling''s listeners must decide the truth of it for themselves. Some say it
+  is not beyond reason because, after all, another famous girl on the Tundra keeps
+  a polar bear as a companion.
+
+
+  Aisling''s reputation for song and string rivals even Lynn the "bard of a thousand
+  songs". Lynn and Aisling rejected many invitations to perform together in musical
+  contest until chance brought them together by accident in a sleepy woodland tavern.
+  Witnesses still tell stories of that grand meeting of musical minds.
+
+
+  Lynn''s skill in the string was shown in force that night, her music a passionate
+  fire upon the stage. Aisling''s gentle melody spoke of calm soulfulness. Two competing
+  styles so utterly different that popular opinion could not come to a verdict.
+
+
+  But one meaningful consequence of this music (apart from the joy of listeners) was
+  a powerful friendship forged between Aisling and Lynn.
+
+
+  As a Forest Guardian Aisling''s sacred mission is to protect that which matters
+  most: the holy grove. Even if withered today, scholars believe the trees that lie
+  within Tair''s sacred grove are the same species as the Tree of Life on Daybreak
+  Island. One day perhaps the same vitality and warmth could give life to Tair''s
+  surroundings.
+
+
+  The hope of an oasis of warmth in Tair has drawn many Dawn Alliance researchers.
+  It has also enticed invaders and bandits full of greed in equal measure. Forest
+  Guardians have had to pick up sling and spear as never before, and seek out new
+  friends wherever they may be found. Though victorious for the time being, Aisling
+  is well aware that the invaders will not stop. So the Forest Guardians have reluctantly
+  partnered with the Dawn Alliance, which also seeks to unravel the true mysteries
+  of the sacred grove.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Wild Growth
+  description: Aisling flings out a fast-growing enchanted seed that quickly envelops
+    nearby enemies for Attack* 200%/220%/240%/260%/280% damage and a 2-second stun.
+- name: Fruits of Plenty
+  description: Aisling uses the sacred fruit of the deep forest to restore Health
+    of the ally hero with the lowest remaining Health equal to Attack* 120%/140%/160%/180%/200%
+    .
+- name: Bladestones
+  description: Aisling's scalpel stones rival the sharpest blades, granting normal
+    attacks a 25% chance of dealing Attack* 100%/110%/120%/130%/140% additional damage
+    to targets.
+- name: Songs of the Ancestors
+  description: Aisling's knowledge of the tribal harmonies of nature enthrall her
+    troops, increasing their damage dealt by 4%/8%/12%/16%/20% .
+- name: Rock Strom
+  description: An expert in the use of long-range forest warfare, Aisling's Marksmen
+    deal 30%/60%/90%/120%/150% extra damage every 3 turns while exhausted enemies
+    are forced to reduce their damage by 6%/12%/18%/24%/30% for 1 turn.
+- name: Forest Fury
+  description: Aisling embodies the fury of the forest at a distance, granting Marksman
+    attacks 8%/16%/24%/32%/40% extra damage against all enemy troops every 3 turns.
+- name: Woodland Harmony
+  description: Aisling's forest faith imbues Wild Growth vines with a paralyzing effect,
+    reducing target Attack Speed by 30% for 3 seconds. Fruits of Plenty also reduces
+    target Attack Speed by 30% for 3 seconds.
+- name: Forest Guardian
+  description: Aisling's experience in defending woodland groves are of much use to
+    Cities also, increasing Defender Troops' Defense by 15%.

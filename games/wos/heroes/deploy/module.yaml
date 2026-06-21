@@ -1,0 +1,7 @@
+id: heroes/deploy
+title: Heroes · Deploy
+description: Heroes deployment screen module.
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

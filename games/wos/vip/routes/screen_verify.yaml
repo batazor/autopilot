@@ -1,0 +1,12 @@
+screens:
+  vip:
+    priority: 30
+    rules:
+    - ocr: page.common.title
+      contains: VIP
+      threshold: 0.8
+  increase_level:
+    priority: 5
+    rules:
+    - match: increase_level.title
+      threshold: 0.9

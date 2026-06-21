@@ -1,0 +1,9 @@
+id: tundra_trade_route
+title: Tundra Trade Route
+description: Limited-time Tundra Trade Route event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: tundra_trade_route
+wiki: false
