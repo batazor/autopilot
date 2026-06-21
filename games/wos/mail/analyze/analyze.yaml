@@ -1,0 +1,8 @@
+include:
+  - pages/main_city.yaml
+  - pages/tab_active.yaml
+  - pages/wars.yaml
+  - pages/alliance.yaml
+  - pages/system.yaml
+  - pages/reports.yaml
+  - pages/starred.yaml

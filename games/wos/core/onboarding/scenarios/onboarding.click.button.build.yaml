@@ -1,0 +1,18 @@
+enabled: true
+name: Onboarding click · Build confirm
+device_level: true
+priority: 100_000
+steps:
+  # Building detail screen: tap the blue "Build" confirm button (the tutorial
+  # hand-pointer points here). Returns to the city while the structure builds.
+  - while_match: onboarding.button.build
+    max: 1
+    steps:
+      # Read the building name off the detail title, then confirm the build and
+      # record it into the player profile (durable + the instance-state mirror
+      # the onboarding phase gate reads). OCR before the tap — the title is gone
+      # once we return to the city.
+      - ocr: onboarding.build.title
+      - click: onboarding.button.build
+      - exec: record_onboarding_build
+      - wait: 1.5s

@@ -1,0 +1,11 @@
+screens:
+  vip:
+    priority: 30
+    rules:
+    - match: vip.title
+      threshold: 0.9
+  increase_level:
+    priority: 5
+    rules:
+    - match: increase_level.title
+      threshold: 0.9

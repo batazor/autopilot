@@ -1,0 +1,17 @@
+name: Dreamscape Memory — solve recall road
+enabled: true
+# Device-level: the solver only reads the screen and taps — it holds no
+# per-account state, so it runs standalone (manual "Start solving" / overlay
+# rule) without a bound player.
+device_level: true
+priority: 90_000
+
+# Stateful Python solver: capture + OCR + scene selection + clicked-word memory
+# lives in the module exec handler instead of generic YAML `ocr:` Redis fields.
+steps:
+  - exec: dreamscape_memory_solve_loop
+    mode: solo
+    ttl: 5m
+    max_iterations: 3000
+    wait: 300ms
+    tap_delay: 0ms

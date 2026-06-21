@@ -1,0 +1,9 @@
+id: building/hunters_hut
+title: Building · Hunters' Hut
+description: >-
+  Hunters' Hut building node. Recognised by its interior title so the building
+  screen is a concrete node (not UNKNOWN) for navigation, onboarding, and the
+  building planner. Local landmarks / upgrade scenarios are added here as they
+  are labeled.
+routes: routes
+wiki: false

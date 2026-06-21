@@ -1,0 +1,7 @@
+screens:
+  shelter:
+    priority: 31
+    rules:
+    - ocr: shelter.title
+      contains: Shelter
+      threshold: 0.8

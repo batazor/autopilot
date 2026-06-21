@@ -1,0 +1,7 @@
+enabled: true
+name: "Shop: Regular Pack"
+priority: 80_000
+
+node: shop.regular_pack
+
+steps: []

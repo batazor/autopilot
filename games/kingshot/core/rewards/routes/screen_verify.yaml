@@ -1,0 +1,6 @@
+screens:
+  rewards:
+    priority: 5
+    rules:
+    - match: rewards.title
+      threshold: 0.9

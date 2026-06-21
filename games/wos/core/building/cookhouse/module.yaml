@@ -1,0 +1,11 @@
+id: building/cookhouse
+title: Building · Cookhouse
+description: >-
+  Cookhouse building automation shell. Local screen landmarks and scenarios are
+  added here once cookhouse reference screenshots are labeled.
+scenarios: scenarios
+area: area.yaml
+analyze: analyze/analyze.yaml
+references: references
+wiki: false
+

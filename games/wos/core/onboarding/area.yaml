@@ -1,0 +1,204 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/chapter_panel.png",
+      "regions": [
+        {
+          "name": "onboarding.button.claim",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 71.66666666666667,
+            "y": 38.828125,
+            "width": 22.22222222222222,
+            "height": 5.3125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "onboarding.button.go",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 71.66666666666667,
+            "y": 64.84375,
+            "width": 22.22222222222222,
+            "height": 4.84375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/build_panel.png",
+      "regions": [
+        {
+          "name": "onboarding.button.build",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 38.888888888888886,
+            "y": 91.40625,
+            "width": 22.22222222222222,
+            "height": 2.734375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "onboarding.build.title",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.6,
+          "bbox": {
+            "x": 3.4722222222222223,
+            "y": 39.84375,
+            "width": 44.44444444444444,
+            "height": 4.53125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/main_city_chapter.png",
+      "regions": [
+        {
+          "name": "onboarding.chapter.entry",
+          "action": "exist",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 0.8333333333333334,
+            "y": 86.875,
+            "width": 7.777777777777778,
+            "height": 3.4375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/build_interior_panel.png",
+      "regions": [
+        {
+          "name": "onboarding.button.build_interior",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 79.58333333333333,
+            "y": 48.828125,
+            "width": 10.833333333333334,
+            "height": 2.578125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "screen_id": "",
+      "ocr": "references/upgrade_confirm_panel.png",
+      "regions": [
+        {
+          "name": "onboarding.button.upgrade_confirm",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 43.17957760176743,
+            "y": 91.7725173548741,
+            "width": 14.86220234077982,
+            "height": 2.6906778388894255,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "furnace.name",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.5055071957283017,
+            "y": 38.048246522490196,
+            "width": 32.343071211656245,
+            "height": 3.767320184591886,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "screen_id": "",
+      "ocr": "references/req_go_panel.png",
+      "regions": [
+        {
+          "name": "onboarding.button.req_go",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 78.47222222222223,
+            "y": 59.21875,
+            "width": 13.472222222222221,
+            "height": 2.96875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/upgrade_panel.png",
+      "regions": [
+        {
+          "name": "onboarding.button.upgrade",
+          "action": "exist",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 78.61111111111111,
+            "y": 48.59375,
+            "width": 15.0,
+            "height": 2.34375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    }
+  ]
+}

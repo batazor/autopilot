@@ -1,0 +1,27 @@
+# Screen verification — navigation.detector (current screen) + navigator (post-tap verify).
+#
+# Write ``rules`` only; ``landmarks`` default to the same list at load time.
+# Optional ``landmarks`` when detection must differ from verify (e.g. shop sub-tabs).
+#
+# ``parent`` (optional): the broader screen this entry layers on top of (e.g.
+# ``mail.wars`` parents ``mail``). The detector evaluates the parent's anchor
+# template first; when it doesn't fire on the current frame, every child sharing
+# that parent is skipped without running its unique tab_active / landmark match.
+# Add it for any screen that is strictly a sub-view of another screen.
+#
+# Global ``retry`` lives here too — picked up by ``screen_verify_retry()`` from
+# the first doc that defines it.
+retry:
+  attempts: 2
+  interval_seconds: 0.3
+screens:
+  loading:
+    priority: 1
+    rules:
+    - match: text.survival
+      threshold: 0.9
+  text.frostdragon_tyrant:
+    priority: 2
+    rules:
+    - match: text.frostdragon_tyrant
+      threshold: 0.9

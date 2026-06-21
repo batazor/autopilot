@@ -1,0 +1,14 @@
+overlay:
+  - name: deals.first_purchase.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: games/wos/deals/first_purchase/references/crop/main_city_main_city.to.1st_purchase.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: event.7-day
+          # Re-check cooldown (see deals/deals): avoid main_city re-entry churn.
+          ttl: 30m

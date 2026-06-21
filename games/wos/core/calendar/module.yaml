@@ -1,0 +1,14 @@
+id: calendar
+title: Event calendar
+description: >-
+  Reads the in-game event calendar (refresh_calendar: tap each event bar, OCR
+  the popup's name + exact dates) and stores the per-state schedule in SQLite —
+  the single source of truth. read_calendar fans live per-event flags out to
+  player state for other modules' active_when conditions (e.g. the stamina
+  allocator); calendar_goto navigates to an event via its popup's Go button.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+enabled: true
+wiki: false

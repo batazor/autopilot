@@ -1,0 +1,9 @@
+id: gift_codes
+title: Gift Codes (beta, in-game)
+description: >-
+  In-game redemption of beta gift codes via Settings → Gift Code → Redeem
+  Bundle. Beta codes can't use the public gift-code API, so they are typed for
+  the account logged in on the device. Codes come from giftcodes_db
+  (game="wos_beta"); attempts are stamped into gift_code_redemptions.
+scenarios: scenarios
+wiki: false

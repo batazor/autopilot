@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1206,
+      "screen_id": "deals.home_and_beyond",
+      "ocr": "references/deals.home_and_beyound.png",
+      "regions": [
+        {
+          "name": "deals.home_and_beyound.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.594594594594595,
+            "y": 15.76086956521739,
+            "width": 17.51930501930502,
+            "height": 4.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.home_and_beyound.claim_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.42857142857143,
+            "y": 90.0,
+            "width": 36.3996138996139,
+            "height": 4.699999999999999,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.home_and_beyound.rewards",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.0,
+            "y": 33.0,
+            "width": 90.0,
+            "height": 58.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

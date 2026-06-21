@@ -1,0 +1,9 @@
+id: popularity_king_competition
+title: Popularity King Competition
+description: Limited-time popularity competition; aliases include Polar Popularity, Sweet Heart Castle, and Heart Belongs Castle.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: popularity_king_competition
+wiki: false

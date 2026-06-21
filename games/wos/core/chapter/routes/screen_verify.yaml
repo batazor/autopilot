@@ -1,0 +1,25 @@
+screens:
+  # Specific tab nodes win first. The generic `chapter` fallback below has a
+  # lower priority and only catches frames where the common header is visible
+  # but the active tab landmark did not match.
+  chapter.daily_missions:
+    priority: 25
+    rules:
+      - match: chapter.daily_missions.title
+        threshold: 0.8
+
+  chapter.growth_missions:
+    priority: 25
+    rules:
+      # The active "Growth Missions" tab landmark matches ~0.898 on a live
+      # frame (verified on bs1) — a 0.9 gate misses it by a hair and strands
+      # the bot on an unrecognised screen. 0.85 keeps a safe margin over the
+      # inactive daily tab (~0.795) and the generic chapter title (~0.47).
+      - match: chapter.growth_missions.title
+        threshold: 0.85
+
+  chapter:
+    priority: 30
+    rules:
+      - match: chapter.title
+        threshold: 0.9

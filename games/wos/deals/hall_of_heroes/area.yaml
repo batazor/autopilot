@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1207,
+      "screen_id": "deals.hall_of_heroes",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "deals.hall_of_heroes.title",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.047924724397072,
+            "y": 16.3926152619947,
+            "width": 38.507841791083855,
+            "height": 3.7692568723901494,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.hall_of_heroes.add",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.78378378378378,
+            "y": 37.28260869565217,
+            "width": 6.613899613899614,
+            "height": 3.6271739130434777,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "hall_of_heroes.point",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 16.963007159904528,
+            "y": 38.36308791188738,
+            "width": 14.999999999999977,
+            "height": 2.7338480425736194,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.hall_of_heroes.tips",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 88.59591500578722,
+            "y": 38.74134699390075,
+            "width": 5.385735620883964,
+            "height": 1.9773298785468,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1208,
+      "screen_id": "hall_of_heroes.witness",
+      "ocr": "references/hall_of_heroes.witness.png",
+      "regions": [
+        {
+          "name": "hall_of_heroes.witness.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.35135135135135,
+            "y": 0.32608695652173914,
+            "width": 19.0,
+            "height": 4.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 61.15830115830116,
+            "y": 16.41304347826087,
+            "width": 20.0,
+            "height": 3.4999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    }
+  ]
+}

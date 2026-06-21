@@ -1,0 +1,133 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.mercenary_prestige",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.65341494529218,
+            "y": 80.16823051028281,
+            "width": 6.151685393258363,
+            "height": 2.9140848309622434,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/mercenary_prestige.main.png",
+      "regions": [
+        {
+          "name": "mercenary_prestige.scout",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 51.83528776801923,
+            "y": 82.55168026037896,
+            "width": 36.06741573033699,
+            "height": 5.5161809639584,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "mercenary_prestige.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.259739463225538,
+            "y": 21.98494148662426,
+            "width": 32.27528089887639,
+            "height": 4.569964188323437,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/mercenary_prestige.attack.png",
+      "regions": [
+        {
+          "name": "mercenary_prestige.attack",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.045808596241585,
+            "y": 81.29400759145565,
+            "width": 23.63764044943819,
+            "height": 3.978578703551495,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/mercenary_prestige.target.png",
+      "regions": [
+        {
+          "name": "mercenary_prestige.target.equalize",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 22.75351430253668,
+            "y": 90.15723008747528,
+            "width": 9.733146067415715,
+            "height": 5.043072576140813,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "mercenary_prestige.target.deploy",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 57.316802414012926,
+            "y": 91.89028089268206,
+            "width": 37.33146067415725,
+            "height": 5.75273515786707,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "mercenary_prestige.target.ttl",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 69.5742358078603,
+            "y": 89.12022337319851,
+            "width": 14.99999999999998,
+            "height": 2.2044222492360896,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "time"
+        }
+      ]
+    }
+  ]
+}

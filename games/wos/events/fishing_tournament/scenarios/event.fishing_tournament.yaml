@@ -1,0 +1,21 @@
+enabled: true
+name: Fishing Tournament
+node: event.fishing_tournament
+icon: fishing_tournament
+steps:
+  - while_match: button.claim
+    max: 3
+    steps:
+      - click: button.claim
+      - wait: 1s
+  - while_match: button.claim.big
+    max: 3
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - while_match: tapanywhereyoexit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s

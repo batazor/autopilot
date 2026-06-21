@@ -1,0 +1,8 @@
+id: alliance/help
+title: Alliance · Help (Kingshot)
+description: Alliance help-all automation — taps the help button when it is visible.
+wiki: false
+# The `button.alliance.help` region is captured on a Kingshot `main_city`
+# screen (see area.yaml + references/), so the module is active and the overlay
+# rule taps the help button whenever it is visible.
+enabled: true

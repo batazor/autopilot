@@ -1,0 +1,14 @@
+overlay:
+  - name: rewards.visible
+    region: rewards.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - rewards
+
+  - name: rewards.tap_anywhere.visible
+    region: button.tap_anywhere_to_exit
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - rewards

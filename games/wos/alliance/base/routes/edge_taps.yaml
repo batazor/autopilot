@@ -1,0 +1,46 @@
+edges:
+  main_city:
+    alliance: [main_city.to.alliance]
+
+  alliance:
+    main_city: [alliance.back]
+    alliance.war: [alliance.to.war]
+    alliance_chests: [alliance.to.chests]
+    alliance.territory: [alliance.to.territory]
+    alliance.battle: [alliance.to.battle]
+    alliance.shop: [alliance.to.shop]
+    alliance.tech: [alliance.to.tech]
+    alliance.power_rankings: [alliance.to.power_rankings]
+    alliance.help: [alliance.to.help]
+    alliance.members: [alliance.to.members]
+    alliance.triumph: [alliance.to.triumph]
+    alliance.settings: [alliance.to.settings]
+
+  alliance.war:
+    alliance: [alliance.war.back]
+    alliance.war.auto_join: [alliance.war.auto_join]
+  alliance.war.auto_join:
+    alliance.war: [alliance.war.auto_join.close]
+  alliance_chests: { alliance: [chest.back] }
+  alliance.territory: { alliance: [icon.page.back] }
+  alliance.battle: { alliance: [icon.page.back] }
+  alliance.shop: { alliance: [icon.page.back] }
+  alliance.tech:
+    alliance: [alliance.tech.back]
+    alliance.tech.contribute: [alliance.tech.add]
+  alliance.tech.contribute:
+    alliance.tech: [alliance.tech.contribute.close]
+  alliance.power_rankings: { alliance: [icon.page.back] }
+  alliance.help: { alliance: [icon.page.back] }
+
+  alliance.members:
+    alliance.triumph: [alliance.to.triumph]
+    alliance.settings: [alliance.to.settings]
+
+  alliance.triumph:
+    alliance.members: [alliance.to.members]
+    alliance.settings: [alliance.to.settings]
+
+  alliance.settings:
+    alliance.members: [alliance.to.members]
+    alliance.triumph: [alliance.to.triumph]

@@ -1,0 +1,156 @@
+id: hervor
+name: Hervor
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/hervor/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '13674'
+    def: '17826'
+    health: '267398'
+  expedition:
+    attack: 1451.16%
+    defense: 1451.16%
+story: 'The icy peaks of Sathla tower majestically over the frigid far north. The
+  cold land harbors a ruthless kingdom and Hervor is its Chieftain.
+
+
+  There are no Furnaces here, let alone Cities. There is only survival—survival in
+  deep winter caverns or strongholds, easier in better days than now. But this is
+  a strong people. They have always buried their weaker brethren in mountain tombs,
+  long before the Great Chill.
+
+
+  Chieftainship of Sathla lends credibility to certain legends about Hervor—that her
+  arms are as strong as tree trunks, her battle cries can trigger avalanches or her
+  skin can survive steel. Of course, proving any would require a living challenger
+  to Hervor''s reign.
+
+
+  Chieftainship over Sathla is earned in every generation by a grueling series of
+  arena duels.
+
+
+  Hervor''s predecessor, Hraesvelgr Kinslayer, ruled for an astounding half a century.
+  So resilient was Hraesvelgr that it was assumed that if he were not under the active
+  protection of the ancestors or mountain gods, he was partly a demigod himself. People
+  began to wonder which eagle flying over the valley might not be Hraesvelgr in disguise.
+  His throne room was very well-adorned with challengers'' heads and other body parts.
+
+
+  Fear was a tool and Hraesvelgr fanned the flame of legend. But even fear could not
+  protect Hraesvelgr from the One Who Had Been Foretold and her miraculous return
+  from the dead.
+
+
+  The witch''s prophecy slithered through the tribal council like a curse: twins born
+  under eternal night would one day feast upon the blood of a god. Hraesvelgr''s wife
+  had delivered during a lunar eclipse. Although painful, Hraesvelgr could not ignore
+  any threat to his power. But rather than wield the knife himself, he would allow
+  the mountain to do its work.
+
+
+  Cold and alone but for each other, challenged by the elements and predators, Hervor
+  somehow survived. Years passed and their fate became a distant memory.
+
+
+  The chiefsguard stepped back in astonishment when the adult Hervor arrived one day
+  to claim Hraesvelgr''s throne. Surely this must be the will of the gods!
+
+
+  The battle between the undefeated father and the invincible daughter raged into
+  the morning when, in the sight of all, Hraesvelgr''s daughter did "drink of the
+  blood of a god". The breaking of his so-called wings echoed alongside a new cry:
+  Long live Chief Hervor!
+
+
+  Hervor had graduated as the most powerful queen in Sathla''s history. Smarter and
+  more cunning than her father, Hervor knew that someday she would share her father''s
+  fate as even the strongest oak withers—unless, that is, she chose the hard path
+  and went abroad in search of a more enduring source of strength.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Earthmover
+  description: Hervor hammer-strikes the ground with thunderous force, inflicting
+    Attack* 100%/110%/120%/130%/140% damage to frontal enemies, a 1-second stun, and
+    Intimidation that reduces enemy Attack by 25% for 3 seconds.
+- name: Mountain Strength
+  description: Hervor's miraculous strength is terrifying to behold, granting her
+    normal attacks a 5%/10%/15%/20%/25% chance of inflicting "Intimidation" which
+    increases enemy damage taken by 3%/6%/9%/12%/15% (max 3 stacks).
+- name: Stone Arms
+  description: Brutal mountain life has endowed Hervor with superhuman endurance,
+    reducing her damage taken by 5%/10%/15%/20%/25% and becoming immune to stun, paralysis
+    or freeze and other control effect for the first 9 seconds of battle.
+- name: Call For Blood
+  description: Hervor's heartfelt war cry ignites fearlessness in her soldiers, increasing
+    all troops' Lethality by 5%/10%/15%/20%/25%
+- name: Undying
+  description: The enemy menace pales beside Hervor's icy homeland, her Infantry's
+    Damage Taken from Normal Attacks is reduced by 5%/10%/15%/20%/25% and 6%/12%/18%/24%/30%
+    from enemy skills.
+- name: Battlethirsty
+  description: Hervor and her Infantry are singularly devoted to the idea of battle,
+    reducing her Infantry's damage taken by 3%/6%/9%/12%/15% and increasing their
+    damage dealt by 2%/4%/6%/8%/10%
+- name: Mark of the Chieftain (Lv. 5)
+  description: Hervor's hammer is a glorious symbol of Sathla's power, increasing
+    Attack Speed by 30% and normal attacks' chance of "Intimidation" by 25%.
+- name: Fort of Rock (Lv. 5)
+  description: Hervor's reforges defenders in her unyielding image, increasing Defender
+    Troops' Defense by 15%.

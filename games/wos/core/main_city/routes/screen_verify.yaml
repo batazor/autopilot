@@ -1,0 +1,10 @@
+screens:
+  main_city:
+    priority: 10
+    rules:
+    - match: main_city.to.world
+      threshold: 0.9
+  gathering.resources:
+    priority: 30
+    rules:
+    - from_screen: main_city

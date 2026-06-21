@@ -1,0 +1,13 @@
+# Fan this player's live event flags out from the SQLite schedule.
+#
+# Cheap and frequent: reads db.calendar_events for the player's state, derives
+# `event_<slug>` flags (1 while live) from the stored start/end windows, and
+# writes them to wos:player:<id>:state — what the stamina allocator's active_when
+# conditions read. No screen, no catalog; the schedule itself is read by
+# refresh_calendar. If there are no flags yet, refresh_calendar hasn't run.
+name: Read calendar
+enabled: true
+cron: "0 * * * *"
+steps:
+  - exec: read_calendar
+    days: 3

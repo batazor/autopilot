@@ -1,0 +1,26 @@
+enabled: true
+name: "Sync main menu panel"
+priority: 70_000
+
+# Full City-list sweep: scroll back to the top, then page down scanning every
+# screen. Each scan upserts the rows it sees (building queues, training,
+# research, expert, alliance contribution, recruit heroes, event rows) and
+# pushes accept_troops_<type> for any Training row in the Completed state.
+node: main_menu
+cond: "active_player != null"
+
+steps:
+  # Return to the top of the list (no-op when already there — the scroll-end
+  # fingerprint stops the loop as soon as the page repeats).
+  - while_scroll: main_menu.panel
+    direction: down
+    delta: 500
+    max: 6
+
+  # Sweep down; the first iteration scans the current page before any swipe.
+  - while_scroll: main_menu.panel
+    direction: up
+    delta: 400
+    max: 12
+    steps:
+      - exec: scan_main_menu_panel

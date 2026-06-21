@@ -1,0 +1,112 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "heal_injured",
+      "ocr": "references/heal_injured.png",
+      "regions": [
+        {
+          "name": "button.back",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.95706325794822,
+            "y": 31.71091445427729,
+            "width": 3.9331366764995153,
+            "height": 1.6224188790560454,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heal.button.heal",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.980334316617515,
+            "y": 78.31858407079648,
+            "width": 23.27105866928875,
+            "height": 2.6548672566371607,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heal.status",
+          "action": "text",
+          "threshold": 0.9,
+          "type": "string",
+          "bbox": {
+            "x": 66.20780072107507,
+            "y": 76.46533923303836,
+            "width": 12.127171419206832,
+            "height": 1.8532448377581063,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heal.title",
+          "action": "text",
+          "threshold": 0.9,
+          "type": "string",
+          "bbox": {
+            "x": 33.10390036053753,
+            "y": 30.530973451327437,
+            "width": 29.498525073746315,
+            "height": 3.2448377581120944,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "heal_injured_replenish",
+      "ocr": "references/heal_injured_replenish.png",
+      "regions": [
+        {
+          "name": "heal.button.replenish_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.13733202228778,
+            "y": 80.82595870206491,
+            "width": 5.24418223533268,
+            "height": 3.6873156342182796,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "heal_injured_available",
+      "ocr": "references/heal_injured_available.png",
+      "regions": [
+        {
+          "name": "heal.available",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 66.86332350049165,
+            "y": 71.38643067846608,
+            "width": 19.337921992789248,
+            "height": 16.8141592920354,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

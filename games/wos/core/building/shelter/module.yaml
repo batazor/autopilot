@@ -1,0 +1,10 @@
+id: building/shelter
+title: Building · Shelter
+description: >-
+  Shelter building node. Recognised by its interior title so Shelter furniture
+  screens do not reuse the cookhouse-only `building.name` region.
+area: area.yaml
+analyze: analyze/analyze.yaml
+scenarios: scenarios
+routes: routes
+wiki: false

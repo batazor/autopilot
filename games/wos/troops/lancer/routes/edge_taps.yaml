@@ -1,0 +1,5 @@
+edges:
+  lancer:
+    main_menu: [icon.page.back]
+    infantry: [train.to.infantry]
+    marksman: [train.to.marksman]

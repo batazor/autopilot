@@ -1,0 +1,139 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 71,
+      "screen_id": "",
+      "ocr": "references/page.tyrant.png",
+      "regions": [
+        {
+          "name": "text.frostdragon_tyrant",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.972972972972972,
+            "y": 40.07826086956522,
+            "width": 38.472972972972975,
+            "height": 3.0467391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c24f3104ede5cac6cde270a1b783013382a575f149fea3f5b07d7a6ea1c01d30"
+        },
+        {
+          "name": "text.2556",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 42.5,
+            "y": 53.98478260869565,
+            "width": 15.833976833976834,
+            "height": 2.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "1c6901e37cca511b985263a9bdb33979e0b328c6512e86180ce3d2fa32265636"
+        },
+        {
+          "name": "text.sgl_future",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.944015444015445,
+            "y": 56.95326086956522,
+            "width": 36.25096525096525,
+            "height": 2.6565217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2e1d87b7f75afbbf0af5d3ecef53fbe20f47d8c3dbe973ee273ef70f860352e5"
+        },
+        {
+          "name": "text.zone_27_frostdragon_tyrant",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.861003861003862,
+            "y": 61.32826086956522,
+            "width": 42.777992277992276,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "48fce1c9ad8974954993460392eeac42ef20c93ab84be752b6784d19938a506b"
+        },
+        {
+          "name": "text.crowned_states_2497_2571",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.583011583011583,
+            "y": 64.06304347826087,
+            "width": 48.88803088803089,
+            "height": 1.9532608695652174,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "45438df6596c3434cff5728df0126997a063a23b9f709d79f5931853550ed976"
+        },
+        {
+          "name": "text.have_a_new_power_to_kneel_to",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.583011583011583,
+            "y": 66.64021739130435,
+            "width": 46.38803088803089,
+            "height": 2.109782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "82344f4e949c683477196549c241818c31127dc2b235eb8eeb757298a79957fd"
+        },
+        {
+          "name": "text.tap_any_blank_space_to_close",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.111969111969113,
+            "y": 92.73478260869565,
+            "width": 47.91698841698842,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "f2d6e7f80a0e9558a7885d438f2b4bae7e00bb7ff2f685220ae7bd438276a79c"
+        },
+        {
+          "name": "icon.a_robot_holding_a_tool",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.1023166023166024,
+            "y": 7.798913043478261,
+            "width": 94.23166023166023,
+            "height": 31.502173913043478,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "7b792915666a59bfc51765ac972b7f46ac95db33bf55041950aae431ee8f5e04"
+        }
+      ]
+    }
+  ]
+}

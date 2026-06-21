@@ -1,0 +1,7 @@
+screens:
+  cookhouse:
+    priority: 31
+    rules:
+    - ocr: building.name
+      contains: Cookhouse
+      threshold: 0.8

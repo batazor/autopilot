@@ -1,0 +1,60 @@
+# Daybreak Island decorations — the island's *buff buildings*. Every decoration
+# costs Life Essence to place and contributes **Prosperity** (which gates the Tree
+# of Life). The buff-bearing ones (Rare/Epic/Mythic) are the reason to build the
+# island at all: they grant permanent main-game bonuses (gathering, research and
+# construction speed, troop attack/defense, etc.). Common/Uncommon decorations
+# carry no buff — they exist purely as cheap Prosperity toward the next ToL level.
+#
+# Each decoration: a `kind` (mapped to a role category in the planner's policy),
+# the buff `stat`/`amount`, the `life_essence` build cost, `max_level`, and the
+# `prosperity` it contributes at max level (Prosperity scales with level in-game;
+# v1 stores the max contribution and treats it as the decoration's prosperity
+# worth — relative ordering by rarity is what the greedy planner needs).
+#
+# Source: community guides (ldplayer.net Daybreak Island strategy guide +
+# onechilledgamer Daybreak Island guide, fetched 2026-06-20). Exact per-level
+# Prosperity/buff curves are not fully published → max-level values used.
+source:
+  name: ldplayer.net / onechilledgamer.com
+  url: https://www.ldplayer.net/blog/whiteout-survival-ultimate-daybreak-island-desigh-and-strategy.html
+  fetched_at: '2026-06-20'
+
+# --- Rare (3,000 LE, max level 5, up to ~1,000 prosperity) -------------------
+decorations:
+  - {id: brewery,                  name: Brewery,                  rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: heal_speed,      stat: heal_speed,        amount: 10.0}
+  - {id: bustling_bazaar,          name: Bustling Bazaar,          rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: resource_gather, stat: resource_gather,   amount: 10.0}
+  - {id: blacksmith,               name: Blacksmith,               rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: iron_gather,     stat: iron_gather,       amount: 30.0}
+  - {id: deluxe_restaurant,        name: Deluxe Restaurant,        rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: meat_gather,     stat: meat_gather,       amount: 30.0}
+  - {id: rock_outpost,             name: Rock Outpost,             rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: march_speed,     stat: march_speed,       amount: 5.0}
+  - {id: mini_heater,              name: Mini Heater,              rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: coal_gather,     stat: coal_gather,       amount: 30.0}
+  - {id: fountain_of_joy,          name: Fountain of Joy,          rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: construction,    stat: construction_speed, amount: 4.0}
+  - {id: glistening_ice_sculpture, name: Glistening Ice Sculpture, rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: hunting_march,   stat: hunting_march,     amount: 10.0}
+  - {id: natural_hot_spring,       name: Natural Hot Spring,       rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: research,        stat: research_speed,    amount: 4.0}
+  - {id: flowers_secret,           name: Flower's Secret,          rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: wood_gather,     stat: wood_gather,       amount: 30.0}
+  - {id: barbecue_stand,           name: Barbecue Stand,           rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: training,        stat: training_speed,    amount: 5.0}
+  - {id: basic_dock,               name: Basic Dock,               rarity: rare, life_essence: 3000,  max_level: 5,  prosperity: 1000,  kind: deployment,      stat: deployment,        amount: 1000}
+
+  # --- Epic (5,000 LE, max level 5, up to ~2,500 prosperity) -----------------
+  - {id: rural_mill,        name: Rural Mill,        rarity: epic, life_essence: 5000,  max_level: 5,  prosperity: 2500,  kind: infantry_attack,  stat: infantry_attack,   amount: 2.5}
+  - {id: warm_greenhouse,   name: Warm Greenhouse,   rarity: epic, life_essence: 5000,  max_level: 5,  prosperity: 2500,  kind: infantry_defense, stat: infantry_defense,  amount: 2.5}
+  - {id: crystal_garden,    name: Crystal Garden,    rarity: epic, life_essence: 5000,  max_level: 5,  prosperity: 2500,  kind: lancer_attack,    stat: lancer_attack,     amount: 2.5}
+  - {id: oak_tavern,        name: Oak Tavern,        rarity: epic, life_essence: 5000,  max_level: 5,  prosperity: 2500,  kind: construction,     stat: construction_speed, amount: 6.0}
+  - {id: clock_hut,         name: Clock Hut,         rarity: epic, life_essence: 5000,  max_level: 5,  prosperity: 2500,  kind: marksman_attack,  stat: marksman_attack,   amount: 2.5}
+  - {id: sailors_cottage,   name: Sailor's Cottage,  rarity: epic, life_essence: 5000,  max_level: 5,  prosperity: 2500,  kind: lancer_defense,   stat: lancer_defense,    amount: 2.5}
+  - {id: fishermans_chalet, name: Fisherman's Chalet, rarity: epic, life_essence: 5000, max_level: 5,  prosperity: 2500,  kind: marksman_defense, stat: marksman_defense,  amount: 2.5}
+
+  # --- Mythic (10,000 LE, max level 10, up to ~10,000 prosperity) ------------
+  # Snow Castle costs 12,000 LE / 12,000 prosperity (the one outlier).
+  - {id: snow_castle,      name: Snow Castle,      rarity: mythic, life_essence: 12000, max_level: 10, prosperity: 12000, kind: infantry_defense, stat: infantry_defense,  amount: 10.0}
+  - {id: elegant_villa,    name: Elegant Villa,    rarity: mythic, life_essence: 10000, max_level: 10, prosperity: 10000, kind: lancer_defense,   stat: lancer_defense,    amount: 10.0}
+  - {id: observation_deck, name: Observation Deck, rarity: mythic, life_essence: 10000, max_level: 10, prosperity: 10000, kind: marksman_attack,  stat: marksman_attack,   amount: 10.0}
+  - {id: art_gallery,      name: Art Gallery,      rarity: mythic, life_essence: 10000, max_level: 10, prosperity: 10000, kind: marksman_defense, stat: marksman_defense,  amount: 10.0}
+  - {id: floating_market,  name: Floating Market,  rarity: mythic, life_essence: 10000, max_level: 10, prosperity: 10000, kind: infantry_attack,  stat: infantry_attack,   amount: 10.0}
+  - {id: amphitheatre,     name: Amphitheatre,     rarity: mythic, life_essence: 10000, max_level: 10, prosperity: 10000, kind: lancer_attack,    stat: lancer_attack,     amount: 10.0}
+
+# Cheap no-buff prosperity sources (placed in bulk; per-unit prosperity at L1).
+# Used by the planner only as a Prosperity fallback when no buff decoration is
+# worth it but the Tree of Life is prosperity-blocked.
+prosperity_fillers:
+  - {id: common_decoration,   name: Common Decoration,   rarity: common,   life_essence: 1000, prosperity: 50}
+  - {id: uncommon_decoration, name: Uncommon Decoration, rarity: uncommon, life_essence: 2000, prosperity: 100}

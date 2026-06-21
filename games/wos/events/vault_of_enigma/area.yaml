@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1211,
+      "screen_id": "deals.vault_of_enigma",
+      "ocr": "references/page.vault_of_enigma.png",
+      "screen_region": "vault_of_enigma.title",
+      "regions": [
+        {
+          "name": "vault_of_enigma.title",
+          "action": "exist",
+          "threshold": 0.75,
+          "bbox": {
+            "x": 4.966074525067203,
+            "y": 16.506176622371306,
+            "width": 16.154236614886262,
+            "height": 3.499999999999995,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "vault_of_enigma.box",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 75.73442136498515,
+            "y": 20.462166172106834,
+            "width": 15,
+            "height": 8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 1212,
+      "screen_id": "",
+      "ocr": "references/page.vault_of_enigma.png",
+      "regions": [
+        {
+          "name": "region",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 42.5,
+            "y": 46,
+            "width": 15,
+            "height": 8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

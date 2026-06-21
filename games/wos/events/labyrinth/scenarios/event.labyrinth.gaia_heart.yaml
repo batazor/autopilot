@@ -1,0 +1,44 @@
+# Gaia Heart is a stage-raid zone (not the challenge→balance→deploy flow the
+# standard caves use). Daily automation = claim the Raid sweep, then let Quick
+# Challenge auto-clear every stage we out-power. The manual "Challenge" wall
+# (consumes daily attempts, uses your own troops) is intentionally left to the
+# player. Verified live 2026-06-14; tap targets confirmed, while_match timing
+# may need tuning after the first unattended run at reset.
+enabled: true
+name: "Labyrinth: Gaia Heart"
+priority: 80_000
+node: event.labyrinth.gaia_heart
+
+steps:
+  # ── Daily sweep: claim rewards for already-cleared stages ───────────────────
+  - while_match: labyrinth.gaia.raid
+    max: 1
+    steps:
+      - click: labyrinth.gaia.raid
+      - wait: 1s
+      - while_match: labyrinth.gaia.raid_claim
+        max: 1
+        steps:
+          - click: labyrinth.gaia.raid_claim
+          - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 2
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 500ms
+
+  # ── Free progression: Quick Challenge auto-sweeps stages we out-power, each
+  #    run ending on a "Success!" summary. The outer loop re-presses until the
+  #    button is gone (the stage turns into a manual "Challenge" — the wall). ───
+  - while_match: labyrinth.gaia.quick_challenge
+    max: 10
+    steps:
+      - click: labyrinth.gaia.quick_challenge
+      - wait: 2s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 5
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s

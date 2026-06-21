@@ -1,0 +1,13 @@
+id: suggestion_box
+name: Suggestion Box
+category: unknown
+requires:
+- building: furnace
+  level: 1
+requirements_by_level:
+  '1':
+    prerequisites: Furnace 1
+    build_cost: []
+    construction_time: '-'
+    building_power: null
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/suggestion-box/

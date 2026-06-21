@@ -1,0 +1,84 @@
+enabled: true
+name: "Chapter: Claim Daily Missions"
+priority: 80_000
+
+# Pushed by the chapter.new red-dot overlay rule on main_city and re-pushed
+# via chapter.daily.review right after the game-day reset; the node hop
+# (main_city/main_world → chapter.daily_missions) is handled by navigation via
+# edge_taps. The panel always opens on the Daily tab, and the `node:` gate
+# routes us there (from the Growth tab via the tab_index edge if needed), so no
+# explicit tab tap is required to normalise the pass.
+node: chapter.daily_missions
+
+steps:
+  # Snapshot the daily reset clock ("Refreshes In: hh:mm:ss") as a durable
+  # event timer — it drives the expiry of the mission pushes below and the
+  # next-day review delay.
+  - ocr: chapter.daily.refreshes_in
+    event_timer: chapter.daily.refresh
+
+  # Read the FULL mission list while the screen is pristine (before claim
+  # popups) — the substring guards below route missions to their automations.
+  # The list scrolls beyond one screen, so swipe through it and accumulate every
+  # page into one buffer: while_scroll reads the visible page first, then swipes
+  # up and re-reads until the list stops changing (scroll-end fingerprint), and
+  # `accumulate: true` appends each page instead of overwriting. The center
+  # swipe lane sits above Claim All / the tab strip, so paging can't graze them.
+  - while_scroll: chapter.daily.tasks
+    direction: up
+    max: 8
+    steps:
+      - ocr: chapter.daily.tasks
+        store: chapter.daily.tasks
+        accumulate: true
+
+  # Claim All first when it is lit (green template only matches the lit state).
+  - while_match: chapter.button.claim_all
+    max: 1
+    steps:
+      - click: chapter.button.claim_all
+      - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
+
+  # Then sweep any per-row Claim buttons left over.
+  - while_match: chapter.button.claim
+    action: cta_button
+    color: green
+    threshold: 0.5
+    max: 6
+    steps:
+      - click: chapter.button.claim
+      - wait: 0.8s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
+
+  # --- Mission → automation routing -------------------------------------
+  # Parse the full daily list (read above) and push the automation scenario for
+  # every recognised mission, with the parsed values passed as args. The map of
+  # mission pattern → scenario lives in ``daily_missions.yaml``; each push
+  # expires 10 minutes before the game-day reset (a stale mission is moot once
+  # the list rolls over). Add new missions by editing the registry, not here.
+  - exec: route_daily_missions
+
+  # --- Growth tab -------------------------------------------------------
+  # Growth Missions is its own navigation node now; sweep it with a dedicated
+  # node-bound scenario. Navigation switches tabs via the tab_index resolver
+  # (segmented strip), so we no longer tap the inactive Growth title directly.
+  - push_scenario: chapter.growth.claim
+
+  # --- Next-day review ---------------------------------------------------
+  # Schedule a list review for 5 minutes after the reset so the new day's
+  # missions are picked up immediately. A separate thin scenario key keeps
+  # queue dedup from swallowing badge-triggered claim pushes during the day.
+  - push_scenario:
+      name: chapter.daily.review
+      delay: "chapter.daily.refresh + 5m"

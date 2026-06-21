@@ -1,0 +1,62 @@
+# Pet reference catalog — sourced from https://www.whiteoutsurvival.wiki/pets/
+# Served by the wiki stack (config.wiki_sources) as the per-game core entity
+# games/wos/db/pets/. Per-pet files carry rarity, unlock chain, max refinement,
+# the active skill (effect + per-level values + cooldown) and the max troop bonus.
+# Per-level grind tables are intentionally omitted (the wiki's per-level numbers
+# scraped unreliably — all SSR pets returned one shared table).
+source:
+  name: whiteoutsurvival.wiki
+  url: https://www.whiteoutsurvival.wiki/pets/
+pets:
+- id: cave_hyena
+  name: Cave Hyena
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/cave-hyena/
+  file: cave_hyena.yaml
+- id: musk_ox
+  name: Musk Ox
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/musk-ox/
+  file: musk_ox.yaml
+- id: artic_wolf
+  name: Arctic Wolf
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/artic-wolf/
+  file: artic_wolf.yaml
+- id: titan_roc
+  name: Titan Roc
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/titan-roc/
+  file: titan_roc.yaml
+- id: giant_tapir
+  name: Giant Tapir
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/giant-tapir/
+  file: giant_tapir.yaml
+- id: snow_leopard
+  name: Snow Leopard
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/snow-leopard/
+  file: snow_leopard.yaml
+- id: giant_elk
+  name: Giant Elk
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/giant-elk/
+  file: giant_elk.yaml
+- id: snow_ape
+  name: Snow Ape
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/snow-ape/
+  file: snow_ape.yaml
+- id: cave_lion
+  name: Cave Lion
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/cave-lion/
+  file: cave_lion.yaml
+- id: mammoth
+  name: Mammoth
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/mammoth/
+  file: mammoth.yaml
+- id: saber_tooth_tiger
+  name: Saber-tooth Tiger
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/saber-tooth-tiger/
+  file: saber_tooth_tiger.yaml
+- id: iron_rhino
+  name: Iron Rhino
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/iron-rhino/
+  file: iron_rhino.yaml
+- id: frostscale_chameleon
+  name: Frostscale Chameleon
+  wiki_url: https://www.whiteoutsurvival.wiki/pets/frostscale-chameleon/
+  file: frostscale_chameleon.yaml

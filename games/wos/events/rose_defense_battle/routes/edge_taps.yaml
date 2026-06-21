@@ -1,0 +1,14 @@
+edges:
+  main_menu:
+    event.rose_defense_battle:
+      resolver: main_menu_panel_row
+      section: rose_defense
+      rows:
+        - rose_defense_battle
+        - bloom_battle
+        - flower_eating_beasts
+      approval_region: main_menu.panel.rose_defense
+
+  event.rose_defense_battle:
+    main_menu: [icon.page.back]
+    main_city: [icon.page.back]

@@ -1,0 +1,39 @@
+screens:
+  exploration:
+    priority: 30
+    rules:
+    - ocr: page.common.title
+      contains: Exploration
+      threshold: 0.8
+    - match: exploration.to.squad_settings
+      threshold: 0.9
+  squad_settings:
+    priority: 30
+    rules:
+    - ocr: page.common.title
+      contains: Squad Settings
+      threshold: 0.8
+  exploration.squad_fight:
+    priority: 25
+    terminal: true
+    rules:
+    - match: page.squad_fight.title
+      threshold: 0.9
+  exploration.victory:
+    # Probe before arena.result (priority 20): the arena result screen is
+    # detected by a generic "tap anywhere to exit" OCR that ALSO matches these
+    # exploration battle-result screens. At equal priority arena.result wins the
+    # tie and steals detection, which makes squad_fight's victory/defeat
+    # wait_screen time out and leaves the bot stuck on the result screen.
+    priority: 18
+    # Transient result screen; squad_fight scenario taps `next` to dismiss.
+    terminal: true
+    rules:
+    - match: page.exploration.victory.title
+      threshold: 0.9
+  exploration.defeat:
+    # See exploration.victory — beat the generic arena.result matcher (20).
+    priority: 18
+    rules:
+    - match: exploration.defeat.title
+      threshold: 0.9

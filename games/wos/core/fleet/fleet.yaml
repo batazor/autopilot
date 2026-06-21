@@ -1,0 +1,15 @@
+# Cross-account campaign orchestrator (scheduler `_run_fleet_coordinator`).
+#
+# The brain + wiring are complete; concrete campaigns ship DISABLED until their
+# on-device scenarios (account switch, troop recall, attack-at-coords, reinforce)
+# and barrier-signal readers land. Mirrors core/coordinator/march.yaml.
+#
+# Per-deployment kill-switch: WOS_FLEET_ENABLED=false disables the whole tick
+# without editing this file (or =true to enable a dormant one). A campaign runs
+# only when BOTH the master `enabled` and its per-campaign flag are true.
+enabled: false            # master switch for the whole fleet-coordinator tick
+
+campaigns:
+  joint_event: false      # calendar-anchored; needs event gather/rally/claim scenarios
+  farm_raid: false        # needs recall + attack-at-coords scenarios + map coords
+  reinforcement: false    # needs reinforce scenario + notify trigger wiring

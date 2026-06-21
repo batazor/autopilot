@@ -1,0 +1,9 @@
+id: survivors
+title: Survivors
+description: >-
+  Main-city survivor prompts, including welcoming new survivors and assigning workers.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

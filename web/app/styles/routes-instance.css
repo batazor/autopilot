@@ -1,0 +1,258 @@
+@layer components {
+  .routes-planner-panel {
+    @apply max-w-2xl;
+  }
+
+  /* Section subhead inside the planner panel ("Screen detail"). Sits between
+     stacked field groups so it needs more vertical separation than a plain h3. */
+  .routes-panel-subhead {
+    @apply mt-6 mb-3 border-t border-wos-border-subtle pt-4 text-xs font-semibold uppercase tracking-[0.08em] text-wos-text-muted;
+  }
+
+  .routes-depth-field {
+    @apply mt-3 flex flex-col gap-1.5;
+  }
+
+  .routes-depth-field > span {
+    @apply text-xs font-medium text-wos-text-secondary;
+  }
+
+  .routes-depth-field input {
+    @apply w-full rounded-lg border border-wos-border-subtle bg-wos-input px-3 py-2 text-sm text-wos-text tabular-nums focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25;
+  }
+
+  .routes-node-search {
+    @apply mt-3;
+  }
+
+  .routes-plan-btn {
+    @apply mt-4 w-full;
+  }
+
+  .routes-path-summary {
+    @apply mt-5 rounded-xl border border-wos-border-subtle bg-wos-panel-raised/60 p-4 shadow-sm;
+  }
+
+  .routes-path-summary__head {
+    @apply mb-2 flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .routes-path-summary__head .meta {
+    @apply m-0;
+  }
+
+  .routes-path-summary__head strong {
+    @apply text-sm font-semibold text-wos-text;
+  }
+
+  .routes-path-code {
+    @apply block rounded-md border border-wos-border-subtle/70 bg-wos-bg/50 px-2.5 py-2 font-mono text-[11px] leading-relaxed break-all text-wos-text-secondary;
+  }
+
+  .routes-hop-list {
+    @apply mt-3 m-0 max-h-44 list-none space-y-1 overflow-y-auto p-0 text-xs leading-snug;
+  }
+
+  .routes-hop-list li {
+    @apply relative rounded-md bg-wos-surface/40 px-2 py-1 pl-5 font-mono text-wos-text-secondary;
+  }
+
+  .routes-hop-list li::before {
+    content: "›";
+    @apply absolute left-1.5 top-1 text-wos-text-muted;
+  }
+
+  .routes-path-miss {
+    @apply mt-3 rounded-md border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-300;
+  }
+
+  .routes-node-edges-table {
+    @apply mt-3 max-h-56;
+  }
+
+  .routes-edge-code {
+    @apply text-[11px] break-all;
+  }
+
+  .routes-edge-action {
+    @apply font-mono text-xs text-wos-text-secondary;
+  }
+
+  /* References list — numbered preview cards (right column of the planner). */
+  .routes-ref-list {
+    @apply m-0 flex max-h-[36rem] flex-col gap-3 overflow-y-auto p-0 list-none;
+  }
+
+  .routes-ref-list__item {
+    @apply rounded-xl border border-wos-border-subtle bg-wos-panel-raised/50 p-2.5 transition-colors hover:border-wos-border hover:bg-wos-panel-raised/80;
+  }
+
+  .routes-ref-list__head {
+    @apply mb-2 flex items-center justify-between gap-2;
+  }
+
+  .routes-ref-list__step {
+    @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-bg/60 text-[11px] font-semibold tabular-nums text-wos-text;
+  }
+
+  .routes-ref-list__screen {
+    @apply min-w-0 flex-1 truncate font-mono text-xs text-wos-text;
+  }
+
+  .routes-ref-list__count {
+    @apply shrink-0 rounded-md bg-wos-bg/60 px-1.5 py-0.5 text-[10px] tabular-nums text-wos-text-muted;
+  }
+
+  .routes-ref-list__image {
+    @apply block w-full rounded-md border border-wos-border-subtle/60 bg-black/30;
+  }
+
+  .routes-ref-list__empty {
+    @apply m-0 text-xs text-wos-text-muted;
+  }
+
+  .instance-grid {
+    @apply grid gap-5 lg:max-w-4xl lg:grid-cols-2;
+  }
+
+  .instance-preview-img {
+    @apply block w-full rounded-md;
+    max-width: 360px;
+  }
+
+  .instance-history-panel {
+    @apply mt-5;
+  }
+
+  .instance-history__header {
+    @apply mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between;
+  }
+
+  .instance-history__title {
+    @apply m-0 text-lg font-semibold tracking-tight text-wos-text;
+  }
+
+  .instance-history__subtitle {
+    @apply mt-1 mb-0;
+  }
+
+  .instance-history__stats {
+    @apply flex shrink-0 gap-2;
+  }
+
+  .instance-history__stat {
+    @apply flex min-w-[4.5rem] flex-col items-center rounded-lg border px-3 py-2 text-center;
+  }
+
+  .instance-history__stat--ok {
+    border-color: color-mix(in srgb, var(--color-ok) 45%, var(--wos-border-subtle));
+    background: color-mix(in srgb, var(--color-ok) 12%, var(--wos-panel));
+  }
+
+  .instance-history__stat--fail {
+    border-color: color-mix(in srgb, var(--color-danger) 45%, var(--wos-border-subtle));
+    background: color-mix(in srgb, var(--color-danger) 12%, var(--wos-panel));
+  }
+
+  .instance-history__stat-value {
+    @apply text-xl font-semibold tabular-nums text-wos-text;
+  }
+
+  .instance-history__stat-label {
+    @apply text-[10px] font-semibold uppercase tracking-wide text-wos-text-muted;
+  }
+
+  .instance-history__list {
+    @apply m-0 list-none space-y-0 p-0;
+  }
+
+  .instance-history__item {
+    @apply relative grid grid-cols-[auto_1fr] gap-3 pb-4 pl-1;
+  }
+
+  .instance-history__item:last-child {
+    @apply pb-0;
+  }
+
+  .instance-history__item:not(:last-child) .instance-history__marker::after {
+    content: "";
+    @apply absolute left-1/2 top-3 -translate-x-1/2;
+    width: 2px;
+    bottom: -1rem;
+    background: var(--wos-border-subtle);
+  }
+
+  .instance-history__marker {
+    @apply relative z-[1] mt-3 h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-wos-panel;
+  }
+
+  .instance-history__item--ok .instance-history__marker {
+    background: var(--color-ok);
+  }
+
+  .instance-history__item--fail .instance-history__marker {
+    background: var(--color-danger);
+  }
+
+  .instance-history__card {
+    @apply min-w-0 rounded-xl border border-wos-border-subtle bg-wos-surface/60 p-3 transition-colors hover:border-wos-border hover:bg-wos-panel-raised/80;
+  }
+
+  .instance-history__item--ok .instance-history__card {
+    border-left-width: 3px;
+    border-left-color: color-mix(in srgb, var(--color-ok) 70%, transparent);
+  }
+
+  .instance-history__item--fail .instance-history__card {
+    border-left-width: 3px;
+    border-left-color: color-mix(in srgb, var(--color-danger) 75%, transparent);
+    background: color-mix(in srgb, var(--color-danger) 6%, var(--wos-surface));
+  }
+
+  .instance-history__card-head {
+    @apply flex flex-wrap items-center gap-2 gap-y-1;
+  }
+
+  .instance-history__scenario {
+    @apply min-w-0 flex-1 truncate font-mono text-sm font-medium no-underline text-wos-text hover:text-[var(--wos-link)];
+  }
+
+  .instance-history__duration {
+    @apply shrink-0 rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 font-mono text-xs tabular-nums text-wos-text-secondary;
+  }
+
+  .instance-history__card-meta {
+    @apply mt-2 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-wos-text-muted;
+  }
+
+  .instance-history__card-meta time {
+    @apply whitespace-nowrap;
+  }
+
+  .instance-history__time-sep,
+  .instance-history__meta-sep {
+    @apply mx-0.5 opacity-60;
+  }
+
+  .instance-history__time-abs {
+    @apply text-wos-text-muted;
+  }
+
+  .instance-history__player {
+    @apply font-medium no-underline;
+    color: var(--wos-link);
+  }
+
+  .instance-history__player:hover {
+    color: var(--wos-link-hover);
+  }
+
+  .instance-history__detail {
+    @apply mt-2 mb-0 line-clamp-2 rounded-md border border-wos-border-subtle/80 bg-wos-bg/50 px-2 py-1.5 font-mono text-[11px] leading-snug text-wos-text-secondary;
+  }
+
+  .instance-history__more {
+    @apply mt-3 mb-0 text-center;
+  }
+
+}

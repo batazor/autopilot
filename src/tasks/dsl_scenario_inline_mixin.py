@@ -1,0 +1,1390 @@
+"""Inline / nested DSL step execution for :class:`tasks.dsl_scenario.DslScenarioTask`.
+
+Holds navigation, tap geometry, color-check (match-time), and ``_run_inline_step``.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from contextlib import suppress
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any, cast
+
+import cv2
+
+from config.log_ansi import scenario_log_label as _scen
+from config.paths import repo_root as default_repo_root
+from layout.area_lookup import screen_region_by_name
+from layout.area_versions import effective_ocr_for_region
+from layout.bbox_percent import bbox_percent_random_point_to_device_point
+from layout.color_bucket import dominant_color_label_bgr
+from layout.crop_paths import exported_crop_png
+from layout.template_match import (
+    patch_bgr_from_bbox_percent,
+    validate_live_bbox_patch_vs_reference_dims,
+)
+from layout.types import Point
+from tasks.base import TaskResult
+from tasks.dsl_scenario_helpers import (
+    _COLOR_WORD_ALIASES,
+    _action_pause_seconds,
+    _BreakRepeat,
+    _dsl_cond_allows_step,
+    _enqueue_scenario,
+    _jittered_wait_seconds,
+    _parse_wait_seconds,
+    _read_current_screen,
+    _resolve_push_delay_seconds,
+    _resolve_push_expires_at,
+    _trace_exec_result_kwargs,
+)
+
+logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from adb import BotActions
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+    from tasks.dsl_match_result import MatchResult
+else:
+    _Base = object
+
+
+class DslScenarioInlineMixin(_Base):
+    """Navigation + per-step actions shared by top-level and nested DSL blocks."""
+
+    redis_client: Any | None
+    player_id: str | None
+    priority: int
+    scenario_key: str
+    tap_region: str
+    tap_x_pct: float | None
+    tap_y_pct: float | None
+    _last_match: MatchResult | None
+    _last_tap_region_clicked: str
+    _implicit_match_for_region: str
+    _exclude_match_top_lefts: dict[str, list[tuple[int, int]]]
+
+    def _parse_wait_screen_spec(
+        self, step: dict[str, Any]
+    ) -> tuple[list[str], int, float]:
+        spec = step.get("wait_screen")
+        if isinstance(spec, dict):
+            raw_targets = (
+                spec.get("screens")
+                or spec.get("nodes")
+                or spec.get("any")
+                or spec.get("of")
+                or spec.get("screen")
+                or spec.get("node")
+            )
+            raw_max = spec.get("max", step.get("max", 60))
+            raw_interval = spec.get("interval", step.get("interval", "1s"))
+            raw_timeout = spec.get("timeout", step.get("timeout"))
+        else:
+            raw_targets = spec
+            raw_max = step.get("max", 60)
+            raw_interval = step.get("interval", "1s")
+            raw_timeout = step.get("timeout")
+
+        if isinstance(raw_targets, str):
+            targets = [p.strip() for p in raw_targets.split("|") if p.strip()]
+        elif isinstance(raw_targets, list | tuple | set):
+            targets = [str(p).strip() for p in raw_targets if str(p).strip()]
+        else:
+            targets = []
+
+        try:
+            max_attempts = int(raw_max)
+        except (TypeError, ValueError):
+            max_attempts = 60
+        max_attempts = max(0, max_attempts)
+
+        interval_s = max(0.0, _parse_wait_seconds(raw_interval))
+        if raw_timeout is not None:
+            timeout_s = max(0.0, _parse_wait_seconds(raw_timeout))
+            if timeout_s > 0:
+                max_attempts = max(1, int(timeout_s / max(interval_s, 0.001)))
+        return targets, max_attempts, interval_s
+
+    async def _run_wait_screen_step(
+        self,
+        *,
+        actions: BotActions,
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+    ) -> str | None:
+        targets, max_attempts, interval_s = self._parse_wait_screen_spec(step)
+        target_set = {t.lower() for t in targets}
+        if not target_set or max_attempts <= 0:
+            return None
+
+        from navigation.detector import ScreenDetector
+        from services import get_ocr_client
+
+        detector = ScreenDetector(get_ocr_client())
+        for attempt in range(max_attempts):
+            _invalidate = getattr(actions, "invalidate_frame_cache", None)
+            if _invalidate is not None:
+                _invalidate(instance_id)
+            try:
+                image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+                detected = str(await detector.detect_screen(image)).strip()
+            except Exception:
+                logger.debug(
+                    "dsl_scenario: wait_screen probe failed scenario=%s instance=%s",
+                    _scen(scenario_key),
+                    instance_id,
+                    exc_info=True,
+                )
+                detected = ""
+            if detected.lower() in target_set:
+                if self.redis_client is not None:
+                    with suppress(Exception):
+                        await self.redis_client.hset(
+                            f"wos:instance:{instance_id}:state",
+                            "current_screen",
+                            detected,
+                        )
+                return detected
+            if attempt + 1 < max_attempts and interval_s > 0:
+                await asyncio.sleep(interval_s)
+        return None
+
+    async def _navigate_to_node(
+        self,
+        instance_id: str,
+        target_node: str,
+        *,
+        actions: Any,
+        scenario_key: str,
+    ) -> bool:
+        """Drive the FSM to ``target_node`` via :class:`Navigator` (BFS over screen_graph).
+
+        No-op when ``current_screen`` already equals the target. Unknown / not-in-graph
+        targets are treated as soft failures (logged, scenario aborts).
+        """
+        from navigation.detector import ScreenName
+
+        target_node = target_node.strip()
+        if not target_node:
+            return True
+        try:
+            target = ScreenName(target_node)
+        except ValueError:
+            from navigation.screen_graph import screen_verify_screen_names
+
+            if target_node not in set(screen_verify_screen_names()):
+                logger.warning(
+                    "dsl_scenario: unknown FSM screen %r for scenario %s — skipping navigation",
+                    target_node,
+                    _scen(scenario_key),
+                )
+                return False
+            target = target_node
+
+        cur = await _read_current_screen(instance_id, self.redis_client)
+        if cur == str(target):
+            return True
+
+        await self._write_step_context(instance_id, scenario=scenario_key)
+        # Surface the navigation target so the UI progress bar can render
+        # "navigating → <screen>" while the BFS-driven hops run — without
+        # this, the operator just sees "Step 0/N" for the whole nav phase.
+        if self.redis_client is not None:
+            with suppress(Exception):
+                await self.redis_client.hset(
+                    f"wos:instance:{instance_id}:state",
+                    "nav_target",
+                    str(target),
+                )
+        from tasks import dsl_runtime
+
+        navigator = dsl_runtime.navigator(actions, redis_client=self.redis_client)
+        try:
+            # ``target`` is ``ScreenName | str`` after the ValueError fallback
+            # above; ``navigate_to`` is typed strict ScreenName but since
+            # ``ScreenName`` is a StrEnum the runtime accepts the bare str form
+            # transparently. Cast at the boundary rather than widening the
+            # Navigator signature.
+            ok = await navigator.navigate_to(cast("ScreenName", target), instance_id)
+        finally:
+            if self.redis_client is not None:
+                with suppress(Exception):
+                    await self.redis_client.hset(
+                        f"wos:instance:{instance_id}:state",
+                        "nav_target",
+                        "",
+                    )
+        if not ok:
+            logger.warning(
+                "dsl_scenario: navigation to %s failed (scenario=%s instance=%s)",
+                target_node,
+                _scen(scenario_key),
+                instance_id,
+            )
+            return False
+        if self.redis_client is not None:
+            try:
+                await self.redis_client.hset(
+                    f"wos:instance:{instance_id}:state",
+                    "current_screen",
+                    str(target),
+                )
+            except Exception:
+                logger.debug("dsl_scenario: failed to persist current_screen", exc_info=True)
+        return True
+
+    def estimate_duration(self) -> int:
+        return 15
+
+    async def _run_exec_step(
+        self,
+        name: str,
+        instance_id: str,
+        args: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Dispatch ``exec: <name>`` to :data:`tasks.dsl_exec.DSL_EXEC_REGISTRY`.
+
+        Sibling YAML keys on the step (everything besides ``exec`` and ``cond``)
+        flow through as ``ctx.args`` so handlers can accept per-call options
+        (e.g. ``region: page.heroes`` to scope ``put_all_red_dots``).
+        """
+        from tasks.dsl_exec import DSL_EXEC_REGISTRY, DslExecContext
+
+        fn = DSL_EXEC_REGISTRY.get(name)
+        if fn is None:
+            logger.warning("dsl_scenario: unknown exec step %r", name)
+            return {"reason": "unknown_exec"}
+        ctx = DslExecContext(
+            redis_client=self.redis_client,
+            player_id=self.player_id,  # ty: ignore[invalid-argument-type]
+            instance_id=instance_id,
+            args=dict(args or {}),
+        )
+        try:
+            await fn(ctx)
+        except Exception:
+            logger.exception("dsl_scenario: exec %r failed", name)
+            return {"reason": "exec_failed"}
+        return dict(ctx.result)
+
+    async def _run_system_back_step(
+        self,
+        *,
+        actions: BotActions,
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+        trace_path: str,
+    ) -> TaskResult | None:
+        if step.get("system_back") is False:
+            self._append_trace_row(trace_path, step, "ok")
+            return None
+        ok = False
+        try:
+            ok = bool(await asyncio.to_thread(actions.system_back, instance_id))
+        except Exception:
+            logger.exception(
+                "dsl_scenario: system_back failed scenario=%s instance=%s",
+                _scen(scenario_key),
+                instance_id,
+            )
+        if not ok:
+            logger.info(
+                "dsl_scenario: system_back blocked — aborting scenario %s",
+                _scen(scenario_key),
+            )
+            await self._clear_step_context(instance_id)
+            self._append_trace_row(
+                trace_path, step, "stopped", reason="system_back_not_approved"
+            )
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata={"scenario": scenario_key, "reason": "system_back_not_approved"},
+            )
+        await asyncio.sleep(_action_pause_seconds(0.4))
+        self._append_trace_row(trace_path, step, "ok")
+        return None
+
+    async def _run_type_text_step(
+        self,
+        *,
+        actions: BotActions,
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+        trace_path: str,
+    ) -> TaskResult | None:
+        raw = step.get("type_text")
+        text = "" if raw is None else str(raw)
+        if text:
+            ok = False
+            try:
+                ok = bool(await asyncio.to_thread(actions.type_text, instance_id, text))
+            except Exception:
+                logger.exception(
+                    "dsl_scenario: type_text failed scenario=%s instance=%s",
+                    _scen(scenario_key),
+                    instance_id,
+                )
+            if not ok:
+                logger.info(
+                    "dsl_scenario: type_text blocked — aborting scenario %s",
+                    _scen(scenario_key),
+                )
+                await self._clear_step_context(instance_id)
+                self._append_trace_row(
+                    trace_path, step, "stopped", reason="type_text_not_approved"
+                )
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={"scenario": scenario_key, "reason": "type_text_not_approved"},
+                )
+            if hasattr(actions, "invalidate_frame_cache"):
+                with suppress(Exception):
+                    actions.invalidate_frame_cache(instance_id)
+            await asyncio.sleep(_action_pause_seconds(0.2))
+        self._append_trace_row(trace_path, step, "ok", chars=len(text))
+        return None
+
+    async def _color_check_region(
+        self,
+        *,
+        actions: BotActions,
+        area_doc: dict[str, Any],
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+        region: str,
+    ) -> bool:
+        """Check dominant color inside a named region.
+
+        Note: the DSL no longer has a dedicated `color_check:` step. Color checks are evaluated
+        via `match: <region>` when the region in `area.json` uses `action: color_check`.
+        """
+        raw_want = str(step.get("type") or "").strip().lower()
+        want = _COLOR_WORD_ALIASES.get(raw_want, raw_want)
+        threshold_raw = step.get("threshold")
+        try:
+            threshold = float(threshold_raw) if threshold_raw is not None else 0.50
+        except (TypeError, ValueError):
+            threshold = 0.50
+        threshold = max(0.0, min(1.0, threshold))
+
+        _sf = self._state_flat()
+        pair = (
+            screen_region_by_name(area_doc, region, state_flat=_sf) if region else None
+        )
+        if pair is None or not isinstance(pair[1].get("bbox"), dict):
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "region_not_found",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
+                },
+            )
+            return False
+
+        reg_def = pair[1]
+        if not want:
+            want2 = str(reg_def.get("type") or "").strip().lower()
+            want = _COLOR_WORD_ALIASES.get(want2, want2)
+
+        if want not in {"red", "blue", "gray", "green"}:
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "invalid_type",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
+                },
+            )
+            return False
+
+        try:
+            image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+        except Exception:
+            logger.exception(
+                "dsl_scenario: capture_screen_bgr failed for color_check (scenario=%s region=%s)",
+                _scen(scenario_key),
+                region,
+            )
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "capture_failed",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
+                },
+            )
+            return False
+
+        bbox = reg_def["bbox"]
+        if not isinstance(bbox, dict):
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "invalid_bbox",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
+                },
+            )
+            return False
+
+        repo_root = default_repo_root()
+        patch, _tl = patch_bgr_from_bbox_percent(image, bbox)
+        ph, pw = int(patch.shape[0]), int(patch.shape[1])
+        resolved_region = str(reg_def.get("name") or "").strip() or region
+        ref_rel = effective_ocr_for_region(pair[0], reg_def)
+        if ref_rel:
+            crop_path = exported_crop_png(repo_root, ref_rel, resolved_region)
+            if crop_path.is_file():
+                ref_img = cv2.imread(str(crop_path))
+                if ref_img is not None and ref_img.size > 0:
+                    ref_ph, ref_pw = int(ref_img.shape[0]), int(ref_img.shape[1])
+                    try:
+                        validate_live_bbox_patch_vs_reference_dims(
+                            pw, ph, ref_pw, ref_ph, reference_label="exported crop"
+                        )
+                    except ValueError as exc:
+                        await self._persist_dsl_last_color(
+                            instance_id,
+                            {
+                                "dsl_last_color_region": region,
+                                "dsl_last_color_status": "crop_size_mismatch",
+                                "dsl_last_color_want": want,
+                                "dsl_last_color_dominant": "",
+                                "dsl_last_color_share": "",
+                                "dsl_last_color_threshold": f"{threshold:.3f}",
+                                "dsl_last_color_detail": str(exc),
+                            },
+                        )
+                        return False
+
+        dominant, shares = dominant_color_label_bgr(patch)
+        share = float(shares.get(dominant, 0.0))
+        ok = dominant == want and share >= threshold
+
+        await self._persist_dsl_last_color(
+            instance_id,
+            {
+                "dsl_last_color_region": region,
+                "dsl_last_color_status": "ok" if ok else "mismatch",
+                "dsl_last_color_want": want,
+                "dsl_last_color_dominant": dominant,
+                "dsl_last_color_share": f"{share:.3f}",
+                "dsl_last_color_threshold": f"{threshold:.3f}",
+            },
+        )
+        return ok
+
+    async def _tap_region(
+        self,
+        *,
+        actions: BotActions,
+        area_doc: dict[str, Any],
+        repo_root: Path,
+        instance_id: str,
+        dev_w: int,
+        dev_h: int,
+        scenario_key: str,
+        region: str,
+        step: dict[str, Any] | None = None,
+    ) -> TaskResult | None:
+        _sf = self._state_flat()
+        pair = (
+            screen_region_by_name(area_doc, region, state_flat=_sf) if region else None
+        )
+        if pair is None or not isinstance(pair[1].get("bbox"), dict):
+            logger.warning("dsl_scenario: region not found in area.json: %s", region)
+            return None
+
+        # Search regions move on screen. Run an implicit `match:` first so
+        # `_point_for_region_action` taps the found location instead of the
+        # stale bbox center. Skip if the caller already matched this region.
+        already_matched = (
+            self._last_match is not None and self._last_match.region == region
+        )
+        if not already_matched and bool(pair[1].get("isSearch")):
+            # Forward optional gating from the click step so users can write
+            # ``click: foo / threshold: 0.95 / min_match_saturation: 40`` and have
+            # the implicit search honor those constraints. ``isRedDot`` and other
+            # match-only filters are not meaningful for a tap, but pass-through is
+            # cheap (the engine ignores unknown keys).
+            await self._match_region(
+                actions=actions,
+                area_doc=area_doc,
+                repo_root=repo_root,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step or {},
+                region=region,
+            )
+            self._implicit_match_for_region = region
+
+        pt = self._point_for_region_action(region, pair[1]["bbox"], dev_w, dev_h)
+        # The flag is per-tap; clear after consumption so a subsequent
+        # explicit ``match:`` controls behaviour again.
+        if self._implicit_match_for_region == region:
+            self._implicit_match_for_region = ""
+
+        from layout.area_lookup import region_tap_hold_ms
+
+        tap_kwargs: dict[str, Any] = {"approval_region": region}
+        hold_ms = region_tap_hold_ms(pair[1])
+        if hold_ms > 0:
+            tap_kwargs["hold_ms"] = hold_ms
+        tapped = await asyncio.to_thread(
+            actions.tap,
+            instance_id,
+            pt,
+            **tap_kwargs,
+        )
+        if not tapped:
+            logger.info(
+                "dsl_scenario: tap rejected or blocked — aborting scenario %s",
+                _scen(scenario_key),
+            )
+            await self._clear_step_context(instance_id)
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata={
+                    "scenario": scenario_key,
+                    "reason": "tap_not_approved",
+                },
+            )
+        self._last_tap_region_clicked = region
+        # After a click on a matched region, remember the last match top-left so the next
+        # `while_match` can pick a different occurrence if multiple are present.
+        if self._last_match is not None and self._last_match.region == region:
+            tl = self._last_match.row.get("top_left")
+            if isinstance(tl, (list, tuple)) and len(tl) >= 2:
+                try:
+                    x0 = int(float(tl[0]))
+                    y0 = int(float(tl[1]))
+                    self._exclude_match_top_lefts.setdefault(region, []).append((x0, y0))
+                except Exception:
+                    pass
+        return None
+
+    def _point_for_region_action(
+        self,
+        region: str,
+        bbox: dict[str, Any],
+        dev_w: int,
+        dev_h: int,
+    ) -> Point:
+        # Prefer coordinates from the latest in-scenario overlay probe (`match` / `while_match`).
+        # Queue items may carry `tap_x_pct`/`tap_y_pct` from when overlay enqueued `pushScenario`;
+        # those can be a different peak or an older frame than the capture used for this click.
+        # For an *implicit* auto-match (search companion + no explicit `match:`), use the engine's
+        # best-found position even if the score didn't clear the threshold — the user explicitly
+        # asked us to find this button, threshold gating only matters when verifying presence.
+        implicit = self._implicit_match_for_region == region
+        last = self._last_match
+        if last is not None and last.region == region and (
+            implicit or bool(last.row.get("matched"))
+        ):
+            tap_x_raw = last.row.get("tap_x_pct")
+            tap_y_raw = last.row.get("tap_y_pct")
+        else:
+            tap_x_raw = None
+            tap_y_raw = None
+        if tap_x_raw is not None and tap_y_raw is not None and last is not None:
+            try:
+                txp = float(tap_x_raw)
+                typ = float(tap_y_raw)
+                # When the match carries the found template's pixel size, treat that
+                # rectangle as the click zone and randomise inside it — same idea as
+                # for a static bbox, just scoped to the actual icon location.
+                tw = last.row.get("template_w")
+                th = last.row.get("template_h")
+                if tw is not None and th is not None:
+                    try:
+                        tw_px = float(tw)
+                        th_px = float(th)
+                        if tw_px > 0.0 and th_px > 0.0:
+                            w_pct = tw_px / float(dev_w) * 100.0
+                            h_pct = th_px / float(dev_h) * 100.0
+                            synthetic_bbox = {
+                                "x": txp - w_pct / 2.0,
+                                "y": typ - h_pct / 2.0,
+                                "width": w_pct,
+                                "height": h_pct,
+                            }
+                            return bbox_percent_random_point_to_device_point(
+                                synthetic_bbox, dev_w, dev_h
+                            )
+                    except (TypeError, ValueError):
+                        pass
+                return Point(
+                    int(round(txp / 100.0 * dev_w)),
+                    int(round(typ / 100.0 * dev_h)),
+                )
+            except Exception:
+                pass
+        tap_region = str(self.tap_region or "").strip()
+        if (
+            self.tap_x_pct is not None
+            and self.tap_y_pct is not None
+            and (not tap_region or tap_region == region)
+        ):
+            return Point(
+                int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
+                int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
+            )
+        return bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
+
+    async def _run_inline_step(
+        self,
+        step: dict[str, Any],
+        *,
+        actions: BotActions,
+        area_doc: dict[str, Any],
+        repo_root: Path,
+        instance_id: str,
+        dev_w: int,
+        dev_h: int,
+        scenario_key: str,
+        trace_path: str = "",
+    ) -> TaskResult | None:
+        if "break" in step:
+            tgt = str(step.get("break") or "").strip().lower()
+            if tgt in {"loop", "repeat"}:
+                raise _BreakRepeat()
+            self._append_trace_row(trace_path, step, "ok")
+            return None
+        ip = await self._inline_preempt_if_needed(instance_id, scenario_key)
+        if ip is not None:
+            return ip
+        if "system_back" in step:
+            return await self._run_system_back_step(
+                actions=actions,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step,
+                trace_path=trace_path,
+            )
+        if "type_text" in step:
+            return await self._run_type_text_step(
+                actions=actions,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step,
+                trace_path=trace_path,
+            )
+        if "long_click" in step:
+            region = str(step.get("long_click") or "").strip()
+            if not region:
+                return None
+            # `wait` (or `duration`) is interpreted as long-press duration.
+            duration_ms = 800
+            raw_dur = step.get("duration")
+            if raw_dur is None:
+                raw_dur = step.get("wait")
+            try:
+                dur_s = _parse_wait_seconds(raw_dur)
+                if dur_s > 0:
+                    duration_ms = int(round(dur_s * 1000.0))
+            except Exception:
+                duration_ms = 800
+
+            _sf = self._state_flat()
+            pair = (
+                screen_region_by_name(area_doc, region, state_flat=_sf)
+                if region
+                else None
+            )
+            if pair is None:
+                logger.warning("dsl_scenario: unknown region %r for long_click", region)
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="region_not_found"
+                )
+                return None
+            _entry, reg = pair
+            bbox = reg.get("bbox")
+            if not isinstance(bbox, dict):
+                logger.warning("dsl_scenario: missing bbox for long_click region %r", region)
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="bbox_missing"
+                )
+                return None
+            pt = self._point_for_region_action(region, bbox, dev_w, dev_h)
+            ok = False
+            try:
+                ok = bool(
+                    await asyncio.to_thread(
+                        actions.long_tap,
+                        instance_id,
+                        pt,
+                        duration_ms=duration_ms,
+                    )
+                )
+            except Exception:
+                ok = False
+            if not ok:
+                logger.info(
+                    "dsl_scenario: long_click blocked — aborting scenario %s",
+                    _scen(scenario_key),
+                )
+                await self._clear_step_context(instance_id)
+                self._append_trace_row(
+                    trace_path, step, "stopped", reason="long_click_not_approved"
+                )
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={"scenario": scenario_key, "reason": "long_click_not_approved"},
+                )
+            self._last_tap_region_clicked = region
+            await asyncio.sleep(_action_pause_seconds(0.4))
+            self._append_trace_row(
+                trace_path, step, "ok", match_row=self._last_match.row if self._last_match else None
+            )
+            return None
+        if "click" in step:
+            region = str(step.get("click") or "").strip()
+            if region:
+                result = await self._tap_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    repo_root=repo_root,
+                    instance_id=instance_id,
+                    dev_w=dev_w,
+                    dev_h=dev_h,
+                    scenario_key=scenario_key,
+                    region=region,
+                    step=step,
+                )
+                if result is not None:
+                    md = dict(result.metadata or {})
+                    self._append_trace_row(
+                        trace_path,
+                        step,
+                        "stopped",
+                        reason=str(md.get("reason") or ""),
+                        match_row=self._last_match.row if self._last_match else None,
+                    )
+                    return result
+                await asyncio.sleep(_action_pause_seconds(0.4))
+            self._append_trace_row(
+                trace_path, step, "ok", match_row=self._last_match.row if self._last_match else None
+            )
+            return None
+        if "repeat" in step:
+            spec = step.get("repeat")
+            if isinstance(spec, dict):
+                try:
+                    max_iters = int(spec.get("max", 1))
+                except (TypeError, ValueError):
+                    max_iters = 1
+                inner_steps = spec.get("steps")
+                until_match = str(spec.get("until_match") or "").strip()
+                until_any = spec.get("until_any_match")
+                stop_click_any = bool(spec.get("stop_after_click"))
+                stop_click_regs_raw = spec.get("stop_after_click_regions")
+            else:
+                try:
+                    max_iters = int(spec or 1)
+                except (TypeError, ValueError):
+                    max_iters = 1
+                inner_steps = step.get("steps")
+                until_match = ""
+                until_any = None
+                stop_click_any = False
+                stop_click_regs_raw = None
+
+            max_iters = max(0, max_iters)
+            if not isinstance(inner_steps, list) or not inner_steps:
+                return None
+
+            until_any_list: list[str] = []
+            if isinstance(until_any, list):
+                until_any_list = [str(x or "").strip() for x in until_any if str(x or "").strip()]
+
+            stop_click_regs: set[str] = set()
+            if isinstance(stop_click_regs_raw, list):
+                stop_click_regs = {
+                    str(x or "").strip()
+                    for x in stop_click_regs_raw
+                    if str(x or "").strip()
+                }
+
+            iter_total = 0
+            for iter_idx in range(max_iters):
+                self._last_tap_region_clicked = ""
+                # After the first iteration the inner steps may have tapped, so
+                # the ``until_*`` probes below must read a fresh post-action
+                # frame — otherwise they re-check the pre-tap screen and the
+                # loop keeps clicking (double click).
+                if iter_idx > 0 and hasattr(actions, "invalidate_frame_cache"):
+                    with suppress(Exception):
+                        actions.invalidate_frame_cache(instance_id)
+                if until_match:
+                    row = await self._match_region(
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        scenario_key=scenario_key,
+                        step=step,
+                        region=until_match,
+                    )
+                    if row is not None and bool(row.get("matched")):
+                        break
+                if until_any_list:
+                    for reg in until_any_list:
+                        row2 = await self._match_region(
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            scenario_key=scenario_key,
+                            step=step,
+                            region=reg,
+                        )
+                        if row2 is not None and bool(row2.get("matched")):
+                            self._append_trace_row(
+                                trace_path, step, "ok", iterations=iter_total
+                            )
+                            return None
+                iter_path = f"{trace_path}.{iter_idx}" if trace_path else str(iter_idx)
+                self._append_trace_row(
+                    iter_path, None, "iter", summary=f"iter {iter_idx}"
+                )
+                iter_total = iter_idx + 1
+                try:
+                    for inner_idx, inner in enumerate(inner_steps):
+                        if not isinstance(inner, dict):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,  # ty: ignore[invalid-argument-type]
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=scenario_key,
+                            trace_path=f"{iter_path}.{inner_idx}",
+                        )
+                        if result is not None:
+                            return result
+                        if self._last_tap_region_clicked and (
+                            stop_click_any
+                            or (
+                                stop_click_regs
+                                and self._last_tap_region_clicked in stop_click_regs
+                            )
+                        ):
+                            self._append_trace_row(
+                                trace_path, step, "ok", iterations=iter_total
+                            )
+                            return None
+                except _BreakRepeat:
+                    self._append_trace_row(
+                        trace_path, step, "ok", iterations=iter_total
+                    )
+                    return None
+            self._append_trace_row(trace_path, step, "ok", iterations=iter_total)
+            return None
+        if "loop" in step:
+            spec = step.get("loop")
+            if not isinstance(spec, dict):
+                return None
+            inner_steps = spec.get("steps")
+            if not isinstance(inner_steps, list) or not inner_steps:
+                return None
+
+            # Loop ``cond:`` is the exit condition — re-evaluated at the top of
+            # every iteration, the loop breaks the first time it holds.
+            cond_expr_raw = spec.get("cond")
+            cond_expr = (
+                str(cond_expr_raw).strip()
+                if cond_expr_raw is not None and not isinstance(cond_expr_raw, bool)
+                else None
+            ) or None
+
+            try:
+                max_iters = int(spec.get("max", 100))
+            except (TypeError, ValueError):
+                max_iters = 100
+            max_iters = max(0, max_iters)
+
+            ttl_raw = spec.get("ttl")
+            ttl_s = _parse_wait_seconds(ttl_raw) if ttl_raw is not None else 0.0
+            deadline = (time.monotonic() + ttl_s) if ttl_s > 0 else None
+
+            iter_total = 0
+            try:
+                for iter_idx in range(max_iters):
+                    if deadline is not None and time.monotonic() >= deadline:
+                        break
+                    # ``cond`` is the exit condition: break the moment it
+                    # holds. Re-evaluated each iteration so inner OCR / exec
+                    # steps can flip state and exit the loop.
+                    if cond_expr is not None and await _dsl_cond_allows_step(
+                        {"cond": cond_expr},
+                        instance_id,
+                        self.redis_client,
+                        state_flat=self._state_flat(),
+                    ):
+                        break
+
+                    iter_path = (
+                        f"{trace_path}.{iter_idx}" if trace_path else str(iter_idx)
+                    )
+                    self._append_trace_row(
+                        iter_path, None, "iter", summary=f"iter {iter_idx}"
+                    )
+                    iter_total = iter_idx + 1
+                    for inner_idx, inner in enumerate(inner_steps):
+                        if not isinstance(inner, dict):
+                            continue
+                        # Step-level ``cond:`` is evaluated here so individual
+                        # inner steps can be conditionally skipped without
+                        # blocking the whole loop.
+                        if not await _dsl_cond_allows_step(
+                            inner,  # ty: ignore[invalid-argument-type]
+                            instance_id,
+                            self.redis_client,
+                            state_flat=self._state_flat(),
+                        ):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,  # ty: ignore[invalid-argument-type]
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=scenario_key,
+                            trace_path=f"{iter_path}.{inner_idx}",
+                        )
+                        if result is not None:
+                            return result
+            except _BreakRepeat:
+                # ``break: loop`` and legacy ``break: repeat`` both exit the
+                # nearest loop-like block.
+                self._append_trace_row(
+                    trace_path, step, "ok", iterations=iter_total
+                )
+                return None
+            self._append_trace_row(trace_path, step, "ok", iterations=iter_total)
+            return None
+        if "while_match" in step:
+            reg = str(step.get("while_match") or "").strip()
+            try:
+                max_iters = int(step.get("max", 20))
+            except (TypeError, ValueError):
+                max_iters = 20
+            max_iters = max(0, max_iters)
+            inner_steps = step.get("steps")
+            if not isinstance(inner_steps, list):
+                inner_steps = []
+            retry_cfg = step.get("retry")
+            if not isinstance(retry_cfg, dict):
+                retry_cfg = {}
+            try:
+                initial_attempts = int(retry_cfg.get("attempts", 1))
+            except (TypeError, ValueError):
+                initial_attempts = 1
+            initial_attempts = max(1, initial_attempts)
+            attempt_interval_s = (
+                _parse_wait_seconds(retry_cfg.get("interval"))
+                if "interval" in retry_cfg
+                else 0.0
+            )
+            attempt_interval_s = max(0.0, attempt_interval_s)
+
+            iterations = 0
+            for iter_idx in range(max_iters):
+                probe_attempts = initial_attempts if iterations == 0 else 1
+                row = None
+                for attempt in range(probe_attempts):
+                    # Force a fresh frame before re-probing when either:
+                    #  - ``attempt > 0``: retrying within this iteration, or
+                    #  - ``iterations > 0``: a previous iteration ran inner
+                    #    steps that may have tapped (e.g. closed the popup we
+                    #    just matched). Without dropping the cache here the probe
+                    #    can re-read the pre-tap screen and click again — the
+                    #    double-click / popup-close loop.
+                    if (attempt > 0 or iterations > 0) and hasattr(
+                        actions, "invalidate_frame_cache"
+                    ):
+                        with suppress(Exception):
+                            actions.invalidate_frame_cache(instance_id)
+                    row = await self._match_region(
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        scenario_key=scenario_key,
+                        step=step,
+                        region=reg,
+                    )
+                    if row is not None and bool(row.get("matched")):
+                        break
+                    if attempt < probe_attempts - 1:
+                        await asyncio.sleep(attempt_interval_s)
+                if row is None or not bool(row.get("matched")):
+                    break
+                iter_path = (
+                    f"{trace_path}.{iter_idx}" if trace_path else str(iter_idx)
+                )
+                self._append_trace_row(
+                    iter_path, None, "iter", summary=f"iter {iter_idx}"
+                )
+                try:
+                    for inner_idx, inner in enumerate(inner_steps):
+                        if not isinstance(inner, dict):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=scenario_key,
+                            trace_path=f"{iter_path}.{inner_idx}",
+                        )
+                        if result is not None:
+                            return result
+                except _BreakRepeat:  # noqa: TRY203
+                    # Explicit propagation marker — ``_BreakRepeat`` must exit
+                    # the iteration loop *without* incrementing ``iterations``
+                    # so the enclosing ``repeat:`` handler sees the right count.
+                    raise
+                iterations += 1
+
+            # ``else:`` — fallback steps for the no-iterations case (icon
+            # never matched). Runs only when the loop completed without any
+            # successful probe; ignored if the loop ran at least once.
+            else_steps = step.get("else")
+            if (
+                iterations == 0
+                and isinstance(else_steps, list)
+                and else_steps
+            ):
+                for else_idx, else_step in enumerate(else_steps):
+                    if not isinstance(else_step, dict):
+                        continue
+                    branch_path = (
+                        f"{trace_path}.else.{else_idx}"
+                        if trace_path
+                        else f"else.{else_idx}"
+                    )
+                    result = await self._run_inline_step(
+                        else_step,  # ty: ignore[invalid-argument-type]
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        scenario_key=scenario_key,
+                        trace_path=branch_path,
+                    )
+                    if result is not None:
+                        return result
+
+            if iterations:
+                logger.info(
+                    "dsl_scenario: nested while_match done scenario=%s region=%s iterations=%d",
+                    _scen(scenario_key),
+                    reg,
+                    iterations,
+                )
+            else:
+                logger.debug(
+                    "dsl_scenario: nested while_match done scenario=%s region=%s iterations=%d",
+                    _scen(scenario_key),
+                    reg,
+                    iterations,
+                )
+            self._append_trace_row(trace_path, step, "ok", iterations=iterations)
+            return None
+        if "swipe_direction" in step:
+            spec = step.get("swipe_direction")
+            if isinstance(spec, dict):
+                direction = str(spec.get("direction") or "").strip().lower()
+                try:
+                    delta = int(spec.get("delta") or 0)
+                except (TypeError, ValueError):
+                    delta = 0
+                try:
+                    duration_ms = int(spec.get("duration_ms") or 300)
+                except (TypeError, ValueError):
+                    duration_ms = 300
+            else:
+                direction = str(spec or "").strip().lower()
+                delta = 350
+                duration_ms = 300
+            if direction and delta > 0:
+                ok = await asyncio.to_thread(
+                    actions.swipe_direction,
+                    instance_id,
+                    direction=direction,
+                    delta=delta,
+                    duration_ms=duration_ms,
+                )
+                if not ok:
+                    logger.info(
+                        "dsl_scenario: swipe blocked — aborting scenario %s",
+                        _scen(scenario_key),
+                    )
+                    await self._clear_step_context(instance_id)
+                    self._append_trace_row(
+                        trace_path, step, "stopped", reason="swipe_not_approved"
+                    )
+                    return TaskResult(
+                        success=False,
+                        next_run_at=None,
+                        metadata={"scenario": scenario_key, "reason": "swipe_not_approved"},
+                    )
+                await asyncio.sleep(_action_pause_seconds(0.4))
+            self._append_trace_row(trace_path, step, "ok")
+            return None
+        if "ttl" in step:
+            # Exit the scenario early with a delayed reschedule. Used inside
+            # ``while_match.else`` to back off when an expected popup never
+            # appeared, so the worker doesn't churn re-running the same probe.
+            ttl_s = max(0.0, _parse_wait_seconds(step.get("ttl")))
+            await self._clear_step_context(instance_id)
+            self._append_trace_row(
+                trace_path, step, "early_exit", reason="ttl", ttl_s=ttl_s
+            )
+            return TaskResult(
+                success=True,
+                next_run_at=datetime.now(tz=UTC) + timedelta(seconds=ttl_s),
+                metadata={
+                    "scenario": scenario_key,
+                    "reason": "ttl_exit",
+                    "ttl_s": ttl_s,
+                },
+            )
+        if "wait_screen" in step:
+            matched = await self._run_wait_screen_step(
+                actions=actions,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step,
+            )
+            if not matched:
+                await self._clear_step_context(instance_id)
+                self._append_trace_row(
+                    trace_path, step, "stopped", reason="wait_screen_timeout"
+                )
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={
+                        "scenario": scenario_key,
+                        "reason": "wait_screen_timeout",
+                    },
+                )
+            self._append_trace_row(trace_path, step, "ok", matched=matched)
+            return None
+        if "wait" in step:
+            from config.loader import get_settings as _get_settings
+
+            _jitter_pct = float(
+                getattr(_get_settings().worker, "wait_jitter_pct", 0.0) or 0.0
+            )
+            seconds = _jittered_wait_seconds(
+                _parse_wait_seconds(step.get("wait")), _jitter_pct
+            )
+            if seconds > 0:
+                # Chunked sleep so "Run scenario now" can preempt a long ``wait``
+                # without sitting through it. Without this, a multi-second wait
+                # delays cancellation by exactly its duration.
+                chunk = 0.25
+                remaining = seconds
+                while remaining > 0:
+                    step_s = min(chunk, remaining)
+                    await asyncio.sleep(step_s)
+                    remaining -= step_s
+                    if remaining <= 0:
+                        break
+                    ip = await self._inline_preempt_if_needed(
+                        instance_id, scenario_key
+                    )
+                    if ip is not None:
+                        md = dict(ip.metadata or {})
+                        self._append_trace_row(
+                            trace_path,
+                            step,
+                            "stopped",
+                            reason=str(md.get("reason") or ""),
+                        )
+                        return ip
+                # An explicit ``wait:`` is the author saying "the screen will
+                # change during this pause" — drop the per-instance frame
+                # cache so the next ``match`` / ``ocr`` re-captures instead of
+                # serving a pre-wait frame (matters most for timers / popups
+                # that animated in during the sleep).
+                _invalidate = getattr(actions, "invalidate_frame_cache", None)
+                if _invalidate is not None:
+                    _invalidate(instance_id)
+            self._append_trace_row(trace_path, step, "ok")
+            return None
+        if "push_scenario" in step:
+            spec = step.get("push_scenario")
+            await self._write_step_context(instance_id, scenario=scenario_key)
+            push_args: dict[str, Any] | None = None
+            if isinstance(spec, dict):
+                name = str(spec.get("name") or "").strip()
+                try:
+                    pr = int(spec.get("priority") or self.priority)
+                except (TypeError, ValueError):
+                    pr = self.priority
+                delay_s = await _resolve_push_delay_seconds(
+                    spec.get("delay"),
+                    instance_id=instance_id,
+                    redis_async=self.redis_client,
+                    player_id=self.player_id,
+                )
+                skip_dup = bool(spec.get("skip_if_duplicate", True))
+                expires_at, expires_skip = await _resolve_push_expires_at(
+                    spec.get("expires"),
+                    instance_id=instance_id,
+                    redis_async=self.redis_client,
+                    player_id=self.player_id,
+                )
+                raw_args = spec.get("args")
+                if isinstance(raw_args, dict) and raw_args:
+                    push_args = dict(raw_args)
+            else:
+                name = str(spec or "").strip()
+                pr = self.priority
+                delay_s = 0.0
+                skip_dup = True
+                expires_at, expires_skip = None, ""
+            if delay_s is None:
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="delay_unresolved"
+                )
+                return None
+            if expires_skip:
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason=expires_skip
+                )
+                return None
+            if name:
+                await _enqueue_scenario(
+                    redis_async=self.redis_client,
+                    instance_id=instance_id,
+                    player_id=self.player_id,  # ty: ignore[invalid-argument-type]
+                    scenario=name,
+                    priority=pr,
+                    run_at=time.time() + max(0.0, delay_s),
+                    skip_if_duplicate=skip_dup,
+                    expires_at=expires_at,
+                    args=push_args,
+                )
+            self._append_trace_row(trace_path, step, "ok")
+            return None
+        if "exec" in step:
+            name = str(step.get("exec") or "").strip()
+            exec_row: dict[str, Any] = {}
+            if name:
+                base_args = self.args if isinstance(self.args, dict) else {}
+                args = {
+                    **base_args,
+                    **{k: v for k, v in step.items() if k not in ("exec", "cond")},
+                }
+                exec_row = await self._run_exec_step(name, instance_id, args)
+            exec_row = _trace_exec_result_kwargs(exec_row)
+            self._append_trace_row(trace_path, step, "ok", **exec_row)
+            return None
+        if "ocr" in step:
+            region = str(step.get("ocr") or "").strip()
+            if region:
+                await self._ocr_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    instance_id=instance_id,
+                    dev_w=dev_w,
+                    dev_h=dev_h,
+                    scenario_key=scenario_key,
+                    step=step,
+                    region=region,
+                )
+            self._append_trace_row(
+                trace_path, step, "ok", ocr_row=self._last_ocr_row
+            )
+            return None
+        if "match" in step:
+            region = str(step.get("match") or "").strip()
+            matched = False
+            row: dict[str, Any] | None = None
+            if region:
+                row = await self._match_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    repo_root=repo_root,
+                    instance_id=instance_id,
+                    scenario_key=scenario_key,
+                    step=step,
+                    region=region,
+                )
+                matched = bool(row and row.get("matched"))
+            # ``match + steps`` = guarded block: run ``steps`` only when the
+            # probe succeeded. Miss falls through to ``else`` (if present) and
+            # then to the next sibling step — no abort. This is the soft-gate
+            # form, distinct from bare ``match:`` (still a hard gate in the
+            # top-level executor).
+            branch_steps = step.get("steps") if matched else step.get("else")
+            branch_label = "steps" if matched else "else"
+            if isinstance(branch_steps, list) and branch_steps:
+                for inner_idx, inner in enumerate(branch_steps):
+                    if not isinstance(inner, dict):
+                        continue
+                    inner_path = (
+                        f"{trace_path}.{branch_label}.{inner_idx}"
+                        if trace_path
+                        else f"{branch_label}.{inner_idx}"
+                    )
+                    result = await self._run_inline_step(
+                        inner,  # ty: ignore[invalid-argument-type]
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        scenario_key=scenario_key,
+                        trace_path=inner_path,
+                    )
+                    if result is not None:
+                        return result
+            self._append_trace_row(
+                trace_path, step, "ok", matched=matched, match_row=row
+            )
+            return None
+        logger.warning("dsl_scenario: unsupported nested step: %s", step)
+        self._append_trace_row(trace_path, step, "skipped", reason="unsupported")
+        return None

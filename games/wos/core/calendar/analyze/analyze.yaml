@@ -1,0 +1,3 @@
+# No overlay rules. The schedule is read on screen by refresh_calendar (tap each
+# event bar → OCR popup) and stored in SQLite; nothing here is detected per-tick.
+overlay: []

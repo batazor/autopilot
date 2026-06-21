@@ -1,0 +1,243 @@
+id: bradley
+name: Bradley
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/bradley/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '8656'
+    def: '7126'
+    health: '53446'
+  expedition:
+    attack: 650.52%
+    defense: 650.52%
+story: 'Bradley is a model warrior, capable veteran, and military strategist trained
+  by one of the finest military academies in oldworld history. Despite what may have
+  happened afterward, he is also one of the Eagles'' finest warriors and will not
+  tolerate anybody saying otherwise.
+
+
+  A loyal soldier, Bradley earned his stripes primarily working artillery with his
+  understanding of siege techniques, in this day and age, useful beyond measure. A
+  calculating mind and occasional flashes of brilliance is the mainrason Bradley has
+  retained his position as a member of Gina''s mercenary company and, at one point,
+  Captain Fawkner''s rigth-hand man.
+
+
+  The only shadow over Bradley remains the unexplained disappearance of his entire
+  battalion on expedition, in which he was the sole survivor somehow unable to recall
+  the circumstances surrounding their loss. Bradley returned a changed man, withdrawn,
+  unable to explain why large parts of his recollection were now missing. It is doubtful
+  he would have remained in the company without the backing of thei new leader, Gina,
+  by whose trust Bradley has mounted a slow but gradual recovey.
+
+
+  Bradley''s skills in the mechanical operation of all types of cannons is complemented
+  by excellent sharp-shooting skills, swordsmanship when the situation requires, as
+  well as fairly decent close-quarters combat abilities. A respected strategist, Bradley
+  has developed a reputation for surgical strikes and minimizing civilian casualties,
+  often quoting that, "Cannons do not win battles. Careful planning, timing, and hte
+  courage to seize the moment do."
+
+
+  Bradley was born into a relatively well-known military family in the old Solaris
+  Empire, resulting in his acceptance to the ''last class" of the rapidity-dissolving
+  Solaris Empire''s prestigious Royal Academy. Truth be told, the Imperial facade
+  was already beginning to cruumble before Bradley was handed his first uniform.
+
+
+  Bradley''s regiment came increassing to represent what the collapse of the old Empire
+  might mean for everyday survival in the freezing world. Bradley still held out hope
+  their ragtag group could somehow help rebuild the Solaris Empire and its honorable
+  traditions. Most accepted the new reality: discipline and honor were dead, and survival
+  required a cruel hand. The latter sparked Bradley''s transition to the mercenary
+  life and confirmed his worst fears. The solaris Empire was gone and it would be
+  rebuilt.
+
+
+  Other than Captain Fawkner, just disappear? It was a relatively unexplored valley
+  and site of many strange sightings. But why did only Bradley survive? Why can no
+  one account for it?
+
+
+  Bradley could have been cast out on suspicion of treachery were is not for Commander
+  Gina''s abiding trust in the cursed man .Bradley has since begun a kind of regular
+  pilgrimage to the same valley, seeking again and again some trace of Fawkner, his
+  lost friends, or anything that might jog his memories. So far he has turned up nothing,
+  yet still holds out hope.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+skills:
+- name: Destructor
+  description: Bradley primes his artillery with an extremely potent shell, dealing
+    Attack 300%/330%/360%/390%/420% Area of Effect Damage.
+- name: Incendiary Shell
+  description: Bradley fires a special incendiary shell, dealing Attack 60%/66%/72%/78%/84%
+    Area of Effect Damage. The flaming crater in its wake also deals Attack 17%/19%/21%/23%/25%
+    damage to enemies every 0.5s for 2s.
+- name: Audacious
+  description: The prospect of death only energizes a seasoned warrior like Bradley,
+    increasing his attack by 10%/14%/18%/22%/26% .
+- name: Veteran's Might
+  description: Bradley's years of combat experience enables him to destroy enemies
+    efficiently, increasing Attack by 5%/10%/15%/20%/25% for all troops.
+- name: Power Shot
+  description: Bradley use his expertise in suppresive artillery against the ennemy
+    vanguard, increasing Damage Dealt to Lancer by 6%/12%/18%/24%/30% , and to infantry
+    by 5%/10%/15%/20%/25% for all troops.
+- name: Tactical Assistance
+  description: Bradley will press every advantage against a beleaguered ennemy, increasing
+    Damage Dealt by 6%/12%/18%/24%/30% for all troops for 2 turns every 4 turns.
+- name: Onslaught (Lv. 5)
+  description: Shock and awe tactics can also boost morale. The "destructor" further
+    increases Attack Speed by 14% for Heroes and Escorts for 5s.
+- name: Siege Insight (Lv. 5)
+  description: Bradley knows exactly where to place defenses as a sieges expert, increasing
+    Defender Troops' Attack by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 96300
+      attack: 231
+      defense: 192
+      health: 1444
+      lethality_m: 16.05
+      health_m: 16.05
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 6% for
+        5s.'
+    2:
+      power: 163710
+      attack: 394
+      defense: 327
+      health: 2455
+      lethality_m: 32.1
+      health_m: 32.1
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 6% for
+        5s.'
+      skill_2: Defender Troop Attack +5%
+    3:
+      power: 231120
+      attack: 558
+      defense: 462
+      health: 3466
+      lethality_m: 48.15
+      health_m: 48.15
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 8% for
+        5s.'
+      skill_2: Defender Troop Attack +5%
+    4:
+      power: 298530
+      attack: 725
+      defense: 597
+      health: 4477
+      lethality_m: 64.2
+      health_m: 64.2
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 8% for
+        5s.'
+      skill_2: Defender Troop Attack +7.5%
+    5:
+      power: 365940
+      attack: 889
+      defense: 731
+      health: 5489
+      lethality_m: 80.25
+      health_m: 80.25
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 10% for
+        5s.'
+      skill_2: Defender Troop Attack +7.5%
+    6:
+      power: 433350
+      lethality_m: 96.3
+      health_m: 96.3
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 10% for
+        5s.'
+      skill_2: Defender Troop Attack +10%
+    7:
+      power: 500760
+      attack: 1216
+      defense: 1001
+      health: 7511
+      lethality_m: 112.35
+      health_m: 112.35
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 12% for
+        5s.'
+      skill_2: Defender Troop Attack +10%
+    8:
+      power: 568170
+      lethality_m: 128.4
+      health_m: 128.4
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 12% for
+        5s.'
+      skill_2: Defender Troop Attack +12.5%
+    9:
+      lethality_m: 144.45
+      health_m: 144.45
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 14% for
+        5s.'
+      skill_2: Defender Troop Attack +12.5%
+    10:
+      power: 722250
+      attack: 1752
+      defense: 1444
+      health: 10833
+      lethality_m: 160.5
+      health_m: 160.5
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 14% for
+        5s.'
+      skill_2: Defender Troop Attack +15%

@@ -1,0 +1,10 @@
+overlay:
+  - name: shop.artisans_trove.page
+    region: artisans_trove.box
+    isRedDot: true
+    screens:
+      - shop.artisans_trove
+    steps:
+      - push_scenario:
+          name: shop.artisans_trove
+          ttl: 1m

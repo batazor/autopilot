@@ -1,0 +1,13 @@
+screens:
+  deals.hall_of_heroes:
+    priority: 53
+    rules:
+    - ocr: deals.hall_of_heroes.title
+      contains: Hall of Heroes
+      threshold: 0.9
+  hall_of_heroes.witness:
+    priority: 54
+    rules:
+    - ocr: page.common.title
+      contains: A Hero's Witness
+      threshold: 0.8

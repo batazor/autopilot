@@ -1,0 +1,10 @@
+edges:
+  main_city:
+    event.7-day:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/events/7-day/references/main_city.event.7-day.png
+      threshold: 0.9
+
+  event.7-day:
+    main_city: [icon.page.back]

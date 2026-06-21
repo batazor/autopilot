@@ -1,0 +1,10 @@
+id: marvelous_tile_withdraw
+name: 'Marvelous Tile: Withdraw'
+wiki_url: https://www.whiteoutsurvival.wiki/items/marvelous-tile-withdraw/
+category: ''
+description: Returns the last moved tile from the elimination zone to its original
+  position.
+sources:
+- Returns the last moved tile from the elimination zone to its original position.
+- Packs (Marvelous Boost)
+- Marvelous Fantasia

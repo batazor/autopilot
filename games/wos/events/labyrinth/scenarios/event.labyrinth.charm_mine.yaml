@@ -1,0 +1,55 @@
+enabled: true
+name: "Labyrinth: Charm Mine"
+priority: 80_000
+node: event.labyrinth.charm_mine
+cond: "active_player != null"
+
+steps:
+  - click: labyrinth.cave.challenge
+  - wait: 1s
+  - click: labyrinth.squad.balance
+  - wait: 1s
+  - click: labyrinth.balance.infantry.percent
+  - wait: 300ms
+  - type_text: "50"
+  - wait: 300ms
+  - click: labyrinth.balance.lancer.percent
+  - wait: 300ms
+  - type_text: "15"
+  - wait: 300ms
+  - click: labyrinth.balance.marksman.percent
+  - wait: 300ms
+  - type_text: "35"
+  - wait: 300ms
+  - match: labyrinth.balance.all_future.checked
+    else:
+      - click: labyrinth.balance.all_future.checkbox
+      - wait: 500ms
+  - click: labyrinth.balance.confirm
+  - wait: 1s
+  - click: labyrinth.squad.deploy
+  - wait: 1s
+
+  - while_match: button.claim
+    max: 3
+    steps:
+      - click: button.claim
+      - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 500ms
+
+  - while_match: button.claim.big
+    max: 3
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 500ms

@@ -1,0 +1,28 @@
+overlay:
+  - name: isNewPeople.visible
+    region: isNewPeople
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - main_city
+    ttl: 2s
+    steps:
+      - push_scenario: welcome_new_survivors
+  - name: isWorkers.visible
+    region: isWorkers
+    isRedDot: true
+    screens:
+      - main_city
+      - survivor_status.status
+    steps:
+      - push_scenario: assign_worker
+  - name: survivors.intro.visible
+    region: survivors.intro
+    action: findIcon
+    priority: 90_000
+    threshold: 0.9
+    ttl: 3
+    screens:
+      - survivor_status
+    steps:
+      - push_scenario: survivors_intro

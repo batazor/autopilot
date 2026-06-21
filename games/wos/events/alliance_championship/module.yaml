@@ -1,0 +1,9 @@
+id: alliance_championship
+title: Alliance Championship
+description: Limited-time Alliance Championship event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: alliance_championship
+wiki: false

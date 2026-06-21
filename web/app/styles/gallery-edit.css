@@ -1,0 +1,395 @@
+@layer components {
+  .gallery-grid {
+    @apply mt-3 grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3;
+  }
+
+  .gallery-card {
+    @apply m-0 rounded-xl border border-wos-border-subtle bg-wos-panel/80 p-2;
+  }
+
+  .gallery-card img {
+    @apply block w-full rounded-md bg-wos-input;
+  }
+
+  .gallery-card figcaption {
+    @apply mt-1.5 flex flex-col gap-0.5 text-xs;
+  }
+
+  .gallery-section {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 420px;
+  }
+
+  .gallery-thumb-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 190px;
+  }
+
+  .edit-dsl-layout,
+  .edit-scenarios-layout {
+    @apply grid items-start gap-4 lg:grid-cols-[minmax(240px,300px)_1fr];
+  }
+
+  .edit-dsl-layout--collapsed {
+    @apply lg:grid-cols-[auto_1fr];
+  }
+
+  .edit-dsl-rail {
+    @apply sticky top-4 flex flex-row items-center gap-2 self-start rounded-xl border border-wos-border-subtle bg-wos-panel/80 px-2 py-1.5 lg:flex-col lg:px-1.5 lg:py-2;
+  }
+
+  .edit-dsl-rail__label {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-wos-text-muted;
+  }
+
+  @media (min-width: 1024px) {
+    .edit-dsl-rail__label {
+      writing-mode: vertical-rl;
+    }
+  }
+
+  .edit-dsl-rail__count {
+    @apply rounded-md border border-wos-border-subtle bg-wos-panel-raised px-1 py-0.5 text-[10px] text-wos-text-muted;
+  }
+
+  .edit-dsl-panel-head__actions {
+    @apply flex shrink-0 items-center gap-1;
+  }
+
+  .edit-dsl-metric--problems {
+    @apply cursor-pointer border-red-400/50;
+  }
+
+  .edit-dsl-metric--problems strong {
+    @apply text-red-400;
+  }
+
+  .edit-dsl-problems {
+    @apply mb-4;
+  }
+
+  .edit-dsl-problems__list {
+    @apply m-0 mt-2 flex max-h-64 list-none flex-col gap-1 overflow-y-auto p-0;
+  }
+
+  .edit-dsl-problems__list li {
+    @apply flex min-w-0 flex-wrap items-center gap-2 text-sm;
+  }
+
+  .edit-dsl-problems__list code {
+    @apply shrink-0 text-xs text-wos-text-muted;
+  }
+
+  .edit-dsl-header-metrics {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .edit-dsl-metric {
+    @apply inline-flex max-w-full items-center gap-2 rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-1 text-xs;
+  }
+
+  .edit-dsl-metric--wide {
+    @apply min-w-0;
+  }
+
+  .edit-dsl-metric__label {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-wos-text-muted;
+  }
+
+  .edit-dsl-metric strong {
+    @apply min-w-0 truncate font-semibold text-wos-text;
+  }
+
+  .edit-dsl-sidebar-stack {
+    @apply flex min-w-0 flex-col gap-4;
+  }
+
+  .edit-dsl-sidebar,
+  .edit-scenarios-sidebar {
+    @apply max-h-[calc(100vh-10rem)] overflow-y-auto;
+  }
+
+  .edit-dsl-panel-head {
+    @apply mb-3 flex min-w-0 items-center justify-between gap-2;
+  }
+
+  .edit-dsl-panel-head h2 {
+    @apply m-0 text-sm font-semibold text-wos-text;
+  }
+
+  .edit-dsl-panel-head .meta {
+    @apply m-0 text-xs;
+  }
+
+  .edit-dsl-panel-icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-emerald-400/20 bg-emerald-500/10 text-emerald-200;
+  }
+
+  .edit-dsl-sidebar-controls,
+  .edit-dsl-create-fields {
+    @apply flex flex-col gap-3;
+  }
+
+  .edit-dsl-search {
+    @apply flex items-center gap-2 rounded-md border border-wos-border-subtle bg-wos-input px-2 text-wos-text-muted focus-within:border-sky-400/70 focus-within:ring-2 focus-within:ring-sky-400/25;
+  }
+
+  .edit-dsl-search input {
+    @apply min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-wos-text placeholder:text-wos-text-muted focus:outline-none;
+  }
+
+  .edit-dsl-tree-panel {
+    @apply mt-3;
+  }
+
+  .edit-dsl-empty {
+    @apply flex min-h-28 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-wos-border-subtle bg-wos-input/25 px-3 py-4 text-center text-sm text-wos-text-muted;
+  }
+
+  .edit-dsl-filter-results {
+    @apply m-0 p-0 pl-0;
+  }
+
+  .edit-dsl-filter-results li {
+    @apply flex min-w-0 items-center justify-between gap-2 rounded-md px-1 py-0.5 hover:bg-wos-input/50;
+  }
+
+  .edit-dsl-filter-results .tree-link {
+    @apply min-w-0 flex-1 truncate;
+  }
+
+  .edit-dsl-field {
+    @apply flex flex-col gap-1 text-sm;
+  }
+
+  .edit-dsl-field > span:first-child {
+    @apply text-xs font-semibold uppercase tracking-wide text-wos-text-muted;
+  }
+
+  .edit-dsl-field input {
+    @apply rounded-md border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/25;
+  }
+
+  .edit-dsl-active-file {
+    @apply sticky top-3 z-10 mb-4 flex min-w-0 items-center gap-3 rounded-md border border-wos-border-subtle bg-wos-panel/95 px-3 py-2 shadow-sm backdrop-blur;
+  }
+
+  .edit-dsl-active-file__icon {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-sky-400/20 bg-sky-500/10 text-sky-200;
+  }
+
+  .edit-dsl-active-file__body {
+    @apply flex min-w-0 flex-1 flex-col gap-0.5;
+  }
+
+  .edit-dsl-active-file__eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-wos-text-muted;
+  }
+
+  .edit-dsl-active-file__body strong {
+    @apply truncate text-sm text-wos-text;
+  }
+
+  .edit-dsl-active-file__body code {
+    @apply truncate text-xs text-wos-text-muted;
+  }
+
+  .edit-dsl-active-file__module {
+    @apply max-w-[10rem] truncate rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-1 text-xs font-medium text-wos-text-secondary;
+  }
+
+  .edit-dsl-main .yaml-editor,
+  .edit-scenarios-main .yaml-editor {
+    @apply min-h-[50vh];
+  }
+
+  .edit-scenario-editor h3 {
+    @apply mt-6 mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-wos-text-muted;
+  }
+
+  .edit-scenario-summary-bar {
+    @apply mb-3 grid gap-2 rounded-md border border-wos-border-subtle bg-wos-input/25 p-2 sm:grid-cols-[auto_repeat(4,minmax(0,1fr))];
+  }
+
+  .edit-scenario-summary-bar__icon {
+    @apply flex h-9 w-9 items-center justify-center rounded-md border border-sky-400/20 bg-sky-500/10 text-sky-200;
+  }
+
+  .edit-scenario-summary-bar__item {
+    @apply min-w-0 rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-1.5;
+  }
+
+  .edit-scenario-summary-bar__item span {
+    @apply block text-[10px] font-semibold uppercase tracking-[0.12em] text-wos-text-muted;
+  }
+
+  .edit-scenario-summary-bar__item strong {
+    @apply block truncate text-sm font-semibold text-wos-text;
+  }
+
+  .edit-scenario-tabs {
+    @apply flex-1;
+  }
+
+  .edit-scenario-editor-toolbar {
+    @apply ml-auto flex flex-wrap items-center gap-2;
+  }
+
+  .edit-scenario-status {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold;
+  }
+
+  .edit-scenario-status__dot {
+    @apply h-2 w-2 rounded-full bg-current;
+  }
+
+  .edit-scenario-status--ok {
+    @apply border-emerald-400/25 bg-emerald-500/10 text-emerald-200;
+  }
+
+  .edit-scenario-status--warn {
+    @apply border-amber-400/30 bg-amber-500/10 text-amber-200;
+  }
+
+  .edit-scenario-status--danger {
+    @apply border-red-400/30 bg-red-500/10 text-red-200;
+  }
+
+  .edit-scenario-status--busy {
+    @apply border-sky-400/30 bg-sky-500/10 text-sky-200;
+  }
+
+  .edit-scenario-header {
+    @apply flex flex-col gap-3;
+  }
+
+  .edit-scenario-step-card {
+    @apply mb-3 rounded-xl border border-wos-border-subtle p-3 transition-colors duration-100;
+  }
+
+  .edit-scenario-step-card:hover {
+    @apply border-sky-500/60 bg-wos-input/40;
+  }
+
+  .edit-scenario-step-card:focus-within {
+    @apply border-sky-400 bg-wos-input/60;
+  }
+
+  .edit-scenario-step-head {
+    @apply mb-3 flex flex-wrap items-center gap-2 text-sm;
+  }
+
+  /* Numbered chip in the step header — small circular badge with tabular nums
+     so two- and three-digit indices line up. */
+  .edit-scenario-step-num {
+    @apply inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-panel-raised px-1.5 text-[11px] font-semibold tabular-nums text-wos-text;
+  }
+
+  /* Step type pill (click/wait/match/...). More prominent than a plain <code>. */
+  .edit-scenario-step-kind {
+    @apply rounded-md border border-sky-400/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-sky-200;
+  }
+
+  .edit-scenario-step-summary {
+    @apply min-w-0 flex-1 truncate font-mono text-xs;
+  }
+
+  .edit-scenario-step-actions {
+    @apply ml-auto flex gap-1 opacity-80 transition-opacity duration-100;
+  }
+
+  .edit-scenario-step-card:hover .edit-scenario-step-actions,
+  .edit-scenario-step-card:focus-within .edit-scenario-step-actions {
+    @apply opacity-100;
+  }
+
+  .edit-scenario-step-fields {
+    @apply flex flex-col gap-3;
+  }
+
+  .edit-scenario-section-head {
+    @apply mt-6 mb-3 flex items-center gap-2;
+  }
+
+  .edit-scenario-section-head h3 {
+    @apply m-0;
+  }
+
+  .edit-scenario-count {
+    @apply rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-xs font-semibold text-wos-text-muted;
+  }
+
+  .edit-scenario-steps-empty {
+    @apply mb-3 flex items-center justify-center gap-2 rounded-md border border-dashed border-wos-border-subtle bg-wos-input/25 px-3 py-6 text-sm text-wos-text-muted;
+  }
+
+  .edit-scenario-add-row {
+    @apply mt-3 gap-2 rounded-md border border-wos-border-subtle bg-wos-input/25 p-2;
+  }
+
+  .edit-scenario-validation-row {
+    @apply mt-4 flex flex-wrap items-center gap-2;
+  }
+
+  .edit-scenario-icon-row {
+    @apply items-start;
+  }
+
+  .edit-scenario-icon-preview {
+    @apply flex min-h-[4rem] items-center;
+  }
+
+  .edit-scenario-yaml-preview,
+  .edit-scenario-validation {
+    @apply mt-4;
+  }
+
+  .select-with-preview {
+    @apply flex items-start gap-2;
+  }
+
+  .region-preview-thumb {
+    @apply h-10 w-10 shrink-0 rounded border border-slate-700 bg-slate-900 object-contain;
+  }
+
+  .region-preview-thumb-wrap {
+    @apply relative inline-flex shrink-0;
+  }
+
+  .region-preview-thumb-link {
+    @apply inline-flex shrink-0 cursor-pointer;
+  }
+
+  .region-preview-popover {
+    @apply pointer-events-none invisible absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 rounded border border-slate-700 bg-slate-950 p-2 opacity-0 shadow-lg transition-opacity duration-100;
+  }
+
+  .region-preview-thumb-wrap:hover .region-preview-popover {
+    @apply visible opacity-100;
+  }
+
+  .region-preview-popover-img {
+    @apply max-h-64 max-w-xs object-contain;
+  }
+
+  .region-preview-popover-caption {
+    @apply mt-1 block text-center font-mono text-xs text-slate-300;
+  }
+
+  .region-labeling-link {
+    @apply ml-2 text-xs font-normal text-sky-400 underline-offset-2 hover:text-sky-300 hover:underline;
+  }
+
+  .region-unknown-warning {
+    @apply ml-2 text-xs font-normal text-amber-400;
+  }
+
+  .edit-scenario-yaml-tab {
+    @apply mt-2 flex flex-col gap-2;
+  }
+
+  .edit-scenario-yaml-tab textarea {
+    @apply min-h-[320px] w-full rounded border border-slate-700 bg-slate-950 p-2 font-mono text-xs leading-relaxed text-slate-100;
+  }
+
+}

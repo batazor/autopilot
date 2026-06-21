@@ -1,0 +1,9 @@
+id: dead_shot
+title: Dead Shot
+description: Dead Shot deals sub-tab; opens via main_city event strip or deals hub.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: dead_shot
+wiki: false

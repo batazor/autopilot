@@ -1,0 +1,24 @@
+enabled: true
+name: "Chapter: Claim Visible Row"
+priority: 90_000
+device_level: true
+
+# Generic Chapter fallback: when the common chapter title is detected but the
+# active tab landmark misses, click the visible row-level Claim button directly.
+node: chapter
+
+steps:
+  - while_match: chapter.button.claim
+    action: cta_button
+    color: green
+    threshold: 0.5
+    max: 6
+    steps:
+      - click: chapter.button.claim
+      - wait: 0.8s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere"]
+        max: 3
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s

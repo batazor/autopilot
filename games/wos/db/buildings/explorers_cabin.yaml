@@ -1,0 +1,13 @@
+id: explorers_cabin
+name: Explorers Cabin
+category: unknown
+requires:
+- building: furnace
+  level: 4
+requirements_by_level:
+  '1':
+    prerequisites: Furnace 4
+    build_cost: []
+    construction_time: '-'
+    building_power: null
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/explorers-cabin/

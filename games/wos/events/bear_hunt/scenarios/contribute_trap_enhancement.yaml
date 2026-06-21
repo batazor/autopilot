@@ -1,0 +1,17 @@
+# Contribute Explosive Arrowheads into Trap Enhancement to raise the bear level.
+#
+# TODO:
+# - Rebuild this flow through Alliance.
+# - Open Alliance -> Territory.
+# - Open Special Buildings.
+# - Select the Bear Trap building.
+# - From the Bear Trap screen, open Trap Enhancement and contribute arrows.
+# - Re-enable only after this route and its screen guards are labeled.
+#
+name: "Bear Hunt: Trap Enhancement"
+enabled: false
+node: event.bear_hunt.info
+steps:
+  - match: bear_hunt.info.title
+    steps:
+      - exec: contribute_trap_enhancement

@@ -1,0 +1,37 @@
+enabled: true
+name: "Pet Skill: Giant Tapir"
+node: pets.pet_skill
+icon: pets
+steps:
+  - match: pet.skill.title
+  - click: pet.skill.giant_tapir
+  - wait: 500ms
+  - click: pet.skill.use
+  - wait: 1s
+  - while_match: ui.button.confirm_blue
+    max: 1
+    steps:
+      - click: ui.button.confirm_blue
+      - wait: 500ms
+  - while_match: button.click_to_continue
+    max: 2
+    steps:
+      - click: button.click_to_continue
+      - wait: 500ms
+  - while_match: button.tap_anywhere_to_exit
+    expected: ["tap anywhere"]
+    max: 2
+    steps:
+      - click: button.tap_anywhere_to_exit
+      - wait: 500ms
+  - while_match: tapanywhereyoexit
+    expected: ["tap anywhere"]
+    max: 2
+    steps:
+      - click: tapanywhereyoexit
+      - wait: 500ms
+  - ocr: pet.skill.cooldown.time
+    type: time
+    threshold: 0.75
+    store: pets.entries.giant_tapir.skill.cooldown_remaining_s
+    state: pets.entries.giant_tapir.skill.cooldown_remaining_s

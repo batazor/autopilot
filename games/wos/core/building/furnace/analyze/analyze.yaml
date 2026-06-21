@@ -1,0 +1,32 @@
+# Furnace power management. The Max Power toggle is blue while it is OFF and
+# green once ON; detect the blue (off) state and push the power-on scenario,
+# which also re-enables the On/Off (heating) toggle if it has been switched off.
+overlay:
+  - name: furnace.max_power.off
+    region: building.furnace.max_power_off
+    action: color_check
+    type: blue
+    threshold: 0.4
+    screens:
+      - furnace
+    priority: 80_000
+    ttl: 5s
+    steps:
+      - push_scenario:
+          name: furnace.power_on
+          ttl: 10s
+
+  # Read the furnace level into buildings.levels (the build planner's input)
+  # whenever we are on the furnace screen. Throttled — the level rarely changes.
+  - name: furnace.level.read
+    region: building.furnace
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - furnace
+    priority: 50_000
+    ttl: 60s
+    steps:
+      - push_scenario:
+          name: read_furnace_level
+          ttl: 60s

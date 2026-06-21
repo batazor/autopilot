@@ -1,0 +1,13 @@
+overlay:
+  - name: honeymoon_trip.main_menu.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.honeymoon_trip.honeymoon_trip.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.honeymoon_trip
+          ttl: 1m

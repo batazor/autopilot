@@ -1,0 +1,13 @@
+id: alliance_chest
+title: Alliance Chests
+description: >-
+  Claim alliance Loot and Gift chests via their "Claim All" buttons. Ported from
+  the legacy Go bot's `usecases/alliance/alliance_chest_{loot,gift}.yaml`. The
+  per-chest individual Claim button (legacy dynamic findIcon scan) is a follow-up
+  needing a live-captured template.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

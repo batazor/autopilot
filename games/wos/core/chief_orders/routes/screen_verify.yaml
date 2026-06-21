@@ -1,0 +1,12 @@
+screens:
+  chief_order:
+    priority: 50
+    rules:
+      - match: chief_order.title
+        threshold: 0.9
+
+  chief_order_enact:
+    priority: 55
+    rules:
+      - match: chief.enact
+        threshold: 0.85

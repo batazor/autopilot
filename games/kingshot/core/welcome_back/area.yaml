@@ -1,0 +1,28 @@
+version: 2
+screens:
+- id: 1
+  screen_id: ''
+  ocr: references/welcome_back.png
+  regions:
+  - name: text.welcome_back
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 33.61111111111111
+      y: 18.046875
+      width: 33.33333333333333
+      height: 3.359375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: button.confirm.green
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 30.416666666666668
+      y: 76.640625
+      width: 38.88888888888889
+      height: 6.875
+      rotation: 0
+      original_width: 720
+      original_height: 1280

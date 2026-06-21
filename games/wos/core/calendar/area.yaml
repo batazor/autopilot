@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "event.calendar",
+      "ocr": "references/calendar.png",
+      "screen_region": "calendar.title",
+      "regions": [
+        {
+          "name": "calendar.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.25,
+            "y": 7.8125,
+            "width": 26.3889,
+            "height": 7.8125,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "events",
+      "ocr": "references/events.png",
+      "screen_region": "calendar.tab",
+      "regions": [
+        {
+          "name": "calendar.tab",
+          "action": "exist",
+          "threshold": 0.88,
+          "bbox": {
+            "x": 5.8333,
+            "y": 7.6563,
+            "width": 25.2778,
+            "height": 7.0312,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

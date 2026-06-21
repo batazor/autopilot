@@ -1,0 +1,11 @@
+overlay:
+  - name: shop.construction_queue.page
+    region: page.shop.construction_queue.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - shop.construction_queue
+    steps:
+      - push_scenario:
+          name: shop.construction_queue
+          ttl: 1m

@@ -1,0 +1,83 @@
+# Daily-mission router registry.
+#
+# Routes each daily-mission line (OCR'd into `chapter.daily.tasks` by
+# chapter.claim_missions) to the automation scenario that advances it. The
+# router — games/wos/core/chapter/exec.py :: route_daily_missions — matches every
+# entry against the accumulated buffer with re.finditer (IGNORECASE), parses the
+# named groups, and pushes `scenario` with the resolved `args` plus an expiry of
+# `chapter.daily.refresh - 10m` (a stale mission is pointless after the daily
+# reset). Recognised-but-unautomated missions (`scenario: null`) are logged.
+#
+# Entry fields:
+#   pattern   Python regex applied to the whole buffer. Named groups
+#             (?P<target>\d+) / (?P<resource>…) are parsed; all-digit values
+#             (thousands separators stripped) are coerced to int.
+#   scenario  target scenario key, or null = recognised, no automation yet.
+#   args      optional; string values may reference a group as ${name}. Resolved
+#             values reach the target scenario via ctx.args.
+#   category  classifies the mission for the quest reader
+#             (games/wos/core/chapter/daily_tasks.py) and the coordinator's
+#             daily_bias. The router ignores it. Domain-mapped categories
+#             (build / research / train / gather / stamina) drive priority
+#             boosts; the rest (heal / help / arena / event) are tracked for the
+#             dashboard + claims but boost no channel.
+#
+# Matched first-to-last; the resolved (scenario, args) pair is de-duplicated per
+# run. Queue dedup is by scenario key, so two pushes of the same scenario with
+# different args (e.g. gather Meat vs Wood) currently collapse to one until the
+# target varies its key.
+missions:
+  - pattern: 'Alliance Contribution'
+    scenario: alliance.tech.contribute
+    category: help
+
+  - pattern: 'Train\s+(?P<target>\d+)\s+Infantry'
+    scenario: troops.infantry.train
+    args: { troop: infantry, target: '${target}' }
+    category: train
+  - pattern: 'Train\s+(?P<target>\d+)\s+Lancer'
+    scenario: troops.lancer.train
+    args: { troop: lancer, target: '${target}' }
+    category: train
+  - pattern: 'Train\s+(?P<target>\d+)\s+Marksm'
+    scenario: troops.marksman.train
+    args: { troop: marksman, target: '${target}' }
+    category: train
+
+  - pattern: 'Intel Mission'
+    scenario: intel_run
+    category: stamina
+
+  - pattern: 'Heal\s+(?P<target>\d+)\s+injured'
+    scenario: heal_injured
+    args: { target: '${target}' }
+    category: heal
+
+  # Specific-resource gathers — pass the resource so the gather flow can target
+  # it (today gather_resources picks the scarcest; it will honour `resource`
+  # once wired). finditer yields one match per resource present in the list.
+  - pattern: 'Gather\s+[\d,]+\s+(?P<resource>Meat|Wood|Coal|Iron)'
+    scenario: gather_resources
+    args: { resource: '${resource}' }
+    category: gather
+  # "Gather N time(s)" — any gather satisfies it.
+  - pattern: 'Gather\s+\d+\s+time'
+    scenario: gather_resources
+    category: gather
+
+  - pattern: 'Upgrade\s+(?P<target>\d+)\s+building'
+    scenario: building.upgrade
+    args: { target: '${target}' }
+    category: build
+
+  - pattern: 'challenges?\s+in\s+The\s+Labyrinth'
+    scenario: event.labyrinth
+    category: event
+
+  # Recognised, no automation yet → logged, not pushed (documented + easy to wire).
+  - pattern: 'Research\s+\d+\s+technolog'
+    scenario: null
+    category: research
+  - pattern: 'Arena\s+Challenge'
+    scenario: null
+    category: arena

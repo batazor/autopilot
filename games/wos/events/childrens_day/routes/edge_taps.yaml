@@ -1,0 +1,12 @@
+edges:
+  main_menu:
+    event.childrens_day:
+      resolver: main_menu_panel_row
+      section: childrens_day
+      rows:
+        - childrens_day
+      approval_region: main_menu.panel.childrens_day
+
+  event.childrens_day:
+    main_menu: [icon.page.back]
+    main_city: [icon.page.back]

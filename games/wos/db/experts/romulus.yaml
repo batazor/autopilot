@@ -1,0 +1,51 @@
+id: romulus
+name: Romulus
+wiki_url: https://www.whiteoutsurvival.wiki/experts/romulus/
+role: Military Advisor
+type: Expedition
+base_stats:
+- stat: Troops Lethality
+  value: +20%
+- stat: Troops Health
+  value: +20%
+affinity:
+  stat: Troops Lethality & Health
+  max: +20.00%
+skills:
+- name: Call of War
+  effect: Romulus mobilizes to win, allowing free recruitment of 150 → 600 additional high-level troops
+    from any Camp per day as well as an additional 1 → 10 Loyalty Tag(s) from the Enlistment Office.
+  values:
+  - '150'
+  - '600'
+  - '1'
+  - '10'
+- name: Last Line
+  effect: Solaris' tactics didn't save the empire, but Romulus can rework them to protect you. Troops'
+    Attack and Defense +0.5% → 10%.
+  values:
+  - 0.5%
+  - 10%
+- name: Spirit of Aeetis
+  effect: The Aeetes may be gone, but their spirit lives on in Romulus and his men. Troops' Lethality
+    and Health +0.5% → 10%.
+  values:
+  - 0.5%
+  - 10%
+- name: One Heart
+  effect: Romulus has commanded armies far greater than those of today, enhancing your Rally Capacity
+    by 5,000 → 100,000.
+  values:
+  - 5,000
+  - 100,000
+talent:
+  name: Commander's Crest
+  effect: Commander Romulus is an expert at large deployments, increasing heroes' Expedition Army size
+    limit by 300 → 10,000.
+  max_level: 11
+story: Romulus was a decorated general in the Solaris Empire's Royal Academy who fell from grace due to
+  court politics. Falsely accused of sedition, he was disgraced. When rebellion threatened the kingdom,
+  the king recalled him to lead loyalist forces. After months of fighting, Romulus lost the final battle
+  and was taken prisoner. Treated respectfully by his former student—now the rebel leader—he eventually
+  agreed to serve as advisor to the new government. In his twilight years, he seeks to discover the fate
+  of the Aeetes, his former elite brigade.

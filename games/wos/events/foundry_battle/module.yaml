@@ -1,0 +1,9 @@
+id: foundry_battle
+title: Foundry Battle
+description: Limited-time Foundry Battle event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: foundry_battle
+wiki: false

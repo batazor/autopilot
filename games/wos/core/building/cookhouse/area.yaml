@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/furniture.png",
+      "regions": [
+        {
+          "name": "cookhouse.furniture",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.345672818574137,
+            "y": 92.0223160341481,
+            "width": 35.286504749550176,
+            "height": 5.3594121595608115,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "building.name",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.4455204035742915,
+            "y": 40.02170968274679,
+            "width": 40.439698492462306,
+            "height": 3.9789541753622935,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "cookhouse.build",
+          "action": "color_check",
+          "type": "blue",
+          "threshold": 0.4,
+          "bbox": {
+            "x": 75.54827678902294,
+            "y": 49.349084100264534,
+            "width": 16.802279106778993,
+            "height": 5.460392110755132,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "cookhouse.menu",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.71162354765643,
+            "y": 59.453500534627075,
+            "width": 5.73294041945093,
+            "height": 3.057568223707162,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

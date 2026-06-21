@@ -1,0 +1,8 @@
+screens:
+  alliance.invitation:
+    priority: 20
+    # Auto-handled by join_to_alliance accept-tap scenario; not routed via graph.
+    terminal: true
+    rules:
+    - match: alliance.title
+      threshold: 0.9

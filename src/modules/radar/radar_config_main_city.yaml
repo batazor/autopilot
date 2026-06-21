@@ -1,0 +1,82 @@
+# Radar config — MAIN_CITY target (your base interior view).
+#
+# PURPOSE: build a metric canvas of the city so building markers can be placed
+# and the bot can navigate between buildings. DISTANCE ACCURACY is what matters;
+# image prettiness is secondary. The stitcher measures every frame offset from
+# ORB keypoints (RANSAC), so canvas distances are accurate as long as (a) frames
+# overlap and (b) the crop covers map content only — NOT the static UI overlay,
+# which otherwise pins the measured motion to zero.
+#
+# The city has no minimap world grid and no kingdom border, so it uses the
+# screen-space `raster` route below (not the diamond grid) with the border servo
+# OFF. Cell (0,0) is captured in place (no tap — a tap would select a building)
+# and the route walks RIGHT then DOWN, so position the camera at the TOP-LEFT of
+# the base before scanning.
+#
+# CALIBRATE ON-DEVICE (look at the stitched canvas, then tune):
+#   * crop — tighten to exactly the map area (exclude top bar, bottom nav/chat,
+#     both side-button columns and the selected-building card). Measured start
+#     point on a 720x1280 emulator: x110 y210 w500 h790.
+#   * raster cols/rows — enough to cover the whole base walking right+down from
+#     the top-left start.
+#   * raster step_*_px — desired CAMERA travel per cell ≈ crop dim × (1 − overlap).
+#   * Scan FULLY ZOOMED OUT at a FIXED zoom for repeatable distances; the zoom
+#     must not change mid-scan (the view guard enforces this).
+version: 1
+device_serial: 127.0.0.1:5555
+adb_bin: adb
+# Dummy minimap block: required by the schema and used only for the (unused for
+# raster) affine annotation. The raster route ignores these corners.
+minimap:
+  bbox: [506, 12, 195, 145]
+  corners:
+    top: [603.0, 18.0]
+    right: [695.0, 84.0]
+    bottom: [606.0, 151.0]
+    left: [512.0, 84.0]
+  reference: radar_minimap_ref.png
+viewport:
+  rect_w: 24
+  rect_h: 39
+# High overlap → more ORB inliers per pair → tighter distance solve.
+overlap: 0.5
+# Tight central crop: map content only. This is the single most important knob —
+# it is the mask for BOTH feature matching and paste, so UI left in-crop would
+# dominate the match and zero out the measured motion.
+crop:
+  x: 110
+  y: 255
+  w: 500
+  h: 745
+# Screen-space raster route (replaces the diamond grid). (0,0) = current view,
+# walks right+down over cols × rows; step_*_px = desired camera travel per cell.
+raster:
+  cols: 5
+  rows: 5
+  step_x_px: 110
+  step_y_px: 95
+game_size: 1200
+navigation:
+  mode: swipe
+  swipe_duration_ms: 500
+  swipe_margin_px: 48
+  swipe_scale: 1.0
+timings:
+  post_tap_delay_ms: 300
+  stabilize_interval_ms: 150
+  stabilize_diff_threshold: 2.0
+  stabilize_consecutive: 2
+  stabilize_timeout_ms: 5000
+# No yellow kingdom border in the city → servo off, no crossing guards.
+border:
+  servo: false
+  stop_at_top: false
+  require_cross: false
+  block_crossing: false
+label_guard:
+  enabled: true
+  white_threshold: 235
+  white_fraction: 0.5
+  sample_radius_px: 6
+  timeout_ms: 4000
+  poll_interval_ms: 250

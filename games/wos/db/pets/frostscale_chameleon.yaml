@@ -1,0 +1,26 @@
+id: frostscale_chameleon
+name: Frostscale Chameleon
+wiki_url: https://www.whiteoutsurvival.wiki/pets/frostscale-chameleon/
+rarity: SSR
+unlock: Unlock after 450Day
+max_refinement: 58.1%
+skill:
+  name: Earthbound Vigor
+  cooldown: '20:00:00'
+  effect: Exhales an icy shroud to corrode enemy armor, reducing enemy Troops' Defense by 2.5%/3%/3.5%/4%/5%/6%/7%/8%/9%
+    / 10% for 2 hours.
+  values:
+  - 2.5%
+  - 3%
+  - 3.5%
+  - 4%
+  - 5%
+  - 6%
+  - 7%
+  - 8%
+  - 9%
+  - 10%
+troop_bonus:
+  stat: Troop Attack & Defense
+  max_attack: 31.46%
+  max_defense: 31.46%

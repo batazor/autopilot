@@ -1,0 +1,80 @@
+overlay:
+  # Hub-level icon: tap the Deals icon in main_city → open the deals hub.
+  # Each deals sub-tab (sign_in / hall_of_heroes / vault_of_enigma / …)
+  # owns its own main_city icon rule in its sub-module's analyze.yaml.
+  - name: deals.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: games/wos/deals/deals/references/crop/main_city_main_city.to.deals.png
+    threshold: 0.85
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: deals.deals
+          # Re-check cooldown. Purchase-only deals keep this icon's red dot lit
+          # permanently, so a short ttl re-opened the hub every minute
+          # (main_city <-> deals churn). 30m is plenty — deals change far slower,
+          # and free deals self-clear their dot on claim so they never churn.
+          ttl: 30m
+
+  # Deals pages share a horizontal top-tab strip. When any visible inactive
+  # tab carries a red dot, this low-priority helper clicks the first such tab;
+  # the destination page's own analyzer then pushes the concrete claim scenario.
+  - name: deals.tabs.visible_red_dot
+    region: deals.tabs_strip
+    action: detectTabs
+    namespace: deals
+    push_red_dot_pages: true
+    screens:
+      - deals
+      - deals.sign_in
+      - deals.home_and_beyond
+      - deals.hall_of_heroes
+      - deals.vault_of_enigma
+      - deals.hero_rally
+      - deals.bank
+      - deals.dead_shot
+      - deals.endless_wayfarer
+      - deals.journey_treasures
+      - deals.tundra_trading_station
+    steps:
+      - push_scenario:
+          name: tabs.strip.advance
+          ttl: 15s
+          args:
+            region: deals.tabs_strip
+            next_region: deals.next.left
+
+  # ── Cycle: page the deals carousel left ──────────────────────────────────
+  # The ``<`` arrow ``deals.next.left`` pages the tab strip to deals events
+  # that are not visible yet. No red-dot gate on purpose: even when no visible
+  # tab carries a red dot, ``tabs.strip.advance`` decides ``advance_page`` and
+  # taps the arrow, walking the bot to events that haven't been processed.
+  # findIcon stops matching once the arrow is no longer rendered (leftmost
+  # position), which closes the cross-tick loop — same contract as the shop
+  # carousel's ``tabs.strip.advance.has_next_page``.
+  - name: deals.tabs.advance.has_prev_page
+    region: deals.next.left
+    action: findIcon
+    threshold: 0.8
+    screens:
+      - deals
+      - deals.sign_in
+      - deals.home_and_beyond
+      - deals.hall_of_heroes
+      - deals.vault_of_enigma
+      - deals.hero_rally
+      - deals.bank
+      - deals.dead_shot
+      - deals.endless_wayfarer
+      - deals.journey_treasures
+      - deals.tundra_trading_station
+    steps:
+      - push_scenario:
+          name: tabs.strip.advance
+          ttl: 15s
+          args:
+            region: deals.tabs_strip
+            next_region: deals.next.left

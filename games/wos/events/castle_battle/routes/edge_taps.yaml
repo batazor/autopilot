@@ -1,0 +1,10 @@
+edges:
+  main_city:
+    event.castle_battle:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/events/castle_battle/references/main_city.event.castle_battle.png
+      threshold: 0.9
+
+  event.castle_battle:
+    main_city: [icon.page.back]

@@ -1,0 +1,177 @@
+name: docker
+
+# Builds the runnable service so external users can pull the image and
+# `docker compose up` without a local toolchain:
+#   * bot — worker + scheduler + FastAPI entrypoint + local Tesseract OCR (multi-arch)
+#   * web — Next.js operator dashboard (multi-arch)
+#
+# Built when you publish a GitHub Release. Published as `:latest` only.
+# Commits to main don't trigger.
+#
+# After both images build and push, the `release` job appends links to the two
+# GHCR packages onto the release you just published — a visible, at-a-glance
+# confirmation that its Docker build went green. Your own release notes are left
+# untouched (links are appended below a marker, nothing is overwritten).
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: build ${{ matrix.service.name }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: bot
+            dockerfile: Dockerfile.bot
+            # arm64 covered for Apple Silicon dev machines; main deps all have wheels.
+            platforms: linux/amd64,linux/arm64
+          - name: web
+            dockerfile: Dockerfile.web
+            platforms: linux/amd64,linux/arm64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          # Pin the BuildKit image so the boot pull is reproducible instead of
+          # re-resolving the floating ``buildx-stable-1`` tag every run. If the
+          # anonymous Docker Hub pull times out, just re-run the job.
+          driver-opts: image=moby/buildkit:v0.30.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          # ``github.repository`` is ``owner/repo``; nested path keeps the two
+          # services tidy under one repo's package namespace.
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.name }}
+          tags: |
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=autopilot/${{ matrix.service.name }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+
+      # Bake Grafana Cloud OTLP creds into the bot image so it ships metrics +
+      # ERROR logs from user machines (see grafana/README.md). The file is
+      # gitignored, so it never exists in the checkout — we write it from repo
+      # secrets just before the build. Only the ``bot`` image consumes it; if the
+      # secrets are unset (e.g. a fork), we skip and the build stays telemetry-free
+      # (runtime bootstrap no-ops without the file).
+      - name: Bake telemetry secrets
+        if: matrix.service.name == 'bot'
+        env:
+          ENDPOINT: ${{ secrets.TELEMETRY_OTLP_ENDPOINT }}
+          AUTH_HEADER: ${{ secrets.TELEMETRY_OTLP_AUTH_HEADER }}
+        run: |
+          if [ -z "$ENDPOINT" ]; then
+            echo "TELEMETRY_OTLP_ENDPOINT unset — building without baked telemetry."
+            exit 0
+          fi
+          {
+            echo "ENDPOINT = \"${ENDPOINT}\""
+            echo "AUTH_HEADER = \"${AUTH_HEADER}\""
+          } > src/config/_telemetry_secrets.py
+          echo "Wrote src/config/_telemetry_secrets.py ($(wc -l < src/config/_telemetry_secrets.py) lines)"
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.service.dockerfile }}
+          platforms: ${{ matrix.service.platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Bake build identity into the image so /api/version can compare it
+          # against the GHCR ``:latest`` manifest's ``org.opencontainers.image.revision``
+          # label and surface "update available" in the dashboard.
+          build-args: |
+            BUILD_VERSION=${{ steps.meta.outputs.version }}
+            BUILD_REVISION=${{ github.sha }}
+          # Per-service cache scopes so the bot and ocr builds don't evict
+          # each other's layers. ``ignore-error`` keeps a transient GHA cache
+          # backend outage (Azure 400 HTML page) from failing the whole build —
+          # it logs a warning and skips the cache export instead.
+          cache-from: type=gha,scope=${{ matrix.service.name }}
+          cache-to: type=gha,scope=${{ matrix.service.name }},mode=max,ignore-error=true
+          provenance: false
+
+  release:
+    name: link images on release
+    # Only runs once both images built and pushed — the links appearing on the
+    # release are the at-a-glance signal that its Docker build went green.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Append GHCR package links to the release the user published. We strip any
+      # previously-appended block (idempotent on re-run) and re-add it, so the
+      # user's own notes above the marker are left exactly as authored.
+      - name: Add GHCR package links to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+          PKG_BASE: ${{ github.server_url }}/${{ github.repository }}/pkgs/container/${{ github.event.repository.name }}
+        run: |
+          body=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+          body=$(printf '%s' "$body" | sed '/<!-- docker-images -->/,$d')
+          links=$(cat <<EOF
+          <!-- docker-images -->
+          ### 📦 Docker images
+
+          - **bot** — ${PKG_BASE}%2Fbot
+          - **web** — ${PKG_BASE}%2Fweb
+          EOF
+          )
+          gh release edit "$TAG" --repo "$REPO" --notes "${body}"$'\n\n'"${links}"
+
+      # Final step: ping the Discord webhook with the release title + description
+      # (re-read so it includes the image links appended above). The webhook URL
+      # lives in the DISCORD_WEBHOOK secret — never hardcode it in the workflow.
+      - name: Notify Discord
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ github.event.release.name || github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+        run: |
+          body=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+          # Discord embed descriptions cap at 4096 chars — trim to stay well under.
+          body=${body:0:4000}
+          payload=$(jq -n \
+            --arg title "$TITLE" \
+            --arg desc "$body" \
+            --arg url "$URL" \
+            '{embeds:[{title:$title, description:$desc, url:$url, color:5814783}]}')
+          curl -fsS -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK"

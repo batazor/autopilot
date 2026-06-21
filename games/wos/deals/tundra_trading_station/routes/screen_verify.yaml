@@ -1,0 +1,10 @@
+screens:
+  deals.tundra_trading_station:
+    # Probe before the generic `deals` hub (priority 60): default priority 100
+    # let the hub win, so this resolved to plain `deals` and the scenario never
+    # ran. Detect by OCR of the deal name (robust to art reskins).
+    priority: 52
+    rules:
+      - ocr: tundra_trading_station.title
+        contains: Tundra
+        threshold: 0.8

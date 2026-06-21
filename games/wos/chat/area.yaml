@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/chat.alliance.png",
+      "regions": [
+        {
+          "name": "chat.world",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.539552769736515,
+            "y": 6.7624930901010645,
+            "width": 28.693820224719083,
+            "height": 4.924795479186513,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chat.alliance",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 36.195108188999555,
+            "y": 6.644215993146706,
+            "width": 28.483146067415703,
+            "height": 5.161349673095241,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chat.personal",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 68.69336023747604,
+            "y": 7.604051259577912,
+            "width": 26.58707865168538,
+            "height": 3.978578703551596,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chat.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.687141209950434,
+            "y": 0.9764946866410164,
+            "width": 13.525280898876392,
+            "height": 4.215132897460327,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.chat",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.703394092537158,
+            "y": 86.81848456788039,
+            "width": 86.41853932584267,
+            "height": 3.8603016065971856,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

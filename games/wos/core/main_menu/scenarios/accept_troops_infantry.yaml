@@ -1,0 +1,23 @@
+enabled: true
+name: "Accept trained infantry"
+priority: 80_000
+
+# Pushed by scan_main_menu_panel when the Training/infantry row reads
+# "Completed". The exec scroll-finds the row and taps its green check; the
+# game then jumps to main_city centered on the camp, where the collect-bubble
+# tap releases the troops. Verified on a live walk (bubble at ~50%, 45.7%).
+node: main_menu
+cond: "active_player != null"
+
+steps:
+  - exec: tap_training_accept
+    troop: infantry
+  - wait: 2s
+  - wait_screen:
+      any: [main_city]
+      max: 8
+      interval: 500ms
+  - click: main_city.center_building
+  - wait: 1.5s
+  # Conveyor: restart training in the now-empty camp.
+  - push_scenario: troops.infantry.train

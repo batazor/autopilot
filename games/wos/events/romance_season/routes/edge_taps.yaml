@@ -1,0 +1,14 @@
+edges:
+  main_city:
+    event.romance_season: [main_city.to.romance_season]
+
+  event.romance_season:
+    romance_season.target: [romance_season.go]
+    main_city: [icon.page.back]
+
+  romance_season.target:
+    romance_season.rosarion: [romance_season.attack]
+    main_city: [main_world.to.main_city]
+
+  romance_season.rosarion:
+    main_world: [icon.page.back]

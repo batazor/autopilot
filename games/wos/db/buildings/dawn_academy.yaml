@@ -1,0 +1,13 @@
+id: dawn_academy
+name: Dawn Academy
+category: unknown
+requires:
+- building: furnace
+  level: 25
+requirements_by_level:
+  '1':
+    prerequisites: Furnace 25
+    build_cost: []
+    construction_time: '-'
+    building_power: null
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/dawn-academy/

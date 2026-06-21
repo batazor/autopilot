@@ -1,0 +1,60 @@
+enabled: true
+name: 🏠 Shelter upgrade
+device_level: true
+priority: 80_000
+node: shelter
+steps:
+  - ocr: shelter.title
+    store: building.name
+  - exec: sync_building_name
+  - while_match: shelter.next
+    action: cta_button
+    color: blue
+    threshold: 0.5
+    max: 1
+    steps:
+      - click: shelter.next
+      - wait: 2s
+  - loop:
+      max: 10
+      steps:
+        - while_match: upgrade_button
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 5
+          steps:
+            - wait: 2s
+            - long_click: upgrade_button
+              wait: 5s
+            - wait: 1s
+        - while_match: button.next
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 1
+          steps:
+            - wait: 2s
+            - click: button.next
+            - wait: 2s
+        - while_match: build_building_item
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 1
+          steps:
+            - wait: 2s
+            - click: build_building_item
+            - wait: 2s
+        - while_match: upgrade_big_button
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 1
+          steps:
+            - wait: 2s
+            - click: upgrade_big_button
+            - wait: 2s
+  - ocr: building.upgrading.time
+    type: time
+    throttle_push: building.upgrade

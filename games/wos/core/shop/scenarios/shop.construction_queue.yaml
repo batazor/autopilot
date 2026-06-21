@@ -1,0 +1,7 @@
+enabled: true
+name: "Shop: Construction Queue"
+priority: 80_000
+
+node: shop.construction_queue
+
+steps: []

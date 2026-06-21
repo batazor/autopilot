@@ -1,0 +1,97 @@
+enabled: true
+name: 🏗️ Building upgrade (chapter task)
+navigate: false
+nodes:
+- main_city
+- enlistment_office
+- barricade
+- marksman_camp
+- lancer_camp
+- infantry_camp
+- research_center
+- infirmary
+- command_center
+- embassy
+- storehouse
+- furnace
+- clinic
+- shelter
+- cookhouse
+- hero_hall
+- iron_mine
+- sawmill
+- coal_mine
+- hunters_hut
+- dawn_academy
+- beast_cage
+- lighthouse
+- arena
+- chiefs_house
+- suggestion_box
+- explorers_cabin
+- crystal_laboratory
+- war_academy
+- fire_crystal_marksman_camp
+- fire_crystal_infantry_camp
+- fire_crystal_lancer_camp
+- fire_crystal_embassy
+- fire_crystal_infirmary
+- fire_crystal_command_center
+- fire_crystal_furnace
+steps:
+- cond: currentNode == main_city
+  steps:
+  - click: chapter.task
+  - wait: 2s
+- cond: currentNode == furnace
+  steps:
+  - ocr: furnace.name
+    store: building.name
+- cond: currentNode != furnace
+  steps:
+  - ocr: building.title
+    store: building.name
+- exec: sync_building_name
+- loop:
+    max: 10
+    steps:
+    - while_match: upgrade_button
+      action: cta_button
+      color: blue
+      threshold: 0.5
+      max: 5
+      steps:
+      - wait: 2s
+      - long_click: upgrade_button
+        wait: 5s
+      - wait: 1s
+    - while_match: button.next
+      action: cta_button
+      color: blue
+      threshold: 0.5
+      max: 1
+      steps:
+      - wait: 2s
+      - click: button.next
+      - wait: 2s
+    - while_match: build_building_item
+      action: cta_button
+      color: blue
+      threshold: 0.5
+      max: 1
+      steps:
+      - wait: 2s
+      - click: build_building_item
+      - wait: 2s
+    - while_match: upgrade_big_button
+      action: cta_button
+      color: blue
+      threshold: 0.5
+      max: 1
+      steps:
+      - wait: 2s
+      - click: upgrade_big_button
+      - wait: 2s
+- ocr: building.upgrading.time
+  type: time
+  throttle_push: building.upgrade

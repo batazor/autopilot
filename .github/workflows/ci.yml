@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  release:
+    types: [published]
+
+# Cancel in-flight runs for the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: uv run ruff check .
+
+  typecheck:
+    name: typecheck (ty ratchet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      # Baseline-and-ratchet: fails only if any file's ty diagnostic count
+      # rose above the snapshot in .ty-baseline.json. Pre-existing
+      # diagnostics are tolerated; new code must come in clean.
+      # Refresh the baseline (after intentional refactors) with:
+      #   uv run python scripts/ty_ratchet.py --update
+      - run: uv run python scripts/ty_ratchet.py
+
+  test:
+    name: test (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+      # ``uv sync`` honors ``requires-python = ">=3.13"`` from pyproject.toml.
+      - run: uv sync --extra dev
+      # Tests that need Redis spin one up via testcontainers; tests that need
+      # the OCR backend or fastapi use importorskip and self-skip. The default
+      # pytest run on this machine should hit ~all of unit + redis-integration.
+      - run: uv run pytest -q

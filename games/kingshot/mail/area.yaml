@@ -1,0 +1,332 @@
+version: 2
+screens:
+- id: 1
+  screen_id: mail
+  ocr: references/mail_page.png
+  screen_region: mail.title
+  regions:
+  - name: button.back
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 1.8055555555555556
+      y: 0.859375
+      width: 10
+      height: 4.375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 13.194444444444445
+      y: 1.5625
+      width: 9.583333333333334
+      height: 3.125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.tabs_strip
+    action: exist
+    threshold: 0.85
+    bbox:
+      x: 0
+      y: 5.859375
+      width: 100
+      height: 7.34375
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.wars
+    action: text
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 3.3333333333333335
+      y: 6.71875
+      width: 18.055555555555554
+      height: 5.46875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.wars.red_dot
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 16.5
+      y: 5.0
+      width: 6.0
+      height: 3.0
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.alliance
+    action: text
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 21.38888888888889
+      y: 6.71875
+      width: 19.444444444444446
+      height: 5.46875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.alliance.red_dot
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 36.0
+      y: 5.0
+      width: 6.0
+      height: 3.0
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.system
+    action: text
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 40.83333333333333
+      y: 5.859375
+      width: 18.61111111111111
+      height: 6.328125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.system.red_dot
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 54.0
+      y: 5.0
+      width: 6.0
+      height: 3.0
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.reports
+    action: text
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 59.44444444444444
+      y: 6.71875
+      width: 18.88888888888889
+      height: 5.46875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.reports.red_dot
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 73.0
+      y: 5.0
+      width: 6.0
+      height: 3.0
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.starred
+    action: text
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 78.61111111111111
+      y: 6.71875
+      width: 18.61111111111111
+      height: 5.46875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.tab.starred.red_dot
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 92.0
+      y: 5.0
+      width: 6.0
+      height: 3.0
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: mail.gift
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 88.33333333333333
+      y: 18.75
+      width: 8.333333333333332
+      height: 5.46875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    isSearch: true
+  - name: mail.delete.read
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 11.944444444444445
+      y: 93.4375
+      width: 30.833333333333336
+      height: 6.25
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.delete.all
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 11.944444444444445
+      y: 93.4375
+      width: 30.833333333333336
+      height: 6.25
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.claim.all
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 56.666666666666664
+      y: 93.4375
+      width: 41.38888888888889
+      height: 6.25
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+- id: 3
+  screen_id: mail.delete_confirm
+  ocr: references/mail_delete_confirm.png
+  screen_region: mail.delete.confirm.title
+  regions:
+  - name: mail.delete.confirm.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 36.666666666666664
+      y: 33.75
+      width: 26.944444444444443
+      height: 3.28125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.delete.confirm.close
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 86.11111111111111
+      y: 33.59375
+      width: 5
+      height: 3.28125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.delete.cancel
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 10.694444444444445
+      y: 58.359375
+      width: 36.52777777777778
+      height: 6.5625
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.delete.confirm
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 52.638888888888886
+      y: 58.359375
+      width: 36.94444444444444
+      height: 6.5625
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+- id: 2
+  screen_id: mail.letter
+  ocr: references/mail_letter.png
+  screen_region: mail.letter.content_header
+  regions:
+  - name: mail.letter.back
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 1.9444444444444444
+      y: 0.9375
+      width: 9.444444444444445
+      height: 4.296875
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.letter.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 13.194444444444445
+      y: 1.5625
+      width: 9.583333333333334
+      height: 3.125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.letter.close
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 91.94444444444444
+      y: 1.71875
+      width: 5.833333333333333
+      height: 3.125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.letter.content_header
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 42.083333333333336
+      y: 21.875
+      width: 16.11111111111111
+      height: 3.125
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+  - name: mail.letter.window
+    action: exist
+    threshold: 0.85
+    bbox:
+      x: 0
+      y: 6.640625
+      width: 100
+      height: 86.40625
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+    overlay_auxiliary: true
+  - name: mail.letter.claim
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 30.555555555555557
+      y: 57.96875
+      width: 38.88888888888889
+      height: 6.328125
+      rotation: 0
+      original_width: 720
+      original_height: 1280

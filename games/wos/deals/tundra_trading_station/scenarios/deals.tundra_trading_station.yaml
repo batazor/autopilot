@@ -1,0 +1,6 @@
+enabled: true
+name: Tundra Trading Station
+node: deals.tundra_trading_station
+icon: tundra_trading_station
+steps:
+  - exec: put_all_red_dots

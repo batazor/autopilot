@@ -1,0 +1,18 @@
+screens:
+  deals.mia_fortune_hut:
+    priority: 54
+    parent: deals
+    rules:
+      - match: mia_fortune_hut.title
+        threshold: 0.85
+  deals.mia_fortune_hut.fortune_token_pack:
+    priority: 55
+    rules:
+      - ocr: page.common.title
+        contains: Fortune Token Pack
+        threshold: 0.8
+  deals.mia_fortune_hut.reward_wish:
+    priority: 56
+    rules:
+      - match: mia_fortune_hut.reward_wish.free_button
+        threshold: 0.9

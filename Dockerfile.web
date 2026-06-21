@@ -1,0 +1,88 @@
+# syntax=docker/dockerfile:1.24
+#
+# Next.js operator dashboard. Server-side-renders + proxies ``/api`` to the
+# FastAPI service. Built with the ``standalone`` output mode so the runtime
+# image carries just Node + the minimal Next.js server (no global ``next``
+# binary, no node_modules with dev deps).
+#
+# Companion: ``Dockerfile.bot`` (worker + scheduler + FastAPI on :8765),
+# ``redis:alpine``. See ``docker-compose.prod.yml`` for the wiring.
+
+ARG NODE_VERSION=22
+
+# --- Stage 1: deps -----------------------------------------------------------
+# Just ``npm ci`` with the lockfile. The cache mount keeps ``~/.npm`` warm so
+# rebuilds without dep changes complete in seconds.
+FROM node:${NODE_VERSION}-bookworm-slim AS deps
+
+WORKDIR /app
+COPY web/package.json web/package-lock.json ./
+COPY web/scripts/ ./scripts/
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund
+
+
+# --- Stage 2: builder --------------------------------------------------------
+# Reuses the populated ``node_modules`` from ``deps`` so source changes don't
+# re-trigger dependency installs.
+FROM deps AS builder
+
+COPY web/ ./
+# Server-side rewrites + standalone output toggle. ``WOS_BUILD_STANDALONE=1``
+# is read by next.config.* to set ``output: 'standalone'``.
+#
+# IMPORTANT: Next bakes ``rewrites()`` destinations into ``routes-manifest.json``
+# at *build* time — the runtime ``WOS_API_URL`` env is never re-read. So this
+# build arg, not the compose env, decides where ``/api/*`` is proxied. The
+# published image runs only under ``docker-compose.prod.yml``, where ``web``,
+# ``api`` and ``bot`` all share ``network_mode: host`` — Compose DNS names like
+# ``api`` do NOT resolve in host mode, so the proxy must target the shared host
+# loopback where ``api`` binds (127.0.0.1:8765). Defaulting to ``http://api:8765``
+# made every ``/api/*`` call 500 with an unresolvable host.
+# (Local dev never builds this image — it runs web on the host via
+# ``uv run play`` and proxies to 127.0.0.1 too.)
+ARG WOS_API_URL=http://127.0.0.1:8765
+ENV WOS_API_URL=${WOS_API_URL} \
+    WOS_BUILD_STANDALONE=1 \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Cache the Next build cache across builds — recompiling untouched files is
+# what dominates rebuild time once node_modules is stable.
+RUN --mount=type=cache,target=/app/.next/cache \
+    npm run build
+
+
+# --- Stage 3: runner ---------------------------------------------------------
+# Slim runtime: the standalone build is self-contained, so we copy *only* the
+# server bundle and the static asset tree.
+FROM node:${NODE_VERSION}-bookworm-slim AS runner
+
+WORKDIR /app
+
+# Build identity surfaced by the /api/version endpoint via the API container —
+# kept identical here so a fork pulling just ``web`` can still inspect the tag.
+ARG BUILD_VERSION=""
+ARG BUILD_REVISION=""
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0 \
+    NEXT_TELEMETRY_DISABLED=1 \
+    WOS_BUILD_VERSION=${BUILD_VERSION} \
+    WOS_BUILD_REVISION=${BUILD_REVISION}
+
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:3000/overview').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+LABEL org.opencontainers.image.title="autopilot-web" \
+      org.opencontainers.image.description="Next.js operator dashboard" \
+      org.opencontainers.image.source="https://github.com/batazor/autopilot" \
+      org.opencontainers.image.licenses="MIT"
+
+CMD ["node", "server.js"]

@@ -1,0 +1,20 @@
+/* Overview fleet-section header. The metrics strip now uses the shared
+   <MetricCard>/<MetricGrid> primitives (components/ui) — the old "command deck"
+   .metrics-deck styling lived here and has been removed. */
+@layer components {
+  .fleet-section__head {
+    @apply mb-3 flex items-center gap-2.5;
+  }
+
+  .fleet-section__head h2 {
+    @apply m-0;
+  }
+
+  .fleet-count {
+    @apply inline-flex min-w-6 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-xs font-semibold tabular-nums text-wos-text-secondary;
+  }
+
+  .fleet-section__head .live-indicator {
+    @apply ml-auto;
+  }
+}

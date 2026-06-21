@@ -1,0 +1,4 @@
+enabled: false
+name: 🦸 ${hero_name}
+node: page.heroes.${hero_id}
+steps: []

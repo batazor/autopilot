@@ -1,0 +1,12 @@
+id: champion_stake
+name: Champion Stake
+wiki_url: https://www.whiteoutsurvival.wiki/items/champion-stake/
+category: ''
+description: 'Used to predict a Champion Winner in the Tundra Arms League or exchange
+  for items in the Prediction
+
+
+  Shop.'
+sources:
+- Shop.
+- Tundra Arms League

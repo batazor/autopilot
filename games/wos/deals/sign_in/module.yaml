@@ -1,0 +1,8 @@
+id: deals_sign_in
+title: Deals — Sign-in
+description: Daily sign-in deals sub-tab; claims glowing Free tiles.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: sign_in
+wiki: false

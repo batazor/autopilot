@@ -1,0 +1,174 @@
+id: freya
+name: Freya
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/freya/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '12364'
+    def: '12364'
+    health: '123654'
+  expedition:
+    attack: 1110.88%
+    defense: 1110.88%
+story: 'Freya once thought the Tundra was the worst thing that could happen to the
+  world. The Blood Moon Plague proved her wrong.
+
+
+  The name of Freya''s hometown has been lost to the history books. It is now known
+  as Hell, the Land of No Return, or the Abandoned City. Its once vibrant streets
+  are covered in fog. None approach. But if a lost traveler were to venture near,
+  they might still hear something: screams and shouts to chill them to their bones.
+
+
+  As a Nightguard, Freya and her fellow sentries were well-protected at the city outskirts
+  inside a tower with plenty of food when the Blood Moon came. Never would they have
+  guessed that one day they would not be defending against invaders, but preventing
+  former family and friends from ever getting out.
+
+
+  But someone always slips through.
+
+
+  Words cannot describe the terror on a traveling merchant who, after wandering off
+  a mountain path, came face to face with the monsters of Hell. Crooked, misshapen
+  human things covered in grotesque scarlet crystal flower petals, their jet black
+  eyes full of darkness and suffering.
+
+
+  The next thing the merchant knew, the monsters had fallen to the ground with a glint
+  of cold steel and he was being dragged back to a sentry tower by a shadowy figure.
+  This lady—his unfriendly savior—said nothing as she called for a doctor to give
+  a full examination.
+
+
+  A strange figure in a bird mask examined the merchant carefully for a disease referred
+  in hushed tones as the "Blood Moon Plague". Fortunately, he was allowed to go free
+  with a strict warning and ominous feeling that if he had shown any signs whatsoever
+  of the plague—whatever that was—he would have been treated very differently.
+
+
+  Philly, investigator of all strange diseases, originally named it the Blood Moon
+  Plague upon hearing Freya''s harrowing account.
+
+
+  The first rule of plague is to prevent its spread, which Philly urged the sentries
+  to do. He struggled to come to terms with the mysterious illness that seemed to
+  spread via crystals and fog, turning men into beasts with great speed.
+
+
+  Freya was the exception who, once she recognized in her body the signs of infection,
+  merely collapsed. So she was kept under observation. Eventually, as if by some miracle,
+  she began to observe her own recovery. Her body''s natural defenses began to survive,
+  even thrive. Now she is the only one who can walk through Hell with impunity. Great
+  strength has also come through the inactivated remnants of the disease in her body.
+
+
+  Freya has since become a key member of her fellow Night''s Guard survivors: a lady
+  immune, with super strength, tasked with keeping the gates of Hell firmly closed.
+
+
+  Hades was once called Metiya, a tiny city on the edge of the wilderness.
+
+
+  Life in the age of ice and cold was a tough adjustment. The City''s Furnace was
+  often short of materials. It was in these desperate times a strange visitor arrived
+  with a promise of abundance if he could run a little "experiment". It was a success
+  at first. People gained great strength and energy even without food. They could
+  walk outside without feeling the cold. But grotesque deformities soon followed,
+  rage, and a terrible madness.
+
+
+  In the end, the vast majority of "subjects" lost all reason and began attacking
+  their neighbors. A fog descended at roughly the same time over the whole town, either
+  a cause or consequence of the plague—Freya cannot say. She was then infected. As
+  her eyes turned cold and red and dim she looked upward. The full moon should have
+  been silver-gray. It was completely covered in blood.
+
+
+  That is all Freya remembers of her long recovery. Now there is only the hope that
+  just as she has healed, Hell''s residents can do some too.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Mythic General Hero Shard
+skills:
+- name: Chain Sunder
+  description: 'Freya attacks the target with chains, dealing Attack* 200%/220%/240%/260%/280%
+    damage to the target and surrounding enemies, leaving a mark on the target. When
+    the marked target is attacked, 40%/50%/60%/70%/80% of the damage will be dealt
+    to its surrounding enemies (trigger cooldown: 0.5s).'
+- name: Prickled Bind
+  description: Freya chain-smashes and binds a target, dealing Attack* 100%/110%/120%/130%/140%
+    damage and immobilize them for 1.5s.
+- name: Crystal Fury
+  description: Freya's condition periodically erupts in a ferocious attack, increasing
+    her Crit Rate by 60%/70%/80%/90%/100% per 8/7/6/5/4 normal attacks.
+- name: Fog of War
+  description: Freya lobs a smoke grenade to darken enemies' vision, reducing all
+    enemy Troops' Attack by 4%/8%/12%/16%/20% .
+- name: Blood Moon Scythe
+  description: Freya reaps the fear of his enemies with her crescent-shaped weapon.
+    After launching a normal attack, she has a 50% chance of performing Reap, dealing
+    20%/40%/60%/80%/100% damage.
+- name: Night's Vengeance
+  description: Freya disrupts enemy attacks by launching a surprise raid and breaches
+    enemy defense, decreasing damage taken by 3%/6%/9%/12%/15% and increasing damage
+    dealt by 3%/6%/9%/12%/15% for her Infantries and Marksmen.
+- name: Night Raid (Lv. 5)
+  description: Freya's rigorous training increases her Damage by 30% while her instincts
+    reflexively and instantly deal Attack*300% damage to enemies' summonees.
+- name: Defender of the Watch (Lv. 5)
+  description: Freya's eyes have never wavered from her sacred watch-task, increasing
+    Defender Troops’ Defense by 15%.

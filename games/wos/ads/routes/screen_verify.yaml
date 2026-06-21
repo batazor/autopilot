@@ -1,0 +1,6 @@
+screens:
+  ads.natalia:
+    priority: 5
+    rules:
+      - match: ads.natalia.title
+        threshold: 0.9

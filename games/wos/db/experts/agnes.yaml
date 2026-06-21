@@ -1,0 +1,53 @@
+id: agnes
+name: Agnes
+wiki_url: https://www.whiteoutsurvival.wiki/experts/agnes/
+role: Elite Politician
+type: Expedition
+base_stats:
+- stat: Troops Defense
+  value: +15%
+affinity:
+  stat: Troops Defense
+  max: +15.00%
+skills:
+- name: Efficient Recon
+  effect: Gives 2 → 8 extra Intel missions per day through enhanced Lighthouse scouting.
+  values:
+  - '2'
+  - '3'
+  - '4'
+  - '6'
+  - '8'
+- name: Optimization
+  effect: Boosts Storehouse Chief Stamina gain by 10 → 40.
+  values:
+  - '10'
+  - '15'
+  - '20'
+  - '30'
+  - '40'
+- name: Project Management
+  effect: Agnes speeds up construction by 2 → 8 hours on every new build.
+  values:
+  - '2'
+  - '3'
+  - '4'
+  - '6'
+  - '8'
+- name: Covert Knowledge
+  effect: Gives 20 → 120 additional Mystery Badge(s) upon daily mission completion and 1 → 4 more free
+    refreshes at the Mystery Shop.
+  values:
+  - '20'
+  - '120'
+  - '1'
+  - '4'
+talent:
+  name: Earthbreaker
+  effect: Gives 1 → 5 Seeker Chest(s) every 120 gathering minutes with a daily cap of 10-30 chests. Contains
+    random rewards including Fire Crystals, Gems, Enhancement XP, and General Speedups.
+  max_level: null
+story: Agnes is a survivor of the destroyed City of Arcadia and one of the Tundra's greatest scientists.
+  She leads refugees with the goal of rebuilding "New Arcadia" as a utopia centered on knowledge and the
+  arts, featuring a grand library. The city uses volcanic heat and maintains a large standing army to
+  defend against threats from the Phaethon military machine and nearby bandits.

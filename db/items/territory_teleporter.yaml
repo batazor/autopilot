@@ -1,0 +1,8 @@
+id: territory_teleporter
+name: Territory Teleporter
+wiki_url: https://www.whiteoutsurvival.wiki/items/territory-teleporter/
+category: ''
+description: This Teleport will place you close to your HQ. If your alliance already
+  has built the Tundra HQ, it will chose that HQ.
+sources:
+- Alliance Shop

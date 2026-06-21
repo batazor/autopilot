@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "deals.hero_rally",
+      "ocr": "references/hero_rally.main.png",
+      "regions": [
+        {
+          "name": "hero_rally.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.409081988126171,
+            "y": 16.084947397297917,
+            "width": 28.483146067415706,
+            "height": 4.211109572216449,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

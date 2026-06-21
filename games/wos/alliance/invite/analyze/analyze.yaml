@@ -1,0 +1,12 @@
+overlay:
+- name: alliance.invite.new.visible
+  region: main_city.new_alliance.mail.close
+  action: findIcon
+  device_level: true
+  priority: 100000
+  threshold: 0.9
+  screens:
+  - main_city
+  ttl: 2s
+  steps:
+  - push_scenario: invite.new

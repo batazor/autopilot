@@ -1,0 +1,213 @@
+{
+  "slug": "reference-sample",
+  "title": "Reference Sample (Recall Road)",
+  "source_image": "games/wos/events/dreamscape_memory/references/maps/monument/reference-sample.png",
+  "scene_rect": null,
+  "points": [
+    {
+      "n": 1,
+      "name": "Lightning",
+      "xPct": 37.361,
+      "yPct": 21.719
+    },
+    {
+      "n": 2,
+      "name": "Ladder",
+      "xPct": 24.583,
+      "yPct": 41.25
+    },
+    {
+      "n": 3,
+      "name": "Snowman",
+      "xPct": 18.889,
+      "yPct": 59.219
+    },
+    {
+      "n": 4,
+      "name": "Cart",
+      "xPct": 57.778,
+      "yPct": 57.109
+    },
+    {
+      "n": 5,
+      "name": "Wristwatch",
+      "xPct": 23.889,
+      "yPct": 75.703
+    },
+    {
+      "n": 6,
+      "name": "Toolbox",
+      "xPct": 71.111,
+      "yPct": 60.625
+    },
+    {
+      "n": 7,
+      "name": "Scarf",
+      "xPct": 34.167,
+      "yPct": 72.5
+    },
+    {
+      "n": 8,
+      "name": "Lift",
+      "xPct": 51.944,
+      "yPct": 32.109
+    },
+    {
+      "n": 9,
+      "name": "Wrench",
+      "xPct": 51.25,
+      "yPct": 65.703
+    },
+    {
+      "n": 10,
+      "name": "Diamond",
+      "xPct": 44.861,
+      "yPct": 48.906
+    },
+    {
+      "n": 11,
+      "name": "Gloves",
+      "xPct": 36.667,
+      "yPct": 77.5
+    },
+    {
+      "n": 12,
+      "name": "Airship",
+      "xPct": 27.222,
+      "yPct": 27.891
+    },
+    {
+      "n": 13,
+      "name": "Footprint",
+      "xPct": 62.639,
+      "yPct": 78.203
+    },
+    {
+      "n": 14,
+      "name": "Statue",
+      "xPct": 64.861,
+      "yPct": 48.203
+    },
+    {
+      "n": 15,
+      "name": "Snowboard",
+      "xPct": 37.778,
+      "yPct": 65.0
+    },
+    {
+      "n": 16,
+      "name": "Wood Pile",
+      "xPct": 76.944,
+      "yPct": 57.109
+    },
+    {
+      "n": 17,
+      "name": "Blanket",
+      "xPct": 22.5,
+      "yPct": 52.109
+    },
+    {
+      "n": 18,
+      "name": "Shovel",
+      "xPct": 24.028,
+      "yPct": 62.5
+    },
+    {
+      "n": 19,
+      "name": "Broom",
+      "xPct": 68.333,
+      "yPct": 56.094
+    },
+    {
+      "n": 20,
+      "name": "Satchel",
+      "xPct": 23.194,
+      "yPct": 68.281
+    },
+    {
+      "n": 21,
+      "name": "Boots",
+      "xPct": 48.056,
+      "yPct": 78.047
+    },
+    {
+      "n": 22,
+      "name": "Iron Axe",
+      "xPct": 41.667,
+      "yPct": 56.25
+    },
+    {
+      "n": 23,
+      "name": "Headwear",
+      "xPct": 13.333,
+      "yPct": 61.719
+    },
+    {
+      "n": 24,
+      "name": "Kite",
+      "xPct": 22.5,
+      "yPct": 20.469
+    },
+    {
+      "n": 25,
+      "name": "Wind Chime",
+      "xPct": 71.25,
+      "yPct": 36.484
+    },
+    {
+      "n": 26,
+      "name": "Streetlight",
+      "xPct": 19.583,
+      "yPct": 43.203
+    },
+    {
+      "n": 27,
+      "name": "Manhole Cover",
+      "xPct": 54.861,
+      "yPct": 71.25
+    },
+    {
+      "n": 28,
+      "name": "Watering Can",
+      "xPct": 66.944,
+      "yPct": 66.094
+    },
+    {
+      "n": 29,
+      "name": "Feather",
+      "xPct": 70.417,
+      "yPct": 72.891
+    },
+    {
+      "n": 30,
+      "name": "Bucket",
+      "xPct": 41.667,
+      "yPct": 70.625
+    },
+    {
+      "n": 31,
+      "name": "Sign Post",
+      "xPct": 79.306,
+      "yPct": 51.484
+    },
+    {
+      "n": 32,
+      "name": "Basket",
+      "xPct": 28.889,
+      "yPct": 58.438
+    },
+    {
+      "n": 33,
+      "name": "Ruler",
+      "xPct": 79.722,
+      "yPct": 45.078
+    },
+    {
+      "n": 34,
+      "name": "Pruning Shears",
+      "xPct": 41.389,
+      "yPct": 52.031
+    }
+  ],
+  "source": "whiteout-references/Dreamscape/master_dict.txt (720x1280 full-frame taps)"
+}

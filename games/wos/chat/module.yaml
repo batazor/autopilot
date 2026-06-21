@@ -1,0 +1,9 @@
+id: chat
+title: Chat
+description: In-game chat screen (World / Alliance / Personal tabs) with active-tab detection.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

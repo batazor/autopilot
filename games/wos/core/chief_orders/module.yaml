@@ -1,0 +1,12 @@
+id: chief_orders
+title: Chief Orders
+description: >-
+  Enact lit governor orders. Mobilization, care, construction, and festivities
+  can run independently; Productivity Day and Rush Job run only as a combo with
+  a return through main_city between enactments.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

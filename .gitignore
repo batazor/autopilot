@@ -1,0 +1,91 @@
+# --- Local IDE / agent (do not commit) ----------------------------------------
+.claude/
+.idea/
+.vscode/
+*.swp
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Secrets / env ------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+!.env.example
+# Local secrets — never committed.
+.secrets/
+# Telemetry endpoint + auth header for Grafana Cloud OTLP. Maintainer-only:
+# the public repo ships ``_telemetry_secrets.py.example`` and the real file
+# is dropped in by the maintainer before the production Docker build. When
+# absent, the runtime bootstrap leaves OTel in its no-op state.
+src/config/_telemetry_secrets.py
+
+# --- Python -------------------------------------------------------------------
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Ruff / pytest / type-check caches (repo root and subpackages)
+**/.ruff_cache/
+**/.pytest_cache/
+**/.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+hypothesis/
+
+# --- uv / packaging (keep uv.lock committed) ------------------------------------
+
+# --- Node (Streamlit plugin frontends) ----------------------------------------
+**/node_modules/
+
+# --- Local DB / persisted player state (do not commit) --------------------------
+db/*.yaml
+db/state/
+
+# --- Runtime / bot process ----------------------------------------------------
+.next/
+temporal/
+.tmp_ocr/
+runs/
+captures/
+# Live MCP/AI-Editor captures (per-step dumps); commit only rehearsal/fixtures/ for pytest.
+**/rehearsal/*
+!**/rehearsal/fixtures/
+!**/rehearsal/fixtures/**
+.cache/
+.wos.nohup.log
+.wos.pid
+*.log
+
+# --- Local tooling outputs (scripts, labeling bench, inference) -----------------
+result/
+.bench_crops/
+
+# Dreamscape Memory module scene DB — the COMMITTED source of truth for scenes.
+# Seeded once via tools/import_maps.py, then hand-edited by operators (points,
+# galleries, practice-level); those edits live ONLY here, so the .db is tracked.
+# The WAL/SHM sidecars are transient — never commit them (checkpoint before add).
+games/wos/events/dreamscape_memory/scenes.db-wal
+games/wos/events/dreamscape_memory/scenes.db-shm
+
+# Encrypted backups left by scripts/decrypt_databases.py when it converts an
+# old SQLCipher DB to plain SQLite in place — never commit them.
+*.encrypted.bak
+src/modules/radar/radar_corner_ref.yaml
+
+# Astro-generated type stubs (recreated by `astro sync` / dev server).
+.astro/

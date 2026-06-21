@@ -1,0 +1,239 @@
+id: wayne
+name: Wayne
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/wayne/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '7200'
+    def: '5926'
+    health: 44,454
+  expedition:
+    attack: 540.43%
+    defense: 540.43%
+story: 'Wayne has always kept to himself as a bounty hunter, and he is as capable
+  as he is experienced. He always completes his missions precisely and efficiently
+  like a stone-cold machine, and never utters a word more than necessary.
+
+
+  He is an excellent sharpshooter with razor reflexes,amaking him one of the best
+  shooters on the ice fields.According to Bahiti, Wayne can do a quick draw at 100
+  paces and hit multiple coins thrown in the air in quick succession. However, he
+  prefers to deal with his opponents with his modified Power Boomerang, which is a
+  more effective tool for him to turn in the targets "intact" to the employer.
+
+
+  Sometimes, he gives his combative and resistant"prey" a fair fighting chance. He''s
+  never lost, of course.
+
+
+  Wayne has practically no friends, and doesn''t view "bonding with other people"
+  as something that''s necessary. He also says that he accepts various arduous and
+  dangerous missions-mostly pursuing vicious bandits-not out of a sense of justice,
+  but for the money.
+
+
+  As a long-time "business partner," Greg the judge is thankful that Wayne probably
+  has his own moral code and doesn''t blindly accept all commissions, and doesn''t
+  become an accomplice to evil "for the money.
+
+
+  "I''m from another world-a world that no longer exists," said Wayne when one of
+  his acquaintances asked about his past. This absurd statement wasn''t taken seriously,
+  but it wasn''t entirely untrue. The town where Wayne was born and raised had indeed
+  met its demise under extreme circumstances.His beloved home was lost to history,
+  and all the people and things he had loved had turned to dust.Because of this, Wayne
+  closed himself off so that he would not form connections, and stepped onto the path
+  of a lone wolf.
+
+
+  Wayne''s "hunts" do not always go smoothly.On a hunt for Zenobia, Queen of Violence,
+  he was shot and fell to the bottom of a valley. A young mountain maid named Matilda
+  saved him and brought him home to nurse him back to health. After losing her husband,
+  Matilda and her young son depended on each other to live, and the arrival of a stranger
+  brought much color to their daily grind.Just as Wayne recovered, Zenobia and her
+  cronies invaded Matilda''s village. Expecting helpless victims,Zenobia was stopped
+  short by her old nemesis.Wayne captured the vicious criminal and bid farewell to
+  Matilda. Even he did not realize that small change had been wrought in a small part
+  of his heart.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Chiefs
+- King of Icefield
+- State of Power
+- Daily Deals
+- Hero Rally
+skills:
+- name: Hurricane Blowback
+  description: Wayne throws a boomerang, dealing Attack 100%/110%/120%/130%/140% area
+    of effect damage to ennemies in a straight line. On its return, it deals the same
+    amount of damage to ennemies in its path.
+- name: Phantom Blitz
+  description: Wayne draws and fires in the blink of an eye. Each normal attack has
+    a 15%/20%/25%/30%/35% chance of triggering another normal attack.
+- name: Noon Time
+  description: Wayne's impecable aim grants a 3%/6%/9%/12%/15% Crit Rate on dealing
+    damage.
+- name: Thunder Strike
+  description: Wayne's brilliant battle planning allows all troops to launch an extra
+    attack every 4 turns, dealing 20%/40%/60%/80%/100% damage.
+- name: Roundabout Hit
+  description: Wayne's stratagems can pierce the thickest of defense. On every other
+    attack, his Marksmen deal 8%/16%/24%/32%/40% extra damage to enemy Lancer and
+    4%/8%/12%/16%/20% extra damage to enemy Marksmen.
+- name: Fleet
+  description: Wayne ensure no misstep goes unpunished with an eagle's eye for weakness,
+    granting all troop's attacks a 5%/10%/15%/20%/25% Crit Rate.
+- name: Gunslinger (Lv. 5)
+  description: Wayne unleashes a rapid five-shot barrage, dealing Attack 56% damage
+    to a random ennemy. If the target is an Escort, there is a 100% chance of instantly
+    knocking them down.
+- name: Offensive Defense (Lv. 5)
+  description: Waynes strategic brilliance increases DefenderTroops' Lethality by
+    15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 80100
+      attack: 192
+      defense: 160
+      health: 1201
+      lethality_m: 13.35
+      health_m: 13.35
+      skill_1: Attack * 40% damage to random enemy. If escort, 40% chance of knockdown.
+    2:
+      power: 136170
+      attack: 328
+      defense: 272
+      health: 2042
+      lethality_m: 26.7
+      health_m: 26.7
+      skill_1: Attack * 40% damage to random enemy. If escort, 40% chance of knockdown.
+      skill_2: Defender Troop Lethality +5%
+    3:
+      power: 192240
+      attack: 464
+      defense: 384
+      health: 2883
+      lethality_m: 40.05
+      health_m: 40.05
+      skill_1: Attack * 44% damage to random enemy. If escort, 55% chance of knockdown.
+      skill_2: Defender Troop Lethality +5%
+    4:
+      power: 248310
+      attack: 603
+      defense: 496
+      health: 3724
+      lethality_m: 53.4
+      health_m: 53.4
+      skill_1: Attack * 44% damage to random enemy. If escort, 55% chance of knockdown.
+      skill_2: Defender Troop Lethality +7.5%
+    5:
+      power: 304380
+      attack: 739
+      defense: 608
+      health: 4565
+      lethality_m: 66.75
+      health_m: 66.75
+      skill_1: Attack * 48% damage to random enemy. If escort, 55% chance of knockdown.
+      skill_2: Defender Troop Lethality +7.5%
+    6:
+      power: 360450
+      attack: 875
+      defense: 720
+      health: 5406
+      lethality_m: 80.1
+      health_m: 80.1
+      skill_1: Attack * 48% damage to random enemy. If escort, 55% chance of knockdown.
+      skill_2: Defender Troop Lethality +10%
+    7:
+      power: 416520
+      attack: 1011
+      defense: 833
+      health: 6247
+      lethality_m: 93.45
+      health_m: 93.45
+      skill_1: Attack * 52% damage to random enemy. If escort, 85% chance of knockdown.
+      skill_2: Defender Troop Lethality +10%
+    8:
+      power: 472590
+      attack: 1148
+      defense: 945
+      health: 7088
+      lethality_m: 106.8
+      health_m: 106.8
+      skill_1: Attack * 52% damage to random enemy. If escort, 85% chance of knockdown.
+      skill_2: Defender Troop Lethality +12.5%
+    9:
+      power: 528660
+      attack: 1284
+      defense: 1057
+      health: 7929
+      lethality_m: 120.15
+      health_m: 120.15
+      skill_1: Attack * 56% damage to random enemy. If escort, 100% chance of knockdown.
+      skill_2: Defender Troop Lethality +12.5%
+    10:
+      power: 600750
+      attack: 1457
+      defense: 1201
+      health: 9011
+      lethality_m: 133.5
+      health_m: 133.5
+      skill_1: Attack * 56% damage to random enemy. If escort, 100% chance of knockdown.
+      skill_2: Defender Troop Lethality +15%

@@ -1,0 +1,9 @@
+enabled: true
+name: Scan alliance members
+node: alliance.members
+priority: 70_000
+cond: "active_player != null"
+
+steps:
+  - exec: scan_alliance_members
+    max_swipes_per_rank: 30

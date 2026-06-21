@@ -1,0 +1,26 @@
+overlay:
+  - name: deals.bank.withdraw.ready
+    region: bank.withdraw.button
+    action: findIcon
+    threshold: 0.9
+    priority: 100_000
+    screens:
+      - deals.bank
+    steps:
+      - push_scenario:
+          name: deals.bank.withdraw
+          priority: 100_000
+          ttl: 1m
+
+  - name: deals.bank.deposit.available
+    region: bank.deposit_5.button
+    action: findIcon
+    threshold: 0.9
+    priority: 95_000
+    screens:
+      - deals.bank
+    steps:
+      - push_scenario:
+          name: deals.bank.deposit
+          priority: 95_000
+          ttl: 1m

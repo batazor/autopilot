@@ -1,0 +1,13 @@
+screens:
+  deals.hero_rally:
+    # Probe before the generic `deals` hub (priority 60): without an explicit
+    # priority this defaulted to 100 and the hub won detection, so the screen
+    # resolved to plain `deals`, the deals.hero_rally analyze rule never fired,
+    # and the claim scenario never ran.
+    priority: 52
+    rules:
+      # Detect by the deal name (OCR), robust to art reskins — the name is
+      # always in this slot. "Rally" is the reliable token ("Hero Rally").
+      - ocr: hero_rally.title
+        contains: Rally
+        threshold: 0.8

@@ -1,0 +1,49 @@
+overlay:
+  - name: popularity_king_competition.main_menu.competition.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.popularity_king.popularity_king_competition.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.popularity_king_competition
+          ttl: 1m
+  - name: popularity_king_competition.main_menu.polar_popularity.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.popularity_king.polar_popularity.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.popularity_king_competition
+          ttl: 1m
+  - name: popularity_king_competition.main_menu.sweet_heart_castle.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.popularity_king.sweet_heart_castle.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.popularity_king_competition
+          ttl: 1m
+  - name: popularity_king_competition.main_menu.heart_belongs_castle.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.popularity_king.heart_belongs_castle.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.popularity_king_competition
+          ttl: 1m

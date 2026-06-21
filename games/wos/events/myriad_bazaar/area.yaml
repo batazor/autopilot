@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 70,
+      "screen_id": "myriad_bazaar",
+      "ocr": "references/myriad_bazaar.png",
+      "screen_region": "myriad_bazaar.title",
+      "regions": [
+        {
+          "name": "myriad_bazaar.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.19385791047513,
+            "y": 8.649125844724562,
+            "width": 42.79922779922776,
+            "height": 4.502564334289763,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.claim_for_free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.32456275272944,
+            "y": 37.2133966201009,
+            "width": 14.579361141425482,
+            "height": 4.542049489768385,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "myriad_bazaar.to.main_city",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.47991876997806,
+            "y": 1.1369376182165265,
+            "width": 7.615830115830151,
+            "height": 4.42122862113371,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

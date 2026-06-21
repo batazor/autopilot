@@ -1,0 +1,230 @@
+id: molly
+name: Molly
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/molly/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '2220'
+    def: '2220'
+    health: '22200'
+  expedition:
+    attack: 200.16%
+    defense: 200.16%
+story: 'Most survivors loathe the permanent winter, but Molly''s attitude is quite
+  unique. She seems to greatly enjoy the wintry landscape and its new flora and fauna.
+  After all, she can do snowball fights, bobsled runs, and build a snowman whenever
+  she wants. But most importantly, the snowy world is all Molly has ever known.
+
+
+  In fact, not much is known about her life before Dawn Alliance.\nBahiti found Molly
+  during a peacekeeping operation against a Phaethon stronghold. The incredible part
+  of the story is, Bahiti claims Molly''s combat instincts were key to the team''s
+  successful escape from the heavily guarded fortress.
+
+
+  According to Bahiti, Molly was an essential part of Phaethon’s combat program. This
+  also explains her peculiar weapon - a snowball launcher. Although Molly seems much
+  more interested in using it for snowball fights.
+
+
+  Bahiti''s successful rescue owed much to his ability to win Molly''s trust. When
+  a Phaethon soldier''s arrow injured Bahiti, Molly flew into a rage, took down all
+  the guards with ease, and then fled with the members of Dawn Alliance.
+
+
+  Molly has a strange affinity for the cold. She has no problem enduring freezing
+  conditions. Moreover, her excellent combat intuition and unusually strong fighting
+  techniques (particularly on snow and ice) have truly piqued the Dawn Alliance''s
+  interest. What’s the source of Molly''s preternatural abilities? The investigation
+  is still ongoing.
+
+
+  It was later revealed that Phaethon first discovered Molly in a large underground
+  facility, where she was hibernating in a strange ‘pod’. Some believe Molly is connected
+  to the planet in a mysterious and unexplained way.
+
+
+  When she awakened, Molly had no memory of her past, but she exhibited superhuman
+  vitality and physical strength. Phaethon wanted to use this and train her into an
+  elite assassin for the organization. Fortunately, the Dawn Alliance saved her from
+  that fate. Bahiti and the others only wish for Molly to find happiness in this strange
+  new world.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- 7 Daily Sign-in Gift
+- Molly's Blessing
+- Lighthouse Intel
+- Hero Recruitment
+- Hall of Heroes
+skills:
+- name: Super Snowball
+  description: Molly launches a Super Snowball which plops down to deal Attack* 180%/198%/216%/234%/252%
+    Area of Effect Damage and freezes them for 1.5s.
+- name: Frost Ambush
+  description: Molly ambushes the enemy with her great camouflage skills, dealing
+    Attack* 150%/165%/180%/195%/210% damage.
+- name: Youthful Persistence
+  description: Molly loves a challenge, gaining + 20%/30%/40%/50%/60% Attack Speed
+    under 50% Health.
+- name: Snow's Grace
+  description: Molly creates an avalanche that clouds enemy sights, granting a 40%
+    chance of reducing all troops' Damage Taken by 10%/20%/30%/40%/50%
+- name: Ice Dominion
+  description: Molly excels in snowy terrains, granting all troops' attack a 50% chance
+    of increasing damage dealt by + 10%/20%/30%/40%/50% .
+- name: Youthful Rage
+  description: Hell hath no fury like an angry Molly. Increasing damage dealt by +
+    5%/10%/15%/20%/25% damage.
+- name: Modified Launcher (Lv. 5)
+  description: Molly wields a modified version of the launcher, boosting damage dealt
+    by 30%.
+- name: Snowy Blessing (Lv. 5)
+  description: With the blessing of the snow, Defender Troops' Lethality is increased
+    by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 30000
+      attack: 60
+      defense: 60
+      health: 600
+      lethality_l: 5.0
+      health_l: 5.0
+      skill_1: Molly damage +10%
+    2:
+      power: 51000
+      attack: 102
+      defense: 102
+      health: 1020
+      lethality_l: 10.0
+      health_l: 10.0
+      skill_1: Molly damage +10%
+      skill_2: Defender Troop Lethality +5%
+    3:
+      power: 72000
+      attack: 144
+      defense: 144
+      health: 1440
+      lethality_l: 15.0
+      health_l: 15.0
+      skill_1: Molly damage +15%
+      skill_2: Defender Troop Lethality +5%
+    4:
+      power: 93000
+      attack: 186
+      defense: 186
+      health: 1860
+      lethality_l: 20.0
+      health_l: 20.0
+      skill_1: Molly damage +15%
+      skill_2: Defender Troop Lethality +7.5%
+    5:
+      power: 114000
+      attack: 228
+      defense: 228
+      health: 2280
+      lethality_l: 25.0
+      health_l: 25.0
+      skill_1: Molly damage +20%
+      skill_2: Defender Troop Lethality +7.5%
+    6:
+      power: 135000
+      attack: 270
+      defense: 270
+      health: 2700
+      lethality_l: 30.0
+      health_l: 30.0
+      skill_1: Molly damage +20%
+      skill_2: Defender Troop Lethality +10%
+    7:
+      power: 156000
+      attack: 312
+      defense: 312
+      health: 3120
+      lethality_l: 35.0
+      health_l: 35.0
+      skill_1: Molly damage +25%
+      skill_2: Defender Troop Lethality +10%
+    8:
+      power: 177000
+      attack: 354
+      defense: 354
+      health: 3540
+      lethality_l: 40.0
+      health_l: 40.0
+      skill_1: Molly damage +25%
+      skill_2: Defender Troop Lethality +12.5%
+    9:
+      power: 198000
+      attack: 396
+      defense: 396
+      health: 3960
+      lethality_l: 45.0
+      health_l: 45.0
+      skill_1: Molly damage +30%
+      skill_2: Defender Troop Lethality +12.5%
+    10:
+      power: 225000
+      attack: 450
+      defense: 450
+      health: 4500
+      lethality_l: 50.0
+      health_l: 50.0
+      skill_1: Molly damage +30%
+      skill_2: Defender Troop Lethality +15%

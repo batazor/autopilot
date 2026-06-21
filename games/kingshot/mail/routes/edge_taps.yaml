@@ -1,0 +1,69 @@
+edges:
+  main_city:
+    mail: [mail.new]
+
+  mail:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    mail.letter: [mail.gift]
+    mail.delete_confirm: [mail.delete.all]
+    main_city: [button.back]
+
+  mail.wars:
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    mail.letter: [mail.gift]
+    mail.delete_confirm: [mail.delete.all]
+    main_city: [button.back]
+
+  mail.alliance:
+    mail.wars: [mail.tab.wars]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    mail.letter: [mail.gift]
+    mail.delete_confirm: [mail.delete.all]
+    main_city: [button.back]
+
+  mail.system:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    mail.letter: [mail.gift]
+    mail.delete_confirm: [mail.delete.all]
+    main_city: [button.back]
+
+  mail.reports:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.starred: [mail.tab.starred]
+    mail.letter: [mail.gift]
+    mail.delete_confirm: [mail.delete.all]
+    main_city: [button.back]
+
+  mail.starred:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.letter: [mail.gift]
+    mail.delete_confirm: [mail.delete.all]
+    main_city: [button.back]
+
+  mail.letter:
+    mail: [mail.letter.back]
+    mail.wars: [mail.letter.back, mail.tab.wars]
+    mail.alliance: [mail.letter.back, mail.tab.alliance]
+    mail.system: [mail.letter.back, mail.tab.system]
+    mail.reports: [mail.letter.back, mail.tab.reports]
+    mail.starred: [mail.letter.back, mail.tab.starred]
+
+  mail.delete_confirm:
+    mail: [mail.delete.confirm]

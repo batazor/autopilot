@@ -1,0 +1,16 @@
+# Scroll the calendar to the bottom, capturing every event row.
+#
+# Navigates to the Calendar tab (node: event.calendar), then swipes the
+# scrollable area up until the schedule stops moving (sticky day-strip/clock
+# header stays put). The captured frames feed the schedule parser (OCR, pending)
+# — once that lands, the per-state refresh in read_calendar invokes this once
+# per state under its lock, so only one bot navigates + swipes.
+#
+# Device-level: it drives the screen, doesn't write player state. Not
+# cron-scheduled — run via /debug-run to verify, or pushed by the read flow.
+name: Capture calendar
+enabled: true
+device_level: true
+node: event.calendar
+steps:
+  - exec: capture_calendar

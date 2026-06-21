@@ -1,0 +1,257 @@
+id: renee
+name: Renee
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/renee/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: 5,926
+    def: 5,926
+    health: 59,274
+  expedition:
+    attack: 540.43%
+    defense: 540.43%
+story: 'The wandering caravan attracts attention wherever it goes. Mia''s fortune-telling
+  mesmerizes the adults,and Renee the clown is a favorite with children with her juggling
+  and magic tricks. Renee also prefers spending time with children.
+
+
+  Although Renee has a mind with thoughts that jump around too much for people to
+  follow, she has an incredibly relatable personality and can easily makepeople open
+  up their hearts to her. In addition, her performances also seem to have magic that
+  can healthe soul, and make gloomy and hurt souls find joy again.
+
+
+  However, like the other members of the caravan,Renee has secrets of her own too.
+  No one knows what''s hidden behind that mask covered with paints
+
+
+  Once, Mia''s caravan was attacked by a group of bandits but they cried and ran screaming
+  after seeing Renee''s face.
+
+
+  Because of this, all sorts of rumors spread about Renee''s face. Some curious people
+  sneaked into the tent set up by the caravan to have a look at Renee''s terrifying
+  face, but there was nobody in there. They turned back and were about to make their
+  escape when they ran into Renee, who was returning. Unprepared, the intruders fell
+  to the floor in fright, peeking between their fingers at Renee whose ghastly face
+  was... not ghastly at all, but kind and friendly. They were not hurt due to their
+  reckless actions either.
+
+
+  It was not a ghastly face that had scared off those bandits, but a potion that made
+  people fall inton ightmares called "Dream Mold" that Renee uses to fight and to
+  defend herself.
+
+
+  Renee has some immunity to these substances due to long term exposure to unstable
+  Fire Crystals as a victim of an evil experiment, where her mind had been damaged.
+  As Philly said, "No one can make someone who''s already insane go mad after all."Renee
+  is not sad about her state, since she sees the world as a fairytale kingdom full
+  of rainbows and lush green nature. Her companions are animals and elves, and those
+  with ill-intent are transformed into evil magical creatures. In Renee''s view, she
+  is in a wonderful land fighting bad monsters that want to disturb the peace.
+
+
+  Long ago, Renee was a resident of the lost city of Arcadia. As a researcher, she
+  worked towards finding a way to communicate with the will of the world with Fire
+  Crystals, and to uncover the truth of why the world had changed.
+
+
+  Renee was captured when Phaethon sacked Arcadia, and forced to forcibly connect
+  with the world''s will, though her research was not yet perfected. Her will was
+  assaulted horribly and destroyed in the process of coming into contact with a large
+  number of unstable Fire Crystals, and her mind shattered completely. As her last
+  shred of sanity was shed, unimaginable strength burst from her, and she broke free
+  from Phaethon''s clutches.She was the only living person left in the huge laboratory
+  when she was discovered by others.From that moment on, "the world she sees" included
+  the melting of ice and snow.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+skills:
+- name: Illusion Cloud
+  description: Renee's colorful ball explodes and release a strage cloud, dealing
+    Attack 100%/110%/120%/130%/140% Area of Effect damage to ennemies and confuse
+    them for 1s. Confused ennemies attacks all surrounding targets, friend and foe.
+- name: Starpaint
+  description: Renee splashes dreamy paint, dealing Attack 50%/55%/60%/65%/70% damage
+    to targets and placing a Star Mark target's damage taken by 2%/3%/4%/5%/6% for
+    4s.
+- name: Dream Vision
+  description: Renee's targets painted with a Star Mark cannot escape her detection,
+    incresaing her Attack by 8%/12%/16%/20%/24% , increasing damage dealt to marked
+    targets by 4%/6%/8%/10%/12% .
+- name: Nightmare Trace
+  description: Renee always fights in unbelievable ways. The troops she commands can
+    place Dream Marks on their targets every two turns, dealing extra 40%/80%/120%/160%/200%
+    Lancer Damage once next turn. The Dream Marks last for 1 turns.
+- name: Dreamcatcher
+  description: Renee's Dreams Marks highilght ennemy vulnerabilities, incresing her
+    Lancer's damage dealt to marked targets by 30%/60%/90%/120%/150% .
+- name: Dreamslice
+  description: Renee's Dream Marks expose ennemy weaknesses, increasing damage dealt
+    to marked targets by 15%/30%/45%/60%/75% for all troops.
+- name: Dream Illusion (Lv. 5)
+  description: Renee attacks with drugged needles, granting attacks a 8% chance of
+    confusing the target for 1s. Confused ennemies attacks all surrounding targets,
+    friend and foe.
+- name: Wistful Enchantment (Lv. 5)
+  description: Renee boosts morale with her extraordinay talents, incresaing Rally
+    Troops' Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 80100
+      attack: 160
+      defense: 160
+      health: 1602
+      lethality_l: 13.35
+      health_l: 13.35
+      skill_1: Attacks have 2% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+    2:
+      power: 136170
+      attack: 272
+      defense: 272
+      health: 2723
+      lethality_l: 26.7
+      health_l: 26.7
+      skill_1: Attacks have 2% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 192240
+      attack: 384
+      defense: 384
+      health: 3844
+      lethality_l: 40.05
+      health_l: 40.05
+      skill_1: Attacks have 3.5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 248310
+      attack: 496
+      defense: 496
+      health: 4966
+      lethality_l: 53.4
+      health_l: 53.4
+      skill_1: Attacks have 3.5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 304380
+      attack: 608
+      defense: 608
+      health: 6087
+      lethality_l: 66.75
+      health_l: 66.75
+      skill_1: Attacks have 5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 360450
+      attack: 720
+      defense: 720
+      health: 7209
+      lethality_l: 80.1
+      health_l: 80.1
+      skill_1: Attacks have 5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 416520
+      attack: 833
+      defense: 833
+      health: 8330
+      lethality_l: 93.45
+      health_l: 93.45
+      skill_1: Attacks have 6.5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 472590
+      attack: 945
+      defense: 945
+      health: 9451
+      lethality_l: 106.8
+      health_l: 106.8
+      skill_1: Attacks have 6.5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 528660
+      attack: 1057
+      defense: 1057
+      health: 10573
+      lethality_l: 120.15
+      health_l: 120.15
+      skill_1: Attacks have 8% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 600750
+      attack: 1201
+      defense: 1201
+      health: 12015
+      lethality_l: 133.5
+      health_l: 133.5
+      skill_1: Attacks have 8% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +15%

@@ -1,0 +1,144 @@
+# serializer version: 1
+# name: test_backpack_open_scenario_is_registered_with_expected_shape
+  dict({
+    'enabled': True,
+    'name': 'Open Backpack',
+    'node': 'main_city',
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'main_city.to.backpack',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+        ]),
+        'template': 'games/wos/backpack/references/crop/main_city_vip_main_city.to.backpack.png',
+        'threshold': 0.9,
+        'while_match': 'main_city.to.backpack',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_backpack_pages[backpack.tab.bonus]
+  dict({
+    'enabled': True,
+    'name': 'Backpack Bonus',
+    'node': 'backpack.bonus',
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'page.backpack.bonus',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+        ]),
+        'while_match': 'page.backpack.bonus',
+      }),
+      dict({
+        'exec': 'put_all_red_dots',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_backpack_pages[backpack.tab.gear]
+  dict({
+    'enabled': True,
+    'name': 'Backpack Gear',
+    'node': 'backpack.gear',
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'page.backpack.gear',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+        ]),
+        'while_match': 'page.backpack.gear',
+      }),
+      dict({
+        'exec': 'put_all_red_dots',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_backpack_pages[backpack.tab.other]
+  dict({
+    'enabled': True,
+    'name': 'Backpack Other',
+    'node': 'backpack.other',
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'page.backpack.other',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+        ]),
+        'while_match': 'page.backpack.other',
+      }),
+      dict({
+        'exec': 'put_all_red_dots',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_backpack_pages[backpack.tab.resources]
+  dict({
+    'enabled': True,
+    'name': 'Backpack Resources',
+    'node': 'backpack.resources',
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'page.backpack.resources',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+        ]),
+        'while_match': 'page.backpack.resources',
+      }),
+      dict({
+        'exec': 'put_all_red_dots',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_backpack_pages[backpack.tab.speedup]
+  dict({
+    'enabled': True,
+    'name': 'Backpack Speedup',
+    'node': 'backpack.speedup',
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'page.backpack.speedup',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+        ]),
+        'while_match': 'page.backpack.speedup',
+      }),
+      dict({
+        'exec': 'put_all_red_dots',
+      }),
+    ]),
+  })
+# ---

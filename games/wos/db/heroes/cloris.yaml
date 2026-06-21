@@ -1,0 +1,108 @@
+id: cloris
+name: Cloris
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/cloris-2/
+rarity: Rare
+class: Marksmen
+sub_class: Growth
+stats:
+  exploration:
+    attack: '1752'
+    def: '2220'
+    health: '10822'
+  expedition:
+    attack: 90.07%
+    defense: 90.07%
+story: 'Cloris grew up in a small rural town nestled
+
+
+  deep in the heart of the forest. Her family was always self-sufficient, growing
+  their own crops, raising their own livestock, and hunting for their food. From a
+  young age, Cloris was taught how to hunt with a bow and arrow, skills passed down
+  to her from her ancestors.
+
+
+  As a child, Cloris was fascinated by the natural world around her. She would spend
+  hours exploring the forest, tracking animals, and learning about the different plants
+  and animals that lived in the area. She became particularly skilled at hunting,
+  and it wasn’t long before she was bringing home game for her family.
+
+
+  As she grew older, Cloris became more and more interested in survivalism. She started
+  reading books about wilderness survival, learning about everything from building
+  shelters to making fire without matches. She became obsessed with the idea of living
+  off the land and being completely self-sufficient.
+
+
+  When she turned 18, Cloris decided to strike out on her own. She packed up her gear,
+  including her trusty bow and arrows, and set out into the forest. For the first
+  few weeks, she struggled to find enough food and water to survive. But eventually,
+  her hunting and survival skills kicked in, and she was able to make a life for herself
+  in the wilderness.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Exploration
+- Lighthouse Intel
+- Hero Recruitment
+skills:
+- name: Rain of Arrows
+  description: Cloris launches a hail of arrows, dealing Attack 180%/198%/216%/234%/252%
+    Area of Effect Damage around the target.
+- name: Hunter's Mark
+  description: Cloris paints a bullseye on a target, raising damage inflicted on the
+    target by 10%/15%/20%/25%/30% for this attack.
+- name: Top Hunter
+  description: Cloris, the tundra's best hunter, has single-handedly raised City Hunter's
+    Hut Output by 5%/10%/15%/20%/25% .
+- name: Predator
+  description: Cloris knows the ecosystem like the back of her hand. + 5%/10%/15%/20%/25%
+    Meat Gathering Speed on the map.

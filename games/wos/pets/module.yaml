@@ -1,0 +1,9 @@
+id: pets
+title: Pets
+description: Pets feature; pet management and skill claim flows.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: pets
+wiki: false

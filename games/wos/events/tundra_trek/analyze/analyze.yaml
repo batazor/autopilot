@@ -1,0 +1,39 @@
+overlay:
+  - name: tundra_trek.main_city.icon.visible
+    region: main_city.to.tundra_trek
+    action: findIcon
+    template: games/wos/events/tundra_trek/references/crop/main_city_main_city.to.tundra_trek.png
+    search_region: main_city.tundra_trek.icon_search
+    threshold: 0.9
+    screens:
+      - main_city
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.tundra_trek
+          ttl: 1m
+  - name: tundra_trek.main_world.icon.visible
+    region: main_world.to.tundra_trek
+    action: findIcon
+    template: games/wos/events/tundra_trek/references/crop/main_city_main_world.to.tundra_trek.png
+    search_region: main_world.tundra_trek.icon_search
+    threshold: 0.9
+    screens:
+      - main_world
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.tundra_trek
+          ttl: 1m
+  - name: tundra_trek.main_menu.claimable
+    region: main_menu.city
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - main_menu
+    cond: main_menu.panel.trek.tundra_trek.isClaimable == true
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.tundra_trek
+          ttl: 1m

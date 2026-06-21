@@ -1,0 +1,11 @@
+edges:
+  main_city:
+    deals.dead_shot:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/deals/dead_shot/references/main_city.deals.dead_shot.png
+      threshold: 0.9
+
+  deals.dead_shot:
+    deals: [icon.page.back]
+    main_city: [icon.page.back]

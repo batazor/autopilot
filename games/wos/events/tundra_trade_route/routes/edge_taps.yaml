@@ -1,0 +1,10 @@
+edges:
+  main_city:
+    event.tundra_trade_route:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/events/tundra_trade_route/references/main_city.event.tundra_trade_route.png
+      threshold: 0.9
+
+  event.tundra_trade_route:
+    main_city: [icon.page.back]

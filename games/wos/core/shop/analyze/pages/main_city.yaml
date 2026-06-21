@@ -1,0 +1,11 @@
+overlay:
+  - name: shop.event.has_red_dot
+    region: main_city.to.shop
+    isRedDot: true
+    screens:
+      - main_city
+      - survivor_status.status
+    steps:
+      - push_scenario:
+          name: shop.event
+          ttl: 5m

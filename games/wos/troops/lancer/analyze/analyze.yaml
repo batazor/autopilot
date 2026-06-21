@@ -1,0 +1,6 @@
+# No overlay rule for the lancer ready-bubble: the collect hint (white speech
+# bubble + animated hand) pulses, so a findIcon template is unreliable. The
+# main_menu panel scanner is the trigger instead — a Training/lancer row in the
+# "Completed" state pushes accept_troops_lancer, which collects and then chains
+# into troops.lancer.train.
+overlay: []

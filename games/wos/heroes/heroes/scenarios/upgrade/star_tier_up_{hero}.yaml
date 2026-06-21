@@ -1,0 +1,38 @@
+# Optimizer dispatch target: a `star_tier_up` candidate resolves to
+# `star_tier_up_<hero>` (optimizer/dispatcher.scenario_name_for) and runs on the
+# hero's detail screen (node page.heroes.<hero_id>).
+#
+# Flow (verified on-device, Heroes ▸ unit card):
+#   1. tap the star row → opens the "Promotion Preview" panel (gated by `ascend`)
+#   2. tap "Ascend"
+#      - enough shards  → hero ascends one star (success path)
+#      - not enough     → an "Obtain more" shard-source popup opens; close it
+#   3. close the Promotion Preview panel (system back)
+#
+# Kept disabled until the optimizer dispatch is wired end-to-end — enabling it
+# now would let it spend shards before the candidate gating is verified live.
+enabled: false
+name: ⭐ Star tier up · ${hero_name}
+node: page.heroes.${hero_id}
+steps:
+# Open the promotion panel by tapping the star row on the card.
+- click: page.heroes.unit.star
+- wait: 1s
+# Promotion Preview is open iff the Ascend button is present.
+- while_match: page.heroes.unit.ascend
+  max: 1
+  steps:
+  - click: page.heroes.unit.ascend
+  - wait: 1.2s
+  # Insufficient shards → the "Obtain more" popup; dismiss it and stop.
+  - while_match: page.heroes.unit.obtain_more.close
+    max: 1
+    steps:
+    - click: page.heroes.unit.obtain_more.close
+    - wait: 0.5s
+  # Refresh the card's name/level snapshot after a (possible) ascend.
+  - ocr: page.heroes.unit.name
+    store: page.heroes.unit.name
+  - exec: sync_hero_unit
+  # Close the Promotion Preview panel.
+  - system_back: true

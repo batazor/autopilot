@@ -1,0 +1,256 @@
+id: marksman_camp
+name: Marksman Camp
+category: unknown
+requires:
+- building: furnace
+  level: 8
+requirements_by_level:
+  '1':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: '95'
+    construction_time: 00:00:02
+    building_power: 400
+  '2':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: '140'
+    construction_time: 00:00:09
+    building_power: 760
+  '3':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: '645'
+    construction_time: 00:00:45
+    building_power: null
+  '4':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 1.4K
+    - item: item_icon_104
+      amount: '285'
+    construction_time: 00:02:15
+    building_power: null
+  '5':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 6K
+    - item: item_icon_104
+      amount: 1.2K
+    construction_time: 00:04:30
+    building_power: null
+  '6':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 15K
+    - item: item_icon_104
+      amount: 3K
+    - item: item_icon_105
+      amount: '765'
+    construction_time: 00:09:00
+    building_power: null
+  '7':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 55K
+    - item: item_icon_104
+      amount: 11K
+    - item: item_icon_105
+      amount: 2.7K
+    construction_time: 00:18:00
+    building_power: null
+  '8':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 100K
+    - item: item_icon_104
+      amount: 20K
+    - item: item_icon_105
+      amount: 5K
+    construction_time: 00:27:00
+    building_power: null
+  '9':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 200K
+    - item: item_icon_104
+      amount: 41K
+    - item: item_icon_105
+      amount: 10K
+    construction_time: 00:40:30
+    building_power: null
+  '10':
+    prerequisites: Furnace Lv. 10
+    build_cost:
+    - item: item_icon_103
+      amount: 360K
+    - item: item_icon_104
+      amount: 73K
+    - item: item_icon_105
+      amount: 18K
+    construction_time: 00:54:00
+    building_power: null
+  '11':
+    prerequisites: Furnace Lv. 11
+    build_cost:
+    - item: item_icon_100011
+      amount: 460K
+    - item: item_icon_103
+      amount: 460K
+    - item: item_icon_104
+      amount: 92K
+    - item: item_icon_105
+      amount: 23K
+    construction_time: 01:07:30
+    building_power: null
+  '12':
+    prerequisites: Furnace Lv. 12
+    build_cost:
+    - item: item_icon_100011
+      amount: 580K
+    - item: item_icon_103
+      amount: 580K
+    - item: item_icon_104
+      amount: 110K
+    - item: item_icon_105
+      amount: 29K
+    construction_time: 01:21:00
+    building_power: null
+  '13':
+    prerequisites: Furnace Lv. 13
+    build_cost:
+    - item: item_icon_100011
+      amount: 830K
+    - item: item_icon_103
+      amount: 830K
+    - item: item_icon_104
+      amount: 160K
+    - item: item_icon_105
+      amount: 41K
+    construction_time: 01:39:00
+    building_power: null
+  '14':
+    prerequisites: Furnace Lv. 14
+    build_cost:
+    - item: item_icon_104
+      amount: 220K
+    - item: item_icon_105
+      amount: 55K
+    construction_time: 02:06:00
+    building_power: null
+  '15':
+    prerequisites: Furnace Lv. 15
+    build_cost:
+    - item: item_icon_104
+      amount: 320K
+    - item: item_icon_105
+      amount: 81K
+    construction_time: 02:42:00
+    building_power: null
+  '16':
+    prerequisites: Furnace Lv.  16
+    build_cost:
+    - item: item_icon_104
+      amount: 410K
+    - item: item_icon_105
+      amount: 100K
+    construction_time: 04:34:00
+    building_power: null
+  '17':
+    prerequisites: Furnace Lv. 17
+    build_cost:
+    - item: item_icon_104
+      amount: 650K
+    - item: item_icon_105
+      amount: 160K
+    construction_time: 05:29:00
+    building_power: null
+  '18':
+    prerequisites: Furnace Lv. 18
+    build_cost:
+    - item: item_icon_104
+      amount: 870K
+    - item: item_icon_105
+      amount: 210K
+    construction_time: 06:35:00
+    building_power: null
+  '19':
+    prerequisites: Furnace Lv. 19
+    build_cost:
+    - item: item_icon_105
+      amount: 270K
+    construction_time: 09:52:30
+    building_power: null
+  '20':
+    prerequisites: Furnace Lv. 20
+    build_cost:
+    - item: item_icon_105
+      amount: 370K
+    construction_time: '12:20:30'
+    building_power: null
+  '21':
+    prerequisites: Furnace Lv. 21
+    build_cost:
+    - item: item_icon_105
+      amount: 470K
+    construction_time: '16:02:30'
+    building_power: null
+  '22':
+    prerequisites: Furnace Lv. 22
+    build_cost:
+    - item: item_icon_105
+      amount: 630K
+    construction_time: 1d 00:04:00
+    building_power: null
+  '23':
+    prerequisites: Furnace Lv. 23
+    build_cost:
+    - item: item_icon_105
+      amount: 780K
+    construction_time: 1d 09:42:00
+    building_power: null
+  '24':
+    prerequisites: Furnace Lv. 24
+    build_cost: []
+    construction_time: 1d 23:11:00
+    building_power: null
+  '25':
+    prerequisites: Furnace Lv. 25
+    build_cost: []
+    construction_time: 2d 18:03:00
+    building_power: null
+  '26':
+    prerequisites: Furnace Lv. 26
+    build_cost: []
+    construction_time: 3d 03:57:00
+    building_power: null
+  '27':
+    prerequisites: Furnace Lv. 27
+    build_cost: []
+    construction_time: 3d 19:09:00
+    building_power: null
+  '28':
+    prerequisites: Furnace Lv. 28
+    build_cost: []
+    construction_time: 4d 08:49:00
+    building_power: null
+  '29':
+    prerequisites: Furnace Lv. 29
+    build_cost: []
+    construction_time: 5d 00:33:00
+    building_power: null
+  '30':
+    prerequisites: Furnace Lv. 30
+    build_cost: []
+    construction_time: 6d 00:40:00
+    building_power: null
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/marksman-camp/

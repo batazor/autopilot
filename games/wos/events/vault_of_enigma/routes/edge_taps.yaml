@@ -1,0 +1,17 @@
+edges:
+  main_city:
+    deals.vault_of_enigma:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/events/vault_of_enigma/references/main_city.event.vault_of_enigma.png
+      threshold: 0.9
+
+  deals:
+    deals.vault_of_enigma:
+      resolver: tab_index
+      region: deals.tabs_strip
+      index: 0
+
+  deals.vault_of_enigma:
+    deals: [icon.page.back]
+    main_city: [icon.page.back]

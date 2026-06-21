@@ -1,0 +1,112 @@
+version: 2
+screens:
+  - id: 1
+    screen_id: heroes.deploy
+    ocr: references/deploy.png
+    screen_region: heroes.deploy.title
+    regions:
+      - name: heroes.deploy.title
+        action: text
+        type: string
+        threshold: 0.9
+        bbox: { x: 11.805555555555555, y: 1.328125, width: 16.38888888888889, height: 3.203125, rotation: 0, original_width: 720, original_height: 1280 }
+
+      - name: heroes.deploy.preset.1
+        action: exist
+        threshold: 0.9
+        bbox: { x: 5.555555555555555, y: 7.734375, width: 8.055555555555555, height: 3.984375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.preset.2
+        action: exist
+        threshold: 0.9
+        bbox: { x: 15.277777777777779, y: 7.734375, width: 8.055555555555555, height: 3.984375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.preset.3
+        action: exist
+        threshold: 0.9
+        bbox: { x: 25.13888888888889, y: 7.734375, width: 8.055555555555555, height: 3.984375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.preset.4
+        action: exist
+        threshold: 0.9
+        bbox: { x: 35.97222222222222, y: 7.734375, width: 8.055555555555555, height: 3.984375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.preset.5
+        action: exist
+        threshold: 0.9
+        bbox: { x: 46.25, y: 7.734375, width: 8.055555555555555, height: 3.984375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.preset.6
+        action: exist
+        threshold: 0.9
+        bbox: { x: 56.52777777777778, y: 7.734375, width: 8.055555555555555, height: 3.984375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.preset.7
+        action: exist
+        threshold: 0.9
+        bbox: { x: 66.80555555555556, y: 7.734375, width: 8.055555555555555, height: 3.984375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.preset.8
+        action: exist
+        threshold: 0.9
+        bbox: { x: 77.08333333333333, y: 7.734375, width: 8.055555555555555, height: 3.984375, rotation: 0, original_width: 720, original_height: 1280 }
+
+      - name: heroes.deploy.outcome
+        action: text
+        type: string
+        threshold: 0.7
+        bbox: { x: 25.694444444444443, y: 46.09375, width: 48.611111111111114, height: 3.28125, rotation: 0, original_width: 720, original_height: 1280 }
+
+      - name: heroes.deploy.hero.1
+        action: exist
+        threshold: 0.9
+        bbox: { x: 12.916666666666666, y: 24.0625, width: 22.083333333333332, height: 21.171875, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.hero.1.remove
+        action: exist
+        threshold: 0.9
+        bbox: { x: 31.041666666666668, y: 24.21875, width: 4.166666666666667, height: 3.4375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.hero.2
+        action: exist
+        threshold: 0.9
+        bbox: { x: 39.166666666666664, y: 24.0625, width: 22.083333333333332, height: 21.171875, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.hero.2.remove
+        action: exist
+        threshold: 0.9
+        bbox: { x: 57.291666666666664, y: 24.21875, width: 4.166666666666667, height: 3.4375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.hero.3
+        action: exist
+        threshold: 0.9
+        bbox: { x: 65.41666666666667, y: 24.0625, width: 22.083333333333332, height: 21.171875, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.hero.3.remove
+        action: exist
+        threshold: 0.9
+        bbox: { x: 83.54166666666667, y: 24.21875, width: 4.166666666666667, height: 3.4375, rotation: 0, original_width: 720, original_height: 1280 }
+
+      - name: heroes.deploy.troops.infantry
+        action: exist
+        threshold: 0.9
+        bbox: { x: 1.9444444444444444, y: 50.0, width: 96.38888888888889, height: 9.84375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.troops.lancer
+        action: exist
+        threshold: 0.9
+        bbox: { x: 1.9444444444444444, y: 60.9375, width: 96.38888888888889, height: 9.84375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.troops.marksman
+        action: exist
+        threshold: 0.9
+        bbox: { x: 1.9444444444444444, y: 71.796875, width: 96.38888888888889, height: 9.84375, rotation: 0, original_width: 720, original_height: 1280 }
+
+      - name: heroes.deploy.withdraw_all
+        action: exist
+        threshold: 0.9
+        bbox: { x: 3.75, y: 89.0625, width: 12.36111111111111, height: 6.25, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.equalize
+        action: exist
+        threshold: 0.9
+        bbox: { x: 21.38888888888889, y: 89.0625, width: 12.36111111111111, height: 6.25, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.balance
+        action: exist
+        threshold: 0.9
+        bbox: { x: 39.02777777777778, y: 89.0625, width: 12.36111111111111, height: 6.25, rotation: 0, original_width: 720, original_height: 1280 }
+
+      - name: heroes.deploy.ttl
+        action: text
+        type: string
+        threshold: 0.7
+        bbox: { x: 66.66666666666667, y: 88.75, width: 18.055555555555557, height: 3.359375, rotation: 0, original_width: 720, original_height: 1280 }
+      - name: heroes.deploy.deploy
+        action: exist
+        threshold: 0.9
+        bbox: { x: 55.97222222222222, y: 91.5625, width: 40.97222222222222, height: 6.40625, rotation: 0, original_width: 720, original_height: 1280 }

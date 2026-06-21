@@ -1,0 +1,22 @@
+enabled: true
+name: "Shop: Dawn Fund"
+priority: 80_000
+
+node: shop.dawn_fund
+
+steps:
+  # Each iteration: re-detect claimable tiles inside the box (any tile with
+  # a yellow rim or pale-gold border counts). The DSL ``isYellowGlow`` short-
+  # circuits ``while_match`` to ``find_yellow_glow_squares``, sets the tap
+  # target to the first claim's centre, and exposes the tile's pixel size so
+  # the click lands inside the tile (natural random jitter, 15% inset).
+  # Loop exits once no more tiles glow.
+  - while_match: shop.to.dawn_fund.box
+    isYellowGlow: true
+    max: 8
+    retry:
+      attempts: 3
+      interval: 1s
+    steps:
+      - click: shop.to.dawn_fund.box
+      - wait: 1.5s

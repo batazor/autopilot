@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "screen_id": "main_city",
+      "regions": [
+        {
+          "name": "main_city.to.1st_purchase",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.57528957528957,
+            "y": 24.565217391304348,
+            "width": 6.600386100386101,
+            "height": 3.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+enabled: true
+name: 🪖 Train troops · kick an idle camp
+device_level: true
+priority: 68_000
+# Auto-training driver: the per-camp train scenarios self-sustain via their
+# conveyor, but nothing kicks a camp that fell idle (boot, a broken conveyor, or
+# a freshly-finished batch the accept flow didn't re-arm). Every half hour, read
+# the recorded training status and push the train scenario of the first idle
+# camp. Runs lower than the status sync (70k) so it reads a fresh isAvailable.
+cron: "*/30 * * * *"
+cond: currentNode == main_menu
+steps:
+  - exec: find_idle_training_slot
+  - cond: troops.train_next ~= "infantry"
+    steps:
+      - push_scenario: troops.infantry.train
+  - cond: troops.train_next ~= "lancer"
+    steps:
+      - push_scenario: troops.lancer.train
+  - cond: troops.train_next ~= "marksman"
+    steps:
+      - push_scenario: troops.marksman.train
