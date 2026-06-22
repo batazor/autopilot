@@ -86,7 +86,17 @@ class SchedulerRunner:
 
         url = self._settings.redis.url
         if self._redis is None:
-            self._redis = aioredis.from_url(url, socket_connect_timeout=5.0)
+            # The run loop does a blocking `blpop(timeout=interval)` for its
+            # event-driven heartbeat. redis-py applies `socket_connect_timeout`
+            # as the read timeout too when `socket_timeout` is unset, so without
+            # this any blpop longer than ~5s raised TimeoutError mid-wait
+            # (degrading the wait to a tight retry; see the run-loop guard).
+            # Give the read timeout headroom over the blpop interval so the pop
+            # blocks its full duration and returns cleanly.
+            read_timeout = float(self._settings.scheduler.interval_seconds) + 5.0
+            self._redis = aioredis.from_url(
+                url, socket_connect_timeout=5.0, socket_timeout=read_timeout
+            )
             instrument_redis_client(self._redis, component="scheduler")
             await ping_async_redis_or_exit(self._redis, url=url)
         if self._queue is None:
