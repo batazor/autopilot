@@ -112,7 +112,7 @@ def test_tundra_trek_fsm_handler_is_registered() -> None:
 def test_tundra_trek_screen_verify_uses_title() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:
-        expected = [{"match": "tundra_trek.title", "threshold": 0.9}]
+        expected = [{"ocr": "tundra_trek.title", "contains": "Tundra"}]
         assert screen_graph.screen_verify_rules("event.tundra_trek") == expected
         assert screen_graph.screen_landmark_rules("event.tundra_trek") == expected
     finally:

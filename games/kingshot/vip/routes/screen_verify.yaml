@@ -2,8 +2,8 @@ screens:
   vip:
     priority: 30
     rules:
-    - match: vip.title
-      threshold: 0.9
+    - ocr: vip.title
+      contains: "VIP"
   increase_level:
     priority: 5
     rules:

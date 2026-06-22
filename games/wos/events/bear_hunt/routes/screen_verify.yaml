@@ -4,8 +4,8 @@ screens:
     # Full-screen panel, so anchor on its own header rather than gating on a
     # parent (mirrors event.foundry_battle / event.alliance_championship).
     rules:
-      - match: bear_hunt.info.title
-        threshold: 0.85
+      - ocr: bear_hunt.info.title
+        contains: "Bear Hunt"
   event.bear_hunt:
     # World-map view focused on the bear: gate detection on main_world's
     # city-return anchor and outrank the hub (priority 10) so the

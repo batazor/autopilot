@@ -2,5 +2,5 @@ screens:
   event.mercenary_prestige:
     priority: 50
     rules:
-      - match: mercenary_prestige.title
-        threshold: 0.9
+      - ocr: mercenary_prestige.title
+        contains: "Mercenary"

@@ -1,8 +1,8 @@
 screens:
   event.romance_season:
     rules:
-      - match: romance_season.title
-        threshold: 0.9
+      - ocr: romance_season.title
+        contains: "Romance Season"
 
   romance_season.target:
     priority: 5
@@ -14,5 +14,5 @@ screens:
     priority: 20
     terminal: true
     rules:
-      - match: rosarion.title
-        threshold: 0.9
+      - ocr: rosarion.title
+        contains: "Rosarion"

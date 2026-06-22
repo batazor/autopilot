@@ -2,10 +2,10 @@ screens:
   deals.bank:
     priority: 52
     rules:
-      - match: bank.title
-        threshold: 0.9
+      - ocr: bank.title
+        contains: "Bank"
   bank.deposit_dialog:
     priority: 53
     rules:
-      - match: bank.deposit_dialog.title
-        threshold: 0.9
+      - ocr: bank.deposit_dialog.title
+        contains: "Storage Duration"

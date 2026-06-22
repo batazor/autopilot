@@ -61,10 +61,10 @@ async def test_main_city_vault_icon_template_loads() -> None:
 def test_screen_verify_registers_deals_vault_of_enigma() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:
-        # ``routes/screen_verify.yaml`` pins this at 0.74 — the icon is small
-        # and overprinted with the event ribbon, so the stricter 0.9 from the
-        # underlying ``area.yaml`` region was missing the right frame.
-        expected = [{"match": "vault_of_enigma.title", "threshold": 0.74}]
+        # Title verified by OCR (reskin-proof): the banner text reads "Vault"
+        # cleanly, which is more robust than template-matching the small,
+        # ribbon-overprinted title icon.
+        expected = [{"ocr": "vault_of_enigma.title", "contains": "Vault"}]
         assert screen_graph.screen_verify_rules("deals.vault_of_enigma") == expected
         assert screen_graph.screen_landmark_rules("deals.vault_of_enigma") == expected
     finally:

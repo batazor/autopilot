@@ -1,8 +1,8 @@
 screens:
   event.tundra_trek:
     rules:
-      - match: tundra_trek.title
-        threshold: 0.9
+      - ocr: tundra_trek.title
+        contains: "Tundra"
   # The travel/stop sub-screen (story + rewards + the orange "Next Stop" button).
   # Recognized as its own node so the bot can route back out (→ event.tundra_trek
   # → main_city) instead of stranding on an "unknown" screen if a run is

@@ -17,14 +17,14 @@ screens:
     parent: shop
     priority: 50
     rules:
-    - match: page.shop.dawn_market.title
-      threshold: 0.9
+    - ocr: page.shop.dawn_market.title
+      contains: "Market"
   shop.mix_match:
     parent: shop
     priority: 55
     rules:
-    - match: page.shop.mix_match.title
-      threshold: 0.9
+    - ocr: page.shop.mix_match.title
+      contains: "Mix"
   shop.chief_stamina:
     parent: shop
     priority: 55
@@ -79,8 +79,8 @@ screens:
     parent: shop
     priority: 55
     rules:
-    - match: artisans_trove.title
-      threshold: 0.9
+    - ocr: artisans_trove.title
+      contains: "Artisan"
   shop.custom_artistry_chest:
     parent: shop
     priority: 55

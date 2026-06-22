@@ -8,8 +8,8 @@ screens:
   hero.recruitment:
     priority: 30
     rules:
-    - match: hero.recruitment.title
-      threshold: 0.9
+    - ocr: hero.recruitment.title
+      contains: "Recruitment"
 
   # Per-hero detail page (reached from the grid). Anchored on the wiki
   # button, which is always present on a hero card regardless of level.

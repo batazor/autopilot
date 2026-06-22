@@ -2,8 +2,8 @@ screens:
   chief_order:
     priority: 50
     rules:
-      - match: chief_order.title
-        threshold: 0.9
+      - ocr: chief_order.title
+        contains: "Chief Order"
 
   chief_order_enact:
     priority: 55

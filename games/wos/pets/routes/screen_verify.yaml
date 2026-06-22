@@ -7,5 +7,5 @@ screens:
     # Reward popup; pets.pet_skill scenario claims + tapanywhereyoexit to dismiss.
     terminal: true
     rules:
-      - match: pet.skill.title
-        threshold: 0.9
+      - ocr: pet.skill.title
+        contains: "Pet Skill"

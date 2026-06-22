@@ -7,8 +7,8 @@ screens:
   survivor_status:
     priority: 9
     rules:
-    - match: survivor_status.title
-      threshold: 0.9
+    - ocr: survivor_status.title
+      contains: "Survivor Status"
   survivor_status.status:
     priority: 8
     rules:

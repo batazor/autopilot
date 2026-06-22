@@ -21,5 +21,8 @@ screens:
       threshold: 0.35
       min_component_y_ratio: 0.15
       min_component_height_ratio: 0.7
+    # Title stays on template: rewards / rewards.upgraded share the same
+    # "Rewards" banner and differ only by ribbon colour, so OCR contains:
+    # "Rewards" also matches the upgraded popup.
     - match: rewards.title.v2
       threshold: 0.9

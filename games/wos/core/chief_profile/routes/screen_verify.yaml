@@ -4,5 +4,5 @@ screens:
       attempts: 8
       interval_seconds: 1.0
     rules:
-    - match: chief_profile.title
-      threshold: 0.85
+    - ocr: chief_profile.title
+      contains: "Chief Profile"

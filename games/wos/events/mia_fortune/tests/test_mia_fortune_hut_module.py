@@ -136,7 +136,7 @@ def test_mia_fortune_hut_screen_verify_parent_and_routes() -> None:
     try:
         assert screen_graph.screen_verify_parent(SCREEN) == "deals"
         assert screen_graph.screen_verify_rules(SCREEN) == [
-            {"match": TITLE_REGION, "threshold": 0.85}
+            {"ocr": TITLE_REGION, "contains": "Fortune Hut"}
         ]
         assert screen_graph.screen_verify_parent(PACK_SCREEN) is None
         assert screen_graph.screen_verify_rules(PACK_SCREEN) == [

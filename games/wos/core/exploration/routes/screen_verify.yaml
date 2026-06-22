@@ -29,11 +29,11 @@ screens:
     # Transient result screen; squad_fight scenario taps `next` to dismiss.
     terminal: true
     rules:
-    - match: page.exploration.victory.title
-      threshold: 0.9
+    - ocr: page.exploration.victory.title
+      contains: "Victory"
   exploration.defeat:
     # See exploration.victory — beat the generic arena.result matcher (20).
     priority: 18
     rules:
-    - match: exploration.defeat.title
-      threshold: 0.9
+    - ocr: exploration.defeat.title
+      contains: "Defeat"

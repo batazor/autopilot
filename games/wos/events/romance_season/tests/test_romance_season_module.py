@@ -124,13 +124,13 @@ def test_routes_and_screen_verify_are_registered() -> None:
             "romance_season.rosarion", "main_city", game="wos"
         ) == [["icon.page.back"], ["main_world.to.main_city"]]
         assert screen_graph.screen_verify_rules("event.romance_season") == [
-            {"match": "romance_season.title", "threshold": 0.9}
+            {"ocr": "romance_season.title", "contains": "Romance Season"}
         ]
         assert screen_graph.screen_verify_rules("romance_season.target") == [
             {"match": "romance_season.attack", "threshold": 0.9}
         ]
         assert screen_graph.screen_verify_rules("romance_season.rosarion") == [
-            {"match": "rosarion.title", "threshold": 0.9}
+            {"ocr": "rosarion.title", "contains": "Rosarion"}
         ]
     finally:
         screen_graph.invalidate_edge_taps_cache()

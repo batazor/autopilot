@@ -152,7 +152,7 @@ def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"match": "chief_profile.title", "threshold": 0.85}]
+    expected = [{"ocr": "chief_profile.title", "contains": "Chief Profile"}]
     assert expected[0] in landmarks
     assert rules == expected
 
@@ -184,7 +184,7 @@ def test_production_screen_verify_yaml_contains_hero_recruitment_route_nodes() -
     assert "heroes" in names
     assert "hero.recruitment" in names
     assert hero_rules == [{"match": "heroes.grid", "threshold": 0.9}]
-    assert recruit_rules == [{"match": "hero.recruitment.title", "threshold": 0.9}]
+    assert recruit_rules == [{"ocr": "hero.recruitment.title", "contains": "Recruitment"}]
     assert route == ["shop.dawn_market", "main_city", "heroes", "hero.recruitment"]
 
 
@@ -381,7 +381,7 @@ def test_production_screen_verify_yaml_contains_exploration_defeat_rule() -> Non
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"match": "exploration.defeat.title", "threshold": 0.9}]
+    expected = [{"ocr": "exploration.defeat.title", "contains": "Defeat"}]
     assert landmarks == expected
     assert rules == expected
 
@@ -468,7 +468,9 @@ def test_production_screen_verify_yaml_contains_survivor_status_tab_rules() -> N
             ]
             assert screen_graph.screen_landmark_rules(screen) == expected
             assert screen_graph.screen_verify_rules(screen) == expected
-        expected_base = [{"match": "survivor_status.title", "threshold": 0.9}]
+        # Parent is now OCR (reskin-proof header); sub-tabs above stay on
+        # template + tab_active, which is what actually disambiguates them.
+        expected_base = [{"ocr": "survivor_status.title", "contains": "Survivor Status"}]
         assert screen_graph.screen_landmark_rules("survivor_status") == expected_base
         assert screen_graph.screen_verify_rules("survivor_status") == expected_base
     finally:

@@ -3,8 +3,8 @@ screens:
     priority: 54
     parent: deals
     rules:
-      - match: mia_fortune_hut.title
-        threshold: 0.85
+      - ocr: mia_fortune_hut.title
+        contains: "Fortune Hut"
   deals.mia_fortune_hut.fortune_token_pack:
     priority: 55
     rules:

@@ -2,6 +2,9 @@ screens:
   # Specific tab nodes win first. The generic `chapter` fallback below has a
   # lower priority and only catches frames where the common header is visible
   # but the active tab landmark did not match.
+  # daily/growth are a TAB PAIR — both tab labels are always on screen, so
+  # title-OCR can't tell them apart (it reads both). Only the active-tab
+  # highlight differs, which template match captures. Keep them on template.
   chapter.daily_missions:
     priority: 25
     rules:

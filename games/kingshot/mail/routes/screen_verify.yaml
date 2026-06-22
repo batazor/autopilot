@@ -2,8 +2,8 @@ screens:
   mail:
     priority: 30
     rules:
-    - match: mail.title
-      threshold: 0.9
+    - ocr: mail.title
+      contains: "Mail"
   mail.wars:
     parent: mail
     priority: 15
