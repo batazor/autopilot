@@ -741,6 +741,96 @@ def test_connect_sockets_uses_forward_host_from_adb_server_socket(
     ]
 
 
+# ---------------------------------------------------------------------------
+# video-socket auto-reconnect
+# ---------------------------------------------------------------------------
+
+
+def _alive_thread() -> MagicMock:
+    t = MagicMock()
+    t.is_alive.return_value = True
+    return t
+
+
+def test_read_loop_reconnects_after_drop() -> None:
+    """A dropped video socket relaunches the session in place rather than
+    ending the reader thread."""
+    client = ScrcpyClient(serial="s", adb_bin="/bin/true")
+    with (
+        patch.object(client, "_stream_video", side_effect=["dropped", "stopped"]),
+        patch.object(client, "_restart_session", return_value=True) as restart,
+    ):
+        client._read_loop()
+    restart.assert_called_once()
+
+
+def test_read_loop_exits_when_reconnect_gives_up() -> None:
+    """If every reconnect attempt fails, the reader exits so the capture path
+    can recreate a fresh client."""
+    client = ScrcpyClient(serial="s", adb_bin="/bin/true")
+    with (
+        patch.object(client, "_stream_video", return_value="dropped"),
+        patch.object(client, "_restart_session", return_value=False) as restart,
+    ):
+        client._read_loop()
+    restart.assert_called_once()
+
+
+def test_restart_session_relaunches_in_place() -> None:
+    client = ScrcpyClient(serial="s", adb_bin="/bin/true")
+    with (
+        patch.object(client, "_close_session") as close_session,
+        patch.object(client, "_launch_session") as launch,
+    ):
+        ok = client._restart_session()
+    assert ok is True
+    close_session.assert_called_once()
+    launch.assert_called_once()
+    # The reconnecting flag must be cleared once the stream is back.
+    assert not client._reconnecting.is_set()
+
+
+def test_restart_session_retries_then_gives_up() -> None:
+    client = ScrcpyClient(serial="s", adb_bin="/bin/true")
+    with (
+        patch.object(client, "_close_session"),
+        patch.object(client, "_launch_session", side_effect=OSError("boom")) as launch,
+        patch.object(client._stop, "wait", return_value=False),  # no real backoff sleep
+    ):
+        ok = client._restart_session()
+    assert ok is False
+    from adb.scrcpy import _RECONNECT_MAX_ATTEMPTS
+
+    assert launch.call_count == _RECONNECT_MAX_ATTEMPTS
+    assert not client._reconnecting.is_set()
+
+
+def test_is_alive_true_during_reconnect_with_sockets_down() -> None:
+    """Mid-relaunch the sockets are None but the reader is up — the client must
+    still read as alive so the capture path doesn't tear it down."""
+    client = ScrcpyClient(serial="s", adb_bin="/bin/true")
+    client._reader_thread = _alive_thread()
+    client._video_sock = None
+    client._control_sock = None
+    client._reconnecting.set()
+    assert client.is_alive()
+
+
+def test_read_latest_frame_serves_cached_during_reconnect_past_boundary() -> None:
+    """While reconnecting, the cached frame is served even past a not_before_s
+    boundary (no fresh frames arrive during a relaunch)."""
+    client = ScrcpyClient(serial="s", adb_bin="/bin/true")
+    client._reader_thread = _alive_thread()
+    client._reconnecting.set()
+    frame = np.full((2, 2, 3), 5, dtype=np.uint8)
+    client._cache = _CachedFrame(image=frame, captured_at=10.0)
+
+    got, err = client.read_latest_frame_bgr(timeout_s=0.0, not_before_s=99.0)
+
+    assert got is frame
+    assert err == ""
+
+
 def test_lookup_scrcpy_client_does_not_register_a_new_one() -> None:
     """``lookup_scrcpy_client`` must never create — only observe.
 

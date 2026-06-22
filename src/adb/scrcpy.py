@@ -99,6 +99,16 @@ _LONG_SWIPE_OVERSHOOT_MIN_PX = 260
 # device-side socket (forward succeeds even before the server binds).
 _DUMMY_BYTE = b"\x00"
 
+# Video-socket auto-reconnect. A flaky emulator/adb link can drop the scrcpy
+# video stream mid-session (clean EOF at a packet boundary). Rather than tear
+# the whole client down and degrade to slow ADB ``screencap``, the reader
+# thread relaunches the server + reopens the sockets in place, serving the last
+# cached frame during the brief gap. Only if every attempt fails does it give
+# up and let the capture path recreate the client.
+_RECONNECT_MAX_ATTEMPTS = 5
+_RECONNECT_BACKOFF_S = 0.5
+_RECONNECT_BACKOFF_MAX_S = 4.0
+
 
 def _adb_forward_host() -> str:
     """Return the host where ``adb forward tcp:<port>`` listens.
@@ -508,6 +518,10 @@ class ScrcpyClient:
         self._start_lock = threading.Lock()
         self._control_lock = threading.Lock()
         self._stop = threading.Event()
+        # Set while the reader thread is relaunching the video session in place;
+        # readers keep getting the cached frame instead of tearing the client
+        # down (see _restart_session / read_latest_frame_bgr).
+        self._reconnecting = threading.Event()
         self._reader_thread: threading.Thread | None = None
         self._frame_event = threading.Event()
         self._cache: _CachedFrame | None = None
@@ -526,7 +540,22 @@ class ScrcpyClient:
     def _start_locked(self) -> None:
         if self.is_alive():
             return
+        self._stop.clear()
+        self._launch_session()
+        self._frame_event.clear()
+        self._reader_thread = threading.Thread(
+            target=self._read_loop, name=f"scrcpy-{self.serial}", daemon=True,
+        )
+        self._reader_thread.start()
 
+    def _launch_session(self) -> None:
+        """Install the jar if needed, (re)create the adb forward, launch the
+        server, and open the video+control sockets.
+
+        Raises on failure after cleaning up the process/forward it created (so
+        the caller can retry without a half-open session). Shared by the initial
+        :meth:`_start_locked` and the reader thread's in-place reconnect.
+        """
         status = get_scrcpy_status(self.serial, self.adb_bin)
         if status.last_error:
             msg = f"scrcpy status failed for {self.serial}: {status.last_error}"
@@ -609,24 +638,18 @@ class ScrcpyClient:
                 ).decode(errors="replace")
                 self._last_error = stderr.strip() or "(no stderr)"
                 msg = f"scrcpy server exited immediately: {self._last_error}"
-                self.close()
+                self._close_session()
                 raise RuntimeError(msg) from None
             with contextlib.suppress(Exception):
                 proc.terminate()
                 _stdout, stderr_b = proc.communicate(timeout=1.0)
                 detail = stderr_b.decode(errors="replace").strip()
-            self.close()
+            self._close_session()
             if detail:
                 msg = f"{exc}; server stderr: {detail}"
                 raise RuntimeError(msg) from exc
             raise
 
-        self._stop.clear()
-        self._frame_event.clear()
-        self._reader_thread = threading.Thread(
-            target=self._read_loop, name=f"scrcpy-{self.serial}", daemon=True,
-        )
-        self._reader_thread.start()
         logger.info(
             "scrcpy %s ready: device=%r codec=h264 res=%s",
             self.serial, self._device_name, self._codec_size,
@@ -702,7 +725,17 @@ class ScrcpyClient:
         self._video_sock = video
 
     def close(self) -> None:
+        """Permanently stop this client: signal the reader to exit, then tear
+        down the session. After this the reader thread ends and ``is_alive()``
+        is False, so the capture path recreates a fresh client on demand."""
         self._stop.set()
+        self._reconnecting.clear()
+        self._close_session()
+
+    def _close_session(self) -> None:
+        """Tear down the current sockets + server process + adb forward WITHOUT
+        signalling the reader to stop. Used by the in-place reconnect (which
+        rebuilds afterwards) and by :meth:`close`. Idempotent."""
         for sock in (self._video_sock, self._control_sock):
             with contextlib.suppress(Exception):
                 if sock is not None:
@@ -729,19 +762,42 @@ class ScrcpyClient:
             )
 
     def is_alive(self) -> bool:
-        return (
-            self._video_sock is not None
-            and self._control_sock is not None
-            and self._reader_thread is not None
-            and self._reader_thread.is_alive()
-        )
+        if self._reader_thread is None or not self._reader_thread.is_alive():
+            return False
+        # During an in-place reconnect the sockets are momentarily None but the
+        # reader is still up and the cached frame is still served — treat the
+        # client as alive so the capture path doesn't tear it down mid-relaunch.
+        if self._reconnecting.is_set():
+            return True
+        return self._video_sock is not None and self._control_sock is not None
 
     # -- video --------------------------------------------------------------
 
     def _read_loop(self) -> None:
+        """Supervisor: stream the video socket, and on an unexpected drop
+        relaunch the session in place before giving up.
+
+        Keeping this thread alive across reconnects means the capture path keeps
+        serving the cached frame instead of tearing the client down and
+        degrading to ADB ``screencap``.
+        """
+        while not self._stop.is_set():
+            outcome = self._stream_video()
+            if self._stop.is_set() or outcome == "stopped":
+                break
+            # Video dropped unexpectedly — rebuild the session and resume.
+            if not self._restart_session():
+                return  # retries exhausted; capture path will recreate us
+
+    def _stream_video(self) -> str:
+        """Decode frames off the current video socket until it stops or drops.
+
+        Returns ``"stopped"`` on a clean shutdown (``self._stop`` set) and
+        ``"dropped"`` when the socket fails and the session should be rebuilt.
+        """
         sock = self._video_sock
         if sock is None:
-            return
+            return "dropped"
         decoder: _H264Decoder | None = None
         while not self._stop.is_set():
             try:
@@ -756,10 +812,15 @@ class ScrcpyClient:
                     continue
                 payload = _recv_exact(sock, size)
             except (ConnectionError, OSError) as exc:
-                if not self._stop.is_set():
-                    self._last_error = f"video socket read failed: {exc}"
-                    logger.warning("scrcpy %s: %s", self.serial, self._last_error)
-                return
+                if self._stop.is_set():
+                    return "stopped"
+                # Expected on a flaky link — the supervisor will reconnect; only
+                # WARN if every reconnect attempt fails (see _restart_session).
+                self._last_error = f"video socket read failed: {exc}"
+                logger.info(
+                    "scrcpy %s: %s — reconnecting", self.serial, self._last_error
+                )
+                return "dropped"
             if decoder is None:
                 decoder = _H264Decoder()
             frames = decoder.decode(payload)
@@ -770,6 +831,46 @@ class ScrcpyClient:
             with self._cache_lock:
                 self._cache = _CachedFrame(image=img, captured_at=time.monotonic())
             self._frame_event.set()
+        return "stopped"
+
+    def _restart_session(self) -> bool:
+        """Relaunch the server + reopen the sockets in place, with bounded
+        backoff. The last cached frame keeps being served meanwhile. Returns
+        True once the stream is back, False if every attempt failed (the
+        supervisor then exits and the capture path recreates the client)."""
+        self._reconnecting.set()
+        try:
+            with self._start_lock:
+                if self._stop.is_set():
+                    return False
+                self._close_session()
+                delay = _RECONNECT_BACKOFF_S
+                for attempt in range(1, _RECONNECT_MAX_ATTEMPTS + 1):
+                    if self._stop.is_set():
+                        return False
+                    try:
+                        self._launch_session()
+                    except Exception as exc:
+                        self._last_error = (
+                            f"scrcpy reconnect attempt {attempt} failed: {exc}"
+                        )
+                        logger.warning("scrcpy %s: %s", self.serial, self._last_error)
+                        self._stop.wait(timeout=delay)
+                        delay = min(delay * 2, _RECONNECT_BACKOFF_MAX_S)
+                        continue
+                    logger.info(
+                        "scrcpy %s: video stream reconnected (attempt %d)",
+                        self.serial, attempt,
+                    )
+                    return True
+                logger.warning(
+                    "scrcpy %s: giving up after %d reconnect attempts; "
+                    "capture path will recreate the client",
+                    self.serial, _RECONNECT_MAX_ATTEMPTS,
+                )
+                return False
+        finally:
+            self._reconnecting.clear()
 
     def read_latest_frame_bgr(
         self,
@@ -787,6 +888,15 @@ class ScrcpyClient:
         """
         if not self.is_alive():
             return None, self._last_error or "scrcpy not started"
+        # Mid-reconnect the stream is briefly down and no fresh frames arrive;
+        # serve the last cached frame (even past a not_before_s boundary) so the
+        # capture path doesn't tear the client down while it is relaunching.
+        if self._reconnecting.is_set():
+            with self._cache_lock:
+                cached = self._cache
+            if cached is not None:
+                return cached.image, ""
+            return None, self._last_error or "scrcpy reconnecting"
         deadline = time.monotonic() + max(0.0, float(timeout_s))
         while True:
             with self._cache_lock:
