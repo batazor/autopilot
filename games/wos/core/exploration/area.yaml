@@ -59,6 +59,7 @@
           "name": "page.exploration.victory.title",
           "action": "exist",
           "threshold": 0.9,
+          "preprocess": "title_line",
           "bbox": {
             "x": 29.88416988416989,
             "y": 29.565217391304348,
@@ -96,11 +97,12 @@
           "name": "exploration.defeat.title",
           "action": "exist",
           "threshold": 0.9,
+          "preprocess": "title_line",
           "bbox": {
-            "x": 32.3938223938224,
-            "y": 25.108695652173914,
-            "width": 35.2007722007722,
-            "height": 6.8,
+            "x": 29.88416988416989,
+            "y": 29.565217391304348,
+            "width": 39.3996138996139,
+            "height": 7.128260869565217,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

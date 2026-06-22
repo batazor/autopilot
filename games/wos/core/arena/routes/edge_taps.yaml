@@ -1,7 +1,15 @@
-# Leave the Arena of Glory entry screen via its top-left back arrow. The
-# challenge-list / squad screens are marked `terminal: true` in screen_verify.yaml
-# — the arena.fight scenario taps through them itself, so the navigator never has
-# to route between them.
+# Leave the Arena of Glory entry screen via its top-left back arrow.
+#
+# challenge_list / squad are the in-flow dialogs the arena.fight scenario taps
+# through (Challenge List -> Squad Settings -> fight). They are detectable, so a
+# scenario abort mid-flow (or a navigating cron firing on one of them) used to
+# strand the bot — they were `terminal: true` with no edge. They now route back
+# to the Arena building via Android BACK, which closes the topmost dialog without
+# committing any action (their only on-screen exits are an unlabelled top-right X
+# / back arrow; system_back is the region-free, non-committal escape). The
+# navigator re-detects and re-routes after each hop, so a single BACK that lands
+# on a sibling dialog is fine — it keeps backing until `arena`, which already has
+# `arena -> main_city: [icon.page.back]`.
 #
 # `arena.result` is the GENERIC battle-result screen ("Defeat!/Victory!" + "Tap
 # anywhere to exit" + "Return to City"). It is shared by arena.fight, exploration
@@ -19,3 +27,9 @@ edges:
   arena.result:
     main_city:
       - button.to_main_city
+  arena.challenge_list:
+    arena:
+      - type: system_back
+  arena.squad:
+    arena:
+      - type: system_back

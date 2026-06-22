@@ -11,3 +11,12 @@ edges:
 
   exploration.defeat:
     main_city: [button.to_main_city]
+
+  # exploration.victory shares the generic battle-result layout with
+  # exploration.defeat ("Return to City" + "Continue" + "Tap anywhere to exit").
+  # The squad_fight scenario taps `Continue` itself, but if anything strands the
+  # bot here (scenario abort, watchdog kill, or a navigating cron firing on the
+  # result frame) the navigator needs a route home. "Return to City"
+  # (button.to_main_city) is present on every result variant, so route through it.
+  exploration.victory:
+    main_city: [button.to_main_city]

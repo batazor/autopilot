@@ -9,3 +9,11 @@ edges:
   pets:
     pets.pet_skill: [pets.skills]
     main_city: [icon.page.back]
+
+  # The Pet Skill panel's only on-screen exit is its top-right X (unlabelled).
+  # Route home via Android BACK, which closes the panel without committing a skill
+  # use — region-free and non-committal, and the navigator re-detects + re-routes
+  # afterwards. Without this edge the panel was a terminal dead-end.
+  pets.pet_skill:
+    main_city:
+      - type: system_back

@@ -1,8 +1,12 @@
 screens:
   alliance.invitation:
     priority: 20
-    # Auto-handled by join_to_alliance accept-tap scenario; not routed via graph.
-    terminal: true
+    # The full Alliance screen (Create / Join / Invites&Requests tabs), reached
+    # from main_city. NOT terminal: it now carries an outgoing
+    # `alliance.invitation -> main_city` edge (via its top-left back arrow,
+    # icon.page.back) in edge_taps.yaml so the navigator can recover home if the
+    # bot lands here (e.g. an unprompted invitation surfacing it) outside any
+    # tap-driven scenario.
     rules:
     - match: alliance.title
       threshold: 0.9

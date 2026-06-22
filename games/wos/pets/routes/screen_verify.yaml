@@ -4,8 +4,14 @@ screens:
       - match: pets.skills
         threshold: 0.9
   pets.pet_skill:
-    # Reward popup; pets.pet_skill scenario claims + tapanywhereyoexit to dismiss.
-    terminal: true
+    # The "Pet Skill" panel (select a pet -> Use), a modal over the city. It had
+    # NO explicit priority, so it defaulted to 100 and was classified as a
+    # routable screen with no outgoing edge — a dead-end the navigator could not
+    # leave (and pet-skill activation can surface this panel unprompted). Now a
+    # low (< MAIN_CITY_HUB_PRIORITY) priority classifies it as a modal, and it
+    # carries an outgoing `pets.pet_skill -> main_city` edge (Android BACK, which
+    # closes the panel) in edge_taps.yaml so the navigator can always recover.
+    priority: 8
     rules:
       - ocr: pet.skill.title
         contains: "Pet Skill"

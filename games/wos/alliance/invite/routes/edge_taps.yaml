@@ -1,0 +1,10 @@
+# `alliance.invitation` is the full Alliance screen (Create / Join /
+# Invites&Requests tabs) reached from main_city. It has the standard top-left
+# back arrow (icon.page.back), which returns to main_city. Route through it so a
+# bot that lands here outside a tap-driven scenario (e.g. an invitation popup
+# surfacing the screen) can always recover home instead of stranding with
+# `navigation_failed`.
+edges:
+  alliance.invitation:
+    main_city:
+      - icon.page.back

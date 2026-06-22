@@ -1,0 +1,13 @@
+# `heroes.deploy` is the march troop-deploy screen, opened over the world map
+# when dispatching a march (intel_run, intel_lighthouse, gather, rally). Its only
+# on-screen exit is the top-left back arrow, which closes the deploy dialog back
+# to the world map / target. We route via Android BACK rather than tapping a
+# labelled region: BACK closes the dialog without committing a march (a mis-aimed
+# tap on this screen could send troops), and the navigator re-detects + re-routes
+# after the hop, so landing on main_world (or an UNKNOWN target popup, which the
+# navigator's icon.page.back fallback then clears) both recover home via
+# main_world -> main_city. Without this edge the screen was a terminal dead-end.
+edges:
+  heroes.deploy:
+    main_world:
+      - type: system_back

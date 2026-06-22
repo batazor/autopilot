@@ -15,6 +15,14 @@ screens:
       threshold: 0.8
   exploration.squad_fight:
     priority: 25
+    # The in-progress battle animation. Genuinely transient: it has no exit
+    # affordance other than the pause button (tapping which is unpredictable and
+    # we WANT to wait the fight out, which the squad_fight scenario does via
+    # `wait_screen`). It always auto-resolves to exploration.victory /
+    # exploration.defeat, both of which now carry an outgoing `-> main_city` edge,
+    # so a navigating cron that fires mid-battle recovers on the next tick once
+    # the result screen appears (the stuck-task watchdog backstops a true hang).
+    # terminal:true keeps the navigator from trying to route off the battle.
     terminal: true
     rules:
     - match: page.squad_fight.title
@@ -26,8 +34,10 @@ screens:
     # tie and steals detection, which makes squad_fight's victory/defeat
     # wait_screen time out and leaves the bot stuck on the result screen.
     priority: 18
-    # Transient result screen; squad_fight scenario taps `next` to dismiss.
-    terminal: true
+    # Battle-result screen; squad_fight taps `Continue` to dismiss in-flow. NOT
+    # terminal: it now carries an outgoing `exploration.victory -> main_city` edge
+    # (via the "Return to City" button) in edge_taps.yaml, so the navigator can
+    # recover home if the bot strands here outside its own scenario.
     rules:
     - ocr: page.exploration.victory.title
       contains: "Victory"

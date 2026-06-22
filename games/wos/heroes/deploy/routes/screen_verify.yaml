@@ -1,7 +1,11 @@
 screens:
   heroes.deploy:
     priority: 20
-    terminal: true
+    # The march troop-deploy screen, opened over the world map when sending a
+    # march (intel, gather, rally). NOT terminal: it now carries an outgoing
+    # `heroes.deploy -> main_world` edge (Android BACK, which closes the deploy
+    # dialog back to the map without committing a march) in edge_taps.yaml, so a
+    # bot that strands here mid-flow can recover home via main_world -> main_city.
     rules:
     - ocr: page.common.title
       contains: Deploy

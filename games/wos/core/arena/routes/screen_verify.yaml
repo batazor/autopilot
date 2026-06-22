@@ -15,16 +15,20 @@ screens:
       - ocr: arena.result.exit
         contains: ["anywhere", "exit"]
 
+  # The arena.fight scenario taps through challenge_list -> squad -> fight itself,
+  # but both are detectable dialogs over the Arena building, so a scenario that
+  # aborts mid-flow (or a navigating cron firing on the dialog) would strand the
+  # bot here. NOT terminal: each now carries an outgoing `-> arena` edge (Android
+  # BACK, which closes the dialog) in edge_taps.yaml, and arena -> main_city
+  # already exists, so the navigator can always recover home.
   arena.challenge_list:
     priority: 24
-    terminal: true
     rules:
       - ocr: arena.challenge_list.title
         contains: "Challenge List"
 
   arena.squad:
     priority: 24
-    terminal: true
     rules:
       - ocr: arena.squad.title
         contains: ["Squad", "Settings"]
