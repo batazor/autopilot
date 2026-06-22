@@ -15,6 +15,7 @@ from layout.area_manifest import load_area_doc
 # so edges in edge_taps.yaml can resolve at runtime.
 from navigation import (
     calendar_go_resolver,  # noqa: F401
+    calendar_open_resolver,  # noqa: F401
     hero_grid_resolver,  # noqa: F401
     main_menu_panel_resolver,  # noqa: F401
     tab_identify_resolver,  # noqa: F401
@@ -244,6 +245,27 @@ class Navigator:
         hop_index: int | None = None,
     ) -> bool:
         return await self._tap_executor._tap_calendar_go_async(
+            instance_id,
+            spec,
+            from_screen=from_screen,
+            to_screen=to_screen,
+            state_flat=state_flat,
+            path_csv=path_csv,
+            hop_index=hop_index,
+        )
+
+    async def _tap_goto_calendar_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        return await self._tap_executor._tap_goto_calendar_async(
             instance_id,
             spec,
             from_screen=from_screen,
@@ -882,6 +904,16 @@ class Navigator:
                     )
                 elif isinstance(point, dict) and point.get("type") == "calendar_go":
                     tapped = await self._tap_calendar_go_async(
+                        instance_id,
+                        point,
+                        from_screen=src_screen,
+                        to_screen=str(dst_screen),
+                        state_flat=state_flat,
+                        path_csv=path_csv,
+                        hop_index=hop_idx,
+                    )
+                elif isinstance(point, dict) and point.get("type") == "goto_calendar":
+                    tapped = await self._tap_goto_calendar_async(
                         instance_id,
                         point,
                         from_screen=src_screen,

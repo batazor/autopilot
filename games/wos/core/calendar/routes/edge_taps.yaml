@@ -14,12 +14,19 @@
 # Events button — before the panel had opened — and landed nowhere (UNKNOWN).
 # Verified on-device 2026-06-21.
 #
-# NEXT STEP (deferred): if the panel defaults to an event tab other than State of
-# Power (and not Calendar itself), add a `[calendar.tab]` edge from that tab's
-# node too, or add a generic "events panel open" node. Also: when the tab strip
-# is scrolled so Calendar is off-screen, `calendar.tab` won't be at its labeled
-# position — a resolver that swipes the strip until Calendar appears is the fix.
+# The panel opens on whatever event is *primary* (truck trade, Alliance Showdown,
+# …), so a fixed two-tap route through event.state_of_power broke whenever the
+# panel didn't open on State of Power: the intermediate verify failed and the
+# route died before tapping calendar.tab. The robust route is the `goto_calendar`
+# dynamic resolver — it opens the panel, swipes the carousel to its leftmost page
+# (Calendar is ALWAYS the first tab), then taps it. See
+# src/navigation/calendar_open_resolver.py + games/wos/core/calendar/open_nav.py.
 edges:
+  main_city:
+    event.calendar: { resolver: goto_calendar }
+
+  # Cheap fallback when already on State of Power: Calendar sits one tap to the
+  # left, no swipe needed.
   event.state_of_power:
     event.calendar: [calendar.tab]
 

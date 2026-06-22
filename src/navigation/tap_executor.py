@@ -741,6 +741,35 @@ class TapExecutor:
             logger.exception("Navigator: calendar_go navigation failed: %s", spec)
             return False
 
+    async def _tap_goto_calendar_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        """Open the Events panel and select the (always-leftmost) Calendar tab.
+
+        Delegates the interactive walk to the calendar module (it needs swipe +
+        OCR, which the bot-action surface provides). The navigator verifies
+        ``event.calendar`` after this returns.
+        """
+        _ = (spec, from_screen, to_screen, state_flat, path_csv, hop_index)
+        try:
+            from games.wos.core.calendar.open_nav import open_calendar_tab
+
+            from tasks import dsl_runtime
+
+            actions = dsl_runtime.bot_actions()
+            return bool(await open_calendar_tab(actions, instance_id, self._ocr))
+        except Exception:
+            logger.exception("Navigator: goto_calendar navigation failed: %s", spec)
+            return False
+
     async def _tap_main_menu_panel_row_async(
         self,
         instance_id: str,
