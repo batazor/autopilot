@@ -172,7 +172,13 @@ def eval_cond(expr: str, state_flat: dict[str, Any]) -> bool:
             {"__builtins__": {}},
             {"_state": coerced_state, **coerced_state},
         )
-    except KeyError:
+    except (KeyError, NameError):
+        # State field absent → opt out of this version (use the default regions).
+        # A dotted ident resolves to a dict subscript (KeyError when missing); a
+        # bare ident resolves from the injected locals (NameError when missing) —
+        # e.g. a flag like ``joe_event_active`` that its producer hasn't written
+        # yet. Both mean the same thing and are normal, so stay silent: otherwise
+        # this warns on every overlay tick (observed spamming the worker log).
         return False
     except Exception as exc:
         logger.warning("eval_cond failed for %r: %s", expr_str, exc)

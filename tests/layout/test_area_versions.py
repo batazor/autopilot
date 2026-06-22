@@ -63,6 +63,16 @@ def test_eval_cond_bare_identifier_uses_state() -> None:
     assert eval_cond("level >= 6", {"level": 7}) is True
 
 
+def test_eval_cond_missing_bare_identifier_is_silent_false(caplog) -> None:
+    # A bare flag the producer hasn't written yet (e.g. ``joe_event_active``)
+    # must opt out silently — same as a missing dotted key — not warn every tick.
+    with caplog.at_level("WARNING"):
+        assert eval_cond("joe_event_active", {}) is False
+        assert eval_cond("joe_event_active and stamina > 10", {"stamina": 50}) is False
+    assert "joe_event_active" not in caplog.text
+    assert "eval_cond failed" not in caplog.text
+
+
 # ---- pick_active_version --------------------------------------------------
 
 
