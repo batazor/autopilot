@@ -293,6 +293,7 @@ async def test_tick_records_screenshot_analysis_duration(
         "device_level_only": False,
         "task_busy": False,
         "outcome": "ok",
+        "detect_path": "",
     }
 
 

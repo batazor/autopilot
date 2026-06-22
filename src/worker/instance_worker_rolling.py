@@ -140,6 +140,7 @@ def _record_screenshot_analysis_duration(
     device_level_only: bool,
     task_busy: bool,
     outcome: str,
+    detect_path: str = "",
 ) -> None:
     screenshot_analysis_duration_histogram().record(
         max(0.0, float(elapsed_s)),
@@ -149,6 +150,10 @@ def _record_screenshot_analysis_duration(
             "device_level_only": bool(device_level_only),
             "task_busy": bool(task_busy),
             "outcome": outcome,
+            # Which screen-detection path this tick took (skipped_phash |
+            # sticky_hit | full_scan | "") — lets Grafana show the phash-skip
+            # rate vs. real detections without an extra metric.
+            "detect_path": detect_path or "",
         },
     )
 
@@ -302,6 +307,7 @@ class InstanceWorkerRollingMixin(_Base):
                 device_level_only=device_level_only,
                 task_busy=task_busy,
                 outcome=outcome,
+                detect_path=getattr(self, "_last_detect_path", ""),
             )
 
     def _schedule_rolling_snapshot_analysis(self, image_bgr: np.ndarray) -> None:

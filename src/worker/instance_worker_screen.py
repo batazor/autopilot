@@ -14,12 +14,22 @@ from analysis.overlay_ttl_state import (
 from config.log_context import set_log_context
 from config.paths import repo_root
 from config.tracing import dismiss_unknown_popup_counter, popup_detected_counter
+from layout.template_match import _hamming64, _phash64
 from navigation.detector import ScreenName
 from popup.models import PopupKind
 
 logger = logging.getLogger(__name__)
 
-
+# Frame-unchanged detection skip. When the bot dwells on one static screen the
+# frame is visually identical tick-to-tick, so re-running the full detector is
+# wasted work. We perceptual-hash the frame and, if it is within
+# ``_PHASH_SKIP_MAX_BITS`` Hamming bits of the last *detected* frame, reuse the
+# last screen instead of detecting again. A DCT phash is tolerant of ambient
+# animation (snow/fire/water flip few low-frequency bits); a real screen change
+# moves a large region and clears the threshold. ``_FORCE_FULL_DETECT_S`` bounds
+# any miss by forcing a real detect periodically regardless of the hash.
+_PHASH_SKIP_MAX_BITS = 4
+_FORCE_FULL_DETECT_S = 4.0
 
 if TYPE_CHECKING:
     import numpy as np
@@ -45,6 +55,9 @@ class InstanceWorkerScreenMixin(_Base):
     _last_detected_screen_at: float
     _unknown_since: float
     _screen_unknown_streak: int
+    _last_detect_phash: int | None
+    _last_full_detect_at: float
+    _last_detect_path: str
     _popup_detector: Any
     _last_popup_tap_mono: float
     _settings: Any
@@ -559,6 +572,26 @@ class InstanceWorkerScreenDetectMixin(_Base):
                     self._cfg.instance_id,
                     exc_info=True,
                 )
+
+        # Frame-unchanged skip: if this frame is visually identical to the last
+        # frame we actually detected on, reuse that verdict instead of running
+        # the detector again. Never while navigating (nav_expected set) — a BFS
+        # hop must detect to catch arrival/popups — and force a real detect at
+        # least every _FORCE_FULL_DETECT_S to self-heal a same-phash transition.
+        frame_phash = _phash64(image_bgr)
+        now = time.monotonic()
+        if (
+            sticky_hint is not None
+            and nav_expected is None
+            and self._last_detect_phash is not None
+            and (now - self._last_full_detect_at) < _FORCE_FULL_DETECT_S
+            and _hamming64(frame_phash, self._last_detect_phash) <= _PHASH_SKIP_MAX_BITS
+        ):
+            self._last_detect_path = "skipped_phash"
+            self._last_detected_screen_at = now
+            set_log_context(node=sticky_hint)
+            return self._last_detected_screen
+
         try:
             detected = await self._screen_detector.detect_screen(
                 image_bgr,
@@ -578,6 +611,14 @@ class InstanceWorkerScreenDetectMixin(_Base):
             detected_s = str(detected)
             self._last_detected_screen = detected_s
             self._last_detected_screen_at = time.monotonic()
+            # Anchor the frame-unchanged skip on the frame we just detected on.
+            self._last_detect_phash = frame_phash
+            self._last_full_detect_at = self._last_detected_screen_at
+            self._last_detect_path = (
+                "sticky_hit"
+                if getattr(self._screen_detector, "last_used_sticky_verify", False)
+                else "full_scan"
+            )
             was_unknown = self._unknown_since > 0.0
             self._unknown_since = 0.0
             self._screen_unknown_streak = 0
@@ -594,6 +635,11 @@ class InstanceWorkerScreenDetectMixin(_Base):
             set_log_context(node=detected_s)
             return detected_s
 
+        # UNKNOWN: a landmark is occluded (often a modal). Invalidate the skip
+        # anchor so the next tick re-detects rather than reusing a stale screen
+        # off a near-identical phash — never mask a popup behind the skip.
+        self._last_detect_phash = None
+        self._last_detect_path = "full_scan"
         self._screen_unknown_streak += 1
         age = time.monotonic() - self._last_detected_screen_at
         should_clear = (

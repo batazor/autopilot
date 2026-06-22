@@ -156,6 +156,13 @@ class InstanceWorker(
         # waits the full 10s of confirmed-unknown before firing.
         self._unknown_since: float = 0.0
         self._screen_unknown_streak = 0
+        # Frame-unchanged detection skip: perceptual hash of the last frame we
+        # actually ran detection on, the monotonic clock of that full detect,
+        # and the path the last tick took (sticky_hit | full_scan |
+        # skipped_phash) for measurement. See _detect_current_screen_on_frame.
+        self._last_detect_phash: int | None = None
+        self._last_full_detect_at: float = 0.0
+        self._last_detect_path: str = ""
         self._ocr_client = ocr_client
         self._screen_detector = ScreenDetector(ocr_client)
         # Template-free pop-up detector, with screen analysis to avoid treating
