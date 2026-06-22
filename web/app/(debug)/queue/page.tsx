@@ -96,6 +96,7 @@ export default function QueuePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [pendingView, setPendingView] = useState<"table" | "timeline">("table");
+  const [search, setSearch] = useState("");
   const [pendingSort, setPendingSort] = useState<{
     col: "schedule" | "player";
     dir: "asc" | "desc";
@@ -150,8 +151,22 @@ export default function QueuePage() {
     return pendingSort.dir === "asc" ? " ↑" : " ↓";
   };
 
-  const pendingTotal = sortedPending.length;
-  const pendingNeedsFullRows = pendingView === "timeline" || pendingSort.col !== "schedule";
+  // Free-text filter over the fields an operator scans by (scenario / player /
+  // instance / region). A non-empty query forces the full pending fetch below
+  // so the filter spans every pending task, not just the current page.
+  const q = search.trim().toLowerCase();
+  const filteredPending = useMemo(() => {
+    if (!q) return sortedPending;
+    return sortedPending.filter((r) =>
+      [r.scenario, r.scenario_key, r.player_id, r.instance_id, r.region].some((v) =>
+        String(v ?? "").toLowerCase().includes(q),
+      ),
+    );
+  }, [sortedPending, q]);
+
+  const pendingTotal = filteredPending.length;
+  const pendingNeedsFullRows =
+    pendingView === "timeline" || pendingSort.col !== "schedule" || q !== "";
   const pendingTotalRows = data?.pending_count ?? pendingTotal;
   const pendingPageCount = Math.max(1, Math.ceil(pendingTotal / PENDING_PAGE_SIZE));
   const pendingServerPageCount = Math.max(1, Math.ceil(pendingTotalRows / PENDING_PAGE_SIZE));
@@ -160,10 +175,11 @@ export default function QueuePage() {
     pendingNeedsFullRows ? pendingPageCount : pendingServerPageCount,
   );
   const pagedPending = useMemo(() => {
-    if (!pendingNeedsFullRows && sortedPending.length <= PENDING_PAGE_SIZE) return sortedPending;
+    if (!pendingNeedsFullRows && filteredPending.length <= PENDING_PAGE_SIZE)
+      return filteredPending;
     const start = (pendingPageSafe - 1) * PENDING_PAGE_SIZE;
-    return sortedPending.slice(start, start + PENDING_PAGE_SIZE);
-  }, [pendingNeedsFullRows, sortedPending, pendingPageSafe]);
+    return filteredPending.slice(start, start + PENDING_PAGE_SIZE);
+  }, [pendingNeedsFullRows, filteredPending, pendingPageSafe]);
 
   const historyRows = data?.history ?? [];
   const historyNeedsFullRows = pendingView === "timeline";
@@ -185,7 +201,7 @@ export default function QueuePage() {
   }, [historyPage, historyPageCount]);
   useEffect(() => {
     setPendingPage(1);
-  }, [pendingSort.col, pendingSort.dir]);
+  }, [pendingSort.col, pendingSort.dir, q]);
   const pickRef = useRef(pick);
   pickRef.current = pick;
   const revisionRef = useRef<string | undefined>(undefined);
@@ -361,7 +377,13 @@ export default function QueuePage() {
       </section>
 
       <section className="panel queue-panel">
-        <h2>Pending ({data?.pending_count ?? 0})</h2>
+        <h2>
+          Pending (
+          {q
+            ? `${pendingTotal} of ${data?.pending_count ?? pendingTotal}`
+            : (data?.pending_count ?? 0)}
+          )
+        </h2>
         <p className="meta queue-pending-order-hint">
           {pendingSort.col === "schedule" ? (
             <>
@@ -387,6 +409,26 @@ export default function QueuePage() {
               ]}
             />
             {pendingView === "table" ? (
+              <>
+              <div className="toolbar queue-search-bar">
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Filter by scenario, player, instance or region…"
+                  aria-label="Filter pending tasks"
+                  className="queue-search-input"
+                />
+                {q ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setSearch("")}
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
               <div className="data-table-wrap" data-pending={isPending ? "" : undefined}>
                 <table className="data-table queue-table">
                   <thead>
@@ -509,6 +551,7 @@ export default function QueuePage() {
                   />
                 ) : null}
               </div>
+              </>
             ) : (
               <QueuePendingCalendar
                 pending={optimisticPending}
