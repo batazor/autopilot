@@ -307,4 +307,36 @@
     @apply bg-wos-surface/50 text-wos-text-muted;
   }
 
+  .labeling-conflict__panel {
+    @apply max-h-[85vh] w-[min(640px,92vw)] overflow-y-auto;
+  }
+
+  .labeling-conflict__images {
+    @apply my-3 flex gap-4 rounded-lg border border-wos-border-subtle p-3;
+  }
+
+  .labeling-conflict__images legend {
+    @apply px-1 text-xs text-wos-text-muted;
+  }
+
+  .labeling-conflict__images label {
+    @apply flex flex-col items-start gap-1 text-sm;
+  }
+
+  .labeling-conflict__images img {
+    @apply mt-1 rounded border border-wos-border-subtle;
+  }
+
+  .labeling-conflict__group {
+    @apply my-3;
+  }
+
+  .labeling-conflict__group h4 {
+    @apply mb-1 text-xs font-semibold uppercase tracking-wide text-wos-text-muted;
+  }
+
+  .labeling-conflict__row {
+    @apply flex flex-wrap items-center gap-2 py-1 text-sm;
+  }
+
 }

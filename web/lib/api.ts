@@ -30,6 +30,7 @@ import type {
   FishDetectResult,
   FishVideoJob,
   InstanceDetail,
+  LabelingBundleImport,
   LabelingDocument,
   LabelingReferenceMeta,
   LabelingScopeOption,
@@ -1005,6 +1006,11 @@ export function labelingImageUrl(refRel: string, cacheKey?: number | string): st
   return `${base}/api/labeling/references/${labelingRefPath(refRel)}/image${qs ? `?${qs}` : ""}`;
 }
 
+/** Download URL for a portable screen-label bundle (``image + labels`` .alabel.zip). */
+export function labelingBundleUrl(refRel: string, scope: string): string {
+  return `${base}/api/labeling/references/${labelingRefPath(refRel)}/bundle${labelingScopeQuery(scope)}`;
+}
+
 export async function fetchLabelingDocument(
   refRel: string,
   scope: string,
@@ -1095,6 +1101,42 @@ export async function importLabelingPng(
     );
   }
   return res.json() as Promise<{ ok: boolean; ref: string }>;
+}
+
+export async function importLabelingBundle(
+  scope: string,
+  file: File,
+): Promise<LabelingBundleImport> {
+  const fd = new FormData();
+  fd.append("scope", scope);
+  fd.append("file", file);
+  const res = await fetch(`${base}/api/labeling/import-bundle${labelingScopeQuery(scope)}`, {
+    method: "POST",
+    body: fd,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `/api/labeling/import-bundle: ${res.status}${text ? ` — ${text}` : ""}`,
+    );
+  }
+  return res.json() as Promise<LabelingBundleImport>;
+}
+
+export async function applyLabelingBundle(
+  scope: string,
+  body: {
+    staged_ref: string;
+    target_ref: string;
+    regions: Record<string, unknown>[];
+    screen_id?: string | null;
+    use_incoming_image: boolean;
+  },
+): Promise<{ ok: boolean; ref: string; crops_written_count?: number }> {
+  return apiFetch(
+    `/api/labeling/import-bundle/apply${labelingScopeQuery(scope)}`,
+    jsonInit("POST", body),
+  );
 }
 
 export async function captureLabelingScreenshot(

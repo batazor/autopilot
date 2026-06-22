@@ -8,6 +8,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from api.services import labeling as labeling_svc
+from api.services import labeling_bundle as bundle_svc
 from api.services.game_resolver import request_game, set_current_request_game
 
 router = APIRouter(
@@ -125,6 +126,26 @@ def get_reference_image(ref_path: str, game: str = Depends(request_game)) -> Res
     return Response(content=png, media_type="image/png")
 
 
+@router.get("/references/{ref_path:path}/bundle")
+def get_reference_bundle(
+    ref_path: str,
+    scope: str = Query(default="core"),
+    game: str = Depends(request_game),
+) -> Response:
+    _pin_game(game)
+    try:
+        filename, data = bundle_svc.export_screen_bundle(ref_path, scope=scope)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/references/{ref_path:path}")
 def get_reference_document(
     ref_path: str,
@@ -180,6 +201,50 @@ async def post_import_png(
             instance_id,
             scope=scope,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/import-bundle")
+async def post_import_bundle(
+    scope: str = Form(default="core"),
+    file: UploadFile = File(...),  # noqa: B008
+    game: str = Depends(request_game),
+) -> dict[str, Any]:
+    _pin_game(game)
+    try:
+        raw = await file.read()
+        return bundle_svc.import_screen_bundle(raw, scope=scope)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class ApplyBundleBody(BaseModel):
+    staged_ref: str
+    target_ref: str
+    regions: list[dict[str, Any]] = Field(default_factory=list)
+    screen_id: str | None = None
+    use_incoming_image: bool = False
+
+
+@router.post("/import-bundle/apply")
+def post_import_bundle_apply(
+    body: ApplyBundleBody,
+    scope: str = Query(default="core"),
+    game: str = Depends(request_game),
+) -> dict[str, Any]:
+    _pin_game(game)
+    try:
+        return bundle_svc.apply_imported_bundle(
+            scope=scope,
+            staged_ref=body.staged_ref,
+            target_ref=body.target_ref,
+            regions=body.regions,
+            screen_id=body.screen_id,
+            use_incoming_image=body.use_incoming_image,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

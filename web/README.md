@@ -77,6 +77,30 @@ All routes below are implemented in Next.js.
 
 **Labeling** ([Konva](https://konvajs.org/) at `/labeling`): draw/move/resize regions, metadata, save `area.json` (base or `versions[vN].regions[]`), capture/refresh/discard, basename **promote** from `temporal/`, **rename**, version cond/sync/bind.
 
+### Contributing screen labels (portable bundles)
+
+To let others help with labeling, one annotated screen can be exported as a portable
+**bundle** — a `.alabel.zip` holding the reference screenshot (`screenshot.png`, 720×1280)
+plus its labels (`label.json`: `screen_id` + base `regions`). Crops are not packed; they are
+regenerated on save.
+
+- **Export** — select a screen in `/labeling`, click **Export bundle**. Headless equivalent:
+  `uv run python scripts/label_bundle.py export <ref> --scope <scope> -o bundle.zip`.
+- **Import (review-first)** — click **Import bundle** and pick a `.alabel.zip`. The screenshot is
+  staged under the scope's `references/temporal/` and its regions are loaded into the editor as
+  **unsaved** edits; review on the canvas, then **Save** to write `area.yaml` + crops. Nothing
+  touches `area.yaml` until you Save. Headless: `uv run python scripts/label_bundle.py import bundle.zip --scope <scope>`.
+- **Conflict resolution** — if the imported screen already exists (matched by `screen_id` **or**
+  reference basename), a dialog shows a region diff (added / removed / changed / unchanged). Pick
+  per region which side to keep, choose whether to keep the current screenshot or replace it with
+  the bundle's, then **Apply & save** merges the result into the existing `area.yaml` entry and
+  regenerates crops. The headless CLI stages the bundle and reports the conflict; resolution is
+  UI-only.
+
+A contributor labels a screen in their own checkout, exports the bundle, and sends you the file;
+you import it for review before it lands. Bundles carry one screen each (versions are deferred —
+base regions only).
+
 **Rehearsal** (queue, click approvals, overlay probe): `/approvals`, `/queue`, `/overlay-test` (requires `uv run api` + a running worker).
 
 ## UI components

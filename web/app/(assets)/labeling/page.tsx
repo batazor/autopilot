@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KonvaImageEditor } from "@/components/konva/KonvaImageEditor";
 import { LabelingCard } from "@/components/labeling/LabelingCard";
+import { LabelingImportConflictDialog } from "@/components/labeling/LabelingImportConflictDialog";
 import { LabelingReferencePanel } from "@/components/labeling/LabelingReferencePanel";
 import { LabelingRegionsPanel } from "@/components/labeling/LabelingRegionsPanel";
 import { LabelingStaleCropsBanner } from "@/components/labeling/LabelingStaleCropsBanner";
@@ -17,6 +18,7 @@ import { useInstances } from "@/lib/hooks";
 import { instanceSelectPlaceholder } from "@/lib/fleet-select";
 import {
   addLabelingVersion,
+  applyLabelingBundle,
   bindLabelingVersionOcr,
   captureLabelingScreenshot,
   deleteLabelingReference,
@@ -28,7 +30,9 @@ import {
   fetchLabelingScopes,
   fetchLabelingScreenIds,
   fetchLabelingStaleCrops,
+  importLabelingBundle,
   importLabelingPng,
+  labelingBundleUrl,
   labelingImageUrl,
   promoteLabelingReference,
   refreshLabelingReference,
@@ -52,6 +56,7 @@ import {
   resolveSelectedRef,
 } from "@/lib/labeling-utils";
 import type {
+  LabelingBundleImport,
   LabelingDocument,
   LabelingReferenceMeta,
   LabelingScopeOption,
@@ -151,6 +156,16 @@ function LabelingPageInner() {
     "discard" | "delete-version" | "delete-reference" | null
   >(null);
   const [screenIdOptions, setScreenIdOptions] = useState<string[]>([]);
+  const [importSource, setImportSource] = useState<LabelingBundleImport | null>(null);
+  // Set when an imported bundle collides with an existing screen — drives the
+  // conflict-resolution dialog (region diff + image choice).
+  const [conflict, setConflict] = useState<LabelingBundleImport | null>(null);
+  const bundleInputRef = useRef<HTMLInputElement>(null);
+  // Regions/screen_id from an imported bundle, seeded into the editor (as dirty)
+  // once loadDoc runs for the staged ref — survives the empty-area-doc fetch.
+  const importSeedRef = useRef<
+    { ref: string; regions: EditorRegion[]; screenId: string } | null
+  >(null);
   // Monotonic token to discard out-of-order document loads (see loadDoc).
   const loadSeqRef = useRef(0);
   // A user/programmatic ref selection should win over one stale render of
@@ -397,15 +412,26 @@ function LabelingPageInner() {
           return;
         }
         setDoc(d);
-        setRegions(apiToEditorRegions(d.regions as Record<string, unknown>[]));
-        setScreenId(d.screen_id || "");
+        const seed = importSeedRef.current;
+        if (seed && seed.ref === rel) {
+          // Freshly imported bundle: seed the editor with its labels (dirty,
+          // unsaved) instead of the empty area-doc the staged PNG has.
+          setRegions(seed.regions);
+          setScreenId(seed.screenId);
+          setDirty(true);
+          setScreenDirty(true);
+          importSeedRef.current = null;
+        } else {
+          setRegions(apiToEditorRegions(d.regions as Record<string, unknown>[]));
+          setScreenId(d.screen_id || "");
+          setDirty(false);
+          setScreenDirty(false);
+        }
         setBasename(d.basename || "");
         setEditVersionCond(
           d.versions.find((v) => v.id === d.active_version)?.cond ?? "",
         );
         setSelectedId(null);
-        setDirty(false);
-        setScreenDirty(false);
         setError(null);
       } catch (e) {
         if (isStale()) return;
@@ -474,6 +500,65 @@ function LabelingPageInner() {
     [instanceId, busy, moduleScope, reloadRefs, selectRef, showSuccess],
   );
 
+  const onImportBundle = useCallback(
+    async (file: File) => {
+      if (busy) return;
+      await runBusy(async () => {
+        const out = await importLabelingBundle(moduleScope, file);
+        if (out.conflict) {
+          // Existing screen — resolve the region/image conflict in a dialog
+          // before anything is written to area.yaml.
+          setConflict(out);
+          return;
+        }
+        importSeedRef.current = {
+          ref: out.ref,
+          regions: apiToEditorRegions(out.regions),
+          screenId: out.screen_id,
+        };
+        await reloadRefs(moduleScope);
+        selectRef(out.ref, null);
+        setImageNonce((n) => n + 1);
+        setImportSource(out);
+        const warn = out.warnings?.length ? ` (${out.warnings.join("; ")})` : "";
+        showSuccess(`Imported bundle — review labels and Save${warn}`);
+      });
+    },
+    [busy, moduleScope, reloadRefs, selectRef, showSuccess],
+  );
+
+  const onCancelConflict = useCallback(() => {
+    const staged = conflict?.ref;
+    setConflict(null);
+    if (staged) void discardLabelingCapture(staged, moduleScope).catch(() => {});
+  }, [conflict, moduleScope]);
+
+  const onApplyConflict = useCallback(
+    async (regions: Record<string, unknown>[], useIncomingImage: boolean) => {
+      if (!conflict?.conflict) return;
+      const { ref: stagedRef, screen_id: screenId, conflict: c } = conflict;
+      await runBusy(async () => {
+        const res = await applyLabelingBundle(moduleScope, {
+          staged_ref: stagedRef,
+          target_ref: c.existing_ref,
+          regions,
+          screen_id: screenId || c.existing_screen_id,
+          use_incoming_image: useIncomingImage,
+        });
+        setConflict(null);
+        await reloadRefs(moduleScope);
+        selectRef(res.ref, null);
+        setImageNonce((n) => n + 1);
+        await reloadStale(moduleScope);
+        const cropN = res.crops_written_count ?? 0;
+        showSuccess(
+          `Merged into ${c.existing_screen_id || res.ref}${cropN ? ` · ${cropN} crop(s) updated` : ""}`,
+        );
+      });
+    },
+    [conflict, moduleScope, reloadRefs, selectRef, reloadStale, showSuccess],
+  );
+
   const onSave = async () => {
     if (!refRel || busy) return;
     await runBusy(async () => {
@@ -486,6 +571,7 @@ function LabelingPageInner() {
       );
       setDirty(false);
       setScreenDirty(false);
+      setImportSource(null);
       await loadDoc(refRel, activeVersion);
       await reloadStale(moduleScope);
       const cropN = saved.crops_written_count ?? 0;
@@ -808,7 +894,57 @@ function LabelingPageInner() {
         >
           Write crops
         </button>
+        <a
+          className="btn-secondary"
+          href={refRel && !busy ? labelingBundleUrl(refRel, moduleScope) : undefined}
+          aria-disabled={!refRel || busy}
+          style={
+            !refRel || busy
+              ? { opacity: 0.5, pointerEvents: "none" }
+              : undefined
+          }
+          title="Download this screen as a portable image + labels bundle (.alabel.zip)"
+          download
+        >
+          Export bundle
+        </a>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={busy}
+          title="Import a screen-label bundle (.alabel.zip) for review before saving"
+          onClick={() => bundleInputRef.current?.click()}
+        >
+          Import bundle
+        </button>
+        <input
+          ref={bundleInputRef}
+          type="file"
+          accept=".zip,application/zip"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) void onImportBundle(file);
+          }}
+        />
       </div>
+
+      {importSource && refRel === importSource.ref ? (
+        <div className="labeling-refresh-confirm">
+          <p className="meta">
+            Imported bundle from{" "}
+            <code>{importSource.bundle_scope || importSource.scope}</code>
+            {importSource.bundle_game ? ` · ${importSource.bundle_game}` : ""}
+            {typeof importSource.source?.contributor === "string" &&
+            importSource.source.contributor
+              ? ` · by ${importSource.source.contributor}`
+              : ""}
+            . Review the regions on the canvas, then <strong>Save</strong> to
+            write them into <code>area.yaml</code>.
+          </p>
+        </div>
+      ) : null}
 
       {refreshPending ? (
         <div className="labeling-refresh-confirm">
@@ -1026,6 +1162,23 @@ function LabelingPageInner() {
         Delete <code>{refRel}</code>, its <code>area.json</code> entry and
         matching region crops? This cannot be undone.
       </AppConfirmDialog>
+
+      {conflict?.conflict ? (
+        <LabelingImportConflictDialog
+          open
+          conflict={conflict.conflict}
+          incomingRegions={conflict.regions}
+          incomingImageUrl={labelingImageUrl(conflict.ref, imageNonce)}
+          existingImageUrl={
+            conflict.conflict.existing_has_image
+              ? labelingImageUrl(conflict.conflict.existing_ref)
+              : ""
+          }
+          busy={busy}
+          onCancel={onCancelConflict}
+          onApply={onApplyConflict}
+        />
+      ) : null}
     </>
   );
 }

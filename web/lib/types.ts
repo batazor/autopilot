@@ -585,6 +585,36 @@ export type LabelingDocument = {
   redirect_version?: string | null;
 };
 
+export type LabelingRegionDiff = {
+  added: string[];
+  removed: string[];
+  changed: string[];
+  unchanged: string[];
+};
+
+export type LabelingImportConflict = {
+  existing_ref: string;
+  existing_screen_id: string;
+  existing_regions: Record<string, unknown>[];
+  existing_has_image: boolean;
+  matched_by: "screen_id" | "basename";
+  diff: LabelingRegionDiff;
+};
+
+export type LabelingBundleImport = {
+  ok: boolean;
+  ref: string;
+  scope: string;
+  screen_id: string;
+  regions: Record<string, unknown>[];
+  image_size: { width: number; height: number };
+  source: Record<string, unknown>;
+  bundle_scope: string;
+  bundle_game: string;
+  warnings: string[];
+  conflict: LabelingImportConflict | null;
+};
+
 export type OverlayRuleRow = {
   name: string;
   node: string;
