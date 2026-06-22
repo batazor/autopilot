@@ -58,6 +58,10 @@ SETTINGS: dict[str, Any] = {
         "health_check_interval_seconds": 15,
         "restart_wait_seconds": 10,
         "task_timeout_seconds": 300,
+        # Runtime backstop: abort a task running longer than this (e.g. blocked
+        # on an unattended click-approval). 0 disables it. Above task_timeout so
+        # it only bites in approval mode or on a wedged task.
+        "stuck_task_abort_seconds": 900,
         # Max wait at worker boot for Whiteout to reach foreground.
         "game_foreground_timeout_seconds": 120,
         "overlay_analyze_when_busy": False,

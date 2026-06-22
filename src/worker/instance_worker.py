@@ -206,6 +206,11 @@ class InstanceWorker(
         # flag that distinguishes "we cancelled this for a restart" (translate
         # to a failed TaskResult) from a worker-shutdown cascade (propagate).
         self._current_task_handle: asyncio.Task[Any] | None = None
+        # ``time.monotonic()`` stamp of when ``_current_task_handle`` started, or
+        # None when idle. Read by ``_run_stuck_task_watchdog`` to abort a task
+        # blocked (e.g. on an unattended click-approval) past the threshold.
+        self._current_task_started_m: float | None = None
+        self._stuck_task_watchdog_task: asyncio.Task[None] | None = None
         # Scenario key of the task ``_current_task_handle`` is running. Read by
         # the overlay push path so a device-level push doesn't preempt a task
         # that's already running the same scenario.
@@ -273,6 +278,7 @@ class InstanceWorker(
             # an in-flight scenario keeps tapping a force-stopped game.
             inner = asyncio.create_task(task.execute(self._cfg.instance_id))
             self._current_task_handle = inner
+            self._current_task_started_m = time.monotonic()
             self._current_task_type = item.task_type
             # Speed up the rolling capture loop if this scenario's module asks
             # for a faster frame rate (module.yaml ``capture_interval_ms``).
@@ -294,6 +300,7 @@ class InstanceWorker(
             finally:
                 if self._current_task_handle is inner:
                     self._current_task_handle = None
+                    self._current_task_started_m = None
                     self._current_task_type = None
                     self._capture_interval_override_s = None
 
@@ -417,6 +424,59 @@ class InstanceWorker(
         self._task_abort_reschedule = bool(reschedule)
         handle.cancel()
         return True
+
+    async def _run_stuck_task_watchdog(self) -> None:
+        """Abort a task whose ``task.execute()`` has been running too long.
+
+        The worker disables ``asyncio.wait_for`` in approval mode so an operator
+        can take their time on a pending tap. The cost: an *unattended* approval
+        (or any wedged scenario) blocks the single task loop forever, starving the
+        whole queue. This loop is the backstop — independent of approval source —
+        that cancels such a task via :meth:`_cancel_current_task` (which also
+        stamps ``abort_pending_approval`` so the busy-wait thread gives up). The
+        task fails cleanly; overlay tick / cron re-issue fresh work as needed.
+
+        Bounded by ``worker.stuck_task_abort_seconds`` (``0`` disables it).
+        """
+        poll_s = 5.0
+        while True:
+            try:
+                await asyncio.sleep(poll_s)
+                await self._maybe_abort_stuck_task()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.debug("Stuck-task watchdog tick failed", exc_info=True)
+
+    async def _maybe_abort_stuck_task(self) -> bool:
+        """One watchdog tick: abort the current task if it has run past the cap.
+
+        Returns True if an abort was issued. Split out from
+        :meth:`_run_stuck_task_watchdog` so the decision is unit-testable without
+        the polling loop.
+        """
+        threshold = float(self._settings.worker.stuck_task_abort_seconds)
+        if threshold <= 0:
+            return False
+        handle = self._current_task_handle
+        started = self._current_task_started_m
+        if handle is None or handle.done() or started is None:
+            return False
+        elapsed = time.monotonic() - started
+        if elapsed < threshold:
+            return False
+        logger.warning(
+            "Stuck-task watchdog: %s blocked %.0fs (> %.0fs) — aborting %s",
+            self._cfg.instance_id,
+            elapsed,
+            threshold,
+            self._current_task_type or "?",
+        )
+        return await self._cancel_current_task(
+            f"stuck_task_watchdog: blocked > {threshold:.0f}s",
+            result_reason="aborted_stuck",
+            reschedule=False,
+        )
 
     async def _run_abort_task_listener(self) -> None:
         """Cross-process abort: watchdog publishes here right before force-stop.
@@ -899,6 +959,10 @@ class InstanceWorker(
                 self._run_abort_task_listener(),
                 name=f"abort-task-{self._cfg.instance_id}",
             )
+            self._stuck_task_watchdog_task = asyncio.create_task(
+                self._run_stuck_task_watchdog(),
+                name=f"stuck-watchdog-{self._cfg.instance_id}",
+            )
             last_heartbeat = 0.0
 
             try:
@@ -993,6 +1057,12 @@ class InstanceWorker(
                 al.cancel()
                 with suppress(asyncio.CancelledError):
                     await al
+            watchdog = self._stuck_task_watchdog_task
+            self._stuck_task_watchdog_task = None
+            if watchdog is not None and not watchdog.done():
+                watchdog.cancel()
+                with suppress(asyncio.CancelledError):
+                    await watchdog
             snap = self._rolling_snapshot_task
             self._rolling_snapshot_task = None
             if snap is not None and not snap.done():

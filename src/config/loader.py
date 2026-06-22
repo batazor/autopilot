@@ -66,6 +66,12 @@ class WorkerConfig:
     health_check_interval_seconds: int = 15
     restart_wait_seconds: int = 10
     task_timeout_seconds: int = 300
+    stuck_task_abort_seconds: int = 900
+    """Runtime backstop: abort a task whose ``task.execute()`` has been running
+    (e.g. blocked on an unattended click-approval) longer than this, regardless
+    of source. ``0`` disables it. Kept above ``task_timeout_seconds`` so it only
+    bites in approval mode (where ``asyncio.wait_for`` is skipped) or on a truly
+    wedged task — see ``InstanceWorker._run_stuck_task_watchdog``."""
     game_foreground_timeout_seconds: int = 120
     """Max seconds at worker boot to wait for Whiteout foreground via ADB (``am``/``monkey``)."""
     overlay_analyze_when_busy: bool = False

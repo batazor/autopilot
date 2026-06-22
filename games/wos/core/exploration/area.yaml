@@ -39,10 +39,10 @@
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
-            "x": 42.30850262988087,
-            "y": -0.09951706270457578,
-            "width": 15.18844221105526,
-            "height": 2.1800652538138223,
+            "x": 12.637065659923724,
+            "y": 1.911690960521197,
+            "width": 6.328551174011014,
+            "height": 3.082764414735551,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -64,10 +64,11 @@
             "y": 29.565217391304348,
             "width": 39.3996138996139,
             "height": 7.128260869565217,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         },
         {
           "name": "page.exploration.victory.next",
@@ -78,7 +79,7 @@
             "y": 76.95652173913044,
             "width": 25.799227799227797,
             "height": 4.6,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
@@ -100,7 +101,7 @@
             "y": 25.108695652173914,
             "width": 35.2007722007722,
             "height": 6.8,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
@@ -111,35 +112,15 @@
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
-            "x": 6.388888888888889,
-            "y": 75.390625,
-            "width": 40.833333333333336,
-            "height": 6.71875,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        }
-      ]
-    },
-    {
-      "id": 82,
-      "screen_id": "",
-      "ocr": "references/squad_settings.png",
-      "regions": [
-        {
-          "name": "squad_settings.title",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 12.45491676500577,
-            "y": 1.378823497546959,
-            "width": 32.953667953667946,
-            "height": 3.7705429158853137,
+            "x": 33.067318111196904,
+            "y": 81.3019213886064,
+            "width": 33.7898389440167,
+            "height": 4.616779342602974,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         }
       ]
     },
@@ -148,20 +129,6 @@
       "screen_id": "exploration",
       "ocr": "references/exploration.png",
       "regions": [
-        {
-          "name": "exploration.title",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 12.45491676500577,
-            "y": 1.378823497546959,
-            "width": 32.953667953667946,
-            "height": 3.7705429158853137,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
         {
           "name": "exploration.to.squad_settings",
           "action": "exist",
