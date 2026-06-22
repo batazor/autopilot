@@ -21,6 +21,13 @@ screens:
       threshold: 0.35
       min_component_y_ratio: 0.15
       min_component_height_ratio: 0.7
+      # 0.40 area floor: the "Welcome back!" offline-income popup's blue title
+      # banner clears every other ribbon gate (mask ~0.50, width ~0.94) but its
+      # largest blue contour fills only ~0.25 of the bbox vs ~0.52-0.54 for a
+      # real rewards ribbon. Without this floor the popup is misread as `rewards`
+      # and the bot runs rewards edges (exit_rewards_popup / alliance.war /
+      # rewards→main_city) instead of confirming. Mirrors the overlay-rule floor.
+      min_component_area_ratio: 0.40
     # Title stays on template: rewards / rewards.upgraded share the same
     # "Rewards" banner and differ only by ribbon colour, so OCR contains:
     # "Rewards" also matches the upgraded popup.

@@ -1,6 +1,11 @@
+# The welcome-back offline-income popup wears a blue banner that the rewards
+# screen's loose `reward_ribbon` (blue, threshold 0.35) false-matches. Its own
+# "Welcome back!" title template is exact, so probe it BEFORE rewards (5) /
+# rewards.upgraded (4) — otherwise the popup is misread as `rewards` and the bot
+# tries rewards edges (exit_rewards_popup / alliance.war) instead of confirming.
 screens:
   welcome_back:
-    priority: 100
+    priority: 3
     rules:
     - match: text.welcome_back
       threshold: 0.9

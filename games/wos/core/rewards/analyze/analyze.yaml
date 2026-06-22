@@ -14,6 +14,14 @@ overlay:
     # starving the daily queue.
     min_component_y_ratio: 0.15
     min_component_height_ratio: 0.7
+    # 0.40 area floor: the "Welcome back!" offline-income popup wears a blue
+    # title banner that clears every other gate here (mask_share ~0.50,
+    # width ~0.94, y ~0.165), but its largest blue contour fills only ~0.25 of
+    # the bbox — a thin lettered strip — while a real rewards ribbon is one
+    # solid blue band at ~0.52-0.54. Without this floor the popup pushed
+    # exit_rewards_popup (prio 120k) on a loop instead of confirming offline
+    # income, stranding the queue (tap_not_approved every ~60s).
+    min_component_area_ratio: 0.40
     ttl: 5s
     priority: 120_000
     steps:
