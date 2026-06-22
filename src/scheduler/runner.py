@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import redis as _redis_sync
 import redis.asyncio as aioredis
+from redis.exceptions import RedisError
 
 from config.devices import player_ids_for_device_candidates
 from config.paths import repo_root
@@ -1005,13 +1006,36 @@ class SchedulerRunner:
             except Exception:
                 logger.exception("Scheduler loop error (initial)")
 
+            wake_pop_failing = False
             while True:
                 # Block until any producer publishes a wake (state change,
                 # task completion, UI command), or until the heartbeat fires.
                 # Drain the rest so a burst of wakes collapses to one optimize.
-                wake = await self._redis.blpop(_SCHEDULER_UI_QUEUE, timeout=interval)
-                if wake is not None:
-                    await self._drain_wake_queue()
+                try:
+                    wake = await self._redis.blpop(_SCHEDULER_UI_QUEUE, timeout=interval)
+                    if wake_pop_failing:
+                        logger.info("Scheduler wake-pop recovered")
+                        wake_pop_failing = False
+                    if wake is not None:
+                        await self._drain_wake_queue()
+                except (TimeoutError, RedisError) as exc:
+                    # A Redis read timeout / connection blip on the blocking
+                    # heartbeat pop must NOT kill the scheduler. Under the
+                    # multi-process supervisor it would just restart, but a
+                    # single-process runner dies outright (and any coupled worker
+                    # wedges with it). Treat it as a missed heartbeat: back off
+                    # briefly, then fall through to a normal tick. Warn once on
+                    # the transition (then debug) so a persistently short read
+                    # timeout doesn't spam the log every interval.
+                    if not wake_pop_failing:
+                        logger.warning(
+                            "Scheduler wake-pop failing (%r); ticking on backoff "
+                            "until it recovers", exc
+                        )
+                        wake_pop_failing = True
+                    else:
+                        logger.debug("Scheduler wake-pop still failing (%r)", exc)
+                    await asyncio.sleep(min(float(interval), 5.0))
 
                 try:
                     await self._run_once()
