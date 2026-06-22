@@ -4,9 +4,13 @@
 screens:
   # The three in-flight screens are driven entirely by the arena.fight scenario
   # (tap-through), so the navigator never needs to route between them.
+  # Generic battle-result screen, shared by arena.fight, exploration (squad_fight)
+  # and tundra_trek — all visually identical. NOT terminal: it now has an outgoing
+  # `arena.result -> main_city` edge (via the "Return to City" button) in
+  # edge_taps.yaml so the navigator can always recover home, no matter which
+  # feature stranded the bot here.
   arena.result:
     priority: 20
-    terminal: true
     rules:
       - ocr: arena.result.exit
         contains: ["anywhere", "exit"]

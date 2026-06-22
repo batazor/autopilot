@@ -1,8 +1,21 @@
 # Leave the Arena of Glory entry screen via its top-left back arrow. The
-# challenge-list / squad / result screens are marked `terminal: true` in
-# screen_verify.yaml — the arena.fight scenario taps through them itself, so the
-# navigator never has to route between them.
+# challenge-list / squad screens are marked `terminal: true` in screen_verify.yaml
+# — the arena.fight scenario taps through them itself, so the navigator never has
+# to route between them.
+#
+# `arena.result` is the GENERIC battle-result screen ("Defeat!/Victory!" + "Tap
+# anywhere to exit" + "Return to City"). It is shared by arena.fight, exploration
+# (squad_fight), and tundra_trek, and the three screens are visually identical, so
+# the detector can land any feature's result on this one node. Without a route out
+# the bot strands here: anything that drops onto it outside its own tap-driven
+# scenario (e.g. squad_fight, whose `exploration.defeat` title OCR is fragile and
+# falls through to `arena.result`) leaves every navigating cron dying with
+# `navigation_failed`. The "Return to City" button (`button.to_main_city`) is on
+# every variant of this screen and goes straight home, so route through it.
 edges:
   arena:
     main_city:
       - icon.page.back
+  arena.result:
+    main_city:
+      - button.to_main_city
