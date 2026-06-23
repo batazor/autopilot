@@ -41,6 +41,7 @@ import type {
   RegionOcrTestResult,
   RoutesGraphResponse,
   RoutesNodeDetails,
+  RoutesScreenZones,
   ScreenDetectResult,
   AttentionView,
   BotStatusView,
@@ -1054,6 +1055,14 @@ export async function fetchRoutesEdges(
 export async function fetchRoutesNode(nodeId: string): Promise<RoutesNodeDetails> {
   return apiFetch<RoutesNodeDetails>(
     `/api/routes/nodes/${encodeURIComponent(nodeId)}`,
+  );
+}
+
+export async function fetchRoutesScreenZones(
+  screenId: string,
+): Promise<RoutesScreenZones> {
+  return apiFetch<RoutesScreenZones>(
+    `/api/routes/screen-zones/${encodeURIComponent(screenId)}`,
   );
 }
 

@@ -42,3 +42,14 @@ def get_routes_node(node_id: str) -> dict[str, Any]:
     if node_id not in routes_svc.tap_graph_nodes():
         raise HTTPException(status_code=404, detail=f"unknown screen: {node_id}")
     return routes_svc.node_details(node_id)
+
+
+@router.get("/screen-zones/{screen_id}")
+def get_routes_screen_zones(screen_id: str) -> dict[str, Any]:
+    """Transition tap-zones + labeled regions for ``screen_id`` (overlay view).
+
+    Lenient by design: a screen with a labeled reference but no edges yet is a
+    valid thing to inspect (it shows every region is unmapped), so we return an
+    empty/has_reference payload rather than 404 for unknown ids.
+    """
+    return routes_svc.screen_zones(screen_id)

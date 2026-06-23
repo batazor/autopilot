@@ -255,4 +255,142 @@
     @apply mt-3 mb-0 text-center;
   }
 
+  /* ---- Transition map (reference screenshot + clickable zones) ---- */
+  .routes-zones-panel {
+    @apply max-w-2xl;
+  }
+
+  .routes-zones-toolbar {
+    @apply flex flex-wrap items-end gap-4;
+  }
+
+  .routes-zones-toggle {
+    @apply flex shrink-0 items-center gap-2 text-xs font-medium text-wos-text-secondary;
+  }
+
+  .routes-zones-toggle input {
+    @apply h-4 w-4 accent-sky-400;
+  }
+
+  .routes-zones-help {
+    @apply mt-3 mb-4 leading-relaxed;
+  }
+
+  /* Image wrapper is the positioning context; zones are % of this box, which
+     equals % of the reference since the image fills it block-width. */
+  .routes-zonemap {
+    @apply relative mx-auto w-full overflow-hidden rounded-lg border border-wos-border-subtle bg-black/40;
+    max-width: 340px;
+  }
+
+  .routes-zonemap--empty {
+    @apply flex items-center justify-center p-8 text-center text-sm text-wos-text-muted;
+    aspect-ratio: 720 / 1280;
+  }
+
+  .routes-zonemap__img {
+    @apply block w-full select-none;
+  }
+
+  .routes-zone {
+    @apply absolute m-0 cursor-pointer border-2 bg-transparent p-0 transition-colors;
+  }
+
+  .routes-zone--transition {
+    border-color: color-mix(in srgb, var(--color-info, #38bdf8) 90%, transparent);
+    background: color-mix(in srgb, var(--color-info, #38bdf8) 16%, transparent);
+  }
+
+  .routes-zone--region {
+    border-color: color-mix(in srgb, #f59e0b 80%, transparent);
+    background: color-mix(in srgb, #f59e0b 12%, transparent);
+  }
+
+  .routes-zone:hover {
+    background: color-mix(in srgb, #ffffff 22%, transparent);
+  }
+
+  .routes-zone.is-selected {
+    @apply z-10 border-white;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.7);
+    background: color-mix(in srgb, #ffffff 30%, transparent);
+  }
+
+  .routes-zone__label {
+    @apply pointer-events-none absolute left-0 top-0 max-w-full -translate-y-full truncate rounded-sm bg-black/85 px-1 text-[9px] font-medium leading-tight text-white;
+  }
+
+  /* ---- Side panel: legend, selected detail, lists ---- */
+  .routes-zones-side {
+    @apply flex flex-col;
+  }
+
+  .routes-zones-legend {
+    @apply mb-3 flex flex-wrap gap-2;
+  }
+
+  .routes-zones-legend__item {
+    @apply rounded-md border px-2 py-1 text-xs font-medium tabular-nums;
+  }
+
+  .routes-zones-legend__item--transition {
+    border-color: color-mix(in srgb, var(--color-info, #38bdf8) 50%, var(--wos-border-subtle));
+    background: color-mix(in srgb, var(--color-info, #38bdf8) 12%, var(--wos-panel));
+    @apply text-sky-200;
+  }
+
+  .routes-zones-legend__item--region {
+    border-color: color-mix(in srgb, #f59e0b 50%, var(--wos-border-subtle));
+    background: color-mix(in srgb, #f59e0b 12%, var(--wos-panel));
+    @apply text-amber-200;
+  }
+
+  .routes-zones-legend__item--unmapped {
+    @apply border-wos-border-subtle bg-wos-bg/50 text-wos-text-muted;
+  }
+
+  .routes-zone-detail {
+    @apply rounded-xl border border-wos-border-subtle bg-wos-panel-raised/60 p-3;
+  }
+
+  .routes-zone-detail__region {
+    @apply mb-1 block break-all font-mono text-sm text-wos-text;
+  }
+
+  .routes-zone-detail__btn {
+    @apply mt-2 w-full;
+  }
+
+  .routes-zone-list {
+    @apply m-0 max-h-72 list-none space-y-1 overflow-y-auto p-0;
+  }
+
+  .routes-zone-list--muted {
+    @apply max-h-44;
+  }
+
+  .routes-zone-list__btn {
+    @apply flex w-full items-center gap-2 rounded-md border border-transparent bg-wos-surface/40 px-2 py-1 text-left transition-colors hover:border-wos-border hover:bg-wos-panel-raised/80;
+  }
+
+  .routes-zone-list__btn.is-selected {
+    @apply border-sky-400/70 bg-sky-500/10;
+  }
+
+  .routes-zone-list--muted li {
+    @apply flex items-center gap-2 rounded-md bg-wos-surface/30 px-2 py-1;
+  }
+
+  .routes-zone-list__to {
+    @apply shrink-0 font-mono text-xs font-medium text-sky-200;
+  }
+
+  .routes-zone-list__region {
+    @apply min-w-0 flex-1 truncate font-mono text-[11px] text-wos-text-secondary;
+  }
+
+  .routes-zone-list__status {
+    @apply shrink-0 text-[10px] uppercase tracking-wide text-wos-text-muted;
+  }
+
 }

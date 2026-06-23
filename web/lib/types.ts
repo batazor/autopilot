@@ -530,6 +530,25 @@ export type RoutesNodeDetails = {
   edges: Array<{ dir: string; edge: string; status: string }>;
 };
 
+/** One drawable zone over a reference screenshot — bbox is percent of the 720×1280 ref. */
+export type RoutesZone = {
+  region: string;
+  bbox: { x: number; y: number; width: number; height: number };
+  kind: "transition" | "region";
+  to?: string;
+  status?: string;
+  action?: string;
+  has_red_dot?: boolean;
+};
+
+export type RoutesScreenZones = {
+  screen_id: string;
+  has_reference: boolean;
+  zones: RoutesZone[];
+  counts: { transitions: number; regions: number; unmapped: number };
+  unmapped: Array<{ to: string; region: string; status: string }>;
+};
+
 export type LabelingVersionMeta = {
   id: string;
   cond: string;

@@ -11,6 +11,7 @@ import {
   fetchRoutesEdges,
   fetchRoutesGraph,
   fetchRoutesNode,
+  fetchRoutesScreenZones,
   labelingImageUrl,
 } from "@/lib/api";
 import type {
@@ -18,6 +19,8 @@ import type {
   RoutesGraphResponse,
   RoutesGraphView,
   RoutesNodeDetails,
+  RoutesScreenZones,
+  RoutesZone,
 } from "@/lib/types";
 
 function RoutesReferencePanel({
@@ -85,6 +88,69 @@ function RoutesReferencePanel({
   );
 }
 
+function zoneKey(z: RoutesZone): string {
+  return `${z.kind}:${z.region}:${z.to ?? ""}`;
+}
+
+/** Reference screenshot with clickable transition/region zones drawn on top.
+ *  Zone bbox is percent-of-reference, so absolute % positioning scales with the
+ *  image at any width — no canvas math needed. */
+function RoutesZoneMap({
+  imageUrl,
+  zones,
+  showRegions,
+  selectedKey,
+  onSelect,
+}: {
+  imageUrl: string | null;
+  zones: RoutesZone[];
+  showRegions: boolean;
+  selectedKey: string | null;
+  onSelect: (key: string) => void;
+}) {
+  if (!imageUrl) {
+    return (
+      <div className="routes-zonemap routes-zonemap--empty">
+        No labeled reference for this screen — capture one in Labeling first.
+      </div>
+    );
+  }
+  return (
+    <div className="routes-zonemap">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={imageUrl} alt="Reference screenshot" className="routes-zonemap__img" />
+      {zones.map((z) => {
+        if (z.kind === "region" && !showRegions) return null;
+        const key = zoneKey(z);
+        const sel = selectedKey === key;
+        const title =
+          z.kind === "transition"
+            ? `→ ${z.to} · tap ${z.region}`
+            : `${z.region}${z.action ? ` · ${z.action}` : ""}`;
+        return (
+          <button
+            key={key}
+            type="button"
+            className={`routes-zone routes-zone--${z.kind}${sel ? " is-selected" : ""}`}
+            style={{
+              left: `${z.bbox.x}%`,
+              top: `${z.bbox.y}%`,
+              width: `${z.bbox.width}%`,
+              height: `${z.bbox.height}%`,
+            }}
+            title={title}
+            onClick={() => onSelect(key)}
+          >
+            <span className="routes-zone__label">
+              {z.kind === "transition" ? `→ ${z.to}` : z.region}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function graphViewOptions(total: number): { value: RoutesGraphView; label: string }[] {
   return [
     { value: "hub", label: "Hub tree (2 levels)" },
@@ -95,7 +161,7 @@ function graphViewOptions(total: number): { value: RoutesGraphView; label: strin
 }
 
 export default function RoutesPage() {
-  const [tab, setTab] = useState<"planner" | "edges">("planner");
+  const [tab, setTab] = useState<"planner" | "edges" | "zones">("planner");
   const [graphView, setGraphView] = useState<RoutesGraphView>("hub");
   const [hubDepth, setHubDepth] = useState(2);
   const [nodeSearch, setNodeSearch] = useState("");
@@ -112,6 +178,11 @@ export default function RoutesPage() {
     Array<{ from: string; to: string; status: string; action: string }>
   >([]);
   const [edgeMeta, setEdgeMeta] = useState({ total: 0, shown: 0 });
+
+  const [zoneScreen, setZoneScreen] = useState("main_city");
+  const [zoneData, setZoneData] = useState<RoutesScreenZones | null>(null);
+  const [zoneSel, setZoneSel] = useState<string | null>(null);
+  const [showRegions, setShowRegions] = useState(true);
 
   const loadGraph = useCallback(async () => {
     try {
@@ -164,6 +235,25 @@ export default function RoutesPage() {
     if (tab === "edges") loadEdges();
   }, [tab, loadEdges]);
 
+  useEffect(() => {
+    if (tab !== "zones" || !zoneScreen) return;
+    setZoneSel(null);
+    setZoneData(null);
+    fetchRoutesScreenZones(zoneScreen)
+      .then((d) => {
+        setZoneData(d);
+        setError(null);
+      })
+      .catch((e: Error) => setError(e.message));
+  }, [tab, zoneScreen]);
+
+  const planTo = useCallback((dst: string) => {
+    setFrom(zoneScreen);
+    setTo(dst);
+    setGraphView("path");
+    setTab("planner");
+  }, [zoneScreen]);
+
   const [refs, setRefs] = useState<LabelingReferenceMeta[]>([]);
   useEffect(() => {
     fetchLabelingReferences("all")
@@ -195,6 +285,21 @@ export default function RoutesPage() {
   }, [graph?.screens, nodeSearch]);
 
   const routeClipboard = graph?.path?.length ? graph.path.join(",") : "";
+
+  const zoneScreenOptions = useMemo(() => {
+    const set = new Set<string>(graph?.screens ?? []);
+    for (const k of refByScreen.keys()) set.add(k);
+    return Array.from(set)
+      .sort()
+      .map((s) => ({ value: s, label: s }));
+  }, [graph?.screens, refByScreen]);
+
+  const zoneRef = refByScreen.get(zoneScreen) ?? null;
+  const zoneImg = zoneRef ? labelingImageUrl(zoneRef.rel) : null;
+  const selectedZone = useMemo(
+    () => zoneData?.zones.find((z) => zoneKey(z) === zoneSel) ?? null,
+    [zoneData, zoneSel],
+  );
 
   return (
     <>
@@ -231,9 +336,13 @@ export default function RoutesPage() {
         tabs={[
           { key: "planner", label: "Route planner" },
           { key: "edges", label: "All edges" },
+          { key: "zones", label: "Transition map" },
         ]}
         selectedKey={tab}
-        onChange={(key) => setTab(key as "planner" | "edges")}
+        onChange={(key) => {
+          if (key === "zones" && selectedNode) setZoneScreen(selectedNode);
+          setTab(key as "planner" | "edges" | "zones");
+        }}
         renderPanels={false}
       />
 
@@ -390,7 +499,7 @@ export default function RoutesPage() {
           refByScreen={refByScreen}
         />
         </div>
-      ) : (
+      ) : tab === "edges" ? (
         <section className="panel">
           <div className="toolbar">
             <input
@@ -433,6 +542,147 @@ export default function RoutesPage() {
             </table>
           </div>
         </section>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+          <section className="panel routes-zones-panel">
+            <div className="routes-zones-toolbar">
+              <AppListbox
+                fullWidth
+                label="Screen"
+                value={zoneScreen}
+                onChange={setZoneScreen}
+                options={zoneScreenOptions}
+                placeholder="Pick a screen…"
+              />
+              <label className="routes-zones-toggle">
+                <input
+                  type="checkbox"
+                  checked={showRegions}
+                  onChange={(e) => setShowRegions(e.target.checked)}
+                />
+                <span>Show other labeled regions</span>
+              </label>
+            </div>
+            <p className="meta routes-zones-help">
+              Transition tap-zones are drawn over the real reference screenshot.
+              Cyan zones lead somewhere (an edge in the graph); amber zones are
+              labeled regions with <strong>no transition yet</strong>. Bare areas
+              have no markup at all — candidates for a missing route.
+            </p>
+            <RoutesZoneMap
+              imageUrl={zoneImg}
+              zones={zoneData?.zones ?? []}
+              showRegions={showRegions}
+              selectedKey={zoneSel}
+              onSelect={setZoneSel}
+            />
+          </section>
+
+          <aside className="panel routes-zones-side">
+            {zoneData ? (
+              <>
+                <div className="routes-zones-legend">
+                  <span className="routes-zones-legend__item routes-zones-legend__item--transition">
+                    {zoneData.counts.transitions} transition
+                    {zoneData.counts.transitions === 1 ? "" : "s"}
+                  </span>
+                  <span className="routes-zones-legend__item routes-zones-legend__item--region">
+                    {zoneData.counts.regions} other region
+                    {zoneData.counts.regions === 1 ? "" : "s"}
+                  </span>
+                  {zoneData.counts.unmapped > 0 ? (
+                    <span className="routes-zones-legend__item routes-zones-legend__item--unmapped">
+                      {zoneData.counts.unmapped} dynamic/unmapped
+                    </span>
+                  ) : null}
+                </div>
+
+                {selectedZone ? (
+                  <div className="routes-zone-detail">
+                    <code className="routes-zone-detail__region">
+                      {selectedZone.region}
+                    </code>
+                    {selectedZone.kind === "transition" ? (
+                      <>
+                        <p className="meta">
+                          Leads to <code>{selectedZone.to}</code> ·{" "}
+                          {selectedZone.status}
+                        </p>
+                        <button
+                          type="button"
+                          className="btn-secondary routes-zone-detail__btn"
+                          onClick={() => selectedZone.to && planTo(selectedZone.to)}
+                        >
+                          Plan route {zoneScreen} → {selectedZone.to}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="meta">
+                        Labeled region (<code>{selectedZone.action || "—"}</code>)
+                        with no transition bound to it.
+                        {selectedZone.has_red_dot ? " · red-dot" : ""}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="meta">
+                    Click a zone on the screenshot to inspect it.
+                  </p>
+                )}
+
+                <h3 className="routes-panel-subhead">
+                  Transitions from <code>{zoneScreen}</code>
+                </h3>
+                {zoneData.zones.some((z) => z.kind === "transition") ? (
+                  <ul className="routes-zone-list">
+                    {zoneData.zones
+                      .filter((z) => z.kind === "transition")
+                      .map((z) => {
+                        const key = zoneKey(z);
+                        return (
+                          <li key={key}>
+                            <button
+                              type="button"
+                              className={`routes-zone-list__btn${
+                                zoneSel === key ? " is-selected" : ""
+                              }`}
+                              onClick={() => setZoneSel(key)}
+                            >
+                              <span className="routes-zone-list__to">→ {z.to}</span>
+                              <code className="routes-zone-list__region">
+                                {z.region}
+                              </code>
+                            </button>
+                          </li>
+                        );
+                      })}
+                  </ul>
+                ) : (
+                  <p className="meta">No mapped transitions from this screen.</p>
+                )}
+
+                {zoneData.unmapped.length > 0 ? (
+                  <>
+                    <h3 className="routes-panel-subhead">Dynamic / unmapped</h3>
+                    <ul className="routes-zone-list routes-zone-list--muted">
+                      {zoneData.unmapped.map((u, i) => (
+                        <li key={`${u.to}-${u.region}-${i}`}>
+                          <span className="routes-zone-list__to">→ {u.to}</span>
+                          <code className="routes-zone-list__region">
+                            {u.region}
+                          </code>
+                          <span className="routes-zone-list__status">{u.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <p className="muted m-0">Pick a screen to map its transition zones.</p>
+            )}
+          </aside>
+        </div>
       )}
       </div>
     </>

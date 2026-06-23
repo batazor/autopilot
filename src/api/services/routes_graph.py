@@ -12,7 +12,12 @@ from dashboard.flow_layout import (
     sorted_edge_pairs,
     spanning_forest_edges,
 )
-from navigation.screen_graph import EDGE_DYNAMIC, EDGE_TAPS, bfs_route
+from navigation.screen_graph import (
+    EDGE_DYNAMIC,
+    EDGE_TAPS,
+    bfs_route,
+    graph_for_game,
+)
 
 GraphView = Literal["hub", "focus", "path", "full"]
 
@@ -264,6 +269,140 @@ def build_graph_payload(
         "path": path,
         "mode": mode,
         "hops": hops,
+    }
+
+
+def _bbox_pct(reg: dict[str, Any]) -> dict[str, float] | None:
+    """Pull the percent-of-reference bbox (x/y/width/height) off a region dict."""
+    bbox = reg.get("bbox")
+    if not isinstance(bbox, dict):
+        return None
+    try:
+        return {
+            "x": float(bbox.get("x", 0.0)),
+            "y": float(bbox.get("y", 0.0)),
+            "width": float(bbox.get("width", 0.0)),
+            "height": float(bbox.get("height", 0.0)),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
+def _tap_region_name(tap: Any) -> str | None:
+    """Region name for a static tap entry (``str`` shorthand or ``{region: ...}``)."""
+    if isinstance(tap, str):
+        return tap.strip() or None
+    if isinstance(tap, dict):
+        rn = tap.get("region")
+        if isinstance(rn, str):
+            return rn.strip() or None
+    return None
+
+
+def screen_zones(screen_id: str) -> dict[str, Any]:
+    """Transition tap-zones + labeled regions for one screen (overlay view).
+
+    For ``screen_id`` we resolve every outgoing edge's tap region to a bbox
+    (percent of the 720×1280 reference) so the UI can draw the zone directly
+    over the real reference screenshot. Labeled regions that are *not* a
+    transition tap are returned too, so the operator can spot interactive areas
+    that have no edge yet — i.e. transitions still missing from the markup.
+    Dynamic edges (runtime-resolved taps) have no static bbox and are reported
+    under ``unmapped`` instead of drawn.
+    """
+    from config.paths import repo_root
+    from layout.area_lookup import screen_region_by_name
+    from layout.area_manifest import load_area_doc
+
+    static, dynamic, _graph = graph_for_game()
+    area_doc = load_area_doc(repo_root())
+
+    # A screen_id can be contributed by several modules — area_doc.screens is a
+    # flat list with no merge-by-id, so gather every entry that owns this screen.
+    screen_entries = [
+        entry
+        for entry in area_doc.get("screens") or []
+        if isinstance(entry, dict) and str(entry.get("screen_id") or "") == screen_id
+    ]
+
+    zones: list[dict[str, Any]] = []
+    transition_regions: set[str] = set()
+    unmapped: list[dict[str, str]] = []
+
+    # Outgoing static-tap edges → resolve each tap region to a drawable bbox.
+    for (src, dst), taps in static.items():
+        if src != screen_id:
+            continue
+        for tap in taps:
+            region_name = _tap_region_name(tap)
+            box = None
+            if region_name:
+                pair = screen_region_by_name(area_doc, region_name)
+                if pair is not None:
+                    box = _bbox_pct(pair[1])
+            if region_name and box is not None:
+                transition_regions.add(region_name)
+                zones.append(
+                    {
+                        "region": region_name,
+                        "bbox": box,
+                        "kind": "transition",
+                        "to": dst,
+                        "status": "static tap",
+                        "action": region_name,
+                    }
+                )
+            else:
+                unmapped.append(
+                    {
+                        "to": dst,
+                        "region": region_name or "(structured tap)",
+                        "status": "static tap",
+                    }
+                )
+
+    # Outgoing dynamic edges resolve their tap at runtime → no static bbox.
+    for (src, dst), spec in dynamic.items():
+        if src != screen_id:
+            continue
+        resolver = str(spec.get("resolver", "?")) if isinstance(spec, dict) else str(spec)
+        unmapped.append({"to": dst, "region": f"resolver={resolver}", "status": "dynamic tap"})
+
+    # Remaining labeled regions on this screen (no edge bound to them yet).
+    seen_regions: set[str] = set()
+    for entry in screen_entries:
+        for reg in entry.get("regions") or []:
+            if not isinstance(reg, dict):
+                continue
+            name = str(reg.get("name") or "")
+            if not name or name in transition_regions or name in seen_regions:
+                continue
+            box = _bbox_pct(reg)
+            if box is None:
+                continue
+            seen_regions.add(name)
+            zones.append(
+                {
+                    "region": name,
+                    "bbox": box,
+                    "kind": "region",
+                    "action": str(reg.get("action") or ""),
+                    "has_red_dot": bool(reg.get("has_red_dot")),
+                }
+            )
+
+    transitions = sum(1 for z in zones if z["kind"] == "transition")
+    regions = sum(1 for z in zones if z["kind"] == "region")
+    return {
+        "screen_id": screen_id,
+        "has_reference": bool(screen_entries),
+        "zones": zones,
+        "counts": {
+            "transitions": transitions,
+            "regions": regions,
+            "unmapped": len(unmapped),
+        },
+        "unmapped": unmapped,
     }
 
 
