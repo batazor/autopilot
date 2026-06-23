@@ -2,7 +2,7 @@
   "name": "wos-web",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.8.0",
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" next dev --port 3000",
     "build": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" next build",
