@@ -75,12 +75,24 @@ class BuildSchedule:
     reason: str               # terminal planner reason (goal_reached / blocked / …)
     truncated: bool           # hit max_steps before reaching the goal
     queues: int = 1           # construction queues modelled
+    construction_speed_pct: float = 0.0   # build-speed buff applied to durations
 
 
 def _label(value: Any) -> str:
     """Display label for a level value (``0`` / ``None`` → ``"0"``)."""
     s = str(value if value is not None else 0).strip()
     return s or "0"
+
+
+def apply_speed(time_s: int, speed_pct: float) -> int:
+    """Wall-clock build time under a speed buff: ``+X%`` → ``time / (1 + X/100)``.
+
+    The standard WoS speed-buff maths (a Construction-Speed hero like Zinman, a
+    research-speed hero, etc.). ``speed_pct<=0`` leaves the raw game-time untouched.
+    """
+    if speed_pct <= 0 or time_s <= 0:
+        return int(time_s)
+    return int(round(time_s / (1.0 + speed_pct / 100.0)))
 
 
 def project_schedule(
@@ -90,6 +102,7 @@ def project_schedule(
     goal_id: str = DEFAULT_GOAL,
     goal_cap: float = DEFAULT_GOAL_CAP,
     max_steps: int = DEFAULT_MAX_STEPS,
+    construction_speed_pct: float = 0.0,
 ) -> BuildSchedule:
     """Replay :func:`plan_next` from ``levels`` until the goal, as a timeline.
 
@@ -97,7 +110,8 @@ def project_schedule(
     means not built (start from scratch with ``{}``). Each pass takes the planner's
     chosen upgrade, appends it end-to-end on a single queue, and advances that
     building so the next pass sees it built. Stops when the goal is reached/blocked
-    or ``max_steps`` is hit (``truncated``).
+    or ``max_steps`` is hit (``truncated``). ``construction_speed_pct`` shortens
+    every build duration (a Construction-Speed hero buff → earlier ETAs).
     """
     state: dict[str, Any] = dict(levels)
     cur_label: dict[str, str] = {k: _label(v) for k, v in levels.items()}
@@ -114,7 +128,7 @@ def project_schedule(
 
         spec = graph.spec(step.building_id)
         lvl = spec.level(step.to_level) if spec else None
-        dur = lvl.time_s if lvl else 0
+        dur = apply_speed(lvl.time_s if lvl else 0, construction_speed_pct)
         steps.append(
             ScheduledBuild(
                 seq=len(steps) + 1,
@@ -142,7 +156,8 @@ def project_schedule(
         cur_label[step.building_id] = step.to_level
 
     truncated = len(steps) >= max_steps and reason == SELECTED
-    return BuildSchedule(tuple(steps), elapsed, reason, truncated, queues=1)
+    return BuildSchedule(tuple(steps), elapsed, reason, truncated, queues=1,
+                         construction_speed_pct=construction_speed_pct)
 
 
 def project_multi_schedule(
@@ -154,6 +169,7 @@ def project_multi_schedule(
     goal_id: str = DEFAULT_GOAL,
     goal_cap: float = DEFAULT_GOAL_CAP,
     max_steps: int = DEFAULT_MAX_STEPS,
+    construction_speed_pct: float = 0.0,
 ) -> BuildSchedule:
     """Simulate ``queues`` construction queues building in parallel toward the goal.
 
@@ -163,6 +179,8 @@ def project_multi_schedule(
     rides the furnace-first chain (weight 100) while the rest fill with economy /
     camps. A queue with nothing buildable idles until the next completion unlocks
     work. Stops when the furnace reaches ``goal_cap`` (in *completed* levels).
+    ``construction_speed_pct`` shortens every build duration (a Construction-Speed
+    hero buff → earlier ETAs).
     """
     queues = max(1, queues)
     state: dict[str, Any] = dict(levels)
@@ -211,7 +229,7 @@ def project_multi_schedule(
 
         spec = graph.spec(cand.spec_id)
         lvl = spec.level(cand.to_level) if spec else None
-        dur = cand.time_s
+        dur = apply_speed(cand.time_s, construction_speed_pct)
         steps.append(
             ScheduledBuild(
                 seq=len(steps) + 1,
@@ -234,4 +252,5 @@ def project_multi_schedule(
 
     total = max((s.end_s for s in steps), default=0)
     truncated = len(steps) >= max_steps and reason == SELECTED
-    return BuildSchedule(tuple(steps), total, reason, truncated, queues=queues)
+    return BuildSchedule(tuple(steps), total, reason, truncated, queues=queues,
+                         construction_speed_pct=construction_speed_pct)

@@ -47,6 +47,7 @@ from .schedule import (
     DEFAULT_MAX_STEPS,
     BuildSchedule,
     ScheduledBuild,
+    apply_speed,
     project_multi_schedule,
     project_schedule,
 )
@@ -71,6 +72,7 @@ __all__ = [
     "LevelReq",
     "QueueRentalDecision",
     "ScheduledBuild",
+    "apply_speed",
     "evaluate_queue_rental",
     "event_weight",
     "level_rank",

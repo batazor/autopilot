@@ -71,6 +71,8 @@ class CycleProjection:
     reason: str               # goal_reached | horizon | blocked | truncated
     truncated: bool
     construction_queues: int
+    construction_speed_pct: float = 0.0   # hero build-speed buff applied to build ETAs
+    research_speed_pct: float = 0.0       # hero research-speed buff applied to research ETAs
 
 
 def _label(value: Any) -> str:
@@ -97,6 +99,8 @@ def project_cycle(
     goal_cap: float = 30.0,
     horizon_s: float | None = None,
     max_steps: int = DEFAULT_MAX_STEPS,
+    construction_speed_pct: float = 0.0,
+    research_speed_pct: float = 0.0,
 ) -> CycleProjection:
     """Project construction + research forward until the build goal (or a horizon).
 
@@ -104,6 +108,8 @@ def project_cycle(
     built / level 0). The research queue's RC gate reads the *simulated*
     ``research_center`` level, so techs unlock as the build sim raises it. Stops at
     the goal, ``horizon_s`` (if set), a stall, or ``max_steps`` (``truncated``).
+    ``construction_speed_pct`` / ``research_speed_pct`` shorten build / research
+    durations respectively (hero speed buffs → earlier milestone ETAs).
     """
     from games.wos.core.building.planner.planner import (
         BLOCKED,
@@ -111,6 +117,7 @@ def project_cycle(
         current_rank,
         plan_builds,
     )
+    from games.wos.core.building.planner.schedule import apply_speed
     from games.wos.core.research.planner import plan_next as research_plan_next
 
     build_state: dict[str, Any] = dict(build_levels)
@@ -159,7 +166,7 @@ def project_cycle(
                     continue
                 spec = build_graph.spec(cand.spec_id)
                 lvl = spec.level(cand.to_level) if spec else None
-                dur = int(cand.time_s)
+                dur = apply_speed(int(cand.time_s), construction_speed_pct)
                 q = _free_queue(busy_queues, n)
                 seq += 1
                 timeline.append(ProjectedTask(
@@ -186,7 +193,7 @@ def project_cycle(
             if step is not None:
                 node = research_graph.spec(step.node_id)
                 lvl = node.level_at(step.to_level) if node else None
-                dur = int(lvl.time_s) if lvl else 0
+                dur = apply_speed(int(lvl.time_s) if lvl else 0, research_speed_pct)
                 seq += 1
                 timeline.append(ProjectedTask(
                     channel="research", domain="research", seq=seq,
@@ -226,6 +233,8 @@ def project_cycle(
         reason=reason,
         truncated=truncated,
         construction_queues=n,
+        construction_speed_pct=construction_speed_pct,
+        research_speed_pct=research_speed_pct,
     )
 
 

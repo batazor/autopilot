@@ -9,6 +9,7 @@ from games.wos.core.building.planner import (
     BuildGraph,
     BuildingSpec,
     LevelReq,
+    apply_speed,
     load_graph,
     project_multi_schedule,
     project_schedule,
@@ -192,3 +193,25 @@ def test_real_graph_two_queues_beats_one_and_reaches_goal():
     # Both queues are used and the idle 2nd queue picked up economy/camp work.
     assert {s.queue for s in two.steps} == {0, 1}
     assert any(s.track in {"economy", "camp"} for s in two.steps)
+
+
+# --- construction-speed buff (hero builder shortens durations) ----------------
+def test_apply_speed_formula():
+    assert apply_speed(100, 0) == 100          # no buff → raw time
+    assert apply_speed(100, 100) == 50         # +100% → half the time
+    assert apply_speed(0, 50) == 0
+    assert apply_speed(100, -5) == 100         # nonsense buff ignored
+
+
+def test_construction_speed_buff_shortens_the_schedule():
+    base = project_schedule(GRAPH, {}, goal_cap=3.0)
+    fast = project_schedule(GRAPH, {}, goal_cap=3.0, construction_speed_pct=100.0)
+    assert fast.construction_speed_pct == 100.0
+    assert fast.total_time_s < base.total_time_s
+    assert fast.steps[0].duration_s == apply_speed(base.steps[0].duration_s, 100.0)
+
+
+def test_multi_schedule_speed_buff_pulls_in_the_furnace_eta():
+    base = project_multi_schedule(GRAPH, {}, queues=2, goal_cap=3.0)
+    fast = project_multi_schedule(GRAPH, {}, queues=2, goal_cap=3.0, construction_speed_pct=50.0)
+    assert fast.total_time_s < base.total_time_s

@@ -91,3 +91,30 @@ def test_starting_partway_skips_done_levels():
     )
     assert proj.reason == "goal_reached"
     assert not any(t.key == "furnace" for t in proj.timeline)    # nothing left to do on furnace
+
+
+def _furnace_eta(proj) -> int:
+    goals = [m.at_s for m in proj.milestones if m.kind == "build_goal"]
+    return goals[-1] if goals else proj.total_time_s
+
+
+def test_construction_speed_buff_pulls_in_build_etas():
+    base = project_cycle(build_graph=BG, build_levels={}, research_graph=RG,
+                         construction_queues=2, goal_cap=5.0)
+    fast = project_cycle(build_graph=BG, build_levels={}, research_graph=RG,
+                         construction_queues=2, goal_cap=5.0, construction_speed_pct=50.0)
+    assert fast.construction_speed_pct == 50.0
+    assert _furnace_eta(fast) < _furnace_eta(base)               # buffed builds finish sooner
+
+
+def test_research_speed_buff_shortens_research_tasks():
+    # Research Center prebuilt → techs are available from t=0, so research runs.
+    levels = {"furnace": 1, "research_center": 10}
+    base = project_cycle(build_graph=BG, build_levels=levels, research_graph=RG,
+                         construction_queues=2, goal_cap=5.0)
+    fast = project_cycle(build_graph=BG, build_levels=levels, research_graph=RG,
+                         construction_queues=2, goal_cap=5.0, research_speed_pct=100.0)
+    base_first = next(t for t in base.timeline if t.channel == "research")
+    fast_first = next(t for t in fast.timeline if t.channel == "research")
+    assert base_first.key == fast_first.key                     # same first tech
+    assert fast_first.duration_s < base_first.duration_s        # +100% → halved

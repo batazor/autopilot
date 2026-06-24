@@ -794,13 +794,19 @@ class ProjectionBody(BaseModel):
     goal_id: str = "furnace"
     goal_cap: float = 30.0
     horizon_days: float | None = None    # cap the projection window (None = run to goal)
+    # Owned heroes ({hero_id: {skill, star}}) → the construction/research-speed buffs
+    # their skills grant shorten the projected build/research ETAs (a Construction-
+    # Speed hero like Zinman literally pulls the milestones in).
+    owned_heroes: dict[str, dict[str, int]] = Field(default_factory=dict)
 
 
 @router.post("/projection")
 def post_projection(body: ProjectionBody) -> dict[str, Any]:
     from games.wos.core.coordinator import project_cycle
+    from games.wos.heroes.heroes.planner import active_city_buffs
 
     def run() -> dict[str, Any]:
+        buffs = active_city_buffs(_hero_catalog(), body.owned_heroes)
         proj = project_cycle(
             build_graph=_building_graph(),
             build_levels=body.building_levels,
@@ -811,6 +817,8 @@ def post_projection(body: ProjectionBody) -> dict[str, Any]:
             goal_id=body.goal_id,
             goal_cap=body.goal_cap,
             horizon_s=(body.horizon_days * 86_400.0) if body.horizon_days else None,
+            construction_speed_pct=buffs.get("construction", 0.0),
+            research_speed_pct=buffs.get("research", 0.0),
         )
         return _asdict(proj)
 
