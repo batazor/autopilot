@@ -69,6 +69,13 @@ def _charm_data() -> Any:
     return load_charm_data()
 
 
+@lru_cache(maxsize=1)
+def _gear_data() -> Any:
+    from games.wos.core.gear.planner import load_gear_data
+
+    return load_gear_data()
+
+
 @lru_cache(maxsize=4)
 def _unlock_schedule(profile: str) -> Any:
     from games.wos.core.calendar.server_unlocks import load_unlock_schedule
@@ -367,6 +374,34 @@ def post_charms(body: CharmsBody) -> dict[str, Any]:
         out = _asdict(plan)
         if body.target_level:
             out["roadmap"] = _asdict(charm_roadmap(body.owned, body.target_level))
+        return out
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
+# Chief Gear
+# --------------------------------------------------------------------------- #
+class GearBody(BaseModel):
+    owned: dict[str, int] = Field(default_factory=dict)   # {piece_id: ordinal step}
+    resources: dict[str, int] = Field(default_factory=dict)  # alloy/polishing/design/amber
+    furnace_level: int | None = None                      # gates the feature (unlock @ 22)
+    role: str | None = None
+    target_level: int | None = None                       # roadmap target (totals to here)
+
+
+@router.post("/gear")
+def post_gear(body: GearBody) -> dict[str, Any]:
+    from games.wos.core.gear.planner import gear_roadmap, plan_next
+
+    def run() -> dict[str, Any]:
+        plan = plan_next(
+            body.owned, body.resources,
+            furnace_level=body.furnace_level, role=_role(body.role),
+        )
+        out = _asdict(plan)
+        if body.target_level:
+            out["roadmap"] = _asdict(gear_roadmap(body.owned, body.target_level))
         return out
 
     return _guard(run)
@@ -733,6 +768,7 @@ class FullPlanBody(BaseModel):
     pets: PetsBody = Field(default_factory=PetsBody)
     troops: TroopsBody = Field(default_factory=TroopsBody)
     charms: CharmsBody = Field(default_factory=CharmsBody)
+    gear: GearBody = Field(default_factory=GearBody)
     # Shared resource pool the coordinator spends. Defaults to the union of the
     # hero + pet namespaced balances (book:* / shard:* / pet_food / pet_shard:*);
     # add meat/wood/coal/iron/steel to let research contend instead of starving.
@@ -763,6 +799,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
     from games.wos.core.coordinator import (
         CHARM,
         CONSTRUCTION,
+        GEAR,
         HERO,
         PET,
         RESEARCH,
@@ -773,6 +810,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         ThreatState,
         plan_cycle,
     )
+    from games.wos.core.gear.planner import plan_next as gear_plan_next
     from games.wos.core.pets.planner import plan_next as pet_plan_next
     from games.wos.core.research.planner import plan_next as research_plan_next
     from games.wos.heroes.heroes.planner import plan_next as hero_plan_next
@@ -833,6 +871,10 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         body.charms.owned, body.charms.resources,
         furnace_level=body.charms.furnace_level, role=_role(body.charms.role),
     )
+    gplan = gear_plan_next(
+        body.gear.owned, body.gear.resources,
+        furnace_level=body.gear.furnace_level, role=_role(body.gear.role),
+    )
 
     if body.channels is not None:
         channels = [Channel(id=c.id, kind=c.kind) for c in body.channels]
@@ -847,6 +889,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             Channel(id="pet_1", kind=PET),
             Channel(id="training_1", kind=TRAINING),
             Channel(id="charm_1", kind=CHARM),
+            Channel(id="gear_1", kind=GEAR),
         ]
 
     if body.balances is not None:
@@ -856,6 +899,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             **dict(body.heroes.resources),
             **dict(body.pets.resources),
             **dict(body.charms.resources),
+            **dict(body.gear.resources),
         }
 
     plan = plan_cycle(
@@ -869,6 +913,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         pet_plan=pplan,
         training_plan=tplan,
         charms_plan=chplan,
+        gear_plan=gplan,
         event_windows=[EventWindow(**w.model_dump()) for w in body.events],
         daily_tasks=[DailyTask(**t.model_dump()) for t in body.dailies],
         seconds_to_reset=body.seconds_to_reset,
@@ -882,6 +927,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             "pets": _asdict(pplan),
             "troops": _asdict(tplan),
             "charms": _asdict(chplan),
+            "gear": _asdict(gplan),
         },
         "candidates": [_asdict(c) for c in plan.candidates],
         "decision": _asdict(plan.decision),

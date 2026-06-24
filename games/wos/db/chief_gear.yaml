@@ -1,0 +1,69 @@
+# Chief Gear upgrade ladder — per tier+star step, re-encoded game FACTS.
+#
+# The 6 Chief Gear pieces (gloves_belt + goggles_boots per troop type) share ONE
+# upgrade ladder Green → Blue → Purple → Gold → Pink (Red), 42 ordinal steps; only
+# the stat's troop-type differs per piece, never the cost. `level` is the ordinal
+# (1 = Green 0, 42 = top); `label` is the in-game tier+star.
+#   cost  — materials to take a piece FROM the previous step TO this one:
+#           hardened_alloy / polishing_solution / design_plans / lunar_amber
+#           (keys match db/items/*.yaml; tier-promotion steps cost only design_plans;
+#           lunar_amber enters at the Pink tier). Only non-zero materials are listed.
+#   power — the piece's power AT this step.
+#
+# Source: whiteoutdata.com's static Chief Gear table (numbers only, independently
+# transcribed; cross-checked against heaven-guardian's gear chart). Power is present
+# for the whole ladder — no gap. Read by games/wos/core/gear/planner/model.py.
+unlock_furnace_level: 22       # Chief Gear unlocks at Furnace Lv. 22
+max_level: 42
+
+pieces:
+  - {id: gloves_belt_infantry,   troop_type: infantry}
+  - {id: goggles_boots_infantry, troop_type: infantry}
+  - {id: gloves_belt_lancer,     troop_type: lancer}
+  - {id: goggles_boots_lancer,   troop_type: lancer}
+  - {id: gloves_belt_marksman,   troop_type: marksman}
+  - {id: goggles_boots_marksman, troop_type: marksman}
+
+levels:
+  - {level: 1,  label: green_0,      cost: {hardened_alloy: 1500, polishing_solution: 15},                         power: 224400}
+  - {level: 2,  label: green_1,      cost: {hardened_alloy: 3800, polishing_solution: 40},                         power: 306000}
+  - {level: 3,  label: blue_0,       cost: {hardened_alloy: 7000, polishing_solution: 70},                         power: 408000}
+  - {level: 4,  label: blue_1,       cost: {hardened_alloy: 9700, polishing_solution: 95},                         power: 510000}
+  - {level: 5,  label: blue_2,       cost: {design_plans: 45},                                                     power: 612000}
+  - {level: 6,  label: blue_3,       cost: {design_plans: 50},                                                     power: 714000}
+  - {level: 7,  label: purple_0,     cost: {design_plans: 60},                                                     power: 816000}
+  - {level: 8,  label: purple_1,     cost: {design_plans: 70},                                                     power: 885360}
+  - {level: 9,  label: purple_2,     cost: {hardened_alloy: 6500,  polishing_solution: 65,  design_plans: 40},     power: 954720}
+  - {level: 10, label: purple_3,     cost: {hardened_alloy: 8000,  polishing_solution: 80,  design_plans: 50},     power: 1024080}
+  - {level: 11, label: purple_t1_0,  cost: {hardened_alloy: 10000, polishing_solution: 95,  design_plans: 60},     power: 1093440}
+  - {level: 12, label: purple_t1_1,  cost: {hardened_alloy: 11000, polishing_solution: 110, design_plans: 70},     power: 1162800}
+  - {level: 13, label: purple_t1_2,  cost: {hardened_alloy: 13000, polishing_solution: 130, design_plans: 85},     power: 1232160}
+  - {level: 14, label: purple_t1_3,  cost: {hardened_alloy: 15000, polishing_solution: 160, design_plans: 100},    power: 1301520}
+  - {level: 15, label: gold_0,       cost: {hardened_alloy: 22000, polishing_solution: 220, design_plans: 40},     power: 1362720}
+  - {level: 16, label: gold_1,       cost: {hardened_alloy: 23000, polishing_solution: 230, design_plans: 40},     power: 1423920}
+  - {level: 17, label: gold_2,       cost: {hardened_alloy: 25000, polishing_solution: 250, design_plans: 45},     power: 1485120}
+  - {level: 18, label: gold_3,       cost: {hardened_alloy: 26000, polishing_solution: 260, design_plans: 45},     power: 1546320}
+  - {level: 19, label: gold_t1_0,    cost: {hardened_alloy: 28000, polishing_solution: 280, design_plans: 45},     power: 1607520}
+  - {level: 20, label: gold_t1_1,    cost: {hardened_alloy: 30000, polishing_solution: 300, design_plans: 55},     power: 1668720}
+  - {level: 21, label: gold_t1_2,    cost: {hardened_alloy: 32000, polishing_solution: 320, design_plans: 55},     power: 1729920}
+  - {level: 22, label: gold_t1_3,    cost: {hardened_alloy: 35000, polishing_solution: 340, design_plans: 55},     power: 1791120}
+  - {level: 23, label: gold_t2_0,    cost: {hardened_alloy: 38000, polishing_solution: 390, design_plans: 55},     power: 1852320}
+  - {level: 24, label: gold_t2_1,    cost: {hardened_alloy: 43000, polishing_solution: 430, design_plans: 75},     power: 1913520}
+  - {level: 25, label: gold_t2_2,    cost: {hardened_alloy: 45000, polishing_solution: 460, design_plans: 80},     power: 1974720}
+  - {level: 26, label: gold_t2_3,    cost: {hardened_alloy: 48000, polishing_solution: 500, design_plans: 85},     power: 2040000}
+  - {level: 27, label: pink_0,       cost: {hardened_alloy: 50000, polishing_solution: 530, design_plans: 85,  lunar_amber: 10}, power: 2142000}
+  - {level: 28, label: pink_1,       cost: {hardened_alloy: 52000, polishing_solution: 560, design_plans: 90,  lunar_amber: 10}, power: 2244000}
+  - {level: 29, label: pink_2,       cost: {hardened_alloy: 54000, polishing_solution: 590, design_plans: 95,  lunar_amber: 10}, power: 2346000}
+  - {level: 30, label: pink_3,       cost: {hardened_alloy: 56000, polishing_solution: 620, design_plans: 100, lunar_amber: 10}, power: 2448000}
+  - {level: 31, label: pink_t1_0,    cost: {hardened_alloy: 59000, polishing_solution: 670, design_plans: 110, lunar_amber: 15}, power: 2550000}
+  - {level: 32, label: pink_t1_1,    cost: {hardened_alloy: 61000, polishing_solution: 700, design_plans: 115, lunar_amber: 15}, power: 2652000}
+  - {level: 33, label: pink_t1_2,    cost: {hardened_alloy: 63000, polishing_solution: 730, design_plans: 120, lunar_amber: 15}, power: 2754000}
+  - {level: 34, label: pink_t1_3,    cost: {hardened_alloy: 65000, polishing_solution: 760, design_plans: 125, lunar_amber: 15}, power: 2856000}
+  - {level: 35, label: pink_t2_0,    cost: {hardened_alloy: 68000, polishing_solution: 810, design_plans: 135, lunar_amber: 20}, power: 2958000}
+  - {level: 36, label: pink_t2_1,    cost: {hardened_alloy: 70000, polishing_solution: 840, design_plans: 140, lunar_amber: 20}, power: 3060000}
+  - {level: 37, label: pink_t2_2,    cost: {hardened_alloy: 72000, polishing_solution: 870, design_plans: 145, lunar_amber: 20}, power: 3162000}
+  - {level: 38, label: pink_t2_3,    cost: {hardened_alloy: 74000, polishing_solution: 900, design_plans: 150, lunar_amber: 20}, power: 3264000}
+  - {level: 39, label: pink_t3_0,    cost: {hardened_alloy: 77000, polishing_solution: 950,  design_plans: 160, lunar_amber: 25}, power: 3366000}
+  - {level: 40, label: pink_t3_1,    cost: {hardened_alloy: 80000, polishing_solution: 990,  design_plans: 165, lunar_amber: 25}, power: 3468000}
+  - {level: 41, label: pink_t3_2,    cost: {hardened_alloy: 83000, polishing_solution: 1030, design_plans: 170, lunar_amber: 25}, power: 3570000}
+  - {level: 42, label: pink_t3_4,    cost: {hardened_alloy: 86000, polishing_solution: 1070, design_plans: 180, lunar_amber: 25}, power: 3672000}

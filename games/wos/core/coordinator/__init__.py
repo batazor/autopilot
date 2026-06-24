@@ -10,6 +10,7 @@ from __future__ import annotations
 from .adapters import (
     from_build_slate,
     from_charms_plan,
+    from_gear_plan,
     from_hero_plan,
     from_intel_plan,
     from_pet_plan,
@@ -54,6 +55,7 @@ from .march import intel_intent, march_channels, plan_march, timed_event_intent
 from .model import (
     CHARM,
     CONSTRUCTION,
+    GEAR,
     HERO,
     MARCH,
     PET,
@@ -93,6 +95,7 @@ __all__ = [
     "CONSTRUCTION",
     "DOMAIN_BAND",
     "EVENT_CATALOG",
+    "GEAR",
     "HERO",
     "MARCH",
     "PET",
@@ -140,6 +143,7 @@ __all__ = [
     "economy_bias",
     "from_build_slate",
     "from_charms_plan",
+    "from_gear_plan",
     "from_hero_plan",
     "from_intel_plan",
     "from_pet_plan",

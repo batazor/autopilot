@@ -14,7 +14,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .model import CHARM, CONSTRUCTION, HERO, MARCH, PET, RESEARCH, TRAINING, CandidateAction
+from .model import (
+    CHARM,
+    CONSTRUCTION,
+    GEAR,
+    HERO,
+    MARCH,
+    PET,
+    RESEARCH,
+    TRAINING,
+    CandidateAction,
+)
 from .objective import TRACK_DOMAIN, domain_priority
 
 if TYPE_CHECKING:
@@ -22,6 +32,7 @@ if TYPE_CHECKING:
 
     from games.wos.core.building.planner import BuildGraph, BuildSlate
     from games.wos.core.charms.planner import CharmPlan
+    from games.wos.core.gear.planner import GearPlan
     from games.wos.core.pets.planner import PetPlan
     from games.wos.core.research.planner import ResearchGraph, ResearchPlan
     from games.wos.core.roles import RoleProfile
@@ -160,6 +171,30 @@ def from_charms_plan(
         priority=domain_priority("charms", boost=(boosts or {}).get("charms", 1.0)),
         cost=dict(step.cost),
         detail=f"charm {step.slot_id} -> L{step.to_level}",
+    )]
+
+
+def from_gear_plan(
+    plan: GearPlan,
+    *,
+    boosts: Mapping[str, float] | None = None,
+) -> list[CandidateAction]:
+    """The Chief Gear pick (one gear channel), if any.
+
+    Role is baked into the gear planner's value; the coordinator slots it at the
+    ``gear`` band. ``cost`` is the shared gear-material pool (alloy/polishing/design/
+    amber).
+    """
+    step = plan.step
+    if step is None:
+        return []
+    return [CandidateAction(
+        domain="gear",
+        channel_kind=GEAR,
+        key=f"{step.slot_id}:{step.label}",
+        priority=domain_priority("gear", boost=(boosts or {}).get("gear", 1.0)),
+        cost=dict(step.cost),
+        detail=f"gear {step.slot_id} -> {step.label}",
     )]
 
 

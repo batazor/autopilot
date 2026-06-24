@@ -148,6 +148,19 @@ def test_charm_channel_joins_the_tick():
     assert action.cost == {"charm_guide": 5}        # a level-0 → L1 step
 
 
+def test_gear_channel_joins_the_tick():
+    """A Chief Gear pick fills the GEAR channel with its real material cost."""
+    from games.wos.core.coordinator import GEAR
+    from games.wos.core.gear.planner import plan_next as gear_plan_next
+    balances = {"hardened_alloy": 10**7, "polishing_solution": 10**6}
+    gplan = gear_plan_next({}, balances, furnace_level=22)
+    plan = plan_cycle(channels=[Channel("g1", GEAR)], balances=balances, gear_plan=gplan)
+    action = plan.decision.commits[0].action
+    assert action.channel_kind == GEAR
+    assert action.domain == "gear"
+    assert action.cost == {"hardened_alloy": 1500, "polishing_solution": 15}   # green_0
+
+
 def test_calendar_event_boosts_its_reward_domains():
     """A live Power Up event lifts the any-power domains (incl. research)."""
     rg = load_research_graph()
