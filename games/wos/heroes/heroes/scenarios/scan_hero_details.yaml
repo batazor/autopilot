@@ -1,0 +1,18 @@
+enabled: true
+name: "🔁 Walk hero details (chevrons)"
+
+# Chevron-walk the whole roster: scan the grid (for the order), open the first
+# hero, then step through every hero's detail card via the next-unit chevron,
+# refreshing heroes.entries.<id> from the authoritative card. Routing the grid
+# order enables — we know who's next, so one walk covers everyone without
+# bouncing back to the grid. (Star/skill detail reads are a follow-up.)
+node: heroes
+
+steps:
+  - exec: scan_heroes_grid          # refresh roster + hero_grid_positions (count/cap)
+  - click: heroes.grid.r0c0         # open the first grid cell (any hero — the walk
+                                    # identifies each card by name, order-independent)
+  - wait: 1.5s                      # let the detail card open (the wiki template guard
+                                    # scores ~0.45 here and falsely fails — exec self-
+                                    # validates by reading the name instead)
+  - exec: scan_hero_details         # walk: read name+level+stars per card, tap next

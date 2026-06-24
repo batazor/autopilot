@@ -313,6 +313,11 @@ screens:
     action: text
     type: string
     threshold: 0.9
+    # White outlined title text on a light-blue header: plain OCR reads it empty
+    # (Otsu picks the wrong layer). title_line enhances + PSM-7 it cleanly (verified
+    # live: "Charlie" 0.87). The DSL ocr step inherits this when it omits preprocess,
+    # so sync_hero_unit / level_up / star_tier_up all read the name now.
+    preprocess: title_line
     bbox:
       x: 29.111969111969117
       y: 0.21739130434782608
