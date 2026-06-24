@@ -20,6 +20,8 @@ from .policy import (
     RARITY_BOOK_COST,
     RARITY_BOOK_TIER,
     SKILL_VALUE_FACTOR,
+    economy_buff_uplift,
+    generation_factor,
     hero_value,
 )
 
@@ -48,6 +50,7 @@ class HeroCandidate:
     value: float
     cost: Mapping[str, int]
     affordable: bool
+    detail: str = ""           # e.g. "construction +3%" — the economy buff a skill unlocks
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +66,16 @@ def _owned(owned: Mapping[str, Mapping[str, int]], hero_id: str, key: str) -> in
         return int(entry.get(key, 0))
     except (TypeError, ValueError):
         return 0
+
+
+def _buff_detail(spec: HeroSpec, from_skill: int) -> str:
+    """Human note for the buff a skill upgrade unlocks (``"construction +3%"``)."""
+    parts = [
+        f"{sk.category} +{sk.marginal(from_skill):g}%"
+        for sk in spec.economy_skills
+        if sk.marginal(from_skill) > 0
+    ]
+    return ", ".join(parts)
 
 
 def plan_next(
@@ -93,14 +106,20 @@ def plan_next(
         star = _owned(owned, hero_id, "star")
         skill = _owned(owned, hero_id, "skill")
         tier = RARITY_BOOK_TIER.get(spec.rarity, "rare")
+        # A skill upgrade also unlocks the next step of any economy buff this hero
+        # carries (construction/research/training/… speed) — value that throughput,
+        # gen-scaled so we don't pour books into a fading hero for its buff alone.
+        gen_factor = generation_factor(hero_generation.get(hero_id), current_generation)
+        skill_uplift = economy_buff_uplift(spec, skill, role, marginal=True) * gen_factor
         proposals = (
-            (PROMOTE_STAR, star + 1, value, {f"shard:{hero_id}": spec.shard_cost(star)}),
-            (UPGRADE_SKILL, skill + 1, value * SKILL_VALUE_FACTOR,
-             {f"book:{tier}": RARITY_BOOK_COST.get(spec.rarity, 4)}),
+            (PROMOTE_STAR, star + 1, value,
+             {f"shard:{hero_id}": spec.shard_cost(star)}, ""),
+            (UPGRADE_SKILL, skill + 1, value * SKILL_VALUE_FACTOR + skill_uplift,
+             {f"book:{tier}": RARITY_BOOK_COST.get(spec.rarity, 4)}, _buff_detail(spec, skill)),
         )
-        for kind, to_level, val, cost in proposals:
+        for kind, to_level, val, cost, detail in proposals:
             affordable = all(int(resources.get(r, 0)) >= amt for r, amt in cost.items())
-            cand = HeroCandidate(hero_id, kind, to_level, val, cost, affordable)
+            cand = HeroCandidate(hero_id, kind, to_level, val, cost, affordable, detail)
             candidates.append(cand)
             if affordable:
                 key = (val, -sum(cost.values()))

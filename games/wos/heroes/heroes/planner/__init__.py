@@ -8,9 +8,11 @@ are deferred.
 from __future__ import annotations
 
 from .model import (
+    HeroSkill,
     HeroSpec,
     catalog_subclass_index,
     load_hero_catalog,
+    parse_economy_skills,
     parse_shard_tiers,
 )
 from .planner import (
@@ -23,9 +25,17 @@ from .planner import (
     HeroPlan,
     plan_next,
 )
-from .policy import RARITY_WEIGHT, generation_factor, hero_value
+from .policy import (
+    ECONOMY_BUFF_WEIGHT,
+    RARITY_WEIGHT,
+    active_city_buffs,
+    economy_buff_uplift,
+    generation_factor,
+    hero_value,
+)
 
 __all__ = [
+    "ECONOMY_BUFF_WEIGHT",
     "INSUFFICIENT_RESOURCES",
     "NONE",
     "PROMOTE_STAR",
@@ -34,11 +44,15 @@ __all__ = [
     "UPGRADE_SKILL",
     "HeroCandidate",
     "HeroPlan",
+    "HeroSkill",
     "HeroSpec",
+    "active_city_buffs",
     "catalog_subclass_index",
+    "economy_buff_uplift",
     "generation_factor",
     "hero_value",
     "load_hero_catalog",
+    "parse_economy_skills",
     "parse_shard_tiers",
     "plan_next",
 ]
