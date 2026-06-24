@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "chat.alliance",
+      "ocr": "",
+      "regions": [
+        {
+          "name": "chat.alliance.input",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.0,
+            "y": 92.0,
+            "width": 78.0,
+            "height": 5.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chat.alliance.send",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 84.0,
+            "y": 91.5,
+            "width": 13.0,
+            "height": 6.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -56,6 +56,11 @@ export const NAV_GROUPS: NavGroup[] = [
         description: "Android notification events per player",
       },
       {
+        href: "/broadcast",
+        label: "Alliance broadcast",
+        description: "Event & tip reminders auto-posted to alliance chat",
+      },
+      {
         href: "/radar",
         label: "Radar",
         description: "Kingdom map viewer & scan control",

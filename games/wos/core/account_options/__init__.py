@@ -115,6 +115,19 @@ ACCOUNT_OPTIONS: tuple[AccountOption, ...] = (
         default=False,
         group="Fleet",
     ),
+    # ── Alliance broadcast (reminders posted to alliance chat) ───────────────
+    AccountOption(
+        key="planner.broadcast_eligible",
+        label="May broadcast to alliance chat",
+        description=(
+            "Allow this account to be the one that posts alliance reminders. "
+            "Exactly one eligible account per alliance is elected (lowest fid), "
+            "so turn this off to exclude an account from ever posting."
+        ),
+        type=BOOL,
+        default=True,
+        group="Alliance",
+    ),
 )
 
 _BY_KEY: dict[str, AccountOption] = {o.key: o for o in ACCOUNT_OPTIONS}

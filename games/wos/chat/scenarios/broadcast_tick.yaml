@@ -1,0 +1,15 @@
+# Alliance-broadcast tick.
+#
+# Runs per active player on a cron. The exec is cheap: it reads the player's
+# alliance, elects ONE broadcaster per alliance (lowest active eligible fid), and
+# only drives the device when a catalog message is actually due (cooldown + cron
+# or event `cond`). On a post it navigates to chat.alliance, types the message,
+# taps send, stamps a per-alliance cooldown, then returns home.
+#
+# Anti-duplication: a per-alliance cooldown key + a same-tick claim lock mean the
+# chat sees each reminder once, no matter how many accounts share the alliance.
+name: Alliance broadcast tick
+enabled: true
+cron: "*/15 * * * *"
+steps:
+  - exec: alliance_broadcast_tick

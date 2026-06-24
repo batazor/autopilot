@@ -1,0 +1,12 @@
+id: chat
+title: Chat (Kingshot)
+description: >-
+  Kingshot alliance-chat broadcast wrapper. Shares the game-agnostic core
+  (modules.broadcast); delivery is inert until the chat screen + input/send
+  regions are labeled on a live Kingshot device (see README.md).
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

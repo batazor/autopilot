@@ -1,0 +1,11 @@
+# Kingshot alliance-broadcast tick (scaffold — inert until chat is labeled).
+#
+# Same logic as the WoS tick via the shared core: cheap no-op unless a message is
+# due and this account is the elected broadcaster. Delivery needs the Kingshot
+# chat screen graph + input/send regions labeled on a live device (see README.md);
+# until then navigation to chat.alliance fails cleanly (result: nav_failed).
+name: Alliance broadcast tick (Kingshot)
+enabled: true
+cron: "*/15 * * * *"
+steps:
+  - exec: alliance_broadcast_tick
