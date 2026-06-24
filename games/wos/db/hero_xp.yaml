@@ -1,0 +1,89 @@
+# Hero level XP ladder — per-level Hero XP to reach each level (1..80), re-encoded
+# game FACTS. The curve is SHARED across all heroes regardless of rarity.
+#   xp       — Hero XP to go FROM the previous level TO this one (L1 is the base, 0).
+#   furnace  — Furnace building level that gates this hero level (F4 unlocks 1-20,
+#              F10 enables 21+, … F26 for 80).
+# Source: whiteoutdata.com's static Hero XP chart (numbers only, independently
+# transcribed; heaven-guardian confirms the values are PER-LEVEL, not cumulative).
+# Read by games/wos/heroes/heroes/planner/hero_xp.py.
+levels:
+  - {level: 1,  xp: 0,       furnace: 4}
+  - {level: 2,  xp: 480,     furnace: 4}
+  - {level: 3,  xp: 690,     furnace: 4}
+  - {level: 4,  xp: 920,     furnace: 4}
+  - {level: 5,  xp: 1200,    furnace: 4}
+  - {level: 6,  xp: 1500,    furnace: 4}
+  - {level: 7,  xp: 1800,    furnace: 4}
+  - {level: 8,  xp: 2200,    furnace: 4}
+  - {level: 9,  xp: 2600,    furnace: 4}
+  - {level: 10, xp: 3100,    furnace: 4}
+  - {level: 11, xp: 3800,    furnace: 4}
+  - {level: 12, xp: 4200,    furnace: 4}
+  - {level: 13, xp: 5100,    furnace: 4}
+  - {level: 14, xp: 5700,    furnace: 4}
+  - {level: 15, xp: 6800,    furnace: 4}
+  - {level: 16, xp: 7800,    furnace: 4}
+  - {level: 17, xp: 8900,    furnace: 4}
+  - {level: 18, xp: 10000,   furnace: 4}
+  - {level: 19, xp: 12000,   furnace: 4}
+  - {level: 20, xp: 13000,   furnace: 4}
+  - {level: 21, xp: 14000,   furnace: 10}
+  - {level: 22, xp: 15000,   furnace: 10}
+  - {level: 23, xp: 16000,   furnace: 11}
+  - {level: 24, xp: 17000,   furnace: 11}
+  - {level: 25, xp: 18000,   furnace: 11}
+  - {level: 26, xp: 19000,   furnace: 12}
+  - {level: 27, xp: 20000,   furnace: 12}
+  - {level: 28, xp: 21000,   furnace: 12}
+  - {level: 29, xp: 22000,   furnace: 13}
+  - {level: 30, xp: 24000,   furnace: 13}
+  - {level: 31, xp: 26000,   furnace: 13}
+  - {level: 32, xp: 28000,   furnace: 14}
+  - {level: 33, xp: 30000,   furnace: 14}
+  - {level: 34, xp: 32000,   furnace: 14}
+  - {level: 35, xp: 36000,   furnace: 15}
+  - {level: 36, xp: 40000,   furnace: 15}
+  - {level: 37, xp: 44000,   furnace: 15}
+  - {level: 38, xp: 48000,   furnace: 16}
+  - {level: 39, xp: 52000,   furnace: 16}
+  - {level: 40, xp: 58000,   furnace: 16}
+  - {level: 41, xp: 64000,   furnace: 17}
+  - {level: 42, xp: 70000,   furnace: 17}
+  - {level: 43, xp: 76000,   furnace: 17}
+  - {level: 44, xp: 82000,   furnace: 18}
+  - {level: 45, xp: 90000,   furnace: 18}
+  - {level: 46, xp: 98000,   furnace: 18}
+  - {level: 47, xp: 100000,  furnace: 19}
+  - {level: 48, xp: 110000,  furnace: 19}
+  - {level: 49, xp: 120000,  furnace: 19}
+  - {level: 50, xp: 130000,  furnace: 20}
+  - {level: 51, xp: 140000,  furnace: 20}
+  - {level: 52, xp: 150000,  furnace: 20}
+  - {level: 53, xp: 160000,  furnace: 20}
+  - {level: 54, xp: 170000,  furnace: 20}
+  - {level: 55, xp: 190000,  furnace: 21}
+  - {level: 56, xp: 210000,  furnace: 21}
+  - {level: 57, xp: 230000,  furnace: 21}
+  - {level: 58, xp: 250000,  furnace: 21}
+  - {level: 59, xp: 270000,  furnace: 21}
+  - {level: 60, xp: 300000,  furnace: 22}
+  - {level: 61, xp: 330000,  furnace: 22}
+  - {level: 62, xp: 360000,  furnace: 22}
+  - {level: 63, xp: 390000,  furnace: 22}
+  - {level: 64, xp: 420000,  furnace: 22}
+  - {level: 65, xp: 470000,  furnace: 23}
+  - {level: 66, xp: 520000,  furnace: 23}
+  - {level: 67, xp: 570000,  furnace: 23}
+  - {level: 68, xp: 620000,  furnace: 23}
+  - {level: 69, xp: 670000,  furnace: 23}
+  - {level: 70, xp: 770000,  furnace: 24}
+  - {level: 71, xp: 870000,  furnace: 24}
+  - {level: 72, xp: 970000,  furnace: 24}
+  - {level: 73, xp: 1000000, furnace: 24}
+  - {level: 74, xp: 1100000, furnace: 24}
+  - {level: 75, xp: 1300000, furnace: 25}
+  - {level: 76, xp: 1500000, furnace: 25}
+  - {level: 77, xp: 1700000, furnace: 25}
+  - {level: 78, xp: 1900000, furnace: 25}
+  - {level: 79, xp: 2100000, furnace: 25}
+  - {level: 80, xp: 2400000, furnace: 26}

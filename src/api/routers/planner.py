@@ -295,6 +295,12 @@ def post_research(body: ResearchBody) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # Heroes
 # --------------------------------------------------------------------------- #
+class HeroRoadmapBody(BaseModel):
+    hero_id: str
+    current: dict[str, int] = Field(default_factory=dict)   # {level, star, skill}
+    target: dict[str, int] = Field(default_factory=dict)
+
+
 class HeroesBody(BaseModel):
     owned: dict[str, dict[str, int]] = Field(default_factory=dict)
     resources: dict[str, int] = Field(default_factory=dict)
@@ -305,6 +311,11 @@ class HeroesBody(BaseModel):
     server_age_days: int | None = None
     server_profile: str = "beta"
     role: str | None = None
+    # Furnace level — when set, the planner also considers leveling heroes (Hero XP),
+    # gated per level band. None → star/skill only (unchanged).
+    furnace_level: int | None = None
+    # Optional: total cost to bring one hero current → target (level/star/skill).
+    roadmap: HeroRoadmapBody | None = None
 
 
 def _hero_current_generation(body: HeroesBody) -> int | None:
@@ -318,18 +329,26 @@ def _hero_current_generation(body: HeroesBody) -> int | None:
 
 @router.post("/heroes")
 def post_heroes(body: HeroesBody) -> dict[str, Any]:
-    from games.wos.heroes.heroes.planner import plan_next
+    from games.wos.heroes.heroes.planner import hero_upgrade_roadmap, plan_next
 
-    plan = _guard(
-        lambda: plan_next(
+    def run() -> dict[str, Any]:
+        plan = plan_next(
             _hero_catalog(),
             body.owned,
             body.resources,
             current_generation=_hero_current_generation(body),
             role=_role(body.role),
+            furnace_level=body.furnace_level,
         )
-    )
-    return _asdict(plan)
+        out = _asdict(plan)
+        if body.roadmap is not None:
+            spec = _hero_catalog().get(body.roadmap.hero_id)
+            if spec is not None:
+                rm = hero_upgrade_roadmap(spec, body.roadmap.current, body.roadmap.target)
+                out["roadmap"] = _asdict(rm)
+        return out
+
+    return _guard(run)
 
 
 # --------------------------------------------------------------------------- #
@@ -882,6 +901,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         body.heroes.resources,
         current_generation=_hero_current_generation(body.heroes),
         role=_role(body.heroes.role),
+        furnace_level=body.heroes.furnace_level,
     )
     pplan = pet_plan_next(
         pc,

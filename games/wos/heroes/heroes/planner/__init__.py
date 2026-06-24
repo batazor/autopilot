@@ -7,6 +7,7 @@ are deferred.
 """
 from __future__ import annotations
 
+from .hero_xp import MAX_HERO_LEVEL, level_cost, level_furnace_gate, load_hero_xp
 from .model import (
     HeroSkill,
     HeroSpec,
@@ -17,12 +18,15 @@ from .model import (
 )
 from .planner import (
     INSUFFICIENT_RESOURCES,
+    LEVEL_UP,
     NONE,
     PROMOTE_STAR,
     SELECTED,
     UPGRADE_SKILL,
     HeroCandidate,
     HeroPlan,
+    HeroUpgradeRoadmap,
+    hero_upgrade_roadmap,
     plan_next,
 )
 from .policy import (
@@ -37,6 +41,8 @@ from .policy import (
 __all__ = [
     "ECONOMY_BUFF_WEIGHT",
     "INSUFFICIENT_RESOURCES",
+    "LEVEL_UP",
+    "MAX_HERO_LEVEL",
     "NONE",
     "PROMOTE_STAR",
     "RARITY_WEIGHT",
@@ -46,12 +52,17 @@ __all__ = [
     "HeroPlan",
     "HeroSkill",
     "HeroSpec",
+    "HeroUpgradeRoadmap",
     "active_city_buffs",
     "catalog_subclass_index",
     "economy_buff_uplift",
     "generation_factor",
+    "hero_upgrade_roadmap",
     "hero_value",
+    "level_cost",
+    "level_furnace_gate",
     "load_hero_catalog",
+    "load_hero_xp",
     "parse_economy_skills",
     "parse_shard_tiers",
     "plan_next",
