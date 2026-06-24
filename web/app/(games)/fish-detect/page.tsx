@@ -51,22 +51,23 @@ function FishDetectPageContent() {
 
       {/* The control is the gate: it shows install / start / ready + logs and a
           Start button. Everything below is live detection, which needs it Ready,
-          so it leads the page. */}
-      <div style={{ marginBottom: "1rem" }}>
+          so it leads the page. page-stack gives a consistent vertical rhythm
+          between the gate and the live panel. */}
+      <div className="page-stack">
         <InferenceControl />
+
+        {instancesError && !apiOffline ? (
+          <div className="error-banner">{instancesError}</div>
+        ) : null}
+
+        {instanceId ? (
+          <FishPlanPanel
+            instanceId={instanceId}
+            inferenceReady={inferenceReady}
+            onResult={setResult}
+          />
+        ) : null}
       </div>
-
-      {instancesError && !apiOffline ? (
-        <div className="error-banner">{instancesError}</div>
-      ) : null}
-
-      {instanceId ? (
-        <FishPlanPanel
-          instanceId={instanceId}
-          inferenceReady={inferenceReady}
-          onResult={setResult}
-        />
-      ) : null}
     </>
   );
 }

@@ -68,6 +68,10 @@ export function FishPlanPanel({
   onResult?: (result: FishPlanResult | null) => void;
 }) {
   const [threshold, setThreshold] = useState(0.4);
+  // Auto-refresh re-reads the frame + decision on a timer so the still preview
+  // keeps up with the device on its own. Independent of the scrcpy video toggle
+  // below — `live` only swaps the *display source*, not whether we poll.
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [live, setLive] = useState(false);
   const [result, setResult] = useState<FishPlanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +80,9 @@ export function FishPlanPanel({
     queryKey: ["fishPlan", instanceId, threshold],
     queryFn: () => fetchFishPlan(instanceId, { threshold }),
     enabled: !!instanceId && inferenceReady,
-    refetchInterval: live && inferenceReady ? POLL_MS : false,
+    // Poll while auto-refresh (or the video stream) is on — react-query pauses
+    // the timer automatically when the tab is backgrounded.
+    refetchInterval: inferenceReady && (autoRefresh || live) ? POLL_MS : false,
   });
 
   useEffect(() => {
@@ -142,7 +148,7 @@ export function FishPlanPanel({
       : "—";
 
   return (
-    <section className="panel panel--mb">
+    <section className="panel">
       <h2>Drive logic (live decision)</h2>
       <p className="fish-plan__intro">
         The live frame with the detector's boxes and what the bot <em>would</em>{" "}
@@ -154,7 +160,9 @@ export function FishPlanPanel({
 
       {/* Fishing run control — start/stop an isolated worker for this device
           and play the Fishing Tournament, without spinning up the whole fleet. */}
-      <FishPlayControl instanceId={instanceId} />
+      <div className="fish-play-card">
+        <FishPlayControl instanceId={instanceId} />
+      </div>
 
       {inferenceReady && error ? (
         <div className="error-banner">{error}</div>
@@ -163,10 +171,7 @@ export function FishPlanPanel({
         <div className="error-banner">Inference unavailable: {result.error}</div>
       ) : null}
 
-      <div
-        className="toolbar"
-        style={{ flexWrap: "wrap", alignItems: "center", marginBottom: "1rem" }}
-      >
+      <div className="toolbar" style={{ flexWrap: "wrap", alignItems: "center" }}>
         <span
           className="status-pill"
           style={{ background: phaseColor, color: "#0b1220" }}
@@ -212,6 +217,12 @@ export function FishPlanPanel({
             style={{ display: "block", width: 200 }}
           />
         </label>
+        <AppCheckbox
+          inline
+          checked={autoRefresh}
+          onChange={setAutoRefresh}
+          label="Auto-refresh"
+        />
         <AppCheckbox
           inline
           checked={live}

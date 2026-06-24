@@ -128,6 +128,11 @@ export function ScreenStream({
           width: "100%",
           height: "100%",
           pointerEvents: "none",
+          // .preview-canvas paints bg-black (it's the image surface in
+          // ApprovalCanvas). Here it's a transparent overlay *on top of* the
+          // live <img>, so the black backdrop must be cleared or it hides the
+          // video — the canvas only draws the detection/drive shapes.
+          background: "transparent",
         }}
       />
       {status !== "live" ? (
