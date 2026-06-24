@@ -37,6 +37,7 @@ DOMAIN_BAND: dict[str, float] = {
     "heroes": 580.0,
     "pets": 560.0,
     "building_camp": 560.0,
+    "charms": 550.0,
     "troops": 540.0,
     "building_economy": 520.0,
     "gather": 450.0,
@@ -54,6 +55,7 @@ DOMAIN_CATEGORY: dict[str, str] = {
     "troops": "battle",
     "heroes": "growth",          # role tilt already baked into the hero planner's value
     "pets": "growth",            # role tilt already baked into the pet planner's value
+    "charms": "growth",          # role tilt already baked into the charm planner's value
     "intel": "growth",           # time-limited free loot — valuable to every role
     "romance_season": "growth",  # time-limited event reward — valuable to every role
 }

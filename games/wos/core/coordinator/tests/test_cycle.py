@@ -135,6 +135,19 @@ def test_training_cost_flows_to_the_shared_pool():
     assert plan.decision.commits[0].action.cost == {"meat": 10_000}   # 1000 × batch 10
 
 
+def test_charm_channel_joins_the_tick():
+    """A Chief Charm pick fills the CHARM channel with its real material cost."""
+    from games.wos.core.charms.planner import plan_next as charm_plan_next
+    from games.wos.core.coordinator import CHARM
+    balances = {"charm_guide": 10**6, "charm_design": 10**6, "charm_secrets": 10**6}
+    chplan = charm_plan_next({}, balances, furnace_level=25)
+    plan = plan_cycle(channels=[Channel("ch1", CHARM)], balances=balances, charms_plan=chplan)
+    action = plan.decision.commits[0].action
+    assert action.channel_kind == CHARM
+    assert action.domain == "charms"
+    assert action.cost == {"charm_guide": 5}        # a level-0 → L1 step
+
+
 def test_calendar_event_boosts_its_reward_domains():
     """A live Power Up event lifts the any-power domains (incl. research)."""
     rg = load_research_graph()

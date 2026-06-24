@@ -14,13 +14,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .model import CONSTRUCTION, HERO, MARCH, PET, RESEARCH, TRAINING, CandidateAction
+from .model import CHARM, CONSTRUCTION, HERO, MARCH, PET, RESEARCH, TRAINING, CandidateAction
 from .objective import TRACK_DOMAIN, domain_priority
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from games.wos.core.building.planner import BuildGraph, BuildSlate
+    from games.wos.core.charms.planner import CharmPlan
     from games.wos.core.pets.planner import PetPlan
     from games.wos.core.research.planner import ResearchGraph, ResearchPlan
     from games.wos.core.roles import RoleProfile
@@ -136,6 +137,29 @@ def from_pet_plan(
         priority=domain_priority("pets", boost=(boosts or {}).get("pets", 1.0)),
         cost=dict(step.cost),
         detail=f"{step.pet_id} {step.kind} -> {step.to_level}",
+    )]
+
+
+def from_charms_plan(
+    plan: CharmPlan,
+    *,
+    boosts: Mapping[str, float] | None = None,
+) -> list[CandidateAction]:
+    """The Chief Charm pick (one charm channel), if any.
+
+    Role is baked into the charm planner's value; the coordinator slots it at the
+    ``charms`` band. ``cost`` is the shared charm-material pool (guide/design/secrets).
+    """
+    step = plan.step
+    if step is None:
+        return []
+    return [CandidateAction(
+        domain="charms",
+        channel_kind=CHARM,
+        key=f"{step.slot_id}:L{step.to_level}",
+        priority=domain_priority("charms", boost=(boosts or {}).get("charms", 1.0)),
+        cost=dict(step.cost),
+        detail=f"charm {step.slot_id} -> L{step.to_level}",
     )]
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .adapters import (
     from_build_slate,
+    from_charms_plan,
     from_hero_plan,
     from_intel_plan,
     from_pet_plan,
@@ -51,6 +52,7 @@ from .feedback import (
 )
 from .march import intel_intent, march_channels, plan_march, timed_event_intent
 from .model import (
+    CHARM,
     CONSTRUCTION,
     HERO,
     MARCH,
@@ -87,6 +89,7 @@ from .safety import (
 )
 
 __all__ = [
+    "CHARM",
     "CONSTRUCTION",
     "DOMAIN_BAND",
     "EVENT_CATALOG",
@@ -136,6 +139,7 @@ __all__ = [
     "domain_priority",
     "economy_bias",
     "from_build_slate",
+    "from_charms_plan",
     "from_hero_plan",
     "from_intel_plan",
     "from_pet_plan",

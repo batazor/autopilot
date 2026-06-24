@@ -1,0 +1,37 @@
+# Chief Charms upgrade table — per main level (1..16), re-encoded game FACTS.
+#
+# A Chief Charm levels 1→16; the COST + POWER curve is IDENTICAL for all 18 charm
+# slots (6 Chief Gear pieces × 3 charms; 2 pieces per troop type — only the stat's
+# troop-type differs), so one shared table drives every slot.
+#   cost  — materials to raise a charm FROM the previous level TO this one:
+#           charm_guide / charm_design / charm_secrets (Secrets enter at L12).
+#           Keys match db/items/charm_*.yaml.
+#   power — the charm's power AT this level (the planner uses the level-to-level delta).
+#
+# Source: heaven-guardian's static upgrade chart (numbers only, independently
+# transcribed; two-source-agreed on cost — wiki also lists 650 Guides @ L16). NOTE:
+# the source's `power` stops at L11, so L12-16 ship `null` (honest, not fabricated);
+# the planner falls back to cost-efficiency there. Spot-check rows in-game.
+# Read by games/wos/core/charms/planner/model.py.
+troop_types: [infantry, lancer, marksman]
+slots_per_type: 6            # 2 gear pieces × 3 charms per troop type = 6 charm slots (18 total)
+unlock_furnace_level: 25     # Chief Charms unlock at Furnace Lv. 25
+max_level: 16
+
+levels:
+  - {level: 1,  cost: {charm_guide: 5},                                       power: 205700}
+  - {level: 2,  cost: {charm_guide: 40,  charm_design: 15},                   power: 288000}
+  - {level: 3,  cost: {charm_guide: 60,  charm_design: 40},                   power: 370000}
+  - {level: 4,  cost: {charm_guide: 80,  charm_design: 100},                  power: 452000}
+  - {level: 5,  cost: {charm_guide: 100, charm_design: 200},                  power: 576000}
+  - {level: 6,  cost: {charm_guide: 120, charm_design: 300},                  power: 700000}
+  - {level: 7,  cost: {charm_guide: 140, charm_design: 400},                  power: 824000}
+  - {level: 8,  cost: {charm_guide: 200, charm_design: 400},                  power: 948000}
+  - {level: 9,  cost: {charm_guide: 300, charm_design: 400},                  power: 1072000}
+  - {level: 10, cost: {charm_guide: 420, charm_design: 420},                  power: 1196000}
+  - {level: 11, cost: {charm_guide: 560, charm_design: 420},                  power: 1320000}
+  - {level: 12, cost: {charm_guide: 580, charm_design: 450, charm_secrets: 15},  power: null}
+  - {level: 13, cost: {charm_guide: 580, charm_design: 450, charm_secrets: 30},  power: null}
+  - {level: 14, cost: {charm_guide: 600, charm_design: 500, charm_secrets: 45},  power: null}
+  - {level: 15, cost: {charm_guide: 600, charm_design: 500, charm_secrets: 70},  power: null}
+  - {level: 16, cost: {charm_guide: 650, charm_design: 550, charm_secrets: 100}, power: null}

@@ -31,6 +31,7 @@ MARCH = "march"
 TRAINING = "training"
 HERO = "hero"                # hero investment (books/shards spend)
 PET = "pet"                  # pet investment (food/shards spend)
+CHARM = "charm"              # Chief Charm investment (guide/design/secret spend)
 
 
 @dataclass(frozen=True, slots=True)
