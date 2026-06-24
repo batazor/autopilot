@@ -2,8 +2,12 @@ screens:
   heroes:
     priority: 30
     rules:
-    - match: heroes.grid
-      threshold: 0.9
+    # OCR the "Heroes" header (top-left) rather than template-matching the whole
+    # grid: the grid template goes stale the moment the roster/sort changes, which
+    # made navigation to the heroes screen fail (verify never passed). The title
+    # is stable regardless of which heroes are shown. Mirrors hero.recruitment.
+    - ocr: heroes.title
+      contains: "Heroes"
 
   hero.recruitment:
     priority: 30

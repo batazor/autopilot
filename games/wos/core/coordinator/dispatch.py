@@ -17,6 +17,7 @@ double-dispatch today; the coordinator is the intended owner of MARCH dispatch.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import dataclass, replace
@@ -146,6 +147,93 @@ class MarchDispatch:
 
     enqueued: tuple[MarchEnqueue, ...]
     skipped: tuple[MarchSkip, ...]
+
+
+# Decision-trace ring buffer — mirrors stamina/resources adapters so `botctl why`
+# / `botctl planners` can surface what march last decided (per player).
+TRACE_RETENTION_SECONDS = 24 * 3600
+TRACE_RETENTION_CAP = 50
+
+# Per-player signature of the last march outcome we traced. The scheduler is one
+# long-lived process, so an in-memory gate (like the runner's stamina/resource
+# sig maps) keeps the ring buffer to real changes instead of one row per tick.
+_MARCH_TRACE_SIG: dict[str, str] = {}
+
+
+def march_trace_key(player_id: str) -> str:
+    return f"wos:player:{player_id}:march_decisions"
+
+
+def _march_reason(dispatch: MarchDispatch, *, idle_slots: int, had_candidates: bool) -> str:
+    if dispatch.enqueued:
+        return "queued " + ",".join(e.domain for e in dispatch.enqueued)
+    if idle_slots <= 0:
+        return "нет свободных march-слотов"
+    if not had_candidates:
+        return "нет кандидатов (stamina/cooldown/reserve)"
+    if dispatch.skipped and all(s.reason == "duplicate" for s in dispatch.skipped):
+        return "кандидаты уже в полёте"
+    return "ничего не закоммичено"
+
+
+def march_decision_payload(
+    dispatch: MarchDispatch, *, idle_slots: int, stamina: float | None, had_candidates: bool, now: float
+) -> dict[str, Any]:
+    """JSON-able snapshot of one march tick (shape aligns with stamina/resources)."""
+    return {
+        "ts": now,
+        "action": "dispatch" if dispatch.enqueued else "idle",
+        "reason": _march_reason(dispatch, idle_slots=idle_slots, had_candidates=had_candidates),
+        "target": dispatch.enqueued[0].domain if dispatch.enqueued else "",
+        "idle_slots": int(idle_slots),
+        "stamina_est": stamina,
+        "enqueued": [
+            {"domain": e.domain, "task": e.task_type, "priority": e.priority}
+            for e in dispatch.enqueued
+        ],
+        "skipped": [{"domain": s.domain, "reason": s.reason} for s in dispatch.skipped],
+    }
+
+
+def _march_signature(dispatch: MarchDispatch, idle_slots: int) -> str:
+    enq = ",".join(sorted(e.domain for e in dispatch.enqueued))
+    skp = ",".join(sorted(f"{s.domain}:{s.reason}" for s in dispatch.skipped))
+    return f"{'1' if dispatch.enqueued else '0'}|{enq}|{skp}|{'slots' if idle_slots > 0 else 'full'}"
+
+
+async def write_march_trace(
+    redis: Redis,
+    player_id: str,
+    dispatch: MarchDispatch,
+    *,
+    idle_slots: int,
+    stamina: float | None,
+    had_candidates: bool,
+    now: float,
+) -> None:
+    """Append a march decision to the per-player ring buffer ZSET (signature-gated).
+
+    Best-effort and deduped on outcome change — a Redis flap or an unchanged tick
+    must never affect dispatch.
+    """
+    sig = _march_signature(dispatch, idle_slots)
+    if _MARCH_TRACE_SIG.get(player_id) == sig:
+        return
+    key = march_trace_key(player_id)
+    payload = march_decision_payload(
+        dispatch, idle_slots=idle_slots, stamina=stamina, had_candidates=had_candidates, now=now
+    )
+    member = json.dumps(payload, separators=(",", ":"))
+    try:
+        pipe = redis.pipeline(transaction=False)
+        pipe.zadd(key, {member: now})
+        pipe.zremrangebyscore(key, 0, now - TRACE_RETENTION_SECONDS)
+        pipe.zremrangebyrank(key, 0, -(TRACE_RETENTION_CAP + 1))
+        pipe.expire(key, TRACE_RETENTION_SECONDS)
+        await pipe.execute()
+        _MARCH_TRACE_SIG[player_id] = sig
+    except Exception:
+        logger.debug("march decision trace write failed", exc_info=True)
 
 
 async def dispatch_march(
@@ -333,10 +421,20 @@ async def run_march_tick(
         boosts=boosts,
         extra_candidates=extras,
     )
-    return await dispatch_march(
+    dispatch = await dispatch_march(
         decision,
         queue=queue,
         instance_id=instance_id,
         player_id=player_id,
         now=now,
     )
+    await write_march_trace(
+        redis,
+        player_id,
+        dispatch,
+        idle_slots=idle_slots,
+        stamina=stamina,
+        had_candidates=bool(extras),
+        now=now,
+    )
+    return dispatch

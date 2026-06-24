@@ -68,6 +68,16 @@ def bot_screenshot(instance: str | None = None, fresh: bool = False) -> dict[str
     return _run(core.screenshot, instance, fresh=fresh)
 
 
+def bot_why(instance: str | None = None) -> dict[str, Any]:
+    """Explain the running task: scenario, who chose it (source), rank_meta, latest planner decisions."""
+    return _run(core.why, instance)
+
+
+def bot_planners(fid: str | None = None, instance: str | None = None) -> dict[str, Any]:
+    """Live status of every planner: LIVE/DORMANT/CALC-ONLY, blind? (missing readers), last decision."""
+    return _run(core.planners, fid, instance=instance)
+
+
 def bot_player(fid: str, key: str | None = None) -> dict[str, Any]:
     """Per-account state from SQLite, flattened to dot-keys; optional key-prefix filter."""
     return _run(core.player, fid, key)
@@ -172,6 +182,8 @@ TOOLS = [
     bot_history,
     bot_trace,
     bot_screenshot,
+    bot_why,
+    bot_planners,
     bot_player,
     bot_scenarios,
     bot_devices,

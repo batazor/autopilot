@@ -96,18 +96,19 @@ class InstanceWorkerTasksMixin(_Base):
                 import json
                 inst_running_key = _running_key_for_instance(self._cfg.instance_id)
 
-                payload = json.dumps(
-                    {
-                        "task_id": item.task_id,
-                        "task_type": item.task_type,
-                        "player_id": item.player_id,
-                        "priority": item.priority,
-                        "instance_id": self._cfg.instance_id,
-                        "region": item.region or "",
-                        "started_at": started_at,
-                    },
-                    ensure_ascii=False,
-                )
+                running_payload: dict[str, object] = {
+                    "task_id": item.task_id,
+                    "task_type": item.task_type,
+                    "player_id": item.player_id,
+                    "priority": item.priority,
+                    "instance_id": self._cfg.instance_id,
+                    "region": item.region or "",
+                    "started_at": started_at,
+                }
+                # Ranking breakdown of why this task won the pop (for `botctl why`).
+                if item.rank_meta:
+                    running_payload["rank_meta"] = item.rank_meta
+                payload = json.dumps(running_payload, ensure_ascii=False)
                 # Per-instance key (preferred).
                 await self._redis.set(inst_running_key, payload, ex=180)  # type: ignore[union-attr]
                 # Backward-compat: global "last running" snapshot.

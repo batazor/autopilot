@@ -1,0 +1,142 @@
+# Planner registry for Whiteout Survival — drives `botctl planners` (explainability).
+#
+# Pure metadata. Read by src/agentctl/core.planners(); NO planner code is imported,
+# so the engine stays game-agnostic and this file can't break the bot. Each entry
+# describes one decision planner and how to introspect its live status.
+#
+# Derived status (computed by core.planners, not stored here):
+#   wired: calculator        → CALC-ONLY  (implemented, but nothing auto-invokes it)
+#   <config>.enabled == false → DORMANT    (gated off on purpose)
+#   else                      → LIVE       (auto-invoked by scheduler/cron)
+# Independently, `blind` is true when any required observed_input is absent from
+# the player's state (the reader that should produce it doesn't exist / hasn't run).
+#
+# Fields:
+#   name            unique id (CLI/JSON key)
+#   title           human label
+#   domain          shared channel it competes on (MARCH / STAMINA / BUILD / …)
+#   wired           scheduler | cron | calculator | via-march  (how it's invoked)
+#   config          path (repo-relative) to the YAML carrying `enabled` ("" = none)
+#   enabled_key     top-level key in that YAML holding the on/off flag (default: enabled)
+#   trace_key       Redis ZSET of decision snapshots, {fid} templated ("" = no trace yet)
+#   observed_inputs state keys (glob with trailing .* allowed) the planner needs to act
+#   note            one-line why-it's-in-this-state, for the operator/agent
+
+planners:
+  - name: march
+    title: "March-канал (intel + таймед-события)"
+    domain: MARCH
+    wired: scheduler
+    config: games/wos/core/coordinator/march.yaml
+    enabled_key: enabled
+    trace_key: "wos:player:{fid}:march_decisions"
+    observed_inputs: []          # runs even partially-blind (gather fallback fills slots)
+    note: "Единственный LIVE планировщик: заполняет свободные march-слоты каждый тик."
+
+  - name: stamina
+    title: "Бюджет выносливости"
+    domain: STAMINA
+    wired: scheduler
+    config: games/wos/core/stamina/budget.yaml
+    enabled_key: enabled
+    trace_key: "wos:player:{fid}:stamina_decisions"
+    observed_inputs: [stamina]
+    note: "enabled:false — потребители (joe/intel/beast) пока заглушки wait:1s."
+
+  - name: resources
+    title: "Аллокатор общих ресурсов (слоты/войска/герои)"
+    domain: MARCH
+    wired: scheduler
+    config: games/wos/core/resources/actions.yaml
+    enabled_key: enabled
+    trace_key: "wos:player:{fid}:resource_decisions"
+    observed_inputs:
+      - "troops.infantry.available"
+      - "heroes.roster"
+    note: "enabled:false; входы читаются (sync_hero_roster + sync_troop_pool). Флипнуть enabled:true когда потребители перестанут быть заглушками."
+
+  - name: fleet
+    title: "Кросс-аккаунтные кампании"
+    domain: CROSS-ACCOUNT
+    wired: scheduler
+    config: games/wos/core/fleet/fleet.yaml
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs: []
+    note: "Мастер-выключатель + 3 кампании выкл; нужны on-device сценарии switch/recall/attack."
+
+  - name: building
+    title: "Планировщик строек (furnace-first)"
+    domain: BUILD
+    wired: cron
+    config: games/wos/core/building/common/scenarios/by_cron/building.plan_tick.cron.yaml
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "buildings.levels.*"
+    note: "Крон */10м кладёт рекомендацию в state; апгрейд сам не диспатчит."
+
+  - name: intel
+    title: "Планировщик intel-событий (встроен в march)"
+    domain: MARCH
+    wired: via-march
+    config: games/wos/core/coordinator/march.yaml
+    enabled_key: enabled
+    trace_key: "wos:player:{fid}:march_decisions"
+    observed_inputs: []
+    note: "Не отдельный тик: march вызывает intel_intent под кулдауном/слотами."
+
+  - name: research
+    title: "Планировщик исследований (value-greedy)"
+    domain: RESEARCH
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "research.levels.*"
+    note: "Только /planner-калькулятор; в шедулер не подключён + нет ридера уровней техов."
+
+  - name: heroes
+    title: "Планировщик прокачки героев"
+    domain: HERO
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "heroes.roster"
+    note: "Только калькулятор; ростер читается (sync_hero_roster), звёзды/навыки (per-hero detail) ещё нет."
+
+  - name: pets
+    title: "Планировщик прокачки питомцев"
+    domain: PET
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "pets.owned"
+    note: "Только калькулятор; нет ридера владения/уровней питомцев."
+
+  - name: island
+    title: "Планировщик Daybreak Island (Tree of Life)"
+    domain: ISLAND
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "island.tree_of_life.level"
+    note: "Только калькулятор; нет ридера дерева/процветания/декораций."
+
+  - name: troops
+    title: "Планировщик состава войск"
+    domain: TROOPS
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "troops.infantry.available"
+    note: "Только калькулятор; численность по типам читается (sync_troop_pool, max-per-type)."

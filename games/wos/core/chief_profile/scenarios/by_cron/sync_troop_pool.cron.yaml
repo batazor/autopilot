@@ -1,0 +1,33 @@
+enabled: true
+name: "⚔️ Sync troop pool (reader)"
+
+# Background reader: opens the Troops Preview (chief_profile → Troops) and reads
+# the per-type troop totals into troops.<type>.available, the un-blind input the
+# shared-resource allocator's typed pool needs. chief_profile is reliably reachable
+# from main_city (no radar scan); the Troops button + back are plain click regions,
+# so this needs no new screen-graph node — the exec captures its own frame.
+#
+# Low priority + slow cron: troop totals shift only when you train/heal/march, and
+# this navigates off main_city, so it must never preempt real work (check_main_city
+# brings the bot home afterwards).
+priority: 40_000
+cron: "29 */6 * * *"           # every 6h, offset off the hour
+node: troops_preview           # navigator routes main_city → chief_profile → Troops
+cond: "active_player != null"
+
+# Read all three tabs: All → troops.<type>.total, City (at home) →
+# troops.<type>.available (the allocator's input), Wilderness (deployed) →
+# troops.<type>.wilderness. City/Wilderness carry an extra "Troops: N" sub-header,
+# so the exec uses a shifted grid geometry for them (picked by the `tab:` arg).
+steps:
+  - exec: sync_troop_pool
+    tab: all
+  - click: troops_preview.tab.city
+  - wait: 1.2s
+  - exec: sync_troop_pool
+    tab: city
+  - click: troops_preview.tab.wilderness
+  - wait: 1.2s
+  - exec: sync_troop_pool
+    tab: wilderness
+  - click: troops_preview.tab.all       # leave on All for the next visit

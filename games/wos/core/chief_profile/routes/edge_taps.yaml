@@ -4,3 +4,7 @@ edges:
 
   chief_profile:
     main_city: [icon.page.back]
+    troops_preview: [icon.troopse]
+
+  troops_preview:
+    chief_profile: [icon.page.back]

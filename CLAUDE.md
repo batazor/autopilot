@@ -58,6 +58,8 @@ uv run botctl state bs1            # full per-instance detail
 uv run botctl queue bs1 --history  # pending + running (+ recent history)
 uv run botctl history bs1 -n 10    # recent executions (ok/fail, reason, duration)
 uv run botctl trace bs1            # last scenario's step-by-step trace
+uv run botctl why bs1              # WHY the running/last task was chosen: source (cron/overlay/optimizer/operator/focus), rank_meta, latest planner decisions
+uv run botctl planners            # live status of every planner: LIVE / DORMANT / CALC-ONLY, blind? (missing readers), last decision
 uv run botctl screenshot bs1       # path to the live preview PNG → then Read that path to SEE the screen
 uv run botctl player 401227964 buildings.levels   # per-account SQLite state (dot-key filter)
 uv run botctl scenarios --grep mail               # list DSL scenarios + metadata

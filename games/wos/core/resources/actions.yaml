@@ -33,14 +33,14 @@ resources:
     cap: 200
     regen_per_hour: 12
 
-  troops:                       # ⏳ reader pending → sync_troop_pool writes
-    kind: typed_pool            #    troops.<type>.available / .wounded
-    observed: false
+  troops:                       # ✅ sync_troop_pool writes troops.<type>.available
+    kind: typed_pool            #    (max-per-type off the Troops Preview grid)
+    observed: true
     types: [infantry, lancer, marksman]
 
-  heroes:                       # ⏳ reader pending → sync_hero_roster writes
-    kind: exclusive_set         #    heroes.<id>.{roles,free}; one march per hero
-    observed: false
+  heroes:                       # ✅ sync_hero_roster writes heroes.roster
+    kind: exclusive_set         #    [{id,role,free}]; one march per hero
+    observed: true
     roles: [combat, gatherer]
 
 # Troop `amount` values are nominal until the troop reader lands (a march's real

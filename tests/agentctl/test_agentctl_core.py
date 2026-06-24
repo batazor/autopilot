@@ -263,3 +263,152 @@ def test_screenshot_returns_existing_path(
 def test_bot_lifecycle_unknown_action() -> None:
     with pytest.raises(AgentctlError, match="unknown bot action"):
         core.bot_lifecycle("frobnicate")
+
+
+# --------------------------------------------------------------------------- #
+# Explainability — why() / planners() and their pure helpers
+# --------------------------------------------------------------------------- #
+NOW = 1_700_000_000.0
+
+
+class FakeRedisZ:
+    """A fake redis exposing just ``zrevrange`` for decision-trace reads."""
+
+    def __init__(self, zsets: dict[str, list[tuple[str, float]]] | None = None) -> None:
+        self.zsets = zsets or {}
+
+    def zrevrange(self, key: str, start: int, end: int, withscores: bool = False):
+        items = self.zsets.get(key, [])
+        sl = items[start : (end + 1 if end >= 0 else None)]
+        return sl if withscores else [m for m, _ in sl]
+
+
+@pytest.fixture
+def fake_redis_z(monkeypatch: pytest.MonkeyPatch) -> FakeRedisZ:
+    fr = FakeRedisZ()
+    monkeypatch.setattr("dashboard.redis_client.require_redis_connection", lambda: fr)
+    return fr
+
+
+def test_decode_source_prefixes() -> None:
+    src = lambda tid, p=1, f=False: core._decode_source(tid, priority=p, focused=f)["code"]  # noqa: E731
+    assert src("cron:check:1") == "cron"
+    assert src("ovl:bs1:x") == "overlay"
+    assert src("notify:abc") == "notify"
+    assert src("optimizer:abc") == "optimizer"
+    assert src("coord-switch:abc") == "coord_switch"  # must beat the coord: prefix
+    assert src("coord:abc") == "coordinator"
+    assert src("dsl:push:scn") == "dsl_push"
+    assert src("queue:abc") == "operator"
+    assert src("queue:abc", p=95_000) == "focus"   # high-priority enqueue
+    assert src("cron:x", f=True) == "focus"          # focus mode overrides
+    assert src("mystery") == "unknown"
+
+
+def test_input_present_exact_and_wildcard() -> None:
+    flat = {"buildings.levels.furnace": "5", "stamina": "120", "blank": ""}
+    assert core._input_present(flat, "stamina")
+    assert not core._input_present(flat, "blank")        # present but empty
+    assert not core._input_present(flat, "missing")
+    assert core._input_present(flat, "buildings.levels.*")
+    assert not core._input_present(flat, "research.levels.*")
+
+
+def test_planners_classifies_status_blind_and_last_decision(
+    fake_redis_z: FakeRedisZ, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = [
+        {"name": "march", "wired": "scheduler", "config": "x/march.yaml",
+         "trace_key": "wos:player:{fid}:march_decisions", "observed_inputs": []},
+        {"name": "stamina", "wired": "scheduler", "config": "x/stamina.yaml",
+         "trace_key": "", "observed_inputs": ["stamina"]},
+        {"name": "resources", "wired": "scheduler", "config": "x/res.yaml",
+         "trace_key": "", "observed_inputs": ["troops.infantry.available"]},
+        {"name": "heroes", "wired": "calculator", "config": "",
+         "trace_key": "", "observed_inputs": ["heroes.roster"]},
+        {"name": "intel", "wired": "via-march", "config": "x/march.yaml",
+         "trace_key": "", "observed_inputs": []},
+    ]
+    enabled = {"x/march.yaml": True, "x/stamina.yaml": False, "x/res.yaml": False}
+    monkeypatch.setattr(core, "_load_planner_manifest", lambda *_a, **_k: manifest)
+    monkeypatch.setattr(core, "_yaml_enabled", lambda cfg, _key: enabled.get(cfg))
+    monkeypatch.setattr(core, "_resolve_active_fid", lambda *_a, **_k: "42")
+    monkeypatch.setattr(core, "_player_flat", lambda *_a, **_k: {"stamina": "120"})
+    fake_redis_z.zsets["wos:player:42:march_decisions"] = [
+        (json.dumps({"ts": NOW, "action": "dispatch", "reason": "queued intel", "target": "intel"}), NOW),
+    ]
+
+    out = core.planners()
+    by = {p["name"]: p for p in out["planners"]}
+    assert out["fid"] == "42"
+    assert by["march"]["status"] == "LIVE"
+    assert by["march"]["blind"] is False
+    assert by["march"]["last_decision"]["action"] == "dispatch"
+    assert by["stamina"]["status"] == "DORMANT"
+    assert by["stamina"]["blind"] is False           # stamina observed
+    assert by["resources"]["status"] == "DORMANT"
+    assert by["resources"]["blind"] is True           # troops reader missing
+    assert by["resources"]["missing_inputs"] == ["troops.infantry.available"]
+    assert by["heroes"]["status"] == "CALC-ONLY"
+    assert by["intel"]["status"] == "VIA-MARCH"
+
+
+def test_planners_blind_unknown_without_player(
+    fake_redis_z: FakeRedisZ, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = [{"name": "stamina", "wired": "scheduler", "config": "x/stamina.yaml",
+                 "trace_key": "", "observed_inputs": ["stamina"]}]
+    monkeypatch.setattr(core, "_load_planner_manifest", lambda *_a, **_k: manifest)
+    monkeypatch.setattr(core, "_yaml_enabled", lambda _cfg, _key: True)
+    monkeypatch.setattr(core, "_resolve_active_fid", lambda *_a, **_k: "")  # no active player
+    out = core.planners()
+    assert out["fid"] == ""
+    assert out["planners"][0]["blind"] is None        # unknown without a player
+
+
+def test_why_running_decodes_source_rank_meta_and_decisions(
+    fake_redis_z: FakeRedisZ, one_instance: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dashboard.redis_client import RunningQueueRow
+
+    row = RunningQueueRow(
+        task_id="cron:check:42:1", player_id="42", task_type="check_main_city",
+        priority=55_000, instance_id="bs1", started_at=100.0, region=None,
+        payload={"dsl_scenario": "check_main_city",
+                 "rank_meta": {"effective_priority": 54_500, "graph_debuff": 500, "hops": 1}},
+    )
+    monkeypatch.setattr("dashboard.redis_client.fetch_running_queue_row", lambda *_a, **_k: row)
+    monkeypatch.setattr("dashboard.redis_client.get_instance_state", lambda *_a, **_k: {"current_task_id": "cron:check:42:1"})
+    fake_redis_z.zsets["wos:player:42:stamina_decisions"] = [
+        (json.dumps({"ts": NOW, "action": "idle", "reason": "stamina unknown"}), NOW),
+    ]
+
+    out = core.why("bs1")
+    assert out["running"] is True
+    assert out["scenario"] == "check_main_city"
+    assert out["source"]["code"] == "cron"
+    assert out["rank_meta"]["graph_debuff"] == 500
+    assert out["decisions_player"] == "42"
+    assert out["decisions"]["stamina"]["action"] == "idle"
+    assert out["decisions"]["march"] is None
+
+
+def test_why_idle_falls_back_to_last_history_task(
+    fake_redis_z: FakeRedisZ, one_instance: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dashboard.redis_client import QueueHistoryRow
+
+    h = QueueHistoryRow(
+        task_id="queue:abc", task_type="x", scenario="event.fishing_tournament",
+        player_id="42", instance_id="bs1", priority=90_000, started_at=10.0,
+        finished_at=20.0, duration_s=10.0, success=True, steps_trace=[],
+    )
+    monkeypatch.setattr("dashboard.redis_client.fetch_running_queue_row", lambda *_a, **_k: None)
+    monkeypatch.setattr("dashboard.redis_client.get_instance_state", lambda *_a, **_k: {})
+    monkeypatch.setattr("dashboard.redis_client.fetch_queue_history_rows", lambda *_a, **_k: [h])
+
+    out = core.why("bs1")
+    assert out["running"] is False
+    assert out["from_history"] is True
+    assert out["scenario"] == "event.fishing_tournament"
+    assert out["source"]["code"] == "focus"   # priority 90_000 → focus enqueue

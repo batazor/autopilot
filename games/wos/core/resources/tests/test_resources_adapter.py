@@ -49,8 +49,8 @@ def test_build_world_reads_slots_and_stamina():
     assert world.slots_capacity == 6
     assert world.slots_free == 4
     assert world.stamina_est == 100.0
-    assert world.troops_observed is False     # reader not built yet
-    assert world.heroes_observed is False
+    assert world.troops_observed is True      # sync_troop_pool reader exists → observed
+    assert world.heroes_observed is True      # sync_hero_roster reader exists → observed
 
 
 def test_build_world_interpolates_stamina():

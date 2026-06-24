@@ -40,6 +40,7 @@ __all__ = [
     "list_instances",
     "logs",
     "pause",
+    "planners",
     "player",
     "queue",
     "queue_clear",
@@ -52,6 +53,7 @@ __all__ = [
     "screenshot",
     "status",
     "trace",
+    "why",
 ]
 
 
@@ -413,6 +415,310 @@ def logs(*, instance: str | None = None, limit: int = 200) -> dict[str, Any]:
         needle = f"[{instance}/"
         text = [ln for ln in text if needle in ln]
     return {"logfile": str(path), "lines": text[-max(1, limit):]}
+
+
+# --------------------------------------------------------------------------- #
+# Explainability — why is this task running / what is each planner doing
+# --------------------------------------------------------------------------- #
+# A task's provenance is encoded in its task_id prefix (the scheduler stamps no
+# explicit source field). Map prefix → human source so `why` can name who chose
+# the running task. See src/scheduler/queue.py + the enqueue sites.
+_SOURCE_PREFIXES: tuple[tuple[str, str, str], ...] = (
+    ("coord-switch:", "coord_switch", "координатор: смена аккаунта"),
+    ("coord:", "coordinator", "координатор (кампания/march)"),
+    ("cron:", "cron", "плановый крон"),
+    ("ovl:", "overlay", "overlay-правило (red-dot/иконка на экране)"),
+    ("notify:", "notify", "уведомление телефона"),
+    ("optimizer:", "optimizer", "автономный оптимизатор (hero/building)"),
+    ("dsl:push:", "dsl_push", "push_scenario из другого сценария"),
+    ("dsl:", "dsl_push", "push_scenario из другого сценария"),
+    ("queue:", "operator", "оператор / API (Run now / календарь)"),
+)
+
+
+def _decode_source(task_id: str, *, priority: int, focused: bool) -> dict[str, str]:
+    """Human source of a task from its id prefix (+ focus/priority hints)."""
+    tid = str(task_id or "")
+    code, label = "unknown", "неизвестно (нет префикса)"
+    for prefix, c, lbl in _SOURCE_PREFIXES:
+        if tid.startswith(prefix):
+            code, label = c, lbl
+            break
+    if focused:
+        return {"code": "focus", "label": f"focus-режим (поверх: {label})"}
+    if code == "operator" and priority >= 90_000:
+        return {"code": "focus", "label": "focus-режим (high-priority enqueue)"}
+    return {"code": code, "label": label}
+
+
+def _latest_zset_json(client: redis.Redis, key: str) -> dict[str, Any] | None:
+    """Newest member of a decision-trace ZSET, parsed from JSON (or ``None``)."""
+    if not key:
+        return None
+    try:
+        items = client.zrevrange(key, 0, 0, withscores=True)
+    except Exception:
+        return None
+    if not items:
+        return None
+    member, score = items[0]
+    if isinstance(member, bytes):
+        member = member.decode("utf-8", "replace")
+    try:
+        data = json.loads(member)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if isinstance(data, dict):
+        data.setdefault("ts", score)
+        return data
+    return None
+
+
+def _resolve_active_fid(client: redis.Redis, instance_id: str | None = None) -> str:
+    """First non-empty active player across instances (or one instance)."""
+    from dashboard.redis_client import get_instance_state
+
+    ids = [instance_id] if instance_id else list_instances()
+    for iid in ids:
+        if not iid:
+            continue
+        st = get_instance_state(client, iid)
+        ap = (st.get("active_player") or st.get("current_task_player") or "").strip()
+        if ap:
+            return ap
+    return ""
+
+
+def _player_flat(client: redis.Redis, fid: str) -> dict[str, str]:
+    """Merge durable SQLite state + the Redis player hash for presence checks.
+
+    Durable carries ``buildings.levels.*`` etc; the Redis hash carries hot runtime
+    values like ``stamina``. Best-effort — missing/unknown player yields ``{}``.
+    """
+    flat: dict[str, str] = {}
+    fid = str(fid or "").strip()
+    if not fid:
+        return flat
+    try:
+        from config.state_store import get_state_store
+
+        store = get_state_store().get(fid)
+        if store is not None:
+            flat.update({str(k): _cell(v) for k, v in store.to_flat_dict().items()})
+    except Exception:
+        pass
+    try:
+        from dashboard.redis_client import get_player_state_hash
+
+        for k, v in get_player_state_hash(client, fid).items():
+            if str(v).strip():
+                flat[str(k)] = str(v)
+    except Exception:
+        pass
+    return flat
+
+
+def _cell(v: Any) -> str:
+    return "" if v is None else str(v)
+
+
+def _input_present(flat: dict[str, str], pattern: str) -> bool:
+    """Is ``pattern`` satisfied by a non-empty value in ``flat``?
+
+    ``foo.bar.*`` matches any key under ``foo.bar``; a plain key matches exactly.
+    """
+    pat = str(pattern or "").strip()
+    if not pat:
+        return True
+    if pat.endswith(".*"):
+        prefix = pat[:-2]
+        return any(
+            (k == prefix or k.startswith(prefix + ".")) and str(v).strip()
+            for k, v in flat.items()
+        )
+    return bool(str(flat.get(pat, "")).strip())
+
+
+def _load_planner_manifest(path: str | Path | None = None) -> list[dict[str, Any]]:
+    """Parse the per-game planner registry (``games/wos/planners.yaml``)."""
+    from pathlib import Path as _Path
+
+    import yaml
+
+    from config.paths import repo_root
+
+    p = _Path(path) if path else repo_root() / "games" / "wos" / "planners.yaml"
+    try:
+        data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        msg = f"cannot read planner manifest {p}: {exc}"
+        raise AgentctlError(msg) from exc
+    out = data.get("planners") if isinstance(data, dict) else None
+    return [e for e in (out or []) if isinstance(e, dict)]
+
+
+def _yaml_enabled(config_path: str, enabled_key: str) -> bool | None:
+    """Read the on/off flag from a planner's config YAML (``None`` if no config)."""
+    cfg = str(config_path or "").strip()
+    if not cfg:
+        return None
+    import yaml
+
+    from config.paths import repo_root
+
+    try:
+        data = yaml.safe_load((repo_root() / cfg).read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return bool(data.get(enabled_key or "enabled", True))
+
+
+def planners(fid: str | None = None, *, instance: str | None = None) -> dict[str, Any]:
+    """Live status of every planner: LIVE / DORMANT / CALC-ONLY / VIA-MARCH (+ blind?).
+
+    Reads the per-game registry (``games/wos/planners.yaml``), each planner's
+    ``enabled`` flag, whether its required state inputs are observed for ``fid``
+    (else *blind* — the reader is missing), and the latest decision-trace entry.
+    Pure presenter: only YAML + Redis + SQLite, no planner code imported.
+    """
+    client = _redis()
+    fid = str(fid or "").strip()
+    fid_source = "arg" if fid else "none"
+    if not fid:
+        fid = _resolve_active_fid(client, instance)
+        fid_source = "resolved" if fid else "none"
+    flat = _player_flat(client, fid) if fid else {}
+
+    rows: list[dict[str, Any]] = []
+    for e in _load_planner_manifest():
+        wired = str(e.get("wired", "")).strip()
+        enabled = _yaml_enabled(str(e.get("config", "")), str(e.get("enabled_key", "enabled")))
+        if wired == "calculator":
+            status = "CALC-ONLY"
+        elif wired == "via-march":
+            status = "VIA-MARCH"
+        elif enabled is False:
+            status = "DORMANT"
+        else:
+            status = "LIVE"
+
+        inputs = [str(x) for x in (e.get("observed_inputs") or [])]
+        if not inputs:
+            missing, blind = [], False
+        elif not fid:
+            missing, blind = inputs, None  # unknown without a player
+        else:
+            missing = [p for p in inputs if not _input_present(flat, p)]
+            blind = bool(missing)
+
+        trace_key = str(e.get("trace_key", "")).strip().replace("{fid}", fid)
+        last = _latest_zset_json(client, trace_key) if (trace_key and fid) else None
+        last_decision = None
+        if isinstance(last, dict):
+            last_decision = {
+                "ts": last.get("ts"),
+                "action": last.get("action"),
+                "reason": last.get("reason"),
+                "target": last.get("target"),
+            }
+
+        rows.append(
+            {
+                "name": str(e.get("name", "")),
+                "title": str(e.get("title", "")),
+                "domain": str(e.get("domain", "")),
+                "wired": wired,
+                "status": status,
+                "enabled": enabled,
+                "blind": blind,
+                "missing_inputs": missing,
+                "last_decision": last_decision,
+                "note": str(e.get("note", "")),
+            }
+        )
+
+    return {"fid": fid, "fid_source": fid_source, "count": len(rows), "planners": rows}
+
+
+def why(instance: str | None = None) -> dict[str, Any]:
+    """Explain the running (or last) task: what it is, who chose it, the reasoning.
+
+    Combines three signals already in Redis: the running-task record (scenario,
+    priority, started), the task-id prefix decoded to a human *source*, the
+    winning *rank_meta* (persisted by the worker at pop time, when present), and
+    the latest autonomous decision from each wired planner for the player.
+    """
+    from dashboard.redis_client import (
+        fetch_queue_history_rows,
+        fetch_running_queue_row,
+        get_instance_state,
+    )
+
+    iid = resolve_instance(instance)
+    client = _redis()
+    st = get_instance_state(client, iid)
+    row = fetch_running_queue_row(client, instance_id=iid)
+
+    from_history = False
+    if row is not None:
+        task_id = row.task_id
+        payload = row.payload or {}
+        scenario = payload.get("dsl_scenario") or row.task_type
+        player_id = row.player_id
+        priority = int(row.priority or 0)
+        started_at = row.started_at or None
+        region = row.region
+        running = True
+    else:
+        # Nothing in flight — explain the most recent task instead (idle bot).
+        hist = fetch_queue_history_rows(client, instance_id=iid, limit=1)
+        h = hist[0] if hist else None
+        from_history = h is not None
+        payload = (getattr(h, "payload", None) or {}) if h else {}
+        task_id = getattr(h, "task_id", "") if h else ""
+        scenario = (getattr(h, "scenario", "") or getattr(h, "task_type", "")) if h else ""
+        player_id = getattr(h, "player_id", "") if h else ""
+        priority = int(getattr(h, "priority", 0) or payload.get("priority") or 0) if h else 0
+        started_at = getattr(h, "started_at", None) if h else None
+        region = (str(payload.get("region") or "").strip() or None) if h else None
+        running = False
+
+    focused = bool((st.get("focus_scenario") or "").strip())
+    source = _decode_source(task_id, priority=priority, focused=focused)
+
+    rank_meta = payload.get("rank_meta")
+    if isinstance(rank_meta, str):
+        try:
+            rank_meta = json.loads(rank_meta)
+        except json.JSONDecodeError:
+            rank_meta = None
+
+    # Latest autonomous decision per wired planner, for the task's player (or the
+    # instance's active player when the task is device-level / has no player).
+    dec_fid = str(player_id or "").strip() or _resolve_active_fid(client, iid)
+    decisions: dict[str, Any] = {}
+    if dec_fid:
+        for dom in ("march", "stamina", "resource"):
+            decisions[dom] = _latest_zset_json(client, f"wos:player:{dec_fid}:{dom}_decisions")
+
+    return {
+        "instance_id": iid,
+        "running": running,
+        "from_history": from_history,
+        "task_id": task_id,
+        "scenario": scenario,
+        "player_id": player_id,
+        "priority": priority,
+        "started_at": started_at,
+        "region": region,
+        "focus": focused,
+        "source": source,
+        "rank_meta": rank_meta if isinstance(rank_meta, dict) else None,
+        "decisions_player": dec_fid,
+        "decisions": decisions,
+    }
 
 
 # --------------------------------------------------------------------------- #

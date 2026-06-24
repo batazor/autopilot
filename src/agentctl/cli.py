@@ -264,6 +264,78 @@ def _render_logs(d: dict[str, Any]) -> str:
     return f"# {d['logfile']}\n" + "\n".join(d.get("lines", []))
 
 
+def _render_planners(d: dict[str, Any]) -> str:
+    fid = d.get("fid") or "—"
+    head = f"planners  (player {fid}, {d.get('fid_source')})  count={d.get('count')}"
+    rows = []
+    for p in d.get("planners", []):
+        ld = p.get("last_decision") or {}
+        blind = p.get("blind")
+        rows.append(
+            {
+                **p,
+                "_inputs": "—" if blind is None else ("BLIND" if blind else "ok"),
+                "_last": (f"{ld.get('action')}: {ld.get('reason')}" if ld else "—"),
+            }
+        )
+    table = _table(
+        rows,
+        [
+            ("name", "PLANNER"),
+            ("status", "STATUS"),
+            ("_inputs", "INPUTS"),
+            ("wired", "WIRED"),
+            ("_last", "LAST DECISION"),
+            ("note", "NOTE"),
+        ],
+    )
+    return head + "\n" + table
+
+
+def _render_why(d: dict[str, Any]) -> str:
+    if d.get("running"):
+        head = "▶ выполняется сейчас"
+    elif d.get("from_history"):
+        head = "⏹ ничего не выполняется — объясняю последнюю задачу"
+    elif d.get("task_id"):
+        head = "⏸ задача зафиксирована, но воркер не активен"
+    else:
+        head = "— на этом инстансе ещё не было задач"
+    lines = [
+        head,
+        _kv(
+            d,
+            [
+                ("instance_id", "instance"),
+                ("running", "running"),
+                ("scenario", "scenario"),
+                ("player_id", "player"),
+                ("priority", "priority"),
+                ("task_id", "task_id"),
+                ("region", "region"),
+            ],
+        )
+    ]
+    src = d.get("source") or {}
+    lines.append(f"     source: {src.get('label')}  [{src.get('code')}]")
+    if d.get("started_at"):
+        lines.append(f"    started: {_ts(d.get('started_at'))}")
+    rm = d.get("rank_meta")
+    if rm:
+        lines.append("  rank_meta: " + ", ".join(f"{k}={_cell(v)}" for k, v in rm.items()))
+    else:
+        lines.append("  rank_meta: — (worker не записал обоснование ранжирования)")
+    decs = {k: v for k, v in (d.get("decisions") or {}).items() if v}
+    if decs:
+        lines.append(f"\nрешения планировщиков (player {d.get('decisions_player') or '—'}):")
+        for dom, dec in decs.items():
+            lines.append(
+                f"  {dom.ljust(9)} {_cell(dec.get('action'))}  {_cell(dec.get('reason'))}"
+                f"  → {dec.get('target') or '—'} @ {_ts(dec.get('ts'))}"
+            )
+    return "\n".join(lines)
+
+
 def _render_ok(d: dict[str, Any]) -> str:
     return json.dumps(d, ensure_ascii=False)
 
@@ -306,6 +378,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("trace", parents=[common], help="last scenario step trace")
     _add_inst(p)
+
+    p = sub.add_parser("why", parents=[common], help="why the running task was chosen")
+    _add_inst(p)
+
+    p = sub.add_parser("planners", parents=[common], help="live status of every planner")
+    p.add_argument("fid", nargs="?", help="player id (default: active player)")
+    p.add_argument("--inst", dest="instance", help="instance to resolve the active player from")
 
     p = sub.add_parser("screenshot", parents=[common], help="path to current device preview PNG")
     _add_inst(p)
@@ -387,6 +466,10 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
         return core.history(args.instance, limit=args.limit), _render_history
     if cmd == "trace":
         return core.trace(args.instance), _render_trace
+    if cmd == "why":
+        return core.why(args.instance), _render_why
+    if cmd == "planners":
+        return core.planners(args.fid, instance=args.instance), _render_planners
     if cmd == "screenshot":
         return core.screenshot(args.instance, fresh=args.fresh), _render_screenshot
     if cmd == "player":

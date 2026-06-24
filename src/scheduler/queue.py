@@ -178,6 +178,10 @@ class QueueItem:
     # Computed at pop / peek time. Carries the rank decision through to the
     # worker / DSL task for preemption checks. ``0`` outside of ranked contexts.
     effective_priority: int = 0
+    # Curated ranking breakdown of the winning pop (base/effective priority,
+    # debuffs, hops, required_node) for explainability (``botctl why``). ``None``
+    # outside ranked contexts. Carried to the worker's running-task record.
+    rank_meta: dict[str, Any] | None = None
 
 
 class RedisQueue:
@@ -825,6 +829,7 @@ class RedisQueue:
                 data,
                 default_run_at=now,
                 effective_priority=int(winner_meta.get("effective_priority", 0)),
+                rank_meta=winner_meta,
             )
         return None
 
@@ -946,7 +951,23 @@ class RedisQueue:
             data,
             default_run_at=now,
             effective_priority=int(winner_meta.get("effective_priority", 0)),
+            rank_meta=winner_meta,
         )
+
+    # Subset of the ranker's winner_meta worth persisting for `botctl why`. All
+    # scalars/strings — kept explicit so a stray tuple (e.g. sort_key) never lands
+    # in the JSON running-task record.
+    _RANK_META_KEYS = (
+        "base_priority",
+        "effective_priority",
+        "graph_debuff",
+        "recent_debuff",
+        "hops",
+        "unreachable_flag",
+        "required_node",
+        "recent_count",
+        "on_required_node",
+    )
 
     @staticmethod
     def _build_queue_item(
@@ -954,6 +975,7 @@ class RedisQueue:
         *,
         default_run_at: float,
         effective_priority: int = 0,
+        rank_meta: dict[str, Any] | None = None,
     ) -> QueueItem:
         """Reconstruct a ``QueueItem`` from a queue payload dict."""
         reg = data.get("region")
@@ -990,6 +1012,11 @@ class RedisQueue:
         start_step_index = int(ssi) if ssi is not None else 0
         ca = data.get("created_at")
         created_at = float(ca) if ca is not None else 0.0
+        rm = (
+            {k: rank_meta[k] for k in RedisQueue._RANK_META_KEYS if k in rank_meta}
+            if rank_meta
+            else None
+        )
         return QueueItem(
             task_id=data["task_id"],  # type: ignore[arg-type]
             player_id=data["player_id"],  # type: ignore[arg-type]
@@ -1014,6 +1041,7 @@ class RedisQueue:
             start_step_index=start_step_index,
             created_at=created_at,
             effective_priority=effective_priority,
+            rank_meta=rm,
         )
 
     async def peek_all(self) -> list[QueueItem]:

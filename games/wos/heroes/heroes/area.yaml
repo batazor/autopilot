@@ -106,6 +106,18 @@ screens:
       original_width: 720
       original_height: 1280
     has_red_dot: true
+  - name: heroes.title
+    action: text
+    type: string
+    threshold: 0.6
+    bbox:
+      x: 8.0
+      y: 1.2
+      width: 26.0
+      height: 4.2
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
   - name: heroes.grid
     action: exist
     threshold: 0.9

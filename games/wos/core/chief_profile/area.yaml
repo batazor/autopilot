@@ -2,6 +2,70 @@
   "version": 2,
   "screens": [
     {
+      "id": 9019,
+      "screen_id": "troops_preview",
+      "ocr": "references/troops_preview.png",
+      "regions": [
+        {
+          "name": "troops_preview.title",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.6,
+          "bbox": {
+            "x": 4.0,
+            "y": 0.8,
+            "width": 40.0,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops_preview.tab.all",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 4.0,
+            "y": 7.5,
+            "width": 28.0,
+            "height": 5.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops_preview.tab.city",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 34.0,
+            "y": 7.5,
+            "width": 28.0,
+            "height": 5.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops_preview.tab.wilderness",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 64.0,
+            "y": 7.5,
+            "width": 34.0,
+            "height": 5.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
       "id": 18,
       "screen_id": "chief_profile",
       "ocr": "references/chief_profile.png",

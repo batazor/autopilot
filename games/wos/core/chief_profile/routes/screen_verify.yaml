@@ -6,3 +6,13 @@ screens:
     rules:
     - ocr: chief_profile.title
       contains: "Chief Profile"
+
+  # Troops Preview (chief_profile → Troops). Registered as a known screen so the
+  # worker's popup handler recognises it as a page instead of classifying the
+  # card overlay as a dismissable purchase popup and tapping its X — which fought
+  # the sync_troop_pool reader. OCR landmark: the "Troops Preview" header.
+  troops_preview:
+    priority: 30
+    rules:
+    - ocr: troops_preview.title
+      contains: "Troops Preview"

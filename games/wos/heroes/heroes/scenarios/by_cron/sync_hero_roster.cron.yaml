@@ -1,0 +1,31 @@
+enabled: true
+name: "🦸 Sync hero roster (reader)"
+
+# Background reader: scans the hero grid, then projects the owned heroes into
+# `heroes.roster` so the shared-resource allocator (games/wos/core/resources)
+# can staff combat / gatherer marches instead of treating heroes as unobserved.
+#
+# Reuses the proven `scan_heroes_grid` exec (+ swipe-paginate loop) to populate
+# `heroes.entries.<id>`, then `sync_hero_roster` derives the role-tagged roster
+# from those entries + the static hero DB. Heroes nav from main_city is fully
+# wired (main_city.to.heroes), so this needs no radar scan.
+#
+# Low priority + slow cron: the roster changes when you recruit/ascend (rare),
+# and this navigates off main_city — must never preempt real work.
+priority: 40_000
+cron: "23 */6 * * *"           # every 6h, offset off the hour
+node: heroes
+cond: "active_player != null"
+
+steps:
+  - exec: scan_heroes_grid
+  - loop:
+      max: 5
+      steps:
+        - swipe_direction:
+            direction: up
+            delta: 1080
+            duration_ms: 500
+        - wait: 1s
+        - exec: scan_heroes_grid
+  - exec: sync_hero_roster

@@ -1,0 +1,33 @@
+enabled: true
+name: "🔥 Sync furnace level (reader)"
+
+# Background reader: keeps buildings.levels.furnace fresh so the build planner
+# (building.plan_tick.cron → plan_next) sees the real furnace level instead of
+# running blind on stale/empty state. Reuses the exact furnace OCR + exec that
+# who_i_am runs during identity capture — but on a periodic cron, WITHOUT the
+# `active_player == ""` identity gate, so it keeps reading after onboarding.
+#
+# chief_profile is reachable from main_city without a radar scan (simple edge),
+# which is why this reads the furnace level from the profile card rather than
+# navigating to the furnace building screen (radar-gated, see
+# building/furnace/scenarios/read_furnace_level.yaml).
+#
+# Low priority + a slow cron: levels change over hours/days, and this navigates
+# off main_city, so it must never preempt real work (check_main_city brings the
+# bot home afterwards).
+priority: 40_000
+cron: "17 */6 * * *"           # every 6h, offset off the hour to avoid pileups
+node: chief_profile
+cond: "active_player != null"
+
+steps:
+  - ocr: furnace.level
+    store: furnace.level
+    type: integer
+    preprocess: fast_digits     # digit whitelist; confidence is ~0 even when correct
+    threshold: 0.0              # so a valid level isn't dropped as low-confidence
+
+  # Writes furnace.level / buildings.furnace.level / buildings.levels.furnace to
+  # the durable profile + the Redis player AND instance hashes (the build planner
+  # reads buildings.levels.* off the instance hash).
+  - exec: sync_furnace_level
