@@ -29,11 +29,12 @@ MARKER_COLOR_WEIGHT: dict[str, float] = {
     "unknown": 0.15,
 }
 
-# Within a colour, the rarer/special pins (horned skull, camp) out-reward the
-# ordinary fight / skull pins. Same order as exec._MARKER_KIND_PRIORITY.
+# Within a colour, the rarer/special pins (horned skull, camp, beast) out-reward
+# the ordinary fight / skull pins. Same order as exec._MARKER_KIND_PRIORITY.
 MARKER_KIND_WEIGHT: dict[str, float] = {
     "skull_horned": 1.3,
     "camp": 1.3,
+    "beast": 1.2,
     "fight": 1.0,
     "skull": 1.0,
 }

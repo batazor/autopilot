@@ -270,6 +270,31 @@ def test_detect_intel_markers_finds_camp_fixture_icon() -> None:
     assert abs(camps[0].center.y - 596) <= 6
 
 
+def test_detect_intel_markers_finds_special_event_icons() -> None:
+    # The special-event Intel skin (references/main_special.png) uses new marker
+    # art: an orange tent (camp), a paw print (beast), and purple crossed axes
+    # (fight). All three logical kinds must be detected so the existing intel_run
+    # scenario taps them with no scenario change.
+    mod = _load_exec_module()
+    image = cv2.imread(str(MODULE_DIR / "references" / "main_special.png"))
+    assert image is not None
+
+    markers = mod.detect_intel_markers(image)
+    kinds = {m.kind for m in markers}
+    assert {"camp", "fight", "beast"} <= kinds
+
+    def _near(kind: str, cx: int, cy: int) -> bool:
+        return any(
+            m.kind == kind and abs(m.center.x - cx) <= 8 and abs(m.center.y - cy) <= 8
+            for m in markers
+        )
+
+    # The three crop-source pins match at ~1.0 confidence — stable anchors.
+    assert _near("camp", 142, 375)   # tent
+    assert _near("beast", 606, 674)  # paw print
+    assert _near("fight", 410, 829)  # crossed axes
+
+
 def test_pick_marker_prioritizes_gold_intel_icons() -> None:
     mod = _load_exec_module()
     image = cv2.imread(str(MODULE_DIR / "references" / "camp.png"))

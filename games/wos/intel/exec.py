@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import time
+from collections import namedtuple
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -28,19 +29,53 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MODULE_DIR = Path(__file__).resolve().parent
-_MARKER_TEMPLATES = {
-    "fight": _MODULE_DIR / "references" / "crop" / "main_intel.fight.png",
-    "skull": _MODULE_DIR / "references" / "crop" / "claim_intel.skull.png",
-    "skull_horned": _MODULE_DIR / "references" / "crop" / "camp_intel.skull_horned.png",
-    "camp": _MODULE_DIR / "references" / "crop" / "camp_intel.camp.png",
-}
+_CROP_DIR = _MODULE_DIR / "references" / "crop"
+
+
+# One template-crop spec: a unique ``name`` matched as one logical ``kind``.
+# Several art variants can share a logical ``kind`` (the normal tent and the
+# special-event tent are both ``camp``), so the planner values them identically.
+# A plain namedtuple (not a dataclass) so this module stays importable via the
+# bare ``importlib`` loader the tests/exec-registry use (a dataclass would need
+# its module registered in ``sys.modules`` to resolve string annotations).
+_MarkerTemplate = namedtuple("_MarkerTemplate", ["name", "kind", "path"])
+
+
+_MARKER_TEMPLATES: tuple[_MarkerTemplate, ...] = (
+    _MarkerTemplate("fight", "fight", _CROP_DIR / "main_intel.fight.png"),
+    _MarkerTemplate("skull", "skull", _CROP_DIR / "claim_intel.skull.png"),
+    _MarkerTemplate("skull_horned", "skull_horned", _CROP_DIR / "camp_intel.skull_horned.png"),
+    _MarkerTemplate("camp", "camp", _CROP_DIR / "camp_intel.camp.png"),
+    # Special-event Intel skin (references/main_special.png) — new marker art.
+    _MarkerTemplate("camp_v2", "camp", _CROP_DIR / "main_special_intel.camp_v2.png"),
+    _MarkerTemplate("fight_v3", "fight", _CROP_DIR / "main_special_intel.fight_v3.png"),
+    _MarkerTemplate("beast", "beast", _CROP_DIR / "main_special_intel.fight_v2.png"),
+)
+_TEMPLATE_KIND_BY_NAME: dict[str, str] = {t.name: t.kind for t in _MARKER_TEMPLATES}
 _MARKER_KIND_PRIORITY = {
     # Within the same color tier, prefer the rarer/special intel types first.
     "skull_horned": 0,
     "camp": 0,
+    "beast": 0,
     "fight": 1,
     "skull": 1,
 }
+
+
+def _logical_kind(name: str) -> str:
+    """Map a template *name* to its logical *kind* (unknown names pass through).
+
+    Lets callers/tests pass ``templates_gray`` keyed by kind (e.g. ``{"fight": ...}``)
+    and still get the right ``IntelMarker.kind``.
+    """
+    return _TEMPLATE_KIND_BY_NAME.get(name, name)
+
+
+def _template_path(name: str) -> Path | None:
+    for spec in _MARKER_TEMPLATES:
+        if spec.name == name:
+            return spec.path
+    return None
 _MARKER_COLOR_PRIORITY = {
     "gold": 0,
     "purple": 1,
@@ -157,11 +192,12 @@ def _load_gray_template(path: Path) -> np.ndarray | None:
 
 
 def _load_marker_templates() -> dict[str, np.ndarray]:
+    """Load every template crop, keyed by its unique template *name*."""
     templates: dict[str, np.ndarray] = {}
-    for kind, path in _MARKER_TEMPLATES.items():
-        template = _load_gray_template(path)
+    for spec in _MARKER_TEMPLATES:
+        template = _load_gray_template(spec.path)
         if template is not None:
-            templates[kind] = template
+            templates[spec.name] = template
     return templates
 
 
@@ -227,7 +263,7 @@ def detect_intel_markers(
     frame_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     frame_hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
     raw: list[IntelMarker] = []
-    for kind, template in templates.items():
+    for name, template in templates.items():
         th, tw = template.shape[:2]
         if frame_gray.shape[0] < th or frame_gray.shape[1] < tw:
             continue
@@ -241,7 +277,7 @@ def detect_intel_markers(
                 w=int(tw),
                 h=int(th),
                 score=float(result[y, x]),
-                kind=kind,
+                kind=_logical_kind(name),
             )
             marker.color = _marker_color_from_hsv(frame_hsv, marker)
             raw.append(marker)
@@ -261,12 +297,13 @@ def detect_fight_markers(
     nms_distance_px: int = _DEFAULT_NMS_DISTANCE_PX,
     template_gray: np.ndarray | None = None,
 ) -> list[IntelMarker]:
-    """Backward-compatible wrapper for old tests/callers."""
-    fight_template = (
-        template_gray
-        if template_gray is not None
-        else _load_gray_template(_MARKER_TEMPLATES["fight"])
-    )
+    """Backward-compatible wrapper for old tests/callers (matches only the
+    original ``fight`` art, never the special-event variants)."""
+    if template_gray is not None:
+        fight_template = template_gray
+    else:
+        fight_path = _template_path("fight")
+        fight_template = _load_gray_template(fight_path) if fight_path else None
     templates = {"fight": fight_template} if fight_template is not None else {}
     return detect_intel_markers(
         image_bgr,

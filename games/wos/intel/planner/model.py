@@ -20,7 +20,7 @@ class IntelEvent:
     batch can be mapped back to tap targets downstream.
     """
 
-    kind: str                # fight | skull | skull_horned | camp
+    kind: str                # fight | skull | skull_horned | camp | beast
     color: str               # gold | purple | blue | green | unknown
     score: float = 1.0
     x: int = 0
