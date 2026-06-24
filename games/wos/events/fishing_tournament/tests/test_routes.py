@@ -31,14 +31,22 @@ def test_pause_anchored_on_retreat() -> None:
     assert any(r.get("match") == "fishing_tournament.retreat" for r in rules)
 
 
+def test_main_ready_also_anchored_on_go_fish() -> None:
+    # The live "resume" hub state (single Go Fish button) must also classify as
+    # main_ready, else navigation into the live event fails (navigation_failed).
+    rules = screen_verify_rules("main_ready")
+    assert any(r.get("match") == "fishing_tournament.go_fish" for r in rules)
+
+
 def test_new_edges_resolve() -> None:
-    # Start a round (either play button → gameplay, via an any_of alt-tap),
-    # retreat to the city, and a safety back-out of the minigame.
+    # Start a round (Go Fish / either play button → gameplay, via an any_of
+    # alt-tap), retreat to the city, and a safety back-out of the minigame.
     assert route_taps("main_ready", "gameplay", game="wos") == [
         [
             {
                 "type": "any_of",
                 "regions": [
+                    "fishing_tournament.go_fish",
                     "fishing_tournament.play.free",
                     "fishing_tournament.play.frosty",
                 ],
@@ -67,6 +75,8 @@ def test_pause_modal_edges_resolve() -> None:
     ("ref", "expected"),
     [
         ("main_ready.png", "main_ready"),
+        # Live "resume" hub state (single Go Fish button) — must also be main_ready.
+        ("main_ready_go_fish.png", "main_ready"),
         ("gameplay.png", "gameplay"),
         # Pause modal — anchored on the Retreat button; wins over gameplay even
         # if the title shows behind it (lower priority value).

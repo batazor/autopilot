@@ -9,10 +9,21 @@ screens:
   # tracker). Distinct from the promo splash above — anchored on the play
   # buttons, which exist only here (template ~1.0 on this screen vs <0.21 on
   # gameplay / main_city).
+  # The live hub has TWO states: a "choose mode" state with Frosty Prospector /
+  # Ice Fishing play buttons, and a "resume" state with a single "Go Fish" button
+  # (the live event icon opens THIS one mid-tournament — confirmed on-device).
+  # Either landmark confirms the hub (rules are OR'd), so both states route.
   main_ready:
     priority: 30
+    # The hub renders over a short load after the event-icon tap; give the
+    # post-hop verify room so the inbound hop doesn't fail on a transient frame.
+    retry:
+      attempts: 6
+      interval_seconds: 1.0
     rules:
       - match: fishing_tournament.play.frosty
+        threshold: 0.85
+      - match: fishing_tournament.go_fish
         threshold: 0.85
 
   # The fishing minigame itself. Anchored on the gameplay screen title (top-left

@@ -1,12 +1,39 @@
 enabled: true
 name: Fishing Tournament
-node: event.fishing_tournament
+# Enter at the live hub (main_ready), not the pre-event splash: during the
+# tournament the event icon opens the hub directly. The framework routes
+# main_city → main_ready via the icon edge, then drive_fishing starts a round.
+node: main_ready
 icon: fishing_tournament
 # Device-level: the flow only reads the screen and taps (claim rewards / play),
 # holding no per-account state, so it runs standalone (Play button / overlay
 # rule) without a bound player — like dreamscape_memory.
 device_level: true
 steps:
+  # Clear any reward popups blocking the hub before we try to play.
+  - while_match: button.claim
+    max: 3
+    steps:
+      - click: button.claim
+      - wait: 1s
+  - while_match: button.claim.big
+    max: 3
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - while_match: tapanywhereyoexit
+        expected: ["tap anywhere"]
+        max: 1
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s
+
+  # Play the minigame: enters a round from the live hub and steers the hook
+  # (dodge/collect) with real swipes. Self-contained FSM — see exec.py.
+  - exec: drive_fishing
+    threshold: 0.4
+
+  # Claim whatever the round earned.
   - while_match: button.claim
     max: 3
     steps:

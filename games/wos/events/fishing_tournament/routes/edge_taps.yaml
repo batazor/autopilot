@@ -1,25 +1,35 @@
 edges:
+  # The event icon on main_city. During the LIVE tournament, tapping it opens the
+  # hub (main_ready) directly — confirmed on-device 2026-06-24 — so main_ready is
+  # the SOLE inbound edge. We deliberately do NOT also map the icon to the splash
+  # (event.fishing_tournament): two edges from one node sharing the identical
+  # template_icon resolver are ambiguous — routing to main_ready could resolve/
+  # verify against the splash and fail (observed: navigation_failed). The splash
+  # is the pre-event countdown only; we never need to navigate to it.
+  # Threshold 0.85, not 0.9: the icon scores ~0.91 on the live scrcpy frame, right
+  # on the old 0.9 edge, so it flickered below and the hop failed.
   main_city:
-    event.fishing_tournament:
+    main_ready:
       resolver: template_icon
       region: main_city.icon_search
       template: games/wos/events/fishing_tournament/references/main_city.to.fishing_tournament.png
-      threshold: 0.9
+      threshold: 0.85
 
   event.fishing_tournament:
     main_city: [icon.page.back]
 
-  # Live hub → start a round. BOTH play buttons open the gameplay minigame, so
-  # this is one edge with alternative taps (the graph keys edges by destination
-  # — two buttons can't be two edges): any_of taps whichever is present, free
-  # first (play.free = "Ice Fishing", red-dot) then play.frosty ("Frosty
-  # Prospector", paid). Back arrow returns to the city. (How the hub is *entered*
-  # during the live event — event icon vs promo splash — still needs on-device
-  # confirmation, so no inbound edge yet.)
+  # Live hub → start a round. The hub's two states expose different CTAs that all
+  # open the gameplay minigame, so this is one edge with alternative taps (the
+  # graph keys edges by destination): any_of taps whichever is present —
+  # "Go Fish" (resume state), then play.free ("Ice Fishing", red-dot), then
+  # play.frosty ("Frosty Prospector", paid). Back arrow returns to the city.
   main_ready:
     gameplay:
       - type: any_of
-        regions: [fishing_tournament.play.free, fishing_tournament.play.frosty]
+        regions:
+          - fishing_tournament.go_fish
+          - fishing_tournament.play.free
+          - fishing_tournament.play.frosty
     main_city: [icon.page.back]
 
   # The minigame is driven by the exec FSM. Tapping the top-right pause button

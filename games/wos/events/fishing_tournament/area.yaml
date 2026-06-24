@@ -76,6 +76,20 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "fishing_tournament.go_fish",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 31.806,
+            "y": 81.562,
+            "width": 36.389,
+            "height": 6.562,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
