@@ -6,7 +6,14 @@ testable; the live-levels reader and navigate-and-tap execution are deferred.
 """
 from __future__ import annotations
 
+from .event_points import (
+    event_weight,
+    load_event_scoring,
+    power_gain,
+    upgrade_points,
+)
 from .model import (
+    ITEM_RESOURCE,
     BuildGraph,
     BuildingSpec,
     LevelReq,
@@ -15,6 +22,7 @@ from .model import (
     parse_amount,
     parse_duration,
     parse_prerequisites,
+    resource_name,
 )
 from .planner import (
     ALL_MAXED,
@@ -51,6 +59,7 @@ __all__ = [
     "GOAL_REACHED",
     "GOAL_UNKNOWN",
     "INSUFFICIENT_RESOURCES",
+    "ITEM_RESOURCE",
     "SELECTED",
     "BuildCandidate",
     "BuildGraph",
@@ -63,13 +72,18 @@ __all__ = [
     "QueueRentalDecision",
     "ScheduledBuild",
     "evaluate_queue_rental",
+    "event_weight",
     "level_rank",
+    "load_event_scoring",
     "load_graph",
     "parse_amount",
     "parse_duration",
     "parse_prerequisites",
     "plan_builds",
     "plan_next",
+    "power_gain",
     "project_multi_schedule",
     "project_schedule",
+    "resource_name",
+    "upgrade_points",
 ]

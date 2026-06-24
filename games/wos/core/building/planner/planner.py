@@ -16,14 +16,15 @@ can't read per-building levels yet); this module only answers "what next?".
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from . import policy
+from .event_points import power_gain, upgrade_points
 from .model import level_rank
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from games.wos.core.roles import RoleProfile
 
@@ -65,10 +66,11 @@ class BuildPlan:
 def _shortfall(
     cost: tuple[tuple[str, int], ...], resources: Mapping[str, Any]
 ) -> tuple[tuple[str, int], ...]:
-    """Per-item resource gap for ``cost`` against current ``resources`` balances.
+    """Per-resource gap for ``cost`` against current ``resources`` balances.
 
-    Keys are whatever ``build_cost`` uses (item-icon ids like ``item_icon_103``);
-    the balance reader must supply matching keys. Empty → affordable.
+    Keys are canonical resource names (``meat``/``wood``/``coal``/``iron`` …, decoded
+    from the item-icon ids by :data:`model.ITEM_RESOURCE`); the balance reader must
+    supply matching keys. Empty → affordable.
     """
     out: list[tuple[str, int]] = []
     for item, amount in cost:
@@ -179,6 +181,7 @@ class BuildCandidate:
     affordable: bool
     time_s: int = 0           # construction time (for the queue-rental ROI calc)
     shortfall: tuple[tuple[str, int], ...] = ()
+    event_points: int = 0     # points this upgrade nets if landed in the active window
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,6 +191,7 @@ class BuildSlate:
     picks: tuple[BuildCandidate, ...]
     candidates: tuple[BuildCandidate, ...]
     reason: str
+    event_points_total: int = 0   # projected event points across the picks
 
 
 def _instance_next(
@@ -211,16 +215,23 @@ def _instance_next(
 def _make_candidate(
     graph: BuildGraph, levels: Mapping[str, Any], resources: Mapping[str, Any] | None,
     spec_id: str, instance_id: str, track: str, value: float,
+    active_events: Sequence[str] = (),
 ) -> BuildCandidate | None:
     nxt = _instance_next(graph, levels, spec_id, instance_id)
     if nxt is None:
         return None
     short = _shortfall(nxt.cost, resources) if resources is not None else ()
+    points = 0
+    if active_events:                             # construction window live → score it
+        spec = graph.spec(spec_id)
+        if spec is not None:
+            gained = power_gain(spec, current_rank(levels, instance_id), nxt.rank)
+            points = upgrade_points(gained, active_events)   # bonus applied pass-wide below
     return BuildCandidate(
         instance_id=instance_id, spec_id=spec_id, track=track,
         to_level=nxt.level, to_rank=nxt.rank, value=value,
         cost_total=sum(a for _, a in nxt.cost), affordable=not short,
-        time_s=nxt.time_s, shortfall=short,
+        time_s=nxt.time_s, shortfall=short, event_points=points,
     )
 
 
@@ -233,6 +244,7 @@ def plan_builds(
     free_queues: int = 2,
     goal_id: str = DEFAULT_GOAL,
     goal_cap: float = DEFAULT_GOAL_CAP,
+    active_events: Sequence[str] = (),
 ) -> BuildSlate:
     """Pick what to build across tracks to fill ``free_queues`` construction slots.
 
@@ -243,24 +255,30 @@ def plan_builds(
     unaffordable, the queue builds a producer / Shelter instead. ``role`` tilts
     economy↔battle; progression stays universal, and a role's ``no_build`` set is
     excluded outright (a farm drops the Storehouse to stay plunderable). Bottleneck
-    repair (short resource → its producer) boosts that producer's value, but is
-    inert until ``policy.PRODUCER_BY_ITEM`` is filled.
+    repair (short resource → its producer) boosts that producer's value via
+    ``policy.PRODUCER_BY_RESOURCE``.
+
+    ``active_events`` are the slugs of live points windows (``("svs",)`` …). When
+    set, each candidate is scored for the event points its power gain would net and
+    gets a bounded value uplift, so higher-power upgrades are front-loaded into the
+    window. Empty (the default / off-window) leaves ranking unchanged.
     """
     candidates: list[BuildCandidate] = []
 
     prog = plan_next(graph, levels, goal_id=goal_id, goal_cap=goal_cap, resources=resources)
     if prog.step is not None:
         c = _make_candidate(graph, levels, resources, prog.step.building_id,
-                            prog.step.building_id, "progression", policy.PROGRESSION_WEIGHT)
+                            prog.step.building_id, "progression", policy.PROGRESSION_WEIGHT,
+                            active_events)
         if c is not None:
             candidates.append(c)
-        if not prog.affordable:                       # bottleneck repair (inert if unmapped)
-            for item, _amt in prog.shortfall:
-                producer = policy.PRODUCER_BY_ITEM.get(item)
+        if not prog.affordable:                       # bottleneck repair (short resource → producer)
+            for resource, _amt in prog.shortfall:
+                producer = policy.PRODUCER_BY_RESOURCE.get(resource)
                 if not producer:
                     continue
                 bc = _make_candidate(graph, levels, resources, producer, producer,
-                                     "bottleneck", policy.BOTTLENECK_WEIGHT)
+                                     "bottleneck", policy.BOTTLENECK_WEIGHT, active_events)
                 if bc is not None:
                     candidates.append(bc)
 
@@ -269,7 +287,8 @@ def plan_builds(
             continue
         value = policy.building_value(policy.economy_kind(spec_id), role)
         for inst in policy.instance_ids(spec_id):
-            c = _make_candidate(graph, levels, resources, spec_id, inst, "economy", value)
+            c = _make_candidate(graph, levels, resources, spec_id, inst, "economy", value,
+                                active_events)
             if c is not None:
                 candidates.append(c)
 
@@ -277,9 +296,21 @@ def plan_builds(
         if graph.spec(spec_id) is None:
             continue
         c = _make_candidate(graph, levels, resources, spec_id, spec_id, "camp",
-                            policy.building_value("camp", role))
+                            policy.building_value("camp", role), active_events)
         if c is not None:
             candidates.append(c)
+
+    # Event-points tilt: while a construction window is live, lift each candidate's
+    # value by its event-point share of the pass best, so higher-power upgrades are
+    # front-loaded into the window (band-relative — see policy.event_value_bonus).
+    if active_events:
+        max_pts = max((c.event_points for c in candidates), default=0)
+        if max_pts > 0:
+            candidates = [
+                replace(c, value=c.value + policy.event_value_bonus(c.event_points, max_pts))
+                if c.event_points else c
+                for c in candidates
+            ]
 
     # Role opt-outs: a farm never upgrades the Storehouse (keeps the pile raidable).
     # Drop blocked specs across every track before ranking so they can't fill a queue.
@@ -300,4 +331,7 @@ def plan_builds(
         reason = INSUFFICIENT_RESOURCES
     else:
         reason = ALL_MAXED
-    return BuildSlate(picks=picks, candidates=ranked, reason=reason)
+    return BuildSlate(
+        picks=picks, candidates=ranked, reason=reason,
+        event_points_total=sum(c.event_points for c in picks),
+    )

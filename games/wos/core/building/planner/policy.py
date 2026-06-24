@@ -47,12 +47,34 @@ SHELTER_ID = "shelter"
 # Multi-instance buildings: one db spec, N independent plots in-game.
 INSTANCES = {SHELTER_ID: 8}
 
-# Bottleneck repair: which producer makes a given cost item. Building costs use
-# item-icon ids (item_icon_103 …) with no verified resource mapping in the data
-# yet, so this ships EMPTY — bottleneck targeting is inert until it's filled (the
-# value-greedy fallback to producers/shelters still covers "build economy when the
-# furnace is unaffordable"). Populate once the item→resource mapping is known.
-PRODUCER_BY_ITEM: dict[str, str] = {}
+# Bottleneck repair: which producer makes a given resource. Build costs are now
+# decoded to canonical resource names (model.ITEM_RESOURCE), so a furnace pick that
+# is short on, say, coal boosts the Coal Mine's value to unblock it. Meat and wood
+# are cost-equal in the data, so a shortfall in one usually flags both → both
+# producers get lifted, which is the right behaviour.
+PRODUCER_BY_RESOURCE: dict[str, str] = {
+    "meat": "hunters_hut",
+    "wood": "sawmill",
+    "coal": "coal_mine",
+    "iron": "iron_mine",
+}
+
+# --- Event-points value bonus ------------------------------------------------
+# While a construction-scoring window is live, tilt the queue toward higher-power
+# upgrades (they net more event points). The uplift is normalised against the best
+# candidate this pass (band-relative, so it works at both the 1-30 and Fire-Crystal
+# power scales): the top-scoring upgrade gets the full EVENT_POINTS_WEIGHT, the rest
+# scale linearly by their share. Bounded so it reorders within / just across a value
+# tier without letting an economy build leap the furnace-first spine (weight 100).
+EVENT_POINTS_WEIGHT = 25.0
+
+
+def event_value_bonus(points: int, max_points: int) -> float:
+    """Value uplift for an upgrade worth ``points``, relative to the pass best
+    ``max_points`` (0 / no points → 0.0; the best candidate → full weight)."""
+    if points <= 0 or max_points <= 0:
+        return 0.0
+    return EVENT_POINTS_WEIGHT * points / max_points
 
 
 def building_value(kind: str, role: RoleProfile | None) -> float:

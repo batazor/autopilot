@@ -1,0 +1,40 @@
+# Event scoring: how power gained from an activity converts to event points.
+#
+# In Whiteout Survival the recurring "points" events (SvS prep, King of Icefield /
+# State of Power, Hall of Chiefs, Power Up, …) score you on the POWER you gain
+# during their window — power from completing a building upgrade, a research, or a
+# troop batch all count for the events that reward that activity. We already store
+# `building_power` per level in db/buildings/*.yaml, so the points a given upgrade
+# would net while a window is live is `power_gained * weight` for the matching
+# category. This file holds only the `weight` (a relative modelling factor); the
+# power numbers come from the building/research/troop data we already have.
+#
+# `weight` is a RELATIVE knob, not a scraped exact ratio: the planner ranks
+# candidates by `power * weight`, so the absolute scale is arbitrary and a uniform
+# 1.0 simply means "rank construction upgrades by raw power gain while the window is
+# open". What is authoritative here is WHICH categories each event rewards (the
+# gating) — that part mirrors the coordinator's EVENT_CATALOG
+# (games/wos/core/coordinator/events.py). Tune a weight up to bias toward an event
+# whose points are worth relatively more; leave at 1.0 otherwise.
+#
+# Categories: construction | research | training | combat | any_power
+# (any_power = power from construction/research/training all count — e.g. Power Up).
+# Slugs match the calendar's `event_<slug>` flags. Read by
+# games/wos/core/building/planner/event_points.py.
+events:
+  svs:
+    construction: { weight: 1.0 }
+    research:     { weight: 1.0 }
+    training:     { weight: 1.0 }
+  state_of_power:            # King of Icefield
+    construction: { weight: 1.0 }
+    research:     { weight: 1.0 }
+    training:     { weight: 1.0 }
+  hall_of_chief:
+    any_power:    { weight: 1.0 }
+  power_up:
+    any_power:    { weight: 1.0 }
+  armament_competition:
+    construction: { weight: 1.0 }
+    research:     { weight: 1.0 }
+    training:     { weight: 1.0 }

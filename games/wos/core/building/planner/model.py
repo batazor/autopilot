@@ -35,6 +35,33 @@ DEFAULT_BUILDINGS_DIR = Path(__file__).resolve().parents[3] / "db" / "buildings"
 
 _AMOUNT_RE = re.compile(r"([\d.]+)\s*([kKmMbB]?)")
 _AMOUNT_MULT = {"": 1, "k": 1_000, "m": 1_000_000, "b": 1_000_000_000}
+
+# Build costs in the YAML use opaque sprite ids (``item_icon_103`` …). This map
+# decodes them to canonical resource names so costs/shortfalls are per-resource
+# (meat/wood/coal/iron …) — which feeds the resource allocator and lets bottleneck
+# repair target the right producer. Derived by cross-referencing the Fire-Crystal
+# specs against db/fire_crystal_costs.yaml's named amounts (NOT scraped): 104/105/
+# 100081 are pinned by their amounts (coal 13M, iron 3.3M, fire_crystal 132 at
+# Furnace FC1); 100082 is the only other special icon (refined fire crystal, enters
+# at FC5). 100011 and 103 are the two basic resources that are always cost-equal in
+# the data (meat == wood at every level), so the meat/wood split follows the
+# canonical in-game order and is interchangeable for affordability. Unknown ids pass
+# through unchanged (the cost is still summed; it just isn't resource-attributed).
+ITEM_RESOURCE: dict[str, str] = {
+    "item_icon_102": "meat",
+    "item_icon_100011": "meat",
+    "item_icon_103": "wood",
+    "item_icon_104": "coal",
+    "item_icon_105": "iron",
+    "item_icon_100081": "fire_crystal",
+    "item_icon_100082": "refined_fire_crystal",
+}
+
+
+def resource_name(item_id: Any) -> str:
+    """Canonical resource name for a build-cost item id (passthrough if unmapped)."""
+    s = str(item_id)
+    return ITEM_RESOURCE.get(s, s)
 _DAYS_RE = re.compile(r"(\d+)\s*d")
 _HMS_RE = re.compile(r"(\d+):(\d+):(\d+)")
 # "Lv. 10" / "Lvl. 8" / "Lvl 8" / "FC-8" — the level token trailing a building name.
@@ -120,7 +147,7 @@ class LevelReq:
     level: str                                   # raw key ("10", "30-1")
     rank: float
     prereqs: tuple[tuple[str, float], ...]       # (building_id, required rank)
-    cost: tuple[tuple[str, int], ...]            # (item id, amount)
+    cost: tuple[tuple[str, int], ...]            # (resource name, amount) — see ITEM_RESOURCE
     time_s: int
     power: int | None
 
@@ -159,6 +186,19 @@ class BuildGraph:
         return self.buildings.get(building_id)
 
 
+def _decode_cost(build_cost: Any) -> tuple[tuple[str, int], ...]:
+    """Build-cost entries → ``(resource_name, amount)``, summing same-resource icons.
+
+    Decodes item-icon ids to canonical resource names (see :data:`ITEM_RESOURCE`) and
+    merges duplicates (e.g. two meat icons) while preserving first-seen order.
+    """
+    out: dict[str, int] = {}
+    for c in (build_cost or []):
+        res = resource_name(c.get("item"))
+        out[res] = out.get(res, 0) + parse_amount(c.get("amount"))
+    return tuple(out.items())
+
+
 def _build_spec(raw: dict[str, Any], name_to_id: Mapping[str, str]) -> BuildingSpec:
     levels: list[LevelReq] = []
     for key, entry in (raw.get("requirements_by_level") or {}).items():
@@ -168,10 +208,7 @@ def _build_spec(raw: dict[str, Any], name_to_id: Mapping[str, str]) -> BuildingS
             level=str(key),
             rank=level_rank(key),
             prereqs=parse_prerequisites(entry.get("prerequisites"), name_to_id),
-            cost=tuple(
-                (str(c.get("item")), parse_amount(c.get("amount")))
-                for c in (entry.get("build_cost") or [])
-            ),
+            cost=_decode_cost(entry.get("build_cost")),
             time_s=parse_duration(entry.get("construction_time")),
             power=int(power) if isinstance(power, (int, float)) else None,
         ))

@@ -145,6 +145,10 @@ class BuildingBody(BaseModel):
     goal_id: str = "furnace"
     goal_cap: float = 30.0
     free_queues: int = Field(default=2, ge=1, le=10)
+    # Live points-event slugs (svs / state_of_power / hall_of_chief / power_up …).
+    # When set, the slate scores each upgrade's event points and tilts ranking toward
+    # higher-power upgrades for the window.
+    active_events: list[str] = Field(default_factory=list)
 
 
 @router.post("/building")
@@ -160,6 +164,7 @@ def post_building(body: BuildingBody) -> dict[str, Any]:
             free_queues=body.free_queues,
             goal_id=body.goal_id,
             goal_cap=body.goal_cap,
+            active_events=body.active_events,
         )
     )
     return _asdict(slate)
@@ -701,6 +706,8 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         free_queues=body.building.free_queues,
         goal_id=body.building.goal_id,
         goal_cap=body.building.goal_cap,
+        # Construction-scoring windows live now → score builds for their event points.
+        active_events=[w.slug for w in body.events if w.active],
     )
     rplan = research_plan_next(
         rg, body.research.levels, body.research.rc_level, role=_role(body.research.role)
