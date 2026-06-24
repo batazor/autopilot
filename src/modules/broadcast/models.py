@@ -44,8 +44,17 @@ class BroadcastMessage:
     trigger_kind: str = TRIGGER_CRON    # cron | event
     cron: str = ""                      # cron expr when trigger_kind == cron
     cond: str = ""                      # eval_cond expr when trigger_kind == event
-    cooldown_minutes: int = 360         # min spacing between sends to one alliance
+    # Pre-event lead: when > 0 on an event message, fire while the event STARTS
+    # within this many hours (a heads-up), instead of while it is already live.
+    lead_hours: int = 0
+    cooldown_minutes: int = 360         # min spacing between sends to one scope
     priority: int = 100                 # lower wins when several are due at once
+    # Quiet hours in server-local time (UTC+8); -1 disables. When set, the message
+    # is suppressed while the server clock is inside [start, end) (wraps past midnight).
+    quiet_start_hour: int = -1
+    quiet_end_hour: int = -1
+    # Restrict an alliance-channel message to one alliance ("" = every alliance).
+    target_alliance: str = ""
     enabled: bool = True
     created_at: float = 0.0
     updated_at: float = 0.0
@@ -53,6 +62,10 @@ class BroadcastMessage:
     def applies_to_game(self, game: str) -> bool:
         """True if this message should be considered for ``game``."""
         return self.game_scope == SCOPE_ALL or self.game_scope == game
+
+    def is_pre_event(self) -> bool:
+        """An event message configured as a pre-event heads-up (lead > 0)."""
+        return self.trigger_kind == TRIGGER_EVENT and self.lead_hours > 0
 
     def to_dict(self) -> dict:
         return asdict(self)

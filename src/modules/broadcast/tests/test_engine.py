@@ -97,3 +97,33 @@ def test_select_priority_tiebreak_and_scope() -> None:
 def test_select_returns_none_when_nothing_due() -> None:
     msgs = [_event("e", "event_x == 1")]
     assert select_due_message(msgs, {}, 1.0, {}, SCOPE_WOS) is None
+
+
+def _pre_event(lead: int = 2) -> BroadcastMessage:
+    return BroadcastMessage(
+        id="p", title="p", text="hi", trigger_kind=TRIGGER_EVENT,
+        cond="event_bear_hunt == 1", lead_hours=lead,
+    )
+
+
+def test_pre_event_fires_only_within_lead_window() -> None:
+    msg = _pre_event(lead=2)
+    near = {"upcoming": [{"slug": "bear_hunt", "name": "Bear Hunt", "in_hours": 1.5}], "active": []}
+    far = {"upcoming": [{"slug": "bear_hunt", "name": "Bear Hunt", "in_hours": 5.0}], "active": []}
+    assert message_due(msg, {}, 1.0, None, calendar_ctx=near) is True
+    assert message_due(msg, {}, 1.0, None, calendar_ctx=far) is False
+    # No calendar data → can't be a pre-event heads-up.
+    assert message_due(msg, {}, 1.0, None) is False
+    # lead>0 uses the upcoming window, NOT the live flag.
+    assert message_due(msg, {"event_bear_hunt": 1}, 1.0, None) is False
+
+
+def test_quiet_hours_suppress_inside_window() -> None:
+    base = _cron("m", "*/15 * * * *")
+    quiet = BroadcastMessage(**{**base.to_dict(), "quiet_start_hour": 23, "quiet_end_hour": 7})
+    # 02:00 server (minute 120) is inside the wrap-around 23→7 window.
+    assert message_due(quiet, {}, 1.0, None, server_minutes=120) is False
+    # 12:00 (minute 720) is outside.
+    assert message_due(quiet, {}, 1.0, None, server_minutes=720) is True
+    # Quiet disabled (-1/-1) → never gated.
+    assert message_due(base, {}, 1.0, None, server_minutes=120) is True

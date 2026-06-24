@@ -4,7 +4,7 @@ from __future__ import annotations
 from modules.broadcast.election import (
     Candidate,
     elect_broadcaster,
-    elect_global_broadcaster,
+    elect_world_broadcaster,
 )
 
 _ABC = "ABC"
@@ -12,10 +12,10 @@ _ABC = "ABC"
 
 def _roster() -> list[Candidate]:
     return [
-        Candidate(fid="100", alliance=_ABC, eligible=True),
-        Candidate(fid="9", alliance=_ABC, eligible=True),
-        Candidate(fid="50", alliance=_ABC, eligible=False),   # opted out
-        Candidate(fid="7", alliance="XYZ", eligible=True),    # other alliance
+        Candidate(fid="100", alliance=_ABC, eligible=True, state="1"),
+        Candidate(fid="9", alliance=_ABC, eligible=True, state="1"),
+        Candidate(fid="50", alliance=_ABC, eligible=False, state="1"),  # opted out
+        Candidate(fid="7", alliance="XYZ", eligible=True, state="2"),   # other alliance/state
     ]
 
 
@@ -53,10 +53,18 @@ def test_numeric_ordering_beats_lexical() -> None:
     assert elect_broadcaster(roster, _ABC, {"10", "2"}) == "2"
 
 
-def test_global_election_ignores_alliance() -> None:
-    # World chat: lowest active eligible fid across ALL alliances wins.
-    assert elect_global_broadcaster(_roster(), {"9", "7", "100"}) == "7"  # 7 is in XYZ
+def test_world_election_is_per_state() -> None:
+    # World chat: lowest active eligible fid ON THAT STATE wins (alliance ignored).
+    # State 1 has 9, 100 (eligible) → 9 wins; 7 is on state 2 so it's excluded.
+    assert elect_world_broadcaster(_roster(), "1", {"9", "7", "100"}) == "9"
+    # State 2 → only 7 qualifies.
+    assert elect_world_broadcaster(_roster(), "2", {"9", "7", "100"}) == "7"
     # Ineligible (50) skipped even if active.
-    assert elect_global_broadcaster(_roster(), {"50", "100"}) == "100"
+    assert elect_world_broadcaster(_roster(), "1", {"50", "100"}) == "100"
     # No active → None.
-    assert elect_global_broadcaster(_roster(), set()) is None
+    assert elect_world_broadcaster(_roster(), "1", set()) is None
+
+
+def test_world_election_unknown_state_falls_back_to_global() -> None:
+    # Empty state (not read yet) → don't filter by state, pick lowest overall.
+    assert elect_world_broadcaster(_roster(), "", {"9", "7", "100"}) == "7"

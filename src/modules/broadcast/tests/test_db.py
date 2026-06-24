@@ -73,6 +73,66 @@ def test_channel_roundtrip_defaults_alliance() -> None:
     assert db.get_message("w").channel == "world"
 
 
+def test_round2_columns_roundtrip() -> None:
+    db.upsert_message(
+        BroadcastMessage(
+            id="r2", title="r2", text="hi", lead_hours=3,
+            quiet_start_hour=23, quiet_end_hour=7, target_alliance="ABC",
+        )
+    )
+    got = db.get_message("r2")
+    assert got is not None
+    assert got.lead_hours == 3
+    assert got.quiet_start_hour == 23
+    assert got.quiet_end_hour == 7
+    assert got.target_alliance == "ABC"
+
+
+def test_legacy_table_gets_round2_columns() -> None:
+    """A catalog table created before round-2 columns is migrated, not broken."""
+    from config import orm
+    from config.state_sqlite import state_db_path
+
+    # Pre-create a legacy table (channel but no lead/quiet/target) on the fresh
+    # per-test DB, BEFORE the model's create_all runs.
+    engine = orm.get_engine(state_db_path())
+    raw = engine.raw_connection()
+    try:
+        conn = raw.driver_connection
+        conn.execute(
+            "CREATE TABLE broadcast_messages ("
+            "id TEXT PRIMARY KEY, title TEXT, text TEXT, category TEXT, game_scope TEXT, "
+            "channel TEXT, trigger_kind TEXT, cron TEXT, cond TEXT, cooldown_minutes INT, "
+            "priority INT, enabled INT, created_at REAL, updated_at REAL)"
+        )
+        conn.execute(
+            "INSERT INTO broadcast_messages "
+            "(id,title,text,category,game_scope,channel,trigger_kind,cron,enabled,"
+            "cooldown_minutes,priority,created_at,updated_at) "
+            "VALUES ('leg','L','hi','custom','all','world','cron','*/15 * * * *',1,0,100,1,1)"
+        )
+        conn.commit()
+    finally:
+        raw.close()
+
+    # First db call triggers _ensure_schema → the 002 migration adds the columns.
+    got = db.get_message("leg")
+    assert got is not None
+    assert got.channel == "world"
+    assert got.lead_hours == 0
+    assert got.quiet_start_hour == -1
+    assert got.target_alliance == ""
+
+
+def test_defaults_for_new_message() -> None:
+    db.upsert_message(_msg("d"))
+    got = db.get_message("d")
+    assert got.lead_hours == 0
+    assert got.quiet_start_hour == -1
+    assert got.quiet_end_hour == -1
+    assert got.target_alliance == ""
+
+
 def test_seed_defaults_is_idempotent() -> None:
     added = seed.seed_defaults()
     assert added  # starter set inserted

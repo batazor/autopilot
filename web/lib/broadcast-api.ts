@@ -14,8 +14,12 @@ export interface BroadcastMessage {
   trigger_kind: TriggerKind;
   cron: string;
   cond: string;
+  lead_hours: number;
   cooldown_minutes: number;
   priority: number;
+  quiet_start_hour: number;
+  quiet_end_hour: number;
+  target_alliance: string;
   enabled: boolean;
   created_at: number;
   updated_at: number;
@@ -93,6 +97,19 @@ export async function deleteMessage(id: string): Promise<void> {
   await asJson<{ deleted: string }>(
     await fetch(`/api/broadcast/messages/${encodeURIComponent(id)}`, {
       method: "DELETE",
+    }),
+  );
+}
+
+export async function sendNow(
+  id: string,
+  instanceId: string,
+): Promise<Record<string, unknown>> {
+  return asJson<Record<string, unknown>>(
+    await fetch(`/api/broadcast/messages/${encodeURIComponent(id)}/send-now`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ instance_id: instanceId }),
     }),
   );
 }

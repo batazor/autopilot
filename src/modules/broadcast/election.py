@@ -20,11 +20,12 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Candidate:
-    """One account that could broadcast for its alliance."""
+    """One account that could broadcast for its alliance / state."""
 
     fid: str
     alliance: str
     eligible: bool = True
+    state: str = ""        # game state/server number — world chat is per-state
 
 
 def _fid_sort_key(fid: str) -> tuple[int, int, str]:
@@ -60,20 +61,26 @@ def elect_broadcaster(
     return min(pool, key=lambda c: _fid_sort_key(c.fid)).fid
 
 
-def elect_global_broadcaster(
+def elect_world_broadcaster(
     candidates: Iterable[Candidate],
+    state: str,
     active_fids: Iterable[str],
 ) -> str | None:
-    """The single fid that should post a **world/global** message, or ``None``.
+    """The single fid that should post a **world** message for ``state``, or ``None``.
 
-    World chat isn't per-alliance, so one account across the whole fleet posts
-    (lowest active eligible fid) — alliance membership is ignored.
+    World chat is per game-state, so one account per state posts (lowest active
+    eligible fid on that state) — alliance membership is ignored. When ``state`` is
+    empty (not read yet), the filter is skipped so a post can still happen.
     """
     active = {str(f).strip() for f in active_fids if str(f).strip()}
+    st = str(state or "").strip()
     pool = [
         c
         for c in candidates
-        if c.eligible and str(c.fid).strip() and str(c.fid).strip() in active
+        if c.eligible
+        and str(c.fid).strip()
+        and str(c.fid).strip() in active
+        and (not st or str(c.state or "").strip() == st)
     ]
     if not pool:
         return None

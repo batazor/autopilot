@@ -1,0 +1,10 @@
+# Operator "Send now" — post ONE specific broadcast message immediately.
+#
+# Not cron-scheduled: run on demand via focus mode (the /broadcast dashboard
+# "Send now" button → POST /api/broadcast/messages/{id}/send-now). The API stashes
+# the chosen message id in a per-instance Redis key, then focuses this scenario;
+# the exec reads the id and posts it once (no election / cooldown / claim).
+name: Alliance broadcast send one
+enabled: true
+steps:
+  - exec: alliance_broadcast_send_one

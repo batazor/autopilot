@@ -1,0 +1,9 @@
+# Operator "Send now" — post ONE specific broadcast message immediately (Kingshot).
+#
+# Inert until the Kingshot chat screen is labeled (nav to chat fails cleanly).
+# Run on demand via focus mode; the exec reads the message id from a per-instance
+# Redis key set by POST /api/broadcast/messages/{id}/send-now.
+name: Alliance broadcast send one (Kingshot)
+enabled: true
+steps:
+  - exec: alliance_broadcast_send_one

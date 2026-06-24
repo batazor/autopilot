@@ -79,6 +79,18 @@ STARTER_MESSAGES: tuple[BroadcastMessage, ...] = (
         priority=10,
     ),
     BroadcastMessage(
+        id="starter_bear_hunt_soon",
+        title="Bear Hunt heads-up (pre-event)",
+        text="⏰ Bear Hunt starts in {in_hours}h — top up stamina and gather your rally!",
+        category="event",
+        game_scope=SCOPE_ALL,
+        trigger_kind=TRIGGER_EVENT,
+        cond="event_bear_hunt == 1",   # slug used to match the upcoming window
+        lead_hours=2,                  # fire ~2h before it starts
+        cooldown_minutes=720,
+        priority=9,
+    ),
+    BroadcastMessage(
         id="starter_world_recruit",
         title="World-chat recruiting",
         text="🔥 We're recruiting active players! Friendly alliance, daily events — join us!",

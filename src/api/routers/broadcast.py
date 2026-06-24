@@ -5,14 +5,18 @@ The catalog is SQLite-only and operator-edited; these endpoints back the
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query
+import redis
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from api.deps import get_redis
 from api.services import broadcast_api as svc
 
 router = APIRouter(prefix="/api/broadcast", tags=["broadcast"])
+
+RedisDep = Annotated[redis.Redis, Depends(get_redis)]
 
 
 class MessageBody(BaseModel):
@@ -25,13 +29,21 @@ class MessageBody(BaseModel):
     trigger_kind: str = "cron"
     cron: str = ""
     cond: str = ""
+    lead_hours: int = 0
     cooldown_minutes: int = 0
     priority: int = 100
+    quiet_start_hour: int = -1
+    quiet_end_hour: int = -1
+    target_alliance: str = ""
     enabled: bool = True
 
 
 class EnabledBody(BaseModel):
     enabled: bool
+
+
+class SendNowBody(BaseModel):
+    instance_id: str
 
 
 @router.get("/messages")
@@ -59,6 +71,16 @@ def set_enabled(message_id: str, body: EnabledBody) -> dict[str, Any]:
 def delete_message(message_id: str) -> dict[str, Any]:
     try:
         return svc.delete_message(message_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"unknown message: {message_id}") from exc
+
+
+@router.post("/messages/{message_id}/send-now")
+def send_now(message_id: str, body: SendNowBody, client: RedisDep) -> dict[str, Any]:
+    try:
+        return svc.send_now(client, message_id, body.instance_id)
+    except svc.BroadcastValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"unknown message: {message_id}") from exc
 

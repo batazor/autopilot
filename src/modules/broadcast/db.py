@@ -40,8 +40,12 @@ class BroadcastMessageRow(SQLModel, table=True):
     trigger_kind: str = "cron"
     cron: str = ""
     cond: str = ""
+    lead_hours: int = 0
     cooldown_minutes: int = 360
     priority: int = 100
+    quiet_start_hour: int = -1
+    quiet_end_hour: int = -1
+    target_alliance: str = ""
     enabled: bool = True
     created_at: float = 0.0
     updated_at: float = 0.0
@@ -59,23 +63,44 @@ class BroadcastSendRow(SQLModel, table=True):
     sent_at: float = 0.0
 
 
+def _broadcast_columns(conn: sqlite3.Connection) -> set[str]:
+    return {row["name"] for row in conn.execute("PRAGMA table_info(broadcast_messages)")}
+
+
 def _add_channel_column(conn: sqlite3.Connection) -> None:
     """Add the ``channel`` column to a pre-existing catalog table (defensive)."""
-    cols = {row["name"] for row in conn.execute("PRAGMA table_info(broadcast_messages)")}
-    if "channel" not in cols:
+    if "channel" not in _broadcast_columns(conn):
         conn.execute(
             "ALTER TABLE broadcast_messages "
             f"ADD COLUMN channel TEXT NOT NULL DEFAULT '{CHANNEL_ALLIANCE}'"
         )
 
 
+def _add_round2_columns(conn: sqlite3.Connection) -> None:
+    """Add pre-event / quiet-hours / targeting columns (defensive ADD COLUMN)."""
+    cols = _broadcast_columns(conn)
+    adds = (
+        ("lead_hours", "INTEGER NOT NULL DEFAULT 0"),
+        ("quiet_start_hour", "INTEGER NOT NULL DEFAULT -1"),
+        ("quiet_end_hour", "INTEGER NOT NULL DEFAULT -1"),
+        ("target_alliance", "TEXT NOT NULL DEFAULT ''"),
+    )
+    for name, decl in adds:
+        if name not in cols:
+            conn.execute(f"ALTER TABLE broadcast_messages ADD COLUMN {name} {decl}")
+
+
 def _ensure_schema(engine: Engine) -> None:
     SQLModel.metadata.create_all(
         engine, tables=[BroadcastMessageRow.__table__, BroadcastSendRow.__table__]
     )
-    # ``create_all`` is CREATE-IF-NOT-EXISTS, so it won't add the column to a
-    # table created before ``channel`` existed — migrate it explicitly.
-    orm.apply_migrations(engine, "broadcast", [("001_channel", _add_channel_column)])
+    # ``create_all`` is CREATE-IF-NOT-EXISTS, so it won't add columns to a table
+    # created before they existed — migrate explicitly, once per DB.
+    orm.apply_migrations(
+        engine,
+        "broadcast",
+        [("001_channel", _add_channel_column), ("002_round2", _add_round2_columns)],
+    )
 
 
 def _engine() -> Engine:
@@ -95,8 +120,12 @@ def _to_message(row: BroadcastMessageRow) -> BroadcastMessage:
         trigger_kind=row.trigger_kind,
         cron=row.cron or "",
         cond=row.cond or "",
+        lead_hours=int(row.lead_hours or 0),
         cooldown_minutes=int(row.cooldown_minutes),
         priority=int(row.priority),
+        quiet_start_hour=int(row.quiet_start_hour if row.quiet_start_hour is not None else -1),
+        quiet_end_hour=int(row.quiet_end_hour if row.quiet_end_hour is not None else -1),
+        target_alliance=row.target_alliance or "",
         enabled=bool(row.enabled),
         created_at=float(row.created_at or 0.0),
         updated_at=float(row.updated_at or 0.0),
@@ -141,8 +170,12 @@ def upsert_message(msg: BroadcastMessage, *, now: float | None = None) -> Broadc
         row.trigger_kind = msg.trigger_kind
         row.cron = msg.cron or ""
         row.cond = msg.cond or ""
+        row.lead_hours = int(msg.lead_hours)
         row.cooldown_minutes = int(msg.cooldown_minutes)
         row.priority = int(msg.priority)
+        row.quiet_start_hour = int(msg.quiet_start_hour)
+        row.quiet_end_hour = int(msg.quiet_end_hour)
+        row.target_alliance = msg.target_alliance or ""
         row.enabled = bool(msg.enabled)
         row.created_at = created
         row.updated_at = ts

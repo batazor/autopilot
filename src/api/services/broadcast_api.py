@@ -11,8 +11,8 @@ import time
 from typing import Any
 
 from layout.area_versions import compile_cond
-from modules.broadcast import db, seed
-from modules.broadcast.engine import cron_interval_seconds
+from modules.broadcast import db, keys, seed
+from modules.broadcast.engine import cron_interval_seconds, event_slug_from_cond
 from modules.broadcast.models import (
     CATEGORIES,
     CHANNEL_ALLIANCE,
@@ -98,6 +98,15 @@ def _validate(msg: BroadcastMessage) -> None:
         except SyntaxError as exc:
             msg_text = f"invalid condition: {exc}"
             raise BroadcastValidationError(msg_text) from exc
+        if msg.lead_hours > 0 and not event_slug_from_cond(cond):
+            _fail("a pre-event reminder needs an 'event_<slug>' condition (pick an event)")
+    if msg.lead_hours < 0:
+        _fail("lead hours must be >= 0")
+    for hour in (msg.quiet_start_hour, msg.quiet_end_hour):
+        if hour != -1 and not (0 <= hour <= 23):
+            _fail("quiet hours must be 0-23 (or -1 to disable)")
+    if (msg.quiet_start_hour == -1) != (msg.quiet_end_hour == -1):
+        _fail("set both quiet-hours bounds, or neither")
 
 
 def _message_from_body(body: dict[str, Any]) -> BroadcastMessage:
@@ -119,8 +128,14 @@ def _message_from_body(body: dict[str, Any]) -> BroadcastMessage:
         trigger_kind=trigger,
         cron=str(body.get("cron") or "").strip() if trigger == TRIGGER_CRON else "",
         cond=str(body.get("cond") or "").strip() if trigger == TRIGGER_EVENT else "",
+        lead_hours=_as_int(body.get("lead_hours"), field="lead_hours", default=0, minimum=0)
+        if trigger == TRIGGER_EVENT
+        else 0,
         cooldown_minutes=_as_int(body.get("cooldown_minutes"), field="cooldown_minutes", default=0, minimum=0),
         priority=_as_int(body.get("priority"), field="priority", default=100),
+        quiet_start_hour=_as_int(body.get("quiet_start_hour"), field="quiet_start_hour", default=-1),
+        quiet_end_hour=_as_int(body.get("quiet_end_hour"), field="quiet_end_hour", default=-1),
+        target_alliance=str(body.get("target_alliance") or "").strip(),
         enabled=bool(body.get("enabled", True)),
     )
 
@@ -128,7 +143,10 @@ def _message_from_body(body: dict[str, Any]) -> BroadcastMessage:
 def _interval_label(msg: BroadcastMessage) -> str:
     """Human cadence/trigger summary for the dashboard row."""
     if msg.trigger_kind == TRIGGER_EVENT:
-        return f"when {msg.cond}"
+        slug = event_slug_from_cond(msg.cond) or msg.cond
+        if msg.lead_hours > 0:
+            return f"≤{msg.lead_hours}h before {slug}"
+        return f"while {slug} live"
     secs = cron_interval_seconds(msg.cron)
     if secs <= 0:
         return msg.cron or "—"
@@ -206,6 +224,42 @@ def event_flags(*, game: str = "wos") -> dict[str, Any]:
     except Exception:
         pass
     return {"flags": [{"flag": f, "label": label} for f, label in sorted(flags.items())]}
+
+
+def send_now(client: Any, message_id: str, instance_id: str) -> dict[str, Any]:
+    """Post one specific message right now on ``instance_id`` (operator test).
+
+    Enqueues the ``send_one`` scenario at high priority (no focus pinning) for the
+    instance's active player, after stashing the message id in a per-instance
+    Redis key the exec reads. Requires a worker already running on the instance.
+    """
+    iid = str(instance_id or "").strip()
+    if not iid:
+        _fail("instance_id is required")
+    if db.get_message(message_id) is None:
+        raise KeyError(message_id)
+
+    from api.services import focus
+    from api.services.queue_api import enqueue_user_task
+
+    raw = client.hget(f"wos:instance:{iid}:state", "active_player")
+    player = (raw.decode("utf-8", "replace") if isinstance(raw, bytes) else (raw or "")).strip()
+    if not player:
+        _fail(f"no active player on instance {iid!r} — load the account first")
+    if not focus.worker_alive(client, iid):
+        _fail(f"no worker running for instance {iid!r} — start the bot first")
+
+    client.set(keys.send_now_key(iid), message_id, ex=300)
+    result = enqueue_user_task(
+        client,
+        scenario_key="send_one",
+        instance_id=iid,
+        player_id=player,
+        scheduled_at=time.time(),
+        priority=90_000,
+        replace_existing=True,
+    )
+    return {"ok": True, "instance_id": iid, "message_id": message_id, "player_id": player, **result}
 
 
 def now() -> float:

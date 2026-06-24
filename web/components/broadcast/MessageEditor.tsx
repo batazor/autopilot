@@ -38,10 +38,18 @@ const BLANK: MessageDraft = {
   trigger_kind: "cron",
   cron: "0 */12 * * *",
   cond: "",
+  lead_hours: 0,
   cooldown_minutes: 0,
   priority: 100,
+  quiet_start_hour: -1,
+  quiet_end_hour: -1,
+  target_alliance: "",
   enabled: true,
 };
+
+// 0-23 plus an "off" sentinel for the quiet-hours dropdowns.
+const HOUR_OPTS = [-1, ...Array.from({ length: 24 }, (_, h) => h)];
+const hourLabel = (h: number) => (h < 0 ? "off" : `${String(h).padStart(2, "0")}:00`);
 
 function toDraft(m: BroadcastMessage): MessageDraft {
   const { created_at: _c, updated_at: _u, trigger_label: _t, ...rest } = m;
@@ -227,7 +235,7 @@ export function MessageEditor({
           </div>
         ) : (
           <div>
-            <label className={labelCls}>Post while this event is active</label>
+            <label className={labelCls}>Event</label>
             <select
               className={inputCls}
               value={draft.cond}
@@ -246,8 +254,73 @@ export function MessageEditor({
               onChange={(e) => set("cond", e.target.value)}
               placeholder="or a custom condition, e.g. event_bear_hunt == 1"
             />
+            <label className={`${labelCls} mt-3`}>
+              Lead time (hours before start · 0 = while live)
+            </label>
+            <input
+              type="number"
+              min={0}
+              className={inputCls}
+              value={draft.lead_hours}
+              onChange={(e) => set("lead_hours", Number(e.target.value))}
+            />
+            <p className="mt-1 text-xs text-wos-text-muted">
+              {draft.lead_hours > 0
+                ? `Heads-up posted up to ${draft.lead_hours}h before the event starts. Use {event}/{in_hours}/{starts} in the text.`
+                : "Posted while the event is live. Use {event}/{ends} in the text."}
+            </p>
           </div>
         )}
+
+        <details className="rounded-lg border border-wos-border-subtle px-3 py-2">
+          <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-wos-text-muted">
+            Advanced
+          </summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Quiet hours (server, UTC+8)</label>
+              <div className="flex items-center gap-2">
+                <select
+                  className={inputCls}
+                  value={draft.quiet_start_hour}
+                  onChange={(e) => set("quiet_start_hour", Number(e.target.value))}
+                >
+                  {HOUR_OPTS.map((h) => (
+                    <option key={h} value={h}>
+                      {hourLabel(h)}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-wos-text-muted">→</span>
+                <select
+                  className={inputCls}
+                  value={draft.quiet_end_hour}
+                  onChange={(e) => set("quiet_end_hour", Number(e.target.value))}
+                >
+                  {HOUR_OPTS.map((h) => (
+                    <option key={h} value={h}>
+                      {hourLabel(h)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-1 text-xs text-wos-text-muted">
+                Don&apos;t post inside this window. Set both to a time, or leave off.
+              </p>
+            </div>
+            {draft.channel === "alliance" && (
+              <div>
+                <label className={labelCls}>Only this alliance (optional)</label>
+                <input
+                  className={inputCls}
+                  value={draft.target_alliance}
+                  onChange={(e) => set("target_alliance", e.target.value)}
+                  placeholder="blank = every alliance"
+                />
+              </div>
+            )}
+          </div>
+        </details>
 
         {error && (
           <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-2 text-sm text-rose-200">

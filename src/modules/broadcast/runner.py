@@ -28,9 +28,9 @@ from typing import TYPE_CHECKING, Any
 
 from layout.types import Point
 
-from . import db, engine, keys
-from .election import Candidate, elect_broadcaster, elect_global_broadcaster
-from .models import CHANNEL_WORLD
+from . import db, engine, keys, templating
+from .election import Candidate, elect_broadcaster, elect_world_broadcaster
+from .models import CHANNEL_WORLD, TRIGGER_EVENT
 
 if TYPE_CHECKING:
     from tasks.dsl_exec.context import DslExecContext
@@ -38,6 +38,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _CLAIM_TTL_S = 120
+# Cross-message anti-flood: minimum gap between ANY two posts to one scope, so a
+# batch of simultaneously-due messages can't flood the chat in one burst.
+_MIN_POST_GAP_S = 120
 _FALSEY = {"0", "false", "no", "off", ""}
 
 # Fallback tap targets (percent of 720×1280) used until ``chat.alliance.input`` /
@@ -94,14 +97,109 @@ def _roster(game: str) -> list[Candidate]:
                 fid=str(getattr(g, "id", "") or ""),
                 alliance=str(getattr(getattr(g, "alliance", None), "name", "") or "").strip(),
                 eligible=_truthy(planner.get("broadcast_eligible"), default=True),
+                state=str(getattr(g, "state", "") or "").strip(),
             )
         )
     return out
 
 
-def _scope_for(channel: str, alliance: str) -> str:
-    """De-dup scope for a message: the alliance, or ``"world"`` for global chat."""
-    return CHANNEL_WORLD if channel == CHANNEL_WORLD else alliance
+def _scope_for(channel: str, alliance: str, state: str) -> str:
+    """De-dup scope: the alliance, or ``"world:<state>"`` for (per-state) world chat."""
+    if channel == CHANNEL_WORLD:
+        return f"{CHANNEL_WORLD}:{state}" if state else CHANNEL_WORLD
+    return alliance
+
+
+async def _calendar_ctx(redis: Any, game: str, state: str) -> dict[str, list[dict]]:
+    """Decoded calendar upcoming/active for ``state`` (slugged), or empty.
+
+    Only WoS has a live calendar; everything else returns ``{}`` so pre-event /
+    templating gracefully no-op.
+    """
+    if game != "wos" or not state or redis is None:
+        return {}
+    try:
+        from games.wos.core.calendar.adapter import read_shared
+
+        shared = await read_shared(redis, state)
+    except Exception:
+        logger.debug("broadcast: calendar read failed state=%s", state, exc_info=True)
+        return {}
+    upcoming = [
+        {
+            "slug": templating.slug(str(ev.get("name") or "")),
+            "name": str(ev.get("name") or ""),
+            "in_hours": ev.get("in_hours"),
+            "starts": ev.get("starts"),
+        }
+        for ev in (shared.get("upcoming") or [])
+    ]
+    active = [
+        {
+            "slug": templating.slug(str(ev.get("name") or "")),
+            "name": str(ev.get("name") or ""),
+            "ends": ev.get("ends"),
+        }
+        for ev in (shared.get("active") or [])
+    ]
+    return {"upcoming": upcoming, "active": active}
+
+
+def _server_minutes(now: float) -> int | None:
+    """UTC+8 (WoS server) minute-of-day for quiet-hours gating, or ``None``."""
+    try:
+        from datetime import UTC, datetime
+
+        from games.wos.core.arena.reward_window import minute_of_day
+
+        return minute_of_day(datetime.fromtimestamp(now, tz=UTC))
+    except Exception:
+        return None
+
+
+def _template_context(
+    msg: Any, calendar_ctx: dict[str, list[dict]], alliance: str, state: str
+) -> dict[str, Any]:
+    """Substitution values for {event}/{in_hours}/{starts}/{ends}/{alliance}/{state}."""
+    out: dict[str, Any] = {
+        "alliance": alliance,
+        "state": state,
+        "event": "",
+        "in_hours": "",
+        "starts": "",
+        "ends": "",
+    }
+    if msg.trigger_kind != TRIGGER_EVENT:
+        return out
+    ev = engine.upcoming_match(msg, calendar_ctx) if msg.is_pre_event() else None
+    if ev is None:  # live event → pull end time from the active list
+        target = engine.event_slug_from_cond(msg.cond)
+        for a in calendar_ctx.get("active") or []:
+            if a.get("slug") == target:
+                ev = a
+                break
+    if ev:
+        out["event"] = ev.get("name") or ""
+        if ev.get("in_hours") is not None:
+            out["in_hours"] = ev.get("in_hours")
+        out["starts"] = ev.get("starts") or ""
+        out["ends"] = ev.get("ends") or ""
+    return out
+
+
+async def _within_flood_gap(redis: Any, game: str, scope: str, now: float) -> bool:
+    """True if a post to ``scope`` happened within the anti-flood window."""
+    try:
+        raw = await redis.get(keys.last_post_key(game, scope))
+    except Exception:
+        return False
+    last = _decode(raw)
+    if not last:
+        return False
+    try:
+        return (now - float(last)) < _MIN_POST_GAP_S
+    except (TypeError, ValueError):
+        return False
 
 
 async def _last_sent_map(
@@ -181,55 +279,97 @@ async def _type_and_send(actions: Any, game: str, iid: str, text: str) -> bool:
     return True
 
 
+def _resolve_identity(player: str) -> tuple[Any, str, str]:
+    """``(store, alliance, state)`` for ``player`` (alliance/state may be empty)."""
+    try:
+        from config.state_store import get_state_store
+
+        store = get_state_store().get(player)
+    except Exception:
+        logger.debug("broadcast: identity lookup failed player=%s", player, exc_info=True)
+        return (None, "", "")
+    if store is None:
+        return (None, "", "")
+    alliance = str(store.get("alliance.name") or "").strip()
+    state = str(store.get("state") or "").strip()
+    return (store, alliance, state)
+
+
+def _targets_alliance(msg: Any, alliance: str) -> bool:
+    """Alliance-channel targeting: a blank target means every alliance."""
+    if msg.channel == CHANNEL_WORLD:
+        return True
+    tgt = str(getattr(msg, "target_alliance", "") or "").strip()
+    return not tgt or tgt == alliance
+
+
+async def _deliver_text(
+    redis: Any, game: str, instance_id: str, *, channel: str, text: str
+) -> str:
+    """Navigate to the channel's tab and post ``text``. Returns a result action."""
+    from tasks import dsl_runtime
+
+    node = "chat.world" if channel == CHANNEL_WORLD else "chat.alliance"
+    actions = dsl_runtime.bot_actions()
+    nav = dsl_runtime.navigator(actions, redis_client=redis)
+    if not await nav.navigate_to(node, instance_id):
+        return "nav_failed"
+    if not await _type_and_send(actions, game, instance_id, text):
+        return "send_failed"
+    try:
+        await nav.navigate_to("main_city", instance_id)  # best-effort: post already landed
+    except Exception:
+        logger.debug("broadcast: return-home nav failed", exc_info=True)
+    return "sent"
+
+
 async def run_broadcast_tick(ctx: DslExecContext, *, game: str) -> None:
     """Post one due reminder for ``game`` (alliance or world chat) if this account
     is the elected broadcaster for that message's channel."""
-    from tasks import dsl_runtime
-
     redis = ctx.redis_client
     player = (ctx.player_id or "").strip()
     if redis is None or not player:
         ctx.result.update({"action": "no_target"})
         return
 
-    # Alliance from this player's own state (empty is fine for world messages).
-    store = None
-    alliance = ""
-    try:
-        from config.state_store import get_state_store
-
-        store = get_state_store().get(player)
-        if store is not None:
-            alliance = str(store.get("alliance.name") or "").strip()
-    except Exception:
-        logger.debug("broadcast: alliance lookup failed player=%s", player, exc_info=True)
+    store, alliance, state = _resolve_identity(player)
 
     messages = db.list_messages(game=game, enabled_only=True)
     if not messages:
         ctx.result.update({"action": "no_messages"})
         return
-    # Alliance-channel messages need an alliance; world-channel ones don't.
-    usable = [m for m in messages if m.channel == CHANNEL_WORLD or alliance]
+    # Alliance-channel messages need an alliance and must target it; world don't.
+    usable = [
+        m
+        for m in messages
+        if (m.channel == CHANNEL_WORLD or alliance) and _targets_alliance(m, alliance)
+    ]
     if not usable:
         ctx.result.update({"action": "no_alliance"})
         return
 
-    # Select the single due message (across both channels).
+    # Select the single due message (across both channels), honouring pre-event
+    # windows (calendar) and quiet hours (server time).
     flat = store.to_flat_dict() if store is not None else {}
     now = time.time()
-    scoped = [(m.id, _scope_for(m.channel, alliance)) for m in usable]
+    calendar_ctx = await _calendar_ctx(redis, game, state)
+    server_minutes = _server_minutes(now)
+    scoped = [(m.id, _scope_for(m.channel, alliance, state)) for m in usable]
     last_sent = await _last_sent_map(redis, game, scoped, now)
-    msg = engine.select_due_message(usable, flat, now, last_sent, game)
+    msg = engine.select_due_message(
+        usable, flat, now, last_sent, game,
+        calendar_ctx=calendar_ctx, server_minutes=server_minutes,
+    )
     if msg is None:
         ctx.result.update({"action": "none_due", "alliance": alliance})
         return
-    scope = _scope_for(msg.channel, alliance)
+    scope = _scope_for(msg.channel, alliance, state)
 
-    # Elect one broadcaster: per-alliance for alliance chat, global for world chat.
+    # Elect one broadcaster: per-alliance for alliance chat, per-state for world.
     active = await _active_fids(redis)
     roster = _roster(game)
     if msg.channel == CHANNEL_WORLD:
-        elected = elect_global_broadcaster(roster, active)
+        elected = elect_world_broadcaster(roster, state, active)
     else:
         elected = elect_broadcaster(roster, alliance, active)
     if elected and elected != player:
@@ -247,31 +387,28 @@ async def run_broadcast_tick(ctx: DslExecContext, *, game: str) -> None:
         ctx.result.update({"action": "claimed_by_other", "message_id": msg.id, "scope": scope})
         return
 
-    # Deliver — to the world or alliance chat tab.
-    node = "chat.world" if msg.channel == CHANNEL_WORLD else "chat.alliance"
-    actions = dsl_runtime.bot_actions()
-    nav = dsl_runtime.navigator(actions, redis_client=redis)
-    if not await nav.navigate_to(node, ctx.instance_id):
-        ctx.result.update({"action": "nav_failed", "message_id": msg.id, "node": node})
-        return
-    if not await _type_and_send(actions, game, ctx.instance_id, msg.text):
-        ctx.result.update({"action": "send_failed", "message_id": msg.id})
+    # Cross-message anti-flood: don't post if this scope posted very recently.
+    if await _within_flood_gap(redis, game, scope, now):
+        ctx.result.update({"action": "throttled", "message_id": msg.id, "scope": scope})
         return
 
-    # Stamp cooldown so no account reposts within the window; log; return home.
+    text = templating.render(msg.text, _template_context(msg, calendar_ctx, alliance, state))
+    action = await _deliver_text(redis, game, ctx.instance_id, channel=msg.channel, text=text)
+    if action != "sent":
+        ctx.result.update({"action": action, "message_id": msg.id, "scope": scope})
+        return
+
+    # Stamp cooldown + anti-flood marker; log the post.
     cooldown_s = max(60, engine.min_gap_seconds(msg))
     try:
         await redis.set(keys.sent_key(game, scope, msg.id), str(now), ex=cooldown_s)
+        await redis.set(keys.last_post_key(game, scope), str(now), ex=max(_MIN_POST_GAP_S, 60))
     except Exception:
         logger.debug("broadcast: cooldown stamp failed", exc_info=True)
     try:
-        db.record_send(message_id=msg.id, game=game, alliance=scope, fid=player, text=msg.text, sent_at=now)
+        db.record_send(message_id=msg.id, game=game, alliance=scope, fid=player, text=text, sent_at=now)
     except Exception:
         logger.debug("broadcast: send-log write failed", exc_info=True)
-    try:
-        await nav.navigate_to("main_city", ctx.instance_id)  # best-effort: post already landed
-    except Exception:
-        logger.debug("broadcast: return-home nav failed", exc_info=True)
 
     ctx.result.update(
         {"action": "sent", "message_id": msg.id, "title": msg.title, "channel": msg.channel, "scope": scope}
@@ -280,3 +417,38 @@ async def run_broadcast_tick(ctx: DslExecContext, *, game: str) -> None:
         "broadcast: posted %r to %s (scope=%s) game=%s player=%s",
         msg.id, msg.channel, scope, game, player,
     )
+
+
+async def send_one(ctx: DslExecContext, *, game: str, message_id: str) -> None:
+    """Post ONE specific message right now (operator "Send now" test).
+
+    Bypasses election / cooldown / claim / anti-flood — it's a manual one-off — but
+    still renders templates and goes through the normal approval-gated taps.
+    """
+    redis = ctx.redis_client
+    player = (ctx.player_id or "").strip()
+    mid = str(message_id or "").strip()
+    if not mid:
+        ctx.result.update({"action": "no_message_id"})
+        return
+    msg = db.get_message(mid)
+    if msg is None:
+        ctx.result.update({"action": "unknown_message", "message_id": mid})
+        return
+
+    _store, alliance, state = _resolve_identity(player)
+    calendar_ctx = await _calendar_ctx(redis, game, state)
+    text = templating.render(msg.text, _template_context(msg, calendar_ctx, alliance, state))
+
+    action = await _deliver_text(redis, game, ctx.instance_id, channel=msg.channel, text=text)
+    if action == "sent" and player:
+        try:
+            db.record_send(
+                message_id=msg.id, game=game,
+                alliance=_scope_for(msg.channel, alliance, state),
+                fid=player, text=text, sent_at=time.time(),
+            )
+        except Exception:
+            logger.debug("broadcast: send-now log write failed", exc_info=True)
+    ctx.result.update({"action": action, "message_id": msg.id, "title": msg.title, "manual": True})
+    logger.info("broadcast: send-now %r → %s game=%s", msg.id, action, game)

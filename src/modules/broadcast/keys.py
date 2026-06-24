@@ -31,3 +31,14 @@ def sent_key(game: str, scope: str, message_id: str) -> str:
 def claim_key(game: str, scope: str, message_id: str) -> str:
     """Per-scope same-tick claim lock (short TTL; SET NX EX before posting)."""
     return f"{PREFIX}:{_slug(game)}:{_slug(scope)}:claim:{message_id}"
+
+
+def last_post_key(game: str, scope: str) -> str:
+    """Timestamp of the last post to a scope — the cross-message anti-flood gap."""
+    return f"{PREFIX}:{_slug(game)}:{_slug(scope)}:lastpost"
+
+
+def send_now_key(instance_id: str) -> str:
+    """Hand-off key: the message id the API asked an instance to send once now."""
+    iid = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(instance_id or "")).strip("_") or "none"
+    return f"{PREFIX}:sendnow:{iid}"

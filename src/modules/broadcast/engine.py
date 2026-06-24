@@ -21,10 +21,63 @@ from .models import TRIGGER_CRON, TRIGGER_EVENT, BroadcastMessage
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    # Decoded calendar snapshot the runner passes in (plain data, game-agnostic):
+    #   {"upcoming": [{"slug","name","in_hours","starts"}, ...],
+    #    "active":   [{"slug","name","ends"}, ...]}
+    CalendarCtx = Mapping[str, list[dict]]
+
 # The two cron shapes the scheduler supports (src/scheduler/runner.py). We treat
 # them as cadences: "*/N * * * *" → every N minutes; "M */H * * *" → every H hours.
 _EVERY_N_MIN = re.compile(r"^\*/(\d+)\s+\*\s+\*\s+\*\s+\*$")
 _MIN_EVERY_H = re.compile(r"^(\d+)\s+\*/(\d+)\s+\*\s+\*\s+\*$")
+
+# Pull the event slug out of an event-trigger cond like "event_bear_hunt == 1".
+_EVENT_SLUG_RE = re.compile(r"event_([a-z0-9_]+)")
+
+
+def event_slug_from_cond(cond: str) -> str:
+    """The ``<slug>`` from a ``event_<slug> ...`` cond, or ``""`` if none."""
+    m = _EVENT_SLUG_RE.search(cond or "")
+    return m.group(1) if m else ""
+
+
+def upcoming_match(msg: BroadcastMessage, calendar_ctx: CalendarCtx | None) -> dict | None:
+    """The nearest upcoming event matching a pre-event message within its lead.
+
+    Returns the calendar entry (``{slug,name,in_hours,starts}``) so the runner can
+    template ``{event}``/``{in_hours}`` from it, or ``None`` when nothing qualifies.
+    """
+    if not calendar_ctx:
+        return None
+    target = event_slug_from_cond(msg.cond)
+    if not target:
+        return None
+    best: dict | None = None
+    for ev in calendar_ctx.get("upcoming") or []:
+        if ev.get("slug") != target:
+            continue
+        ih = ev.get("in_hours")
+        if ih is None:
+            continue
+        if 0.0 <= float(ih) <= float(msg.lead_hours) and (
+            best is None or float(ih) < float(best["in_hours"])
+        ):
+            best = ev
+    return best
+
+
+def in_quiet_hours(msg: BroadcastMessage, server_minutes: int | None) -> bool:
+    """True when ``server_minutes`` (UTC+8 minute-of-day) falls in the quiet window."""
+    if server_minutes is None:
+        return False
+    start, end = int(msg.quiet_start_hour), int(msg.quiet_end_hour)
+    if start < 0 or end < 0 or start == end:
+        return False
+    cur_h = (int(server_minutes) // 60) % 24
+    start, end = start % 24, end % 24
+    if start < end:
+        return start <= cur_h < end
+    return cur_h >= start or cur_h < end  # window wraps past midnight (e.g. 22→6)
 
 
 def cron_interval_seconds(cron: str) -> int:
@@ -62,9 +115,14 @@ def message_due(
     flat_state: Mapping[str, object],
     now: float,
     last_ts: float | None,
+    *,
+    calendar_ctx: CalendarCtx | None = None,
+    server_minutes: int | None = None,
 ) -> bool:
-    """True when ``msg`` should be posted at ``now`` (cooldown + trigger met)."""
+    """True when ``msg`` should be posted at ``now`` (cooldown + trigger + quiet hours)."""
     if not msg.enabled:
+        return False
+    if in_quiet_hours(msg, server_minutes):
         return False
     if msg.trigger_kind == TRIGGER_CRON and cron_interval_seconds(msg.cron) <= 0:
         return False  # invalid/unsupported cron — never fire
@@ -72,6 +130,8 @@ def message_due(
     if last_ts is not None and (float(now) - float(last_ts)) < gap:
         return False
     if msg.trigger_kind == TRIGGER_EVENT:
+        if msg.is_pre_event():
+            return upcoming_match(msg, calendar_ctx) is not None
         return eval_cond(msg.cond, dict(flat_state))
     return msg.trigger_kind == TRIGGER_CRON
 
@@ -82,6 +142,9 @@ def select_due_message(
     now: float,
     last_sent: Mapping[str, float | None],
     game: str,
+    *,
+    calendar_ctx: CalendarCtx | None = None,
+    server_minutes: int | None = None,
 ) -> BroadcastMessage | None:
     """The single highest-priority message due for ``game`` at ``now``, or ``None``.
 
@@ -92,7 +155,10 @@ def select_due_message(
         m
         for m in messages
         if m.applies_to_game(game)
-        and message_due(m, flat_state, now, last_sent.get(m.id))
+        and message_due(
+            m, flat_state, now, last_sent.get(m.id),
+            calendar_ctx=calendar_ctx, server_minutes=server_minutes,
+        )
     ]
     if not due:
         return None

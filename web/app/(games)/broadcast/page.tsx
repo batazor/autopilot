@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useFleetOptional } from "@/components/FleetContextProvider";
 import { PageHeader } from "@/components/PageHeader";
 import { MessageEditor } from "@/components/broadcast/MessageEditor";
 import { Button, Pill, Spinner, Toggle } from "@/components/ui";
@@ -13,6 +14,7 @@ import {
   fetchHistory,
   fetchMessages,
   seedDefaults,
+  sendNow,
   setMessageEnabled,
 } from "@/lib/broadcast-api";
 
@@ -36,12 +38,14 @@ function MessageRow({
   onToggle,
   onEdit,
   onDelete,
+  onSendNow,
 }: {
   m: BroadcastMessage;
   busy: boolean;
   onToggle: (next: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSendNow: () => void;
 }) {
   return (
     <div
@@ -69,6 +73,9 @@ function MessageRow({
             onChange={onToggle}
             aria-label="Enabled"
           />
+          <Button variant="secondary" onClick={onSendNow} title="Post this once on the selected instance">
+            Send now
+          </Button>
           <Button variant="secondary" onClick={onEdit}>
             Edit
           </Button>
@@ -86,9 +93,11 @@ export default function BroadcastPage() {
   const [eventFlags, setEventFlags] = useState<EventFlag[]>([]);
   const [history, setHistory] = useState<SendRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<BroadcastMessage | null | "new">(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const instanceId = useFleetOptional()?.instanceId ?? "";
 
   const load = useCallback(() => {
     fetchMessages()
@@ -137,6 +146,21 @@ export default function BroadcastPage() {
     }
   };
 
+  const onSendNow = async (m: BroadcastMessage) => {
+    setError(null);
+    setNotice(null);
+    if (!instanceId) {
+      setError("Pick an instance (top-right) to send a test message to.");
+      return;
+    }
+    try {
+      await sendNow(m.id, instanceId);
+      setNotice(`Queued "${m.title}" on ${instanceId} — watch the device / history.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const onSeed = async () => {
     setSeeding(true);
     try {
@@ -153,6 +177,7 @@ export default function BroadcastPage() {
     <div className="space-y-4">
       <PageHeader
         title="Alliance broadcast"
+        fleet={{ showPlayer: false }}
         actions={
           <div className="flex gap-2">
             <Button variant="secondary" pending={seeding} onClick={onSeed}>
@@ -174,6 +199,12 @@ export default function BroadcastPage() {
       {error && (
         <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+          {notice}
         </div>
       )}
 
@@ -208,6 +239,7 @@ export default function BroadcastPage() {
             onToggle={(next) => onToggle(m, next)}
             onEdit={() => setEditing(m)}
             onDelete={() => onDelete(m)}
+            onSendNow={() => onSendNow(m)}
           />
         ))}
       </div>
