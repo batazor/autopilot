@@ -29,6 +29,13 @@ from .dailies import (
     daily_bias,
     merge_boosts,
 )
+from .domains import (
+    DOMAINS,
+    DomainSpec,
+    channel_kinds,
+    dev_channels,
+    investment_domain_names,
+)
 from .economy import (
     PRODUCER_BY_RESOURCE,
     EconomyBias,
@@ -95,6 +102,7 @@ from .safety import (
 __all__ = [
     "CHARM",
     "CONSTRUCTION",
+    "DOMAINS",
     "DOMAIN_BAND",
     "EVENT_CATALOG",
     "GEAR",
@@ -121,6 +129,7 @@ __all__ = [
     "DailyNudge",
     "DailyTask",
     "DefensiveAction",
+    "DomainSpec",
     "EconomyBias",
     "EventWindow",
     "FeedbackBias",
@@ -139,9 +148,11 @@ __all__ = [
     "apply_safety",
     "assess_safety",
     "calendar_bias",
+    "channel_kinds",
     "coordinate",
     "coordinate_optimal",
     "daily_bias",
+    "dev_channels",
     "domain_priority",
     "economy_bias",
     "from_build_slate",
@@ -155,6 +166,7 @@ __all__ = [
     "from_training_plan",
     "gather_candidates",
     "intel_intent",
+    "investment_domain_names",
     "march_channels",
     "merge_boosts",
     "plan_cycle",

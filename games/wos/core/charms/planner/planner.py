@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from games.wos.core.ladder import plan_ladder, roadmap_ladder
+
 from .model import load_charm_data
 from .policy import charm_value
 
@@ -59,21 +61,17 @@ class CharmRoadmap:
     steps: int                # number of level-ups
 
 
-def _level(owned: Mapping[str, int], slot_id: str) -> int:
-    try:
-        return int(owned.get(slot_id, 0) or 0)
-    except (TypeError, ValueError):
-        return 0
+_REASONS = (SELECTED, LOCKED, INSUFFICIENT_RESOURCES, NONE)
 
 
-def _power_gain(data: CharmData, from_level: int, to_level: int) -> int:
-    """Power delta from ``from_level`` → ``to_level`` (0 where either lacks power)."""
-    a = data.level(from_level)
-    b = data.level(to_level)
-    a_pow = a.power if a else 0
-    if b is None or b.power is None or a_pow is None:
-        return 0
-    return max(0, b.power - a_pow)
+def _make_candidate(
+    slot_id: str, troop_type: str, to_level: int, value: float,
+    cost: Mapping[str, int], power_gain: int, _lvl: object, affordable: bool,
+) -> CharmCandidate:
+    return CharmCandidate(
+        slot_id=slot_id, troop_type=troop_type, to_level=to_level, value=value,
+        cost=cost, power_gain=power_gain, affordable=affordable,
+    )
 
 
 def plan_next(
@@ -92,46 +90,13 @@ def plan_next(
     ``furnace_level`` gates the feature (Chief Charms unlock at Furnace 25); pass
     ``None`` to skip the gate. ``max_level`` caps the target (defaults to the table's).
     """
-    d = data if data is not None else load_charm_data()
-    if furnace_level is not None and furnace_level < d.unlock_furnace_level:
-        return CharmPlan(None, LOCKED)
-    cap = min(int(max_level), d.max_level) if max_level is not None else d.max_level
-
-    candidates: list[CharmCandidate] = []
-    best: CharmCandidate | None = None
-    best_key: tuple[float, int] | None = None
-    any_upgradable = False
-
-    for slot_id, troop_type in d.slots.items():
-        cur = _level(owned, slot_id)
-        if cur >= cap:
-            continue                                       # at the target/max
-        any_upgradable = True
-        nxt = cur + 1
-        lvl = d.level(nxt)
-        if lvl is None:
-            continue
-        cost = dict(lvl.cost)
-        value = charm_value(troop_type, nxt, max_level=cap, role=role, target=target)
-        affordable = all(int(resources.get(r, 0)) >= amt for r, amt in cost.items())
-        cand = CharmCandidate(
-            slot_id=slot_id, troop_type=troop_type, to_level=nxt, value=value,
-            cost=cost, power_gain=_power_gain(d, cur, nxt), affordable=affordable,
-        )
-        candidates.append(cand)
-        if affordable:
-            key = (value, -sum(cost.values()))             # value, then cheapest
-            if best_key is None or key > best_key:
-                best, best_key = cand, key
-
-    candidates.sort(key=lambda c: (-c.value, c.slot_id))
-    if best is not None:
-        reason = SELECTED
-    elif not any_upgradable:
-        reason = NONE
-    else:
-        reason = INSUFFICIENT_RESOURCES
-    return CharmPlan(step=best, reason=reason, candidates=tuple(candidates[:8]))
+    return plan_ladder(
+        owned, resources, data=data if data is not None else load_charm_data(),
+        value_fn=charm_value, make_candidate=_make_candidate,
+        make_plan=lambda step, reason, cands: CharmPlan(step, reason, cands),
+        reasons=_REASONS, furnace_level=furnace_level, role=role, target=target,
+        max_level=max_level,
+    )
 
 
 def charm_roadmap(
@@ -141,19 +106,7 @@ def charm_roadmap(
     data: CharmData | None = None,
 ) -> CharmRoadmap:
     """Total materials + power + step count to bring every slot up to ``target_level``."""
-    d = data if data is not None else load_charm_data()
-    cap = min(int(target_level), d.max_level)
-    cost: dict[str, int] = {}
-    power = 0
-    steps = 0
-    for slot_id in d.slots:
-        cur = _level(owned, slot_id)
-        for n in range(cur + 1, cap + 1):
-            lvl = d.level(n)
-            if lvl is None:
-                continue
-            for res, amt in lvl.cost.items():
-                cost[res] = cost.get(res, 0) + amt
-            power += _power_gain(d, n - 1, n)
-            steps += 1
+    cost, power, steps = roadmap_ladder(
+        owned, target_level, data=data if data is not None else load_charm_data(),
+    )
     return CharmRoadmap(cost=cost, power_gain=power, steps=steps)

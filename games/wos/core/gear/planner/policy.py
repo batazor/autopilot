@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from games.wos.core.roles import multiplier as role_multiplier
+from games.wos.core.ladder import even_leveling_value
 from games.wos.troops.planner import DEFAULT_TARGET as TROOP_TARGET
 
 if TYPE_CHECKING:
@@ -32,9 +32,8 @@ def gear_value(
     target: Mapping[str, float] | None = None,
 ) -> float:
     """Value of raising a ``troop_type`` gear piece to ``to_level`` (lagging first)."""
-    comp = (target or TROOP_TARGET).get(troop_type, 0.33)
-    recency = max(1, max_level - int(to_level) + 1)        # lagging pieces first
-    value = GEAR_BASE * comp * recency
-    if role is not None:
-        value *= role_multiplier(role, GEAR_ROLE_CATEGORY)
-    return value
+    return even_leveling_value(
+        to_level, max_level=max_level,
+        composition=(target or TROOP_TARGET).get(troop_type, 0.33),
+        base=GEAR_BASE, role=role, role_category=GEAR_ROLE_CATEGORY,
+    )

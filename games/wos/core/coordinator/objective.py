@@ -16,53 +16,17 @@ from typing import TYPE_CHECKING
 
 from games.wos.core.roles import multiplier as role_multiplier
 
+from .domains import domain_bands, domain_categories
+
 if TYPE_CHECKING:
     from games.wos.core.roles import RoleProfile
 
-# Base band per domain (before the role multiplier).
-DOMAIN_BAND: dict[str, float] = {
-    "research": 900.0,
-    "building_progression": 850.0,
-    # Intel events share the MARCH channel with raids + gather. They're quick
-    # (the march frees in minutes) and time-limited (the board refreshes on a
-    # timer), so they're banded above ordinary raids AND above the boosted-gather
-    # ceiling (gather 450 × economy gather_boost 1.6 = 720): clear the quick,
-    # expiring Intel run before committing a slot to a long gather.
-    "intel": 760.0,
-    # Time-limited events that spend a march (e.g. Romance Season: a daily-capped,
-    # TTL'd attack). Use-it-or-lose-it like intel, banded just below it and above
-    # ordinary raids/gather. One band shared by such events; tune per-event via boost.
-    "romance_season": 750.0,
-    "raids": 600.0,
-    "heroes": 580.0,
-    "pets": 560.0,
-    "building_camp": 560.0,
-    "gear": 555.0,
-    "charms": 550.0,
-    "hero_gear": 545.0,
-    "troops": 540.0,
-    "building_economy": 520.0,
-    "gather": 450.0,
-}
+# Built from the single source of truth (:mod:`domains`). Add/retune a domain there.
+DOMAIN_BAND: dict[str, float] = domain_bands()
 DEFAULT_BAND = 300.0
 
 # Which role category tilts each domain (growth = universal, never demoted).
-DOMAIN_CATEGORY: dict[str, str] = {
-    "research": "growth",
-    "building_progression": "growth",
-    "building_economy": "economy",
-    "gather": "economy",
-    "building_camp": "battle",
-    "raids": "battle",
-    "troops": "battle",
-    "heroes": "growth",          # role tilt already baked into the hero planner's value
-    "pets": "growth",            # role tilt already baked into the pet planner's value
-    "charms": "growth",          # role tilt already baked into the charm planner's value
-    "gear": "growth",            # role tilt already baked into the gear planner's value
-    "hero_gear": "growth",       # role tilt already baked into the hero-gear planner's value
-    "intel": "growth",           # time-limited free loot — valuable to every role
-    "romance_season": "growth",  # time-limited event reward — valuable to every role
-}
+DOMAIN_CATEGORY: dict[str, str] = domain_categories()
 
 # Map a building planner track to a coordinator domain.
 TRACK_DOMAIN: dict[str, str] = {

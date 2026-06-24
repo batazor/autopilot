@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from games.wos.core.roles import multiplier as role_multiplier
+from games.wos.core.ladder import even_leveling_value
 from games.wos.troops.planner import DEFAULT_TARGET as TROOP_TARGET
 
 if TYPE_CHECKING:
@@ -35,12 +35,15 @@ def hero_gear_value(
     role: RoleProfile | None = None,
     target: Mapping[str, float] | None = None,
 ) -> float:
-    """Value of the next step of ``track`` on a ``troop_type`` piece (lagging first)."""
-    comp = (target or TROOP_TARGET).get(troop_type, 0.33)
-    weight = TRACK_WEIGHT.get(track, 0.5)
-    # Normalised recency in (0, 1]: a low level relative to the track's own max ranks high.
-    recency = max(0.0, (max_level - int(to_level) + 1) / max(1, max_level))
-    value = HERO_GEAR_BASE * weight * comp * recency
-    if role is not None:
-        value *= role_multiplier(role, HERO_GEAR_ROLE_CATEGORY)
-    return value
+    """Value of the next step of ``track`` on a ``troop_type`` piece (lagging first).
+
+    Recency is **normalised** by the track's own max level so the three tracks
+    (enhance 100 / mastery 20 / widget 10) compare apples-to-apples, then scaled by
+    the track weight (enhance > mastery > widget).
+    """
+    return TRACK_WEIGHT.get(track, 0.5) * even_leveling_value(
+        to_level, max_level=max_level,
+        composition=(target or TROOP_TARGET).get(troop_type, 0.33),
+        base=HERO_GEAR_BASE, role=role, role_category=HERO_GEAR_ROLE_CATEGORY,
+        normalize=True,
+    )

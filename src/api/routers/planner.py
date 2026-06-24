@@ -117,14 +117,7 @@ def _guard(fn: Callable[[], Any]) -> Any:
 # --------------------------------------------------------------------------- #
 @router.get("/meta")
 def get_meta() -> dict[str, Any]:
-    from games.wos.core.coordinator import (
-        CONSTRUCTION,
-        HERO,
-        MARCH,
-        PET,
-        RESEARCH,
-        TRAINING,
-    )
+    from games.wos.core.coordinator import channel_kinds
     from games.wos.core.roles import ROLES
 
     def _safe(fn: Callable[[], Any], default: Any) -> Any:
@@ -138,7 +131,8 @@ def get_meta() -> dict[str, Any]:
         "buildings": _safe(lambda: sorted(_building_graph().buildings), []),
         "heroes": _safe(lambda: sorted(_hero_catalog().keys()), []),
         "pets": _safe(lambda: sorted(_pet_catalog().keys()), []),
-        "channel_kinds": [CONSTRUCTION, RESEARCH, MARCH, TRAINING, HERO, PET],
+        # Every channel kind, from the domain registry (no longer a hand-kept subset).
+        "channel_kinds": list(channel_kinds()),
         "intel_kinds": _safe(_intel_kinds, []),
         "intel_colors": _safe(_intel_colors, []),
     }
@@ -852,18 +846,12 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
     from games.wos.core.building.planner import plan_builds
     from games.wos.core.charms.planner import plan_next as charm_plan_next
     from games.wos.core.coordinator import (
-        CHARM,
         CONSTRUCTION,
-        GEAR,
-        HERO,
-        HERO_GEAR,
-        PET,
-        RESEARCH,
-        TRAINING,
         Channel,
         DailyTask,
         EventWindow,
         ThreatState,
+        dev_channels,
         plan_cycle,
     )
     from games.wos.core.gear.planner import plan_next as gear_plan_next
@@ -945,15 +933,8 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             Channel(id=f"construction_{i + 1}", kind=CONSTRUCTION)
             for i in range(max(1, body.building.free_queues))
         ]
-        channels += [
-            Channel(id="research_1", kind=RESEARCH),
-            Channel(id="hero_1", kind=HERO),
-            Channel(id="pet_1", kind=PET),
-            Channel(id="training_1", kind=TRAINING),
-            Channel(id="charm_1", kind=CHARM),
-            Channel(id="gear_1", kind=GEAR),
-            Channel(id="hero_gear_1", kind=HERO_GEAR),
-        ]
+        # One lane per development domain, from the registry (single source of truth).
+        channels += [Channel(id=cid, kind=kind) for cid, kind in dev_channels()]
 
     if body.balances is not None:
         balances = dict(body.balances)
@@ -1009,6 +990,56 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
 @router.post("/full")
 def post_full(body: FullPlanBody) -> dict[str, Any]:
     return _guard(lambda: _full_plan(body))
+
+
+# --------------------------------------------------------------------------- #
+# Overview — "develop everything to target → total materials" across the
+# material-cost domains (the building/research ETAs live in /projection instead).
+# --------------------------------------------------------------------------- #
+class OverviewBody(BaseModel):
+    charms: CharmsBody | None = None        # owned + target_level
+    gear: GearBody | None = None            # owned + target_level
+    hero_gear: HeroGearBody | None = None   # owned + targets (per track)
+    heroes: list[HeroRoadmapBody] = Field(default_factory=list)   # per-hero level/star/skill
+
+
+def _overview(body: OverviewBody) -> dict[str, Any]:
+    """Aggregate each material domain's current→target roadmap into a grand total.
+
+    Pure reuse of the existing per-domain ``*_roadmap`` functions — sums their cost
+    dicts by resource so the operator sees "to develop all this, I need N of each".
+    """
+    from games.wos.core.charms.planner import charm_roadmap
+    from games.wos.core.gear.planner import gear_roadmap
+    from games.wos.core.hero_gear.planner import hero_gear_roadmap
+    from games.wos.heroes.heroes.planner import hero_upgrade_roadmap
+
+    domains: dict[str, Any] = {}
+    totals: dict[str, int] = {}
+
+    def _add(rm: Any) -> dict[str, Any]:
+        for res, amt in rm.cost.items():
+            totals[res] = totals.get(res, 0) + int(amt)
+        return _asdict(rm)
+
+    if body.charms is not None and body.charms.target_level:
+        domains["charms"] = _add(charm_roadmap(body.charms.owned, body.charms.target_level))
+    if body.gear is not None and body.gear.target_level:
+        domains["gear"] = _add(gear_roadmap(body.gear.owned, body.gear.target_level))
+    if body.hero_gear is not None and body.hero_gear.targets:
+        domains["hero_gear"] = _add(hero_gear_roadmap(body.hero_gear.owned, body.hero_gear.targets))
+    catalog = _hero_catalog()
+    for h in body.heroes:
+        spec = catalog.get(h.hero_id)
+        if spec is not None:
+            domains[f"hero:{h.hero_id}"] = _add(hero_upgrade_roadmap(spec, h.current, h.target))
+
+    return {"domains": domains, "totals": totals}
+
+
+@router.post("/overview")
+def post_overview(body: OverviewBody) -> dict[str, Any]:
+    return _guard(lambda: _overview(body))
 
 
 # --------------------------------------------------------------------------- #

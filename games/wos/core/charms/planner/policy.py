@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from games.wos.core.roles import multiplier as role_multiplier
+from games.wos.core.ladder import even_leveling_value
 from games.wos.troops.planner import DEFAULT_TARGET as TROOP_TARGET
 
 if TYPE_CHECKING:
@@ -33,14 +33,9 @@ def charm_value(
     role: RoleProfile | None = None,
     target: Mapping[str, float] | None = None,
 ) -> float:
-    """Value of raising a ``troop_type`` charm to ``to_level``.
-
-    Lower target levels score higher (even leveling); scaled by the troop type's
-    composition share and the role's combat tilt.
-    """
-    comp = (target or TROOP_TARGET).get(troop_type, 0.33)
-    recency = max(1, max_level - int(to_level) + 1)        # lagging charms first
-    value = CHARM_BASE * comp * recency
-    if role is not None:
-        value *= role_multiplier(role, CHARM_ROLE_CATEGORY)
-    return value
+    """Value of raising a ``troop_type`` charm to ``to_level`` (even-leveling × role)."""
+    return even_leveling_value(
+        to_level, max_level=max_level,
+        composition=(target or TROOP_TARGET).get(troop_type, 0.33),
+        base=CHARM_BASE, role=role, role_category=CHARM_ROLE_CATEGORY,
+    )

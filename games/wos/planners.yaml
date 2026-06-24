@@ -140,3 +140,47 @@ planners:
     observed_inputs:
       - "troops.infantry.available"
     note: "Только калькулятор; численность по типам читается (sync_troop_pool, max-per-type)."
+
+  - name: charms
+    title: "Планировщик Chief Charms"
+    domain: CHARM
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "charms.owned"
+    note: "Только калькулятор; реальные данные стоимости (db/chief_charms.yaml), нет ридера уровней чармов."
+
+  - name: gear
+    title: "Планировщик Chief Gear"
+    domain: GEAR
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "gear.owned"
+    note: "Только калькулятор; реальные данные (db/chief_gear.yaml, 42 шага Green→Pink), нет ридера уровней частей."
+
+  - name: hero_gear
+    title: "Планировщик Hero Gear (enhance/mastery/widget)"
+    domain: HERO_GEAR
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "hero_gear.owned"
+    note: "Только калькулятор; 3 трека из db/gear/enhancement.yaml, нет ридера уровней по трекам."
+
+  - name: hero_upgrade
+    title: "Калькулятор апгрейда героя (level/star/skill roadmap)"
+    domain: HERO
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "heroes.entries"
+    note: "Расширение heroes: уровень/EXP (db/hero_xp.yaml) + roadmap по level/star/skill; LEVEL_UP читает heroes.entries.<id>.level."
