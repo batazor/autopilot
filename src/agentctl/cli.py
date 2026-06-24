@@ -336,6 +336,28 @@ def _render_why(d: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_drive(d: dict[str, Any]) -> str:
+    head = (
+        f"drive {d.get('scenario')} on {d.get('instance_id')}  "
+        f"ok={_cell(d.get('ok'))}  completed={_cell(d.get('completed'))}  "
+        f"({_cell(d.get('duration_s'))}s)"
+    )
+    if d.get("reason"):
+        head += f"  reason={d['reason']}"
+    if d.get("approval_bypassed"):
+        head += "  [approval bypassed]"
+    parts = [head, _render_trace({"scenario": d.get("scenario"), "source": "drive", "steps": d.get("steps", [])})]
+    diff = d.get("state_diff") or {}
+    if diff:
+        parts.append("\nstate changes:")
+        parts.extend(
+            f"  {k}: {_cell(v.get('before'))} → {_cell(v.get('after'))}" for k, v in sorted(diff.items())
+        )
+    else:
+        parts.append("\nstate changes: (none)")
+    return "\n".join(parts)
+
+
 def _render_ok(d: dict[str, Any]) -> str:
     return json.dumps(d, ensure_ascii=False)
 
@@ -419,6 +441,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="run ONLY this scenario (suppress crons/overlay/identity; start a worker if none)",
     )
 
+    p = sub.add_parser(
+        "drive", parents=[common],
+        help="run ONE scenario on a device synchronously (in-process): step trace + state diff",
+    )
+    p.add_argument("scenario", help="scenario key")
+    p.add_argument("--inst", dest="instance", help="instance id")
+    p.add_argument("--player", default="", help="player id (account-level scenarios)")
+    p.add_argument(
+        "--no-approval", dest="approval", action="store_false",
+        help="bypass click-approval for this run (taps fire without operator)",
+    )
+    p.add_argument("--timeout", type=float, default=180.0, help="abort after N seconds")
+
     p = sub.add_parser("focus", parents=[common], help="pin/clear focus mode for an instance")
     _add_inst(p)
     p.add_argument("--scenario", default="", help="scenario key to pin (omit with --clear)")
@@ -493,6 +528,14 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
                 focus=args.focus,
             ),
             _render_ok,
+        )
+    if cmd == "drive":
+        return (
+            core.drive(
+                args.scenario, args.instance,
+                player_id=args.player, approval=args.approval, timeout=args.timeout,
+            ),
+            _render_drive,
         )
     if cmd == "focus":
         if args.clear:

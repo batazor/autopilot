@@ -14,11 +14,11 @@ from agentctl import mcp_server
 
 def test_tool_inventory() -> None:
     names = [f.__name__ for f in mcp_server.TOOLS]
-    assert len(names) == 21
-    assert len(set(names)) == 21  # no duplicates
+    assert len(names) == 22
+    assert len(set(names)) == 22  # no duplicates
     for expected in (
         "bot_status", "bot_run", "bot_focus", "bot_pause", "bot_trace",
-        "bot_queue_clear", "bot_why", "bot_planners",
+        "bot_queue_clear", "bot_why", "bot_planners", "bot_drive",
     ):
         assert expected in names
 

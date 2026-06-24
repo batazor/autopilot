@@ -66,6 +66,7 @@ uv run botctl scenarios --grep mail               # list DSL scenarios + metadat
 uv run botctl devices              # devices + backends + adb-online
 
 # control (enqueue work / send commands — device taps still go through click-approval)
+uv run botctl drive sync_furnace_level.cron --inst bs1 --player 401227964 --no-approval  # run ONE scenario SYNC, in-process (no worker): step trace + state diff. Needs the device free (no worker running — scrcpy single-holder). Best way to dev/verify a reader or scenario.
 uv run botctl run check_main_city --inst bs1 --player 401227964   # enqueue now
 uv run botctl pause bs1            # / resume / abort [--restart]
 uv run botctl bot start|stop|status                              # local worker lifecycle

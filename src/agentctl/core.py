@@ -35,6 +35,7 @@ __all__ = [
     "abort",
     "bot_lifecycle",
     "devices",
+    "drive",
     "history",
     "instance_state",
     "list_instances",
@@ -718,6 +719,151 @@ def why(instance: str | None = None) -> dict[str, Any]:
         "rank_meta": rank_meta if isinstance(rank_meta, dict) else None,
         "decisions_player": dec_fid,
         "decisions": decisions,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Drive — run ONE scenario on a device synchronously, in-process (dev velocity)
+# --------------------------------------------------------------------------- #
+# Noisy instance-state fields that churn every tick — dropped from the state diff
+# so `drive` surfaces the scenario's real effect (the keys a reader wrote), not
+# heartbeat/timestamp noise.
+_DIFF_NOISE = (
+    "inst:last_active_scenario_trace",
+    "inst:last_seen_at",
+    "inst:uptime",
+    "inst:current_task_started_at",
+    "inst:dsl_last_",
+    "inst:last_overlay_",
+)
+
+
+def _state_snapshot(client: redis.Redis, instance_id: str, fid: str) -> dict[str, str]:
+    """Flat snapshot of the instance hash (+ player hash) for before/after diffing."""
+    from dashboard.redis_client import get_instance_state, get_player_state_hash
+
+    snap = {f"inst:{k}": v for k, v in get_instance_state(client, instance_id).items()}
+    if fid:
+        snap.update({f"player:{k}": v for k, v in get_player_state_hash(client, fid).items()})
+    return snap
+
+
+def _state_diff(before: dict[str, str], after: dict[str, str]) -> dict[str, Any]:
+    """Keys whose value changed (added/removed/edited), minus heartbeat noise."""
+    out: dict[str, Any] = {}
+    for k in set(before) | set(after):
+        if before.get(k) == after.get(k):
+            continue
+        if any(k.startswith(n) for n in _DIFF_NOISE):
+            continue
+        out[k] = {"before": before.get(k), "after": after.get(k)}
+    return out
+
+
+async def _drive_async(instance_id: str, scenario: str, fid: str, timeout: float) -> Any:
+    """Bootstrap a headless runtime, run the scenario task, return its TaskResult."""
+    import asyncio
+
+    import redis.asyncio as aioredis
+
+    from config.loader import load_settings
+    from config.runtime_bootstrap import bootstrap_runtime_observability
+
+    settings = load_settings()
+    try:
+        bootstrap_runtime_observability("botctl-drive", instance_id=instance_id)
+    except Exception:
+        pass  # observability is best-effort; never block a drive on it
+
+    # Bytes-mode async client matching the worker (aioredis.from_url without
+    # decode_responses) so the DSL task's hget/hset behave identically.
+    ar = aioredis.from_url(settings.redis.url, socket_connect_timeout=5.0)
+    serial = _serial_for_instance(instance_id)
+    try:
+        from tasks.dsl_scenario import DslScenarioTask
+
+        task = DslScenarioTask(
+            task_id=f"drive:{instance_id}:{int(time.time())}",
+            player_id=fid,
+            scenario_key=scenario,
+            redis_client=ar,
+        )
+        return await asyncio.wait_for(task.execute(instance_id), timeout=float(timeout))
+    finally:
+        try:
+            await ar.aclose()
+        except Exception:
+            pass
+        if serial:
+            try:
+                from adb.scrcpy import close_scrcpy_client
+
+                close_scrcpy_client(serial)
+            except Exception:
+                pass
+
+
+def drive(
+    scenario: str,
+    instance: str | None = None,
+    *,
+    player_id: str = "",
+    approval: bool = True,
+    timeout: float = 180.0,
+) -> dict[str, Any]:
+    """Run ONE scenario on a device **synchronously, in-process** — return its
+    step trace + the resulting state diff.
+
+    Unlike ``run_scenario``/focus (which enqueue and spawn a background worker
+    that the orphan-watchdog later kills), this constructs the ``DslScenarioTask``
+    and awaits ``execute`` directly: no scheduler, no worker, no orphaned process.
+    The scenario self-routes to its ``node:`` first, then runs its steps.
+
+    ``approval=False`` bypasses the click-approval gate for this run (restored
+    after). Requires NO worker running on the instance — scrcpy is a single holder
+    per device, so a live worker would conflict.
+    """
+    import asyncio
+
+    iid = resolve_instance(instance)
+    scenario = str(scenario or "").strip()
+    if not scenario:
+        msg = "scenario key is required"
+        raise AgentctlError(msg)
+
+    client = _redis()
+    fid = str(player_id or "").strip()
+    before = _state_snapshot(client, iid, fid)
+
+    flag_key = f"wos:ui:click_approval:enabled:{iid}"
+    prior_flag = client.get(flag_key)
+    started = time.time()
+    try:
+        if not approval:
+            client.set(flag_key, "0")
+        result = asyncio.run(_drive_async(iid, scenario, fid, timeout))
+    except (TimeoutError, asyncio.TimeoutError) as exc:  # noqa: UP041
+        raise AgentctlError(f"scenario {scenario!r} timed out after {timeout:.0f}s") from exc
+    finally:
+        if not approval:
+            if prior_flag is None:
+                client.delete(flag_key)
+            else:
+                client.set(flag_key, prior_flag)
+
+    after = _state_snapshot(client, iid, fid)
+    meta = dict(getattr(result, "metadata", {}) or {})
+    return {
+        "instance_id": iid,
+        "scenario": scenario,
+        "player_id": fid,
+        "ok": bool(getattr(result, "success", False)),
+        "completed": bool(meta.get("scenario_completed")),
+        "reason": str(meta.get("reason") or ""),
+        "duration_s": round(time.time() - started, 1),
+        "approval_bypassed": not approval,
+        "steps": meta.get("steps_trace") or [],
+        "state_diff": _state_diff(before, after),
     }
 
 

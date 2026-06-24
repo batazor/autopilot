@@ -126,6 +126,19 @@ def bot_run(
     )
 
 
+def bot_drive(
+    scenario: str,
+    instance: str | None = None,
+    player_id: str = "",
+    approval: bool = True,
+    timeout: float = 180.0,
+) -> dict[str, Any]:
+    """Run ONE scenario on a device SYNCHRONOUSLY in-process (no worker/scheduler) and return its step trace + state diff. approval=False bypasses click-approval (taps fire without operator). Needs no worker running on the instance."""  # noqa: E501
+    return _run(
+        core.drive, scenario, instance, player_id=player_id, approval=approval, timeout=timeout,
+    )
+
+
 def bot_focus(
     scenario: str = "",
     instance: str | None = None,
@@ -189,6 +202,7 @@ TOOLS = [
     bot_devices,
     bot_logs,
     bot_run,
+    bot_drive,
     bot_focus,
     bot_pause,
     bot_resume,

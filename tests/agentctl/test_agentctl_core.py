@@ -393,6 +393,56 @@ def test_why_running_decodes_source_rank_meta_and_decisions(
     assert out["decisions"]["march"] is None
 
 
+def test_drive_assembles_trace_diff_and_restores_approval(
+    monkeypatch: pytest.MonkeyPatch, one_instance: None
+) -> None:
+    class FR:
+        def __init__(self) -> None:
+            self.store: dict[str, str] = {}
+            self.deleted: list[str] = []
+
+        def get(self, k: str):
+            return self.store.get(k)
+
+        def set(self, k: str, v: str) -> None:
+            self.store[k] = v
+
+        def delete(self, k: str) -> None:
+            self.deleted.append(k)
+            self.store.pop(k, None)
+
+    fr = FR()
+    monkeypatch.setattr("dashboard.redis_client.require_redis_connection", lambda: fr)
+    # before snapshot empty, after has the reader's output key
+    states = iter([{}, {"troops.infantry.available": "73443"}])
+    monkeypatch.setattr("dashboard.redis_client.get_instance_state", lambda *_a, **_k: {})
+    monkeypatch.setattr("dashboard.redis_client.get_player_state_hash", lambda *_a, **_k: next(states))
+
+    class _Result:
+        success = True
+        metadata = {
+            "scenario_completed": True,
+            "reason": "success",
+            "steps_trace": [{"i": "0", "status": "ok", "summary": "exec sync_troop_pool"}],
+        }
+
+    async def _fake_async(iid, scn, fid, timeout):  # noqa: ANN001, ANN202
+        return _Result()
+
+    monkeypatch.setattr(core, "_drive_async", _fake_async)
+
+    out = core.drive("sync_troop_pool.cron", "bs1", player_id="42", approval=False)
+    assert out["ok"] is True
+    assert out["completed"] is True
+    assert out["approval_bypassed"] is True
+    assert len(out["steps"]) == 1
+    assert out["state_diff"] == {
+        "player:troops.infantry.available": {"before": None, "after": "73443"}
+    }
+    # approval flag was forced to "0" then removed (no prior value to restore).
+    assert "wos:ui:click_approval:enabled:bs1" in fr.deleted
+
+
 def test_why_idle_falls_back_to_last_history_task(
     fake_redis_z: FakeRedisZ, one_instance: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
