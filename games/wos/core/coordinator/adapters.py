@@ -19,6 +19,7 @@ from .model import (
     CONSTRUCTION,
     GEAR,
     HERO,
+    HERO_GEAR,
     MARCH,
     PET,
     RESEARCH,
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from games.wos.core.building.planner import BuildGraph, BuildSlate
     from games.wos.core.charms.planner import CharmPlan
     from games.wos.core.gear.planner import GearPlan
+    from games.wos.core.hero_gear.planner import HeroGearPlan
     from games.wos.core.pets.planner import PetPlan
     from games.wos.core.research.planner import ResearchGraph, ResearchPlan
     from games.wos.core.roles import RoleProfile
@@ -195,6 +197,29 @@ def from_gear_plan(
         priority=domain_priority("gear", boost=(boosts or {}).get("gear", 1.0)),
         cost=dict(step.cost),
         detail=f"gear {step.slot_id} -> {step.label}",
+    )]
+
+
+def from_hero_gear_plan(
+    plan: HeroGearPlan,
+    *,
+    boosts: Mapping[str, float] | None = None,
+) -> list[CandidateAction]:
+    """The Hero Gear pick (one hero-gear channel), if any.
+
+    Role is baked into the planner's value; the coordinator slots it at the
+    ``hero_gear`` band. ``cost`` is the track's single material (enhance/mastery/widget).
+    """
+    step = plan.step
+    if step is None:
+        return []
+    return [CandidateAction(
+        domain="hero_gear",
+        channel_kind=HERO_GEAR,
+        key=f"{step.slot_id}:{step.track}:{step.to_level}",
+        priority=domain_priority("hero_gear", boost=(boosts or {}).get("hero_gear", 1.0)),
+        cost=dict(step.cost),
+        detail=f"hero gear {step.slot_id} {step.track} -> {step.to_level}",
     )]
 
 

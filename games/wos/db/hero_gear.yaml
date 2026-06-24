@@ -1,0 +1,38 @@
+# Hero Gear multi-track planner config.
+#
+# The numeric upgrade ladders are NOT duplicated here — they're read straight from
+# the sheet-sourced db/gear/enhancement.yaml (the single source of truth). This file
+# holds only the 6 piece catalog + the per-track config: which material a track
+# spends, its Furnace unlock gate, and which enhancement.yaml section supplies the
+# per-level cost.
+#
+# The 3 tracks (the wostools Hero Gear calculator's tracks):
+#   enhance  — gear leveling 1..100; cost = points_required["gold"] per level
+#              (the gold column is the full curve; lower tiers are its prefixes).
+#   mastery  — Mastery Forging 1..20; cost = mastery_levels[L].essence_stones (= L×10).
+#   widget   — Weapon Widget 1..10; cost = weapon_widgets[L] (= L×5).
+# Out of scope: the Mythic/Ascended track (mythic_max_costs is a gear-SACRIFICE
+# mechanic, not a flat material cost). Read by games/wos/core/hero_gear/planner/model.py.
+pieces:
+  - {id: gloves_belt_infantry,   troop_type: infantry}
+  - {id: goggles_boots_infantry, troop_type: infantry}
+  - {id: gloves_belt_lancer,     troop_type: lancer}
+  - {id: goggles_boots_lancer,   troop_type: lancer}
+  - {id: gloves_belt_marksman,   troop_type: marksman}
+  - {id: goggles_boots_marksman, troop_type: marksman}
+
+tracks:
+  enhance:
+    resource: enhancement_xp
+    unlock_furnace_level: 15
+    source: points_required        # nested by tier in enhancement.yaml
+    source_tier: gold              # the gold column = the full 1..100 ladder
+  mastery:
+    resource: essence_stones
+    unlock_furnace_level: 20
+    source: mastery_levels         # 1..20, take the `essence_stones` field
+    source_field: essence_stones
+  widget:
+    resource: weapon_widget
+    unlock_furnace_level: 20
+    source: weapon_widgets         # 1..10 (skip the `total` key)

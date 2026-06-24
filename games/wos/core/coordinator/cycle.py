@@ -39,6 +39,7 @@ from .adapters import (
     from_build_slate,
     from_charms_plan,
     from_gear_plan,
+    from_hero_gear_plan,
     from_hero_plan,
     from_pet_plan,
     from_research_plan,
@@ -58,6 +59,7 @@ if TYPE_CHECKING:
     from games.wos.core.building.planner import BuildGraph, BuildSlate
     from games.wos.core.charms.planner import CharmPlan
     from games.wos.core.gear.planner import GearPlan
+    from games.wos.core.hero_gear.planner import HeroGearPlan
     from games.wos.core.pets.planner import PetPlan
     from games.wos.core.research.planner import ResearchGraph, ResearchPlan
     from games.wos.core.roles import RoleProfile
@@ -106,6 +108,7 @@ def plan_cycle(
     training_plan: TrainingPlan | None = None,
     charms_plan: CharmPlan | None = None,
     gear_plan: GearPlan | None = None,
+    hero_gear_plan: HeroGearPlan | None = None,
     role: RoleProfile | None = None,
     event_windows: Sequence[EventWindow] = (),
     daily_tasks: Sequence[DailyTask] = (),
@@ -158,6 +161,8 @@ def plan_cycle(
         candidates.extend(from_charms_plan(charms_plan, boosts=boosts))
     if gear_plan is not None:
         candidates.extend(from_gear_plan(gear_plan, boosts=boosts))
+    if hero_gear_plan is not None:
+        candidates.extend(from_hero_gear_plan(hero_gear_plan, boosts=boosts))
     candidates.extend(extra_candidates)
 
     # 4. Safety gates (drops troop-exposing domains in danger) before allocation.

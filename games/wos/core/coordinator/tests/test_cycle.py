@@ -161,6 +161,19 @@ def test_gear_channel_joins_the_tick():
     assert action.cost == {"hardened_alloy": 1500, "polishing_solution": 15}   # green_0
 
 
+def test_hero_gear_channel_joins_the_tick():
+    """A Hero Gear pick fills the HERO_GEAR channel with its real material cost."""
+    from games.wos.core.coordinator import HERO_GEAR
+    from games.wos.core.hero_gear.planner import plan_next as hero_gear_plan_next
+    balances = {"enhancement_xp": 10**6, "essence_stones": 10**6, "weapon_widget": 10**6}
+    hgplan = hero_gear_plan_next({}, balances, furnace_level=20)
+    plan = plan_cycle(channels=[Channel("hg1", HERO_GEAR)], balances=balances, hero_gear_plan=hgplan)
+    action = plan.decision.commits[0].action
+    assert action.channel_kind == HERO_GEAR
+    assert action.domain == "hero_gear"
+    assert action.cost == {"enhancement_xp": 10}        # enhance L1 (highest-weight track)
+
+
 def test_calendar_event_boosts_its_reward_domains():
     """A live Power Up event lifts the any-power domains (incl. research)."""
     rg = load_research_graph()

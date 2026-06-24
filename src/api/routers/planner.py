@@ -76,6 +76,13 @@ def _gear_data() -> Any:
     return load_gear_data()
 
 
+@lru_cache(maxsize=1)
+def _hero_gear_data() -> Any:
+    from games.wos.core.hero_gear.planner import load_hero_gear_data
+
+    return load_hero_gear_data()
+
+
 @lru_cache(maxsize=4)
 def _unlock_schedule(profile: str) -> Any:
     from games.wos.core.calendar.server_unlocks import load_unlock_schedule
@@ -402,6 +409,34 @@ def post_gear(body: GearBody) -> dict[str, Any]:
         out = _asdict(plan)
         if body.target_level:
             out["roadmap"] = _asdict(gear_roadmap(body.owned, body.target_level))
+        return out
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
+# Hero Gear (multi-track: enhance / mastery / widget)
+# --------------------------------------------------------------------------- #
+class HeroGearBody(BaseModel):
+    owned: dict[str, dict[str, int]] = Field(default_factory=dict)  # {piece: {track: level}}
+    resources: dict[str, int] = Field(default_factory=dict)        # enhancement_xp/essence_stones/weapon_widget
+    furnace_level: int | None = None                               # per-track gates (15/20)
+    role: str | None = None
+    targets: dict[str, int] | None = None                          # roadmap target level per track
+
+
+@router.post("/hero_gear")
+def post_hero_gear(body: HeroGearBody) -> dict[str, Any]:
+    from games.wos.core.hero_gear.planner import hero_gear_roadmap, plan_next
+
+    def run() -> dict[str, Any]:
+        plan = plan_next(
+            body.owned, body.resources,
+            furnace_level=body.furnace_level, role=_role(body.role),
+        )
+        out = _asdict(plan)
+        if body.targets:
+            out["roadmap"] = _asdict(hero_gear_roadmap(body.owned, body.targets))
         return out
 
     return _guard(run)
@@ -769,6 +804,7 @@ class FullPlanBody(BaseModel):
     troops: TroopsBody = Field(default_factory=TroopsBody)
     charms: CharmsBody = Field(default_factory=CharmsBody)
     gear: GearBody = Field(default_factory=GearBody)
+    hero_gear: HeroGearBody = Field(default_factory=HeroGearBody)
     # Shared resource pool the coordinator spends. Defaults to the union of the
     # hero + pet namespaced balances (book:* / shard:* / pet_food / pet_shard:*);
     # add meat/wood/coal/iron/steel to let research contend instead of starving.
@@ -801,6 +837,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         CONSTRUCTION,
         GEAR,
         HERO,
+        HERO_GEAR,
         PET,
         RESEARCH,
         TRAINING,
@@ -811,6 +848,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         plan_cycle,
     )
     from games.wos.core.gear.planner import plan_next as gear_plan_next
+    from games.wos.core.hero_gear.planner import plan_next as hero_gear_plan_next
     from games.wos.core.pets.planner import plan_next as pet_plan_next
     from games.wos.core.research.planner import plan_next as research_plan_next
     from games.wos.heroes.heroes.planner import plan_next as hero_plan_next
@@ -875,6 +913,10 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         body.gear.owned, body.gear.resources,
         furnace_level=body.gear.furnace_level, role=_role(body.gear.role),
     )
+    hgplan = hero_gear_plan_next(
+        body.hero_gear.owned, body.hero_gear.resources,
+        furnace_level=body.hero_gear.furnace_level, role=_role(body.hero_gear.role),
+    )
 
     if body.channels is not None:
         channels = [Channel(id=c.id, kind=c.kind) for c in body.channels]
@@ -890,6 +932,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             Channel(id="training_1", kind=TRAINING),
             Channel(id="charm_1", kind=CHARM),
             Channel(id="gear_1", kind=GEAR),
+            Channel(id="hero_gear_1", kind=HERO_GEAR),
         ]
 
     if body.balances is not None:
@@ -900,6 +943,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             **dict(body.pets.resources),
             **dict(body.charms.resources),
             **dict(body.gear.resources),
+            **dict(body.hero_gear.resources),
         }
 
     plan = plan_cycle(
@@ -914,6 +958,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         training_plan=tplan,
         charms_plan=chplan,
         gear_plan=gplan,
+        hero_gear_plan=hgplan,
         event_windows=[EventWindow(**w.model_dump()) for w in body.events],
         daily_tasks=[DailyTask(**t.model_dump()) for t in body.dailies],
         seconds_to_reset=body.seconds_to_reset,
@@ -928,6 +973,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             "troops": _asdict(tplan),
             "charms": _asdict(chplan),
             "gear": _asdict(gplan),
+            "hero_gear": _asdict(hgplan),
         },
         "candidates": [_asdict(c) for c in plan.candidates],
         "decision": _asdict(plan.decision),
