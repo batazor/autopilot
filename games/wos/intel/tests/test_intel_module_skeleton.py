@@ -129,7 +129,7 @@ def test_intel_run_uses_real_stamina_flow() -> None:
 
 def test_intel_route_is_reachable_from_world_map() -> None:
     assert route_taps("main_city", "intel", game="wos") == [
-        ["icon.world"],
+        ["main_city.to.world"],
         ["main_world.to.intel"],
     ]
     assert route_taps("intel", "main_city", game="wos") == [

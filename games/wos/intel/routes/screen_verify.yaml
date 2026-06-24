@@ -1,0 +1,16 @@
+# Intel screen detection / nav-verify.
+#
+# Registers `intel` as a verifiable FSM screen so scenarios with `node: intel`
+# (intel_run, intel_lighthouse) can self-route here — without this the navigator
+# rejects the target ("unknown FSM screen 'intel' — skipping navigation").
+#
+# Anchored on the OCR title, which reads "Intel" on BOTH the normal skin
+# (references/main.png) and the special-event skin (references/main_special.png),
+# so the verify survives event reskins (template titles would go stale).
+screens:
+  intel:
+    priority: 30
+    rules:
+      - ocr: intel.title
+        contains: Intel
+        threshold: 0.8

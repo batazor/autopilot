@@ -1,6 +1,9 @@
 edges:
   main_city:
-    main_world: [icon.world]
+    # The world-map button region is labelled main_city.to.world in the merged
+    # area config (matching the to.<dest> nav convention + the Kingshot sibling);
+    # icon.world is a stale label that resolves to no region and aborts the hop.
+    main_world: [main_city.to.world]
 
   main_world:
     main_city: [main_world.to.main_city]
