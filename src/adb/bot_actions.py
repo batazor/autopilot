@@ -596,7 +596,13 @@ class BotActions:
         start: Point,
         end: Point,
         duration_ms: int = 300,
+        *,
+        min_duration_ms: int | None = None,
+        settle_ms: int | None = None,
     ) -> bool:
+        """``min_duration_ms`` overrides the human-scroll duration floor and
+        ``settle_ms`` the post-swipe settle — pass small values for a fast
+        minigame *flick* (see AdbController.swipe)."""
         adb_start = self._to_adb_point(instance_id, start)
         adb_end = self._to_adb_point(instance_id, end)
         self.invalidate_frame_cache(instance_id)
@@ -606,6 +612,8 @@ class BotActions:
             timedelta(milliseconds=duration_ms),
             preview_start=start,
             preview_end=end,
+            min_duration_ms=min_duration_ms,
+            settle_ms=settle_ms,
         )
         if ok:
             self._mark_post_action_frame_boundary(instance_id)

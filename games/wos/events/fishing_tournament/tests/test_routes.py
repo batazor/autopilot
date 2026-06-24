@@ -71,6 +71,18 @@ def test_pause_modal_edges_resolve() -> None:
     ]
 
 
+def test_haul_anchored_and_routes_back_to_hub() -> None:
+    # The post-round Haul summary is anchored on its "to fishing tournament"
+    # button, which also routes back to the live hub (main_ready).
+    rules = screen_verify_rules("haul")
+    assert any(
+        r.get("match") == "fishing_tournament_haul.to.fishing_tournament" for r in rules
+    )
+    assert route_taps("haul", "main_ready", game="wos") == [
+        ["fishing_tournament_haul.to.fishing_tournament"]
+    ]
+
+
 @pytest.mark.parametrize(
     ("ref", "expected"),
     [
@@ -81,6 +93,8 @@ def test_pause_modal_edges_resolve() -> None:
         # Pause modal — anchored on the Retreat button; wins over gameplay even
         # if the title shows behind it (lower priority value).
         ("pause.png", "pause"),
+        # Post-round catch summary — anchored on its "to fishing tournament" button.
+        ("haul.png", "haul"),
         # Pre-start promo splash — anchored on the unique "Trial Stages" button.
         ("fishing_tournament.main.png", "event.fishing_tournament"),
     ],

@@ -397,10 +397,26 @@ class AdbInputMixin(_Base):
         *,
         preview_start: Point | None = None,
         preview_end: Point | None = None,
+        min_duration_ms: int | None = None,
+        settle_ms: int | None = None,
     ) -> bool:
         """Swipe with ±2 px endpoint jitter, ±15 % duration jitter, and a
         slight Bezier curve through a perpendicular-offset midpoint.
+
+        ``min_duration_ms`` overrides the default human-scroll floor
+        (:data:`_SWIPE_MIN_DURATION_MS`, ~900 ms). A minigame *flick* needs a
+        fast gesture — without this the swipe is forced into a ~1 s drag the
+        game reads as a slow crawl (the hook barely moves).
+
+        ``settle_ms`` overrides the post-swipe settle sleep
+        (:data:`_SWIPE_SETTLE_SECONDS`, 250 ms). Pass ~0 for a rapid minigame so
+        ticks aren't gated by a quarter-second pause after every flick.
         """
+        floor_ms = (
+            _SWIPE_MIN_DURATION_MS
+            if min_duration_ms is None
+            else max(1, int(min_duration_ms))
+        )
         # Important: for "long press" we call swipe(start=end). In that case we must
         # keep start/end identical; otherwise independent jitter turns it into a
         # tiny swipe (1–2 px) which many UIs ignore as a press/hold.
@@ -426,12 +442,12 @@ class AdbInputMixin(_Base):
             x2, y2 = end_j.x, end_j.y
         ms = int(duration.total_seconds() * 1000)
         if x1 != x2 or y1 != y2:
-            ms = max(ms, _SWIPE_MIN_DURATION_MS)
+            ms = max(ms, floor_ms)
             # ±15 % around the (post-min) duration. ``ms`` is recomputed
             # via ``max`` so the floor still holds — jitter only widens
             # the upper edge.
             ms = max(
-                _SWIPE_MIN_DURATION_MS,
+                floor_ms,
                 int(round(ms * _gauss_between(
                     1.0 - _SWIPE_DURATION_JITTER_PCT,
                     1.0 + _SWIPE_DURATION_JITTER_PCT,
@@ -474,7 +490,9 @@ class AdbInputMixin(_Base):
                 # motionevent unsupported or shell failed — straight fallback.
                 self._emit_swipe_straight(x1, y1, x2, y2, ms)
             logger.debug("Swipe (%d,%d)→(%d,%d) %dms on %s", x1, y1, x2, y2, ms, self._serial)
-            time.sleep(_SWIPE_SETTLE_SECONDS)
+            settle = _SWIPE_SETTLE_SECONDS if settle_ms is None else max(0.0, settle_ms / 1000.0)
+            if settle > 0:
+                time.sleep(settle)
             self._refresh_rolling_preview()
         return True
 

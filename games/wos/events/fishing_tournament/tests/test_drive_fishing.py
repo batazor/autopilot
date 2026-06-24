@@ -33,8 +33,11 @@ class _FakeActions:
         self.taps.append((approval_region, pt))
         return True
 
-    def swipe(self, _inst: str, start: Any, end: Any, duration_ms: int = 0) -> bool:
-        self.swipes.append((start, end, duration_ms))
+    def swipe(
+        self, _inst: str, start: Any, end: Any, duration_ms: int = 0,
+        min_duration_ms: int | None = None, settle_ms: int | None = None,
+    ) -> bool:
+        self.swipes.append((start, end, duration_ms, min_duration_ms, settle_ms))
         return True
 
     def system_back(self, _inst: str) -> bool:
@@ -94,7 +97,9 @@ def _ctx() -> DslExecContext:
     )
 
 
-async def _run(monkeypatch, *, screens: list[str], rows: list[dict[str, Any]]) -> _FakeActions:
+async def _run(
+    monkeypatch, *, screens: list[str], rows: list[dict[str, Any]]
+) -> tuple[_FakeActions, DslExecContext]:
     frame = np.zeros((1280, 720, 3), dtype=np.uint8)
     actions = _FakeActions(frame)
     monkeypatch.setattr("tasks.dsl_runtime.bot_actions", lambda: actions)
@@ -114,12 +119,26 @@ async def _run(monkeypatch, *, screens: list[str], rows: list[dict[str, Any]]) -
         return None
 
     monkeypatch.setattr(asyncio, "sleep", _noop)
-    await fexec._exec_drive_fishing(_ctx())
-    return actions
+    ctx = _ctx()
+    await fexec._exec_drive_fishing(ctx)
+    return actions, ctx
 
 
 def test_handler_is_registered() -> None:
     assert "drive_fishing" in fexec.DSL_EXEC_HANDLERS
+
+
+def test_draw_decision_renders_without_crashing() -> None:
+    # The debug annotated-frame renderer (only used with debug:true) must not
+    # crash on a real-shaped frame + plan.
+    frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+    plan = {
+        "hook_x": 360, "hook_y": 192, "phase": "collect", "level": 14,
+        "hook_direction": "up",
+        "swipe": {"from_x": 360, "from_y": 192, "to_x": 300, "to_y": 192},
+    }
+    out = fexec._draw_decision(frame, [_fish_row(420, 192)], plan)
+    assert out is not None and out.shape == frame.shape
 
 
 def test_find_entry_button_handles_both_hub_states() -> None:
@@ -142,7 +161,7 @@ async def test_enters_round_and_swipes_on_gameplay(monkeypatch) -> None:
     _AVAILABLE[0] = True
     # hub → tap play; then two gameplay frames with a fish to the right of the
     # fallback hook (360,192) → a leftward dodge swipe; then leave to the city.
-    actions = await _run(
+    actions, ctx = await _run(
         monkeypatch,
         screens=["main_ready", "gameplay", "gameplay", "main_city"],
         rows=[_fish_row(420, 192)],
@@ -152,21 +171,33 @@ async def test_enters_round_and_swipes_on_gameplay(monkeypatch) -> None:
     assert any(label == "fishing_tournament.go_fish" for label, _pt in actions.taps)
     # Steered the hook at least once.
     assert actions.swipes, "expected at least one swipe on the gameplay screen"
-    start, end, _dur = actions.swipes[0]
+    start, end, _dur, min_dur, settle = actions.swipes[0]
     assert end.x < start.x  # fish on the right → dodge flees left
-    assert start.y == 192   # swipe is horizontal at the (fallback) hook row
+    # Flick across the screen centre (zone-agnostic), not the top hook row.
+    assert start.y == int(fexec._H * fexec._SWIPE_Y_FRAC)
+    assert start.y == end.y  # horizontal
+    # Fast flick: bypass the ~900 ms floor AND the 250 ms post-swipe settle.
+    assert min_dur == fexec._SWIPE_MS
+    assert settle == 0
+    # Tuning telemetry is populated (the dodge/collect quality signal). The
+    # exact tick count isn't pinned: while in gameplay the FSM assumes it's still
+    # playing between full re-detects (the _SCREEN_RECHECK speed-up), so it
+    # processes more gameplay ticks than the scripted "gameplay" frames.
+    assert ctx.result["ticks"] >= 2
+    assert ctx.result["phase_dodge"] + ctx.result["phase_collect"] == ctx.result["ticks"]
+    assert ctx.result["swipe_left"] >= 1  # dodged left
 
 
 async def test_stops_without_playing_when_already_home(monkeypatch) -> None:
     _AVAILABLE[0] = True
-    actions = await _run(monkeypatch, screens=["main_city"], rows=[_fish_row(420, 192)])
+    actions, _ctx = await _run(monkeypatch, screens=["main_city"], rows=[_fish_row(420, 192)])
     assert actions.taps == []
     assert actions.swipes == []
 
 
 async def test_pause_modal_is_resumed(monkeypatch) -> None:
     _AVAILABLE[0] = True
-    actions = await _run(
+    actions, _ctx = await _run(
         monkeypatch,
         screens=["pause", "gameplay", "main_city"],
         rows=[_fish_row(420, 192)],
@@ -174,9 +205,25 @@ async def test_pause_modal_is_resumed(monkeypatch) -> None:
     assert any(label == "fishing_tournament.continue" for label, _pt in actions.taps)
 
 
+async def test_haul_screen_exits_to_hub(monkeypatch) -> None:
+    _AVAILABLE[0] = True
+    # Landing on the post-round Haul summary → tap its "to fishing tournament"
+    # button and stop (no swipe).
+    actions, _ctx = await _run(
+        monkeypatch,
+        screens=["haul", "main_ready"],
+        rows=[_fish_row(420, 192)],
+    )
+    assert any(
+        label == "fishing_tournament_haul.to.fishing_tournament"
+        for label, _pt in actions.taps
+    )
+    assert actions.swipes == []
+
+
 async def test_no_inference_returns_early(monkeypatch) -> None:
     _AVAILABLE[0] = False
-    actions = await _run(
+    actions, _ctx = await _run(
         monkeypatch,
         screens=["main_ready", "gameplay", "main_city"],
         rows=[_fish_row(420, 192)],

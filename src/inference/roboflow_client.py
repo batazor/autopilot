@@ -93,6 +93,21 @@ class RoboflowDetector:
         self._api_key = api_key or ""
         self._confidence = confidence
         self._timeout = timeout_seconds
+        # Reused across detect() calls — opening a fresh client per request adds
+        # connection setup each tick, which hurts the fishing loop's frame rate.
+        self._client: httpx.AsyncClient | None = None
+
+    def _http(self) -> httpx.AsyncClient:
+        """Lazily create + reuse one AsyncClient (must run inside an event loop)."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self._timeout)
+        return self._client
+
+    async def aclose(self) -> None:
+        """Close the reused client. Call when done with the detector."""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
 
     @classmethod
     def from_settings(cls, cfg: InferenceConfig) -> RoboflowDetector:
@@ -130,15 +145,14 @@ class RoboflowDetector:
         params: dict[str, str] = {"confidence": f"{confidence}"}
         if self._api_key:
             params["api_key"] = self._api_key
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(
-                url,
-                params=params,
-                content=b64,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-            resp.raise_for_status()
-            return resp.json()
+        resp = await self._http().post(
+            url,
+            params=params,
+            content=b64,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     async def detect(
         self,

@@ -176,6 +176,27 @@
           }
         }
       ]
+    },
+    {
+      "id": 6,
+      "screen_id": "",
+      "ocr": "references/haul.png",
+      "regions": [
+        {
+          "name": "fishing_tournament_haul.to.fishing_tournament",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 13.578177405720844,
+            "y": 84.70747400509332,
+            "width": 32.751479289940825,
+            "height": 5.757863049721271,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

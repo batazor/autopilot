@@ -15,6 +15,7 @@ from api.services.fish_engine import (
     level_trend,
     parse_level,
     plan_action,
+    plan_dodge,
     plan_swipe,
     resolve_phase,
     track_fish,
@@ -253,6 +254,65 @@ def test_plan_action_leads_moving_target() -> None:
     assert lead["target_lead_x"] == 420  # 340 + 80*1.0
     assert lead["swipe"] is not None
     assert lead["swipe"]["direction"] == "right"
+
+
+def test_plan_action_interception_aims_further_than_no_latency() -> None:
+    # A fish moving right; the interception model (fish velocity + the hook's own
+    # travel time over the action latency) aims further ahead than the no-latency
+    # baseline — so the hook meets the body, not the trailing tail.
+    prev = [_row(300, 400)]
+    cur = [_row(360, 400)]  # +60px in 0.3s → 200 px/s east
+    rising = [10, 12, 14]  # altitude climbing → collect (interception aim applies)
+    base = plan_action(
+        None, cur, rising, prev_detections=prev, dt_s=0.3, fallback_hook=(360, 195),
+    )
+    intercept = plan_action(
+        None, cur, rising, prev_detections=prev, dt_s=0.3,
+        base_latency_s=0.5, hook_speed_px_s=1400.0, fallback_hook=(360, 195),
+    )
+    # No latency/speed → aim at the fish's current x (unchanged behaviour).
+    assert base["target_lead_x"] == 360
+    # With latency + travel time, aim well ahead in the fish's direction.
+    assert intercept["target_lead_x"] > 460
+
+
+def test_plan_dodge_flees_to_emptier_side() -> None:
+    # Hook between two fish at its depth: one close on the right, one far on the
+    # left → the field flees LEFT (toward the bigger gap), not into the right fish.
+    hook = (360, 200)
+    tracked = track_fish(
+        [], [_row(420, 210), _row(180, 210)], dt_s=None,
+    )  # both at the hook's depth; right one (420) is closer than left (180)
+    swipe = plan_dodge(hook, tracked)
+    assert swipe is not None
+    assert swipe["direction"] == "left"  # away from the nearer (right) fish
+
+
+def test_plan_dodge_holds_in_open_water() -> None:
+    # No fish near the hook's depth/lane → no dodge.
+    hook = (360, 200)
+    tracked = track_fish([], [_row(360, 900)], dt_s=None)  # far below → not a threat
+    assert plan_dodge(hook, tracked) is None
+
+
+def test_track_fish_ema_blends_with_prior_velocity() -> None:
+    # Prior velocity 100 px/s east; this frame the fish is momentarily still.
+    # EMA(α=0.5) reports the blend (50), not the raw single-frame 0 — steadier lead.
+    prior = track_fish([_row(200, 400)], [_row(300, 400)], dt_s=1.0)  # vx≈100
+    assert prior[0]["vx"] == 100.0
+    smoothed = track_fish(
+        [_row(300, 400)], [_row(300, 400)], dt_s=1.0,
+        prev_tracked=prior, vel_ema_alpha=0.5,
+    )
+    assert smoothed[0]["vx"] == 50.0  # 0.5*0 + 0.5*100
+
+
+def test_track_fish_rejects_implausible_match() -> None:
+    # A match within the distance gate but at an absurd implied speed (1500 px/s)
+    # is an ID swap, not motion — rejected (no wild velocity).
+    res = track_fish([_row(300, 400)], [_row(450, 400)], dt_s=0.1)  # 150px/0.1s
+    assert res[0]["tracked"] is False
+    assert res[0]["vx"] == 0.0
 
 
 def test_plan_action_dodge_uses_fallback_hook() -> None:

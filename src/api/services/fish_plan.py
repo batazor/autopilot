@@ -25,7 +25,12 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 from api.services.fish_common import FishDetectionRow, decode_bgr, detections_to_rows
 from api.services.fish_detect import _load_frame
-from api.services.fish_engine import SwipePlan, parse_level, plan_action
+from api.services.fish_engine import (
+    _HOOK_STEER_SPEED_PX_S,
+    SwipePlan,
+    parse_level,
+    plan_action,
+)
 from config.loader import load_settings
 from inference.roboflow_client import InferenceUnavailableError, RoboflowDetector
 
@@ -192,8 +197,14 @@ def run_fish_plan(
     # Fish detections (graceful when inference is off — hook + level still work).
     rows: list[FishDetectionRow] = []
     if image_bgr is not None and detector.available():
+        async def _detect_once() -> Any:
+            try:
+                return await detector.detect(image_bgr, threshold=conf)
+            finally:
+                await detector.aclose()  # close the reused client (one-shot here)
+
         try:
-            dets = asyncio.run(detector.detect(image_bgr, threshold=conf))
+            dets = asyncio.run(_detect_once())
             rows = detections_to_rows(dets)
         except InferenceUnavailableError as exc:
             base["available"] = False
@@ -218,6 +229,10 @@ def run_fish_plan(
     plan = plan_action(
         image_bgr, rows, history,
         prev_detections=prev_rows, dt_s=dt_s, lead_s=lead_s,
+        # Same interception model as the live driver so the overlay arrow shows
+        # the real aim (account for fish velocity + the hook's own travel time).
+        base_latency_s=lead_s,
+        hook_speed_px_s=_HOOK_STEER_SPEED_PX_S,
     )
 
     base["detections"] = rows

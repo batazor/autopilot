@@ -35,7 +35,11 @@ from typing import TYPE_CHECKING, Any
 
 import cv2
 
-from api.services.fish_engine import parse_level, plan_action
+from api.services.fish_engine import (
+    _HOOK_STEER_SPEED_PX_S,
+    parse_level,
+    plan_action,
+)
 
 if TYPE_CHECKING:
     from tasks.dsl_exec.context import DslExecContext
@@ -51,6 +55,8 @@ _LEVEL_WIN = (0.0840, 0.0974, 0.150, 0.0302)
 
 # Pause modal's Continue button (fixed centre — rare path).
 _CONTINUE_TAP = (0.645, 0.501)      # fishing_tournament.continue centre
+# Haul (post-round) "to fishing tournament" button → back to the hub.
+_HAUL_EXIT_TAP = (0.300, 0.876)     # fishing_tournament_haul.to.fishing_tournament centre
 
 # Round-start entry buttons, located by template so the FSM taps whichever the
 # hub is showing — "Go Fish" (resume state) or "Ice Fishing" (choose state) — in
@@ -82,9 +88,31 @@ _KNOWN_EXIT = ("main_city", "event.fishing_tournament", "main_ready")
 _SWIPE_MS = 90               # sharp flick (was 140 — too soft)
 _SWIPE_GAIN = 1.8            # execute this × the planned hook offset
 _SWIPE_MIN_PX = 120         # never weaker than this, in the swipe direction
+# Swipe zone doesn't matter to the minigame (it reads the horizontal flick
+# anywhere), so flick across the SCREEN CENTRE — a guaranteed-safe play area,
+# away from the top HUD where a hook-row swipe might land on a control.
+_SWIPE_Y_FRAC = 0.5
 _LEVEL_HISTORY = 40         # readings kept for the phase-direction trend
-_LEAD_CAP_S = 0.4           # never extrapolate fish further than this ahead
-_TICK_SLEEP_S = 0.05        # tiny breather between gameplay ticks
+_LEAD_CAP_S = 1.0           # cap the interception horizon (inference-bound loop)
+_TICK_SLEEP_S = 0.02        # tiny breather between gameplay ticks
+# Re-run the expensive full detect_screen only every Nth gameplay tick; assume
+# we're still playing between (catches the exit to haul/hub within N ticks).
+_SCREEN_RECHECK = 4
+# On the re-check tick, first try a CHEAP single-template gameplay confirm before
+# falling back to the full ~100-rule detect_screen — so a continuing round never
+# pays the full scan.
+_GAMEPLAY_TITLE_CROP = "gameplay_fishing_tournament.gameplay.title.png"
+_GAMEPLAY_FAST_THR = 0.80
+# Altitude moves slowly — OCR the level counter (slow Tesseract) every Nth
+# gameplay tick, reuse the last value between (keeps the trend window).
+_LEVEL_OCR_EVERY = 3
+# EMA factor for the fish velocity vector (1.0 = raw, no smoothing). <1 blends
+# the new inter-frame estimate with the prior so the lead doesn't jitter.
+_VEL_EMA_ALPHA = 0.5
+
+# Debug telemetry — only written when the exec step passes `debug: true`.
+_TEMPORAL_DIR = Path(__file__).resolve().parents[4] / "temporal"
+_DEBUG_FRAME_EVERY = 4      # save every Nth annotated gameplay frame for review
 
 
 def _crop(frame: Any, win: tuple[float, float, float, float]) -> Any:
@@ -114,6 +142,30 @@ def _entry_button_templates() -> list[tuple[str, Any]]:
     return _entry_templates
 
 
+_gameplay_title_tpl: Any = None
+_gameplay_title_loaded = False
+
+
+def _is_gameplay_fast(frame: Any) -> bool:
+    """Cheap gameplay confirm: match the tiny top-left gameplay-title crop in the
+    top-left corner, instead of the full ~100-rule detect_screen. Lets a
+    continuing round skip the expensive scan."""
+    global _gameplay_title_tpl, _gameplay_title_loaded
+    if not _gameplay_title_loaded:
+        _gameplay_title_tpl = cv2.imread(str(_CROP_DIR / _GAMEPLAY_TITLE_CROP))
+        _gameplay_title_loaded = True
+    tpl = _gameplay_title_tpl
+    if frame is None or tpl is None or getattr(frame, "size", 0) == 0:
+        return False
+    fh, fw = frame.shape[:2]
+    th, tw = tpl.shape[:2]
+    region = frame[: int(0.08 * fh), : int(0.16 * fw)]
+    if region.shape[0] < th or region.shape[1] < tw:
+        return False
+    res = cv2.matchTemplate(region, tpl, cv2.TM_CCOEFF_NORMED)
+    return float(res.max()) >= _GAMEPLAY_FAST_THR
+
+
 def _find_entry_button(frame: Any) -> tuple[str, tuple[float, float]] | None:
     """Locate the FREE round-start button the hub is showing → (label, (cx, cy)
     frame fractions), or None. Template-matches the candidates in priority order
@@ -132,6 +184,29 @@ def _find_entry_button(frame: Any) -> tuple[str, tuple[float, float]] | None:
         if score >= _ENTRY_MATCH_THR:
             return label, ((loc[0] + tw / 2) / fw, (loc[1] + th / 2) / fh)
     return None
+
+
+def _draw_decision(frame: Any, rows: list[Any], plan: dict[str, Any]) -> Any:
+    """Annotate a gameplay frame with the decision (fish boxes + hook + swipe),
+    reusing the /fish-detect overlay colours, for debug review."""
+    from api.services.fish_common import draw_detections
+
+    out = draw_detections(frame.copy(), rows)
+    hx, hy = plan.get("hook_x"), plan.get("hook_y")
+    if hx is not None and hy is not None:
+        col = (0, 230, 120) if plan.get("phase") == "collect" else (80, 80, 255)
+        cv2.drawMarker(out, (int(hx), int(hy)), col, cv2.MARKER_CROSS, 28, 2)
+    sw = plan.get("swipe")
+    if sw:
+        cv2.arrowedLine(
+            out, (int(sw["from_x"]), int(sw["from_y"])),
+            (int(sw["to_x"]), int(sw["to_y"])), (0, 230, 120), 3, tipLength=0.3,
+        )
+    cv2.putText(
+        out, f"{plan.get('phase')} lvl={plan.get('level')} dir={plan.get('hook_direction')}",
+        (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2,
+    )
+    return out
 
 
 def _moved(prev: Any, cur: Any) -> bool:
@@ -185,26 +260,34 @@ async def _tap(actions: Any, instance_id: str, frac: tuple[float, float], label:
         logger.debug("fishing FSM: tap %s failed", label, exc_info=True)
 
 
-async def _swipe(actions: Any, instance_id: str, swipe: dict[str, Any]) -> None:
+async def _swipe(actions: Any, instance_id: str, swipe: dict[str, Any]) -> bool:
     import asyncio
 
     from layout.types import Point
 
-    fx, fy = int(swipe["from_x"]), int(swipe["from_y"])
-    # Amplify the planned offset into a harder throw, floored so even small
-    # corrections move the hook, and keep it on-frame. Direction is preserved.
-    raw_dx = int(swipe["to_x"]) - fx
+    # Direction + magnitude come from the plan; execute it as a horizontal flick
+    # centred on the screen (zone-agnostic, away from the top HUD). Amplify and
+    # floor the travel, centre it around the mid-x so it stays on-frame.
+    raw_dx = int(swipe["to_x"]) - int(swipe["from_x"])
     sign = 1 if raw_dx >= 0 else -1
     mag = max(_SWIPE_MIN_PX, abs(raw_dx) * _SWIPE_GAIN)
-    end_x = min(_W - 1, max(0, int(fx + sign * mag)))
-    start = Point(fx, fy)
-    end = Point(end_x, fy)
+    half = int(mag / 2)
+    cx, cy = _W // 2, int(_H * _SWIPE_Y_FRAC)
+    start = Point(min(_W - 1, max(0, cx - sign * half)), cy)
+    end = Point(min(_W - 1, max(0, cx + sign * half)), cy)
     try:
-        await asyncio.to_thread(
-            actions.swipe, instance_id, start, end, duration_ms=_SWIPE_MS
-        )
+        # min_duration_ms bypasses the controller's ~900 ms human-scroll floor —
+        # the minigame needs a fast flick, not a slow drag (else the hook barely
+        # moves). Return the real result so we count swipes that ACTUALLY ran.
+        return bool(await asyncio.to_thread(
+            lambda: actions.swipe(
+                instance_id, start, end,
+                duration_ms=_SWIPE_MS, min_duration_ms=_SWIPE_MS, settle_ms=0,
+            )
+        ))
     except Exception:
         logger.debug("fishing FSM: swipe failed", exc_info=True)
+        return False
 
 
 async def _back(actions: Any, instance_id: str) -> None:
@@ -246,10 +329,19 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
         )
         return
 
+    debug = bool(ctx.args.get("debug"))
+    ticks: list[dict[str, Any]] = []  # per-gameplay-tick telemetry for tuning
+    screen_seq: list[str] = []  # every distinct screen the FSM walked (diagnosis)
+    frame_none = 0              # iterations where capture returned no frame
     levels: list[int] = []
+    last_level: int | None = None
     prev_rows: list[Any] | None = None
-    prev_t: float | None = None
+    prev_tracked: list[Any] | None = None  # last tick's TrackedFish (EMA velocity)
+    prev_cap: float | None = None   # capture time of the previous gameplay frame
     prev_sig: Any = None
+    last_screen = ""
+    gp_assumed = 0                  # consecutive ticks we skipped the full detect
+    gp_tick = 0                     # gameplay ticks (for the level-OCR cadence)
     swipes = plays = 0
     nongame = 0
     game_stuck = 0
@@ -261,11 +353,30 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             break
 
         frame = await _capture(actions, inst)
+        t_cap = time.monotonic()
         if frame is None:
+            frame_none += 1
+            if not screen_seq or screen_seq[-1] != "no-frame":
+                screen_seq.append("no-frame")
             await asyncio.sleep(0.5)
             continue
 
-        screen = await _screen(screen_detector, frame)
+        # Responsiveness: the full detect_screen (~1 s) dominates the loop. While
+        # in gameplay, skip it for a few ticks (assume we're still playing); on
+        # the re-check tick try a CHEAP gameplay-title match first, and only fall
+        # back to the full detect_screen when that fails (round ended → haul/hub).
+        if last_screen == "gameplay" and gp_assumed < _SCREEN_RECHECK:
+            screen = "gameplay"
+            gp_assumed += 1
+        elif last_screen == "gameplay" and _is_gameplay_fast(frame):
+            screen = "gameplay"
+            gp_assumed = 0
+        else:
+            screen = await _screen(screen_detector, frame)
+            gp_assumed = 0
+        last_screen = screen
+        if not screen_seq or screen_seq[-1] != screen:
+            screen_seq.append(screen)  # log distinct-screen transitions for diagnosis
 
         # Left the event entirely → done.
         if screen == "main_city":
@@ -277,6 +388,16 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             nongame = 0
             await asyncio.sleep(1.0)
             continue
+
+        # Post-round Haul summary → the round ended. Return to the hub via its
+        # "to fishing tournament" button and stop (one round per exec run).
+        if screen == "haul":
+            await _tap(
+                actions, inst, _HAUL_EXIT_TAP,
+                "fishing_tournament_haul.to.fishing_tournament",
+            )
+            await asyncio.sleep(1.5)
+            break
 
         # Live hub → start a round (one per exec run; the overlay re-triggers).
         # Tap whichever FREE entry button the hub shows — "Go Fish" (resume) or
@@ -322,26 +443,73 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
                 dets = []
             rows = detections_to_rows(dets)
 
-            level = await _read_level(ocr, frame)
-            if level is not None:
-                levels.append(level)
-                if len(levels) > _LEVEL_HISTORY:
-                    del levels[0]
+            # Altitude moves slowly → OCR it (slow Tesseract) only every Nth tick;
+            # reuse the last reading between to keep the loop fast.
+            gp_tick += 1
+            if gp_tick % _LEVEL_OCR_EVERY == 1:
+                fresh = await _read_level(ocr, frame)
+                if fresh is not None:
+                    last_level = fresh
+                    levels.append(fresh)
+                    if len(levels) > _LEVEL_HISTORY:
+                        del levels[0]
+            level = last_level
 
             now = time.monotonic()
-            dt_s = (now - prev_t) if prev_t is not None else None
-            lead_s = min(_LEAD_CAP_S, dt_s or 0.15)
+            # dt between successive gameplay FRAMES (captures) → fish velocity.
+            dt_s = (t_cap - prev_cap) if prev_cap is not None else None
+            # Interception horizon: time from THIS frame's capture until the
+            # swipe lands = decision latency so far (capture→now, mostly
+            # inference) + the flick duration. This is what makes the hook meet
+            # the fish on its body instead of clipping the trailing tail.
+            base_latency_s = min(_LEAD_CAP_S, (now - t_cap) + _SWIPE_MS / 1000.0)
             plan = plan_action(
                 frame, rows, levels,
-                prev_detections=prev_rows, dt_s=dt_s, lead_s=lead_s,
+                prev_detections=prev_rows, dt_s=dt_s,
+                lead_s=base_latency_s,
+                base_latency_s=base_latency_s,
+                hook_speed_px_s=_HOOK_STEER_SPEED_PX_S,
+                prev_tracked=prev_tracked,
+                vel_ema_alpha=_VEL_EMA_ALPHA,
             )
             prev_rows = rows
-            prev_t = now
+            prev_tracked = plan["tracked"]
+            prev_cap = t_cap
 
             swipe = plan["swipe"]
+            swiped = False
             if swipe is not None:
-                await _swipe(actions, inst, swipe)
-                swipes += 1
+                swiped = await _swipe(actions, inst, swipe)
+                if swiped:
+                    swipes += 1
+
+            # Per-tick telemetry — the tuning signal (phase correctness, swipe
+            # steering, whether the swipe ACTUALLY ran, altitude/level progress).
+            ticks.append({
+                "t": round(now - t0, 2),
+                "level": level,
+                "trend": plan["level_trend"],
+                "phase": plan["phase"],
+                "hook_y_frac": (round(plan["hook_y"] / _H, 3)
+                                if plan["hook_y"] is not None else None),
+                "hook_dir": plan["hook_direction"],
+                "protected": plan["protected"],
+                "n_dets": plan["detections"],
+                "swipe_dir": (swipe["direction"] if swipe else None),
+                "swipe_dx": (swipe["dx"] if swipe else None),
+                "swiped": swiped,
+            })
+            if debug and len(ticks) % _DEBUG_FRAME_EVERY == 1:
+                try:
+                    _TEMPORAL_DIR.mkdir(parents=True, exist_ok=True)
+                    annotated = _draw_decision(frame, rows, plan)
+                    cv2.imwrite(
+                        str(_TEMPORAL_DIR / f"fishing_tick_{len(ticks):04d}.png"),
+                        annotated,
+                    )
+                except Exception:
+                    logger.debug("fishing FSM: debug frame save failed", exc_info=True)
+
             await asyncio.sleep(_TICK_SLEEP_S)
             continue
 
@@ -361,6 +529,7 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
         await _back(actions, inst)
         await asyncio.sleep(1.5)
 
+    seen_levels = [t["level"] for t in ticks if t["level"] is not None]
     ctx.result.update(
         {
             "action": "drive_fishing",
@@ -368,12 +537,47 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             "swipes": swipes,
             "gameplay_seen": gameplay_seen,
             "level_last": levels[-1] if levels else None,
+            # Tuning telemetry — the dodge/collect quality signal per round.
+            "ticks": len(ticks),
+            "phase_dodge": sum(1 for t in ticks if t["phase"] == "dodge"),
+            "phase_collect": sum(1 for t in ticks if t["phase"] == "collect"),
+            "swipe_left": sum(1 for t in ticks if t["swipe_dir"] == "left"),
+            "swipe_right": sum(1 for t in ticks if t["swipe_dir"] == "right"),
+            "trend_up_ever": any(t["trend"] == "up" for t in ticks),
+            "level_min": min(seen_levels) if seen_levels else None,
+            "level_max": max(seen_levels) if seen_levels else None,
+            "mean_dets": (round(sum(t["n_dets"] for t in ticks) / len(ticks), 1)
+                          if ticks else 0),
+            # Effective gameplay frame rate (ticks/s) — the responsiveness metric.
+            "fps": (round((len(ticks) - 1) / (ticks[-1]["t"] - ticks[0]["t"]), 1)
+                    if len(ticks) > 1 and ticks[-1]["t"] > ticks[0]["t"] else None),
+            # Diagnosis: the exact screen path + capture failures this run.
+            "screen_seq": " → ".join(screen_seq[-40:]),
+            "frame_none": frame_none,
         }
     )
+    if debug and ticks:
+        try:
+            import json
+
+            _TEMPORAL_DIR.mkdir(parents=True, exist_ok=True)
+            (_TEMPORAL_DIR / "fishing_ticks.jsonl").write_text(
+                "\n".join(json.dumps(t) for t in ticks), encoding="utf-8"
+            )
+        except Exception:
+            logger.debug("fishing FSM: ticks dump failed", exc_info=True)
     logger.info(
-        "fishing FSM: plays=%d swipes=%d gameplay_seen=%s level_last=%s instance=%s",
-        plays, swipes, gameplay_seen, levels[-1] if levels else None, inst,
+        "fishing FSM: plays=%d swipes=%d gameplay_seen=%s ticks=%d "
+        "dodge/collect=%d/%d level_max=%s instance=%s",
+        plays, swipes, gameplay_seen, len(ticks),
+        ctx.result["phase_dodge"], ctx.result["phase_collect"],
+        ctx.result["level_max"], inst,
     )
+    # Release the reused inference HTTP client.
+    try:
+        await fish_detector.aclose()
+    except Exception:
+        logger.debug("fishing FSM: detector aclose failed", exc_info=True)
 
 
 DSL_EXEC_HANDLERS = {

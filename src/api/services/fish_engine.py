@@ -64,12 +64,30 @@ _HOOK_BOTTOM_ZONE = 0.55      # hook_y fraction above this ⇒ ascending
 
 # --- fish tracking -----------------------------------------------------------
 _MATCH_MAX_DIST_PX = 160.0    # max centre travel to call it the same fish
+# Above this implied speed a prev↔cur match is almost certainly two DIFFERENT
+# fish (IDs swapped as they crossed) — reject it rather than emit a wild vector.
+_MAX_FISH_SPEED_PX_S = 900.0
 
 # --- steering tuning ---------------------------------------------------------
 _COLLECT_DEADZONE_PX = 24     # hook within this of the target x → already aligned
-_DODGE_TRIGGER_PX = 150       # only dodge a fish closer than this to the hook
+_DODGE_TRIGGER_PX = 150       # horizontal range within which a fish is a threat
 _SWIPE_MIN_PX = 40            # don't bother with sub-this nudges
-_SWIPE_MAX_PX = 320          # cap a single swipe so it stays on-screen
+_SWIPE_MAX_PX = 500          # cap a single swipe so it stays on-screen
+# Dodge potential field: a fish threatens only if it's within this vertical band
+# of the hook (near its depth, on the descent path); below `_DODGE_PUSH_MIN` net
+# push the field is balanced → fall back to fleeing toward the larger gap.
+_DODGE_VERT_BAND_PX = 360
+_DODGE_PUSH_MIN = 0.15
+
+# --- interception (predictive aim) -------------------------------------------
+# The hook moves by a *throw*, so it needs time both to react (latency) and to
+# travel to the aim point. We aim where the hook and fish will MEET. The steer
+# speed is how fast a flick moves the hook (px/s) — used only to estimate that
+# extra travel time; it's tuned live, not physically exact.
+_HOOK_STEER_SPEED_PX_S = 1400.0
+# Collect bias: aim this fraction of the fish's width PAST the intercept toward
+# its heading, so the hook lands on the body/head, not the trailing tail.
+_COLLECT_LEAD_WIDTH_FRAC = 0.35
 
 
 class TrackedFish(TypedDict):
@@ -261,6 +279,8 @@ def track_fish(
     max_match_dist: float = _MATCH_MAX_DIST_PX,
     frame_w: int = _W,
     frame_h: int = _H,
+    prev_tracked: Sequence[TrackedFish] | None = None,
+    vel_ema_alpha: float = 1.0,
 ) -> list[TrackedFish]:
     """Annotate ``cur_rows`` with velocity (greedy nearest match to the previous
     frame) and a lead position ``lead_s`` seconds ahead.
@@ -268,6 +288,11 @@ def track_fish(
     Motion is assumed locally linear, so ``lead = centre + velocity * lead_s``.
     Unmatched fish (new, or no usable ``dt_s``) get zero velocity and lead at
     their measured centre — safe (no extrapolation when we can't measure it).
+
+    ``prev_tracked`` (the previous call's output, index-aligned with ``prev_rows``)
+    + ``vel_ema_alpha`` < 1 smooth velocity across frames (EMA) so single-frame
+    detector jitter doesn't make the lead wobble. An implausibly fast match
+    (> :data:`_MAX_FISH_SPEED_PX_S`) is rejected as an ID swap.
     """
     out: list[TrackedFish] = []
     used: set[int] = set()
@@ -285,11 +310,19 @@ def track_fish(
                 if d < best_d:
                     best_d, best_j = d, j
             if best_j >= 0:
-                used.add(best_j)
                 p = prev_rows[best_j]
-                vx = (cx - int(p["center_x"])) / dt_s  # type: ignore[operator]
-                vy = (cy - int(p["center_y"])) / dt_s  # type: ignore[operator]
-                matched = True
+                vx_i = (cx - int(p["center_x"])) / dt_s  # type: ignore[operator]
+                vy_i = (cy - int(p["center_y"])) / dt_s  # type: ignore[operator]
+                if math.hypot(vx_i, vy_i) <= _MAX_FISH_SPEED_PX_S:
+                    used.add(best_j)
+                    if (prev_tracked is not None and best_j < len(prev_tracked)
+                            and 0.0 < vel_ema_alpha < 1.0):
+                        pv = prev_tracked[best_j]
+                        vx = vel_ema_alpha * vx_i + (1.0 - vel_ema_alpha) * pv["vx"]
+                        vy = vel_ema_alpha * vy_i + (1.0 - vel_ema_alpha) * pv["vy"]
+                    else:
+                        vx, vy = vx_i, vy_i
+                    matched = True
         lead_x = int(round(min(frame_w - 1, max(0, cx + vx * lead_s))))
         lead_y = int(round(min(frame_h - 1, max(0, cy + vy * lead_s))))
         out.append(
@@ -309,6 +342,35 @@ def track_fish(
             )
         )
     return out
+
+
+def _intercept_x(
+    hook_x: int,
+    fish_x: int,
+    vx: float,
+    *,
+    base_latency_s: float,
+    hook_speed_px_s: float,
+    frame_w: int = _W,
+) -> int:
+    """Horizontal aim that makes the hook MEET the moving fish.
+
+    Accounts for the fish's velocity over the FULL time-to-arrival — both the
+    fixed reaction latency (capture→inference→swipe) and the hook's OWN travel
+    time to the aim point (distance / steer speed). One fixed-point iteration
+    resolves the circular dependency (aim depends on travel, travel on aim).
+    With ``base_latency_s == 0`` and no speed it returns the fish's current x
+    (i.e. the old no-lead behaviour), so callers that don't opt in are unchanged.
+    """
+    base = max(0.0, base_latency_s)
+    speed = hook_speed_px_s if hook_speed_px_s > 1e-3 else 0.0
+    t = base
+    for _ in range(2):
+        aim = fish_x + vx * t
+        travel = abs(aim - hook_x) / speed if speed else 0.0
+        t = base + travel
+    aim = fish_x + vx * t
+    return int(round(min(frame_w - 1, max(0, aim))))
 
 
 def _nearest_index(points: Sequence[tuple[int, int]], hook: tuple[int, int]) -> int:
@@ -374,6 +436,70 @@ def plan_swipe(
     )
 
 
+def plan_dodge(
+    hook: tuple[int, int],
+    tracked: Sequence[TrackedFish],
+    *,
+    frame_w: int = _W,
+    vert_band: int = _DODGE_VERT_BAND_PX,
+    radius: int = _DODGE_TRIGGER_PX,
+) -> SwipePlan | None:
+    """Steer the hook away from the NET threat of all nearby fish (potential
+    field), not just the closest one — so a dodge never flees into another fish.
+
+    Each fish within ``radius`` horizontally and ``vert_band`` vertically (near
+    the hook's depth, using its lead position so motion is accounted for) pushes
+    the hook away, weighted by how close it is. The net push picks the emptier
+    side; ``None`` when nothing is close. If the push is near-balanced (sandwiched
+    between fish on both sides) we flee toward the side with the larger gap.
+    """
+    hx, hy = hook
+    push = 0.0
+    threats: list[int] = []  # threatening fish x (near the hook's depth)
+    for t in tracked:
+        fx, fy = t["lead_x"], t["lead_y"]
+        if abs(fy - hy) > vert_band:
+            continue
+        dx = hx - fx
+        if abs(dx) >= radius:
+            continue
+        threats.append(fx)
+        strength = (radius - abs(dx)) / radius
+        if dx == 0:
+            push += (1.0 if hx < frame_w / 2 else -1.0) * strength
+        else:
+            push += (1.0 if dx > 0 else -1.0) * strength
+
+    if not threats:
+        return None  # open water — hold position
+
+    if abs(push) >= _DODGE_PUSH_MIN:
+        sign = 1 if push > 0 else -1
+    else:
+        # Near-balanced (fish on both sides) → flee toward the larger gap.
+        lefts = [fx for fx in threats if fx <= hx]
+        rights = [fx for fx in threats if fx > hx]
+        left_room = hx - max(lefts) if lefts else hx
+        right_room = (min(rights) - hx) if rights else (frame_w - hx)
+        sign = 1 if right_room >= left_room else -1
+
+    to_x = int(min(frame_w - 1, max(0, hx + sign * radius)))
+    dx = to_x - hx
+    if dx == 0:
+        return None
+    return SwipePlan(
+        direction="right" if dx > 0 else "left",
+        from_x=hx,
+        from_y=hy,
+        to_x=to_x,
+        to_y=hy,
+        dx=dx,
+        phase="dodge",
+        target_index=-1,
+        reason=f"flee {len(threats)} fish (field)",
+    )
+
+
 def plan_action(
     frame: np.ndarray | None,
     detections: Sequence[FishDetectionRow],
@@ -382,6 +508,10 @@ def plan_action(
     prev_detections: Sequence[FishDetectionRow] | None = None,
     dt_s: float | None = None,
     lead_s: float = 0.0,
+    base_latency_s: float = 0.0,
+    hook_speed_px_s: float = 0.0,
+    prev_tracked: Sequence[TrackedFish] | None = None,
+    vel_ema_alpha: float = 1.0,
     min_delta: int = 1,
     fallback_hook: tuple[int, int] | None = None,
 ) -> ActionPlan:
@@ -389,8 +519,11 @@ def plan_action(
 
     Pure orchestration over the helpers above — the single entry point the live
     driver and the dry-run overlay call each tick. ``prev_detections`` + ``dt_s``
-    enable velocity tracking; ``lead_s`` is how far ahead (seconds) to aim,
-    typically the frame age plus the swipe-execution budget.
+    enable velocity tracking; ``lead_s`` is the simple horizon for picking the
+    nearest target. When ``base_latency_s`` / ``hook_speed_px_s`` are given the
+    chosen target's *aim* uses the interception solve (:func:`_intercept_x`) —
+    accounting for the hook's own travel time — so the hook meets the fish on its
+    body instead of clipping the trailing tail.
     """
     det = _detect_hook_state(frame)
     real_hook = _hook_center(det)
@@ -411,7 +544,10 @@ def plan_action(
     )
 
     tracked = (
-        track_fish(prev_detections or [], detections, dt_s=dt_s, lead_s=lead_s)
+        track_fish(
+            prev_detections or [], detections, dt_s=dt_s, lead_s=lead_s,
+            prev_tracked=prev_tracked, vel_ema_alpha=vel_ema_alpha,
+        )
         if detections
         else []
     )
@@ -423,8 +559,27 @@ def plan_action(
         leads = [(t["lead_x"], t["lead_y"]) for t in tracked]
         target_index = _nearest_index(leads, hook)
         if target_index >= 0:
-            target_lead = leads[target_index]
-            swipe = plan_swipe(hook, target_lead[0], phase, target_index=target_index)
+            target_lead = leads[target_index]  # nearest fish (for the overlay)
+        if phase == "dodge":
+            # Multi-fish: steer away from the NET threat of all nearby fish, not
+            # just the closest one — so the hook doesn't flee into another fish.
+            swipe = plan_dodge(hook, tracked)
+        elif target_index >= 0:
+            # Collect: chase the nearest fish, aiming at the interception point
+            # (when the caller supplies latency/speed) biased toward its heading.
+            tf = tracked[target_index]
+            if base_latency_s > 0 or hook_speed_px_s > 0:
+                aim_x = _intercept_x(
+                    hook[0], tf["center_x"], tf["vx"],
+                    base_latency_s=base_latency_s, hook_speed_px_s=hook_speed_px_s,
+                )
+                if tf["vx"]:
+                    bias = (1 if tf["vx"] > 0 else -1) * _COLLECT_LEAD_WIDTH_FRAC * tf["width"]
+                    aim_x = int(round(min(_W - 1, max(0, aim_x + bias))))
+            else:
+                aim_x = target_lead[0] if target_lead else hook[0]
+            target_lead = (aim_x, target_lead[1] if target_lead else hook[1])
+            swipe = plan_swipe(hook, aim_x, "collect", target_index=target_index)
 
     return ActionPlan(
         phase=phase,

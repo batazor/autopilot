@@ -46,3 +46,8 @@ edges:
   pause:
     gameplay: [fishing_tournament.continue]
     event.fishing_tournament: [fishing_tournament.retreat]
+
+  # Post-round Haul summary → back to the live hub via its "to fishing
+  # tournament" button (the screen you return to after a round, to play again).
+  haul:
+    main_ready: [fishing_tournament_haul.to.fishing_tournament]

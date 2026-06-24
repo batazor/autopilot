@@ -46,3 +46,12 @@ screens:
     rules:
       - match: fishing_tournament.retreat
         threshold: 0.9
+
+  # Post-round catch summary ("Haul" — Depth + caught items). Appears when a
+  # round finishes; its "to fishing tournament" button returns to the live hub.
+  # Anchored on that button (template 1.0 here vs ≤0.53 on other screens).
+  haul:
+    priority: 30
+    rules:
+      - match: fishing_tournament_haul.to.fishing_tournament
+        threshold: 0.85
