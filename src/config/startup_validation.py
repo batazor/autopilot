@@ -807,6 +807,30 @@ def _validate_edge_taps_file(
                     action_type = str(tap.get("type") or "").strip()
                     if action_type == "system_back":
                         continue
+                    if action_type == "any_of":
+                        # Alternative-tap edge (navigator._tap_any_of_async): one
+                        # destination reachable by any of several buttons. Each
+                        # candidate must be a real region.
+                        regions = tap.get("regions")
+                        if not isinstance(regions, list) or not regions:
+                            issues.append(
+                                StartupValidationIssue(
+                                    "error",
+                                    source,
+                                    "any_of tap action must list a non-empty "
+                                    "`regions` array",
+                                )
+                            )
+                            continue
+                        for region in regions:
+                            _check_region(
+                                issues,
+                                region_names=region_names,
+                                source=source,
+                                field="any_of region",
+                                value=region,
+                            )
+                        continue
                     issues.append(
                         StartupValidationIssue(
                             "error",

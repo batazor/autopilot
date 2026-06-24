@@ -19,6 +19,7 @@ from adb.screencap import (
     adb_screencap_bgr,
     adb_screencap_png,
     adb_screencap_to_file,
+    ensure_adb_server,
     resolve_adb_executable,
 )
 from adb.serial import canonical_adb_serial
@@ -40,5 +41,6 @@ __all__ = [
     "adb_screencap_to_file",
     "canonical_adb_serial",
     "click_approval_enabled",
+    "ensure_adb_server",
     "resolve_adb_executable",
 ]

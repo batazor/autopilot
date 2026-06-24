@@ -8,3 +8,31 @@ edges:
 
   event.fishing_tournament:
     main_city: [icon.page.back]
+
+  # Live hub → start a round. BOTH play buttons open the gameplay minigame, so
+  # this is one edge with alternative taps (the graph keys edges by destination
+  # — two buttons can't be two edges): any_of taps whichever is present, free
+  # first (play.free = "Ice Fishing", red-dot) then play.frosty ("Frosty
+  # Prospector", paid). Back arrow returns to the city. (How the hub is *entered*
+  # during the live event — event icon vs promo splash — still needs on-device
+  # confirmation, so no inbound edge yet.)
+  main_ready:
+    gameplay:
+      - type: any_of
+        regions: [fishing_tournament.play.free, fishing_tournament.play.frosty]
+    main_city: [icon.page.back]
+
+  # The minigame is driven by the exec FSM. Tapping the top-right pause button
+  # opens the pause modal; the region-free system_back stays as a safety recovery
+  # (back out to the hub) so a stray landing never strands.
+  gameplay:
+    pause: [fishing_tournament.gameplay.pause]
+    main_ready:
+      - type: system_back
+
+  # Pause modal exits — its two buttons: Continue resumes the round, Retreat
+  # abandons it back to the fishing-tournament event screen. Both wired so the
+  # modal is never a dead-end.
+  pause:
+    gameplay: [fishing_tournament.continue]
+    event.fishing_tournament: [fishing_tournament.retreat]

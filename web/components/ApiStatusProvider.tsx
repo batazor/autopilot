@@ -67,3 +67,13 @@ export function useApiStatus(): ApiStatusContextValue {
   }
   return ctx;
 }
+
+/**
+ * True when the whole API is unreachable. The global ``ApiStatusIndicator``
+ * already announces this ("API offline"), so per-widget fetch-error banners
+ * should suppress themselves on this signal — one place is enough instead of
+ * every failing query repeating the same "… 500 …" message.
+ */
+export function useApiOffline(): boolean {
+  return useApiStatus().connectivity === "api_offline";
+}

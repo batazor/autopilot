@@ -98,9 +98,9 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     events,
     farm,
     fish_detect,
-    fish_video,
     gallery,
     gift_codes,
+    inference,
     instances,
     labeling,
     modules,
@@ -116,6 +116,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     radar,
     research,
     routes,
+    screen,
     version,
     wiki,
 )
@@ -125,6 +126,20 @@ from api.services.gift_codes_api import run_startup_gift_code_scrape  # noqa: E4
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _install_asyncio_shutdown_exception_handler()
+    # With host networking the API shares the host loopback, so starting the adb
+    # server here lets the dashboard's ADB scan reach emulators without the user
+    # installing adb on the host. Idempotent + non-fatal (see supervisor.main()).
+    try:
+        from adb import ensure_adb_server
+        from config.loader import load_settings
+
+        await asyncio.to_thread(
+            ensure_adb_server, load_settings().worker.adb_executable or "adb"
+        )
+    except Exception:
+        logging.getLogger(__name__).debug(
+            "ensure_adb_server at API startup failed", exc_info=True
+        )
     gift_codes_task = asyncio.create_task(
         run_startup_gift_code_scrape(),
         name="api-gift-codes-startup-scrape",
@@ -186,11 +201,12 @@ app.include_router(coord.router)
 app.include_router(overlay_test.router)
 app.include_router(dreamscape_onboarding.router)
 app.include_router(fish_detect.router)
-app.include_router(fish_video.router)
+app.include_router(inference.router)
 app.include_router(modules.router)
 app.include_router(gallery.router)
 app.include_router(adb.router)
 app.include_router(dev_bot.router)
+app.include_router(screen.router)
 app.include_router(balance.router)
 app.include_router(optimizer.router)
 app.include_router(notify.router)

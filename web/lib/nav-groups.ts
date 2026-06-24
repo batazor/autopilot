@@ -23,6 +23,7 @@ export const NAV_GROUPS: NavGroup[] = [
     tabs: [
       { href: "/overview", label: "Overview" },
       { href: "/instance", label: "Instance" },
+      { href: "/run", label: "Run scenario" },
       { href: "/player-state", label: "Player state" },
       { href: "/player-stats", label: "Statistics" },
       { href: "/alliance-stats", label: "Alliance stats" },

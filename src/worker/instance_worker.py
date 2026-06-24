@@ -194,6 +194,7 @@ class InstanceWorker(
         )
         self._rolling_snapshot_task: asyncio.Task[None] | None = None
         self._rolling_analyze_task: asyncio.Task[None] | None = None
+        self._screen_stream_publish_task: asyncio.Task[None] | None = None
         self._startup_overlay_task: asyncio.Task[None] | None = None
         self._abort_task_listener_task: asyncio.Task[None] | None = None
         self._blocking_executor_live: bool = True
@@ -803,6 +804,14 @@ class InstanceWorker(
                 )
         if not _STARTUP_SEED_TASKS:
             return
+        # Focus mode: the worker runs only the pinned scenario — don't seed
+        # check_main_city (the focus filter would drop it anyway, but skipping
+        # keeps the queue clean).
+        if await self._focus_scenario():
+            logger.info(
+                "Startup seed: skipped (focus mode) for %s", self._cfg.instance_id
+            )
+            return
         # Onboarding gate: the seed only matters for an *already identified*
         # account (``active_player`` restored from the durable store), where
         # ``who_i_am`` is skipped and nothing else would route us home until the
@@ -955,6 +964,10 @@ class InstanceWorker(
                 self._device_reference_snapshot_loop(),
                 name=f"refsnap-{self._cfg.instance_id}",
             )
+            self._screen_stream_publish_task = asyncio.create_task(
+                self._screen_stream_publish_loop(),
+                name=f"screenstream-{self._cfg.instance_id}",
+            )
             self._abort_task_listener_task = asyncio.create_task(
                 self._run_abort_task_listener(),
                 name=f"abort-task-{self._cfg.instance_id}",
@@ -1073,6 +1086,12 @@ class InstanceWorker(
                     pass
                 except Exception:
                     logger.debug("rolling snapshot task shutdown failed", exc_info=True)
+            stream = self._screen_stream_publish_task
+            self._screen_stream_publish_task = None
+            if stream is not None and not stream.done():
+                stream.cancel()
+                with suppress(asyncio.CancelledError):
+                    await stream
             analyze = self._rolling_analyze_task
             self._rolling_analyze_task = None
             if analyze is not None and not analyze.done():

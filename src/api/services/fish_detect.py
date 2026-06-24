@@ -72,6 +72,43 @@ def _run_detection(
     return asyncio.run(detector.detect(image_bgr, threshold=threshold))
 
 
+# Substrings that mean "nothing answered at the endpoint" rather than a real
+# application error (a down/never-started container, not a bad request or 401).
+_CONNECT_FAILURE_MARKERS = (
+    "connect",
+    "all connection attempts failed",
+    "connection refused",
+    "timed out",
+    "name or service not known",
+)
+
+
+def _explain_inference_error(raw: str) -> str:
+    """Turn a raw connect failure into a message that points at the control.
+
+    A bare ``ConnectError: All connection attempts failed`` is confusing when the
+    optional inference container simply hasn't been started yet. If the endpoint
+    is unreachable and the lifecycle says it isn't running, say so plainly and
+    point the operator at the Inference service widget instead of the stack trace.
+    HTTP errors (e.g. 401 auth) are meaningful, so they pass through unchanged.
+    """
+    if not any(marker in raw.lower() for marker in _CONNECT_FAILURE_MARKERS):
+        return raw
+    try:
+        from api.services import inference_lifecycle
+
+        phase = inference_lifecycle.get_status()["phase"]
+    except Exception:
+        logger.debug("fish-detect: lifecycle status probe failed", exc_info=True)
+        phase = ""
+    if phase == "ready":
+        return raw  # genuinely running yet unreachable — keep the detail
+    return (
+        "inference container is not running — start it with the Inference "
+        f"service control above (status: {phase or 'unknown'})"
+    )
+
+
 def run_fish_detect(
     *,
     instance_id: str,
@@ -115,7 +152,7 @@ def run_fish_detect(
         detections = _run_detection(image_bgr, detector=detector, threshold=conf)
     except InferenceUnavailableError as exc:
         base["available"] = False
-        base["error"] = str(exc)
+        base["error"] = _explain_inference_error(str(exc))
         return base
     except Exception as exc:
         logger.debug("fish-detect: unexpected failure", exc_info=True)

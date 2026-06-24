@@ -12,6 +12,43 @@ icon: tundra_trek
 # unrecognised sub-screen by backing out (so it can't strand the bot), and
 # returns to main_city.
 steps:
+  # The top-right fuel "+" lights a red dot when a free supply is waiting. If
+  # lit, open it, claim if a Claim button is there, then tap-anywhere to dismiss
+  # the reward back to the event screen. Refuelling first lets the trek drive
+  # further below.
+  - while_match: tundra_trek.add
+    isRedDot: true
+    max: 1
+    steps:
+      - click: tundra_trek.add
+      - wait: 1.5s
+      - while_match: button.claim
+        max: 1
+        steps:
+          - click: button.claim
+          - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
+
+  # Fast path: whenever the orange "Next Stop" pill is on screen, tap it. Each
+  # tap drives to the next stop, so the loop drains a run of consecutive
+  # drive-stops declaratively before the FSM takes over for anything else.
+  # `max` is a hard stop: if a tap ever fails to advance the screen the pill
+  # stays matched, so without a cap this loop would spin until the task timeout
+  # (observed: two runs burned exactly 300 s here). After the cap the FSM takes
+  # over with its own frame-change stuck-detection.
+  - while_match: tundra_trek.next_stop
+    threshold: 0.9
+    min_match_saturation: 60
+    max: 8
+    steps:
+      - click: tundra_trek.next_stop
+      - wait: 5s
+  # Fights, Victory/Defeat results, Skip cutscenes, chest mini-games and the hub
+  # signpost can't be driven declaratively — the Python FSM handles those (and
+  # also re-drives any Next Stop it lands on). See exec.py.
   - exec: drive_tundra_trek
   # The FSM stops on a recognised screen (the trek hub or main_city); let the
   # framework navigate home from there so the bot never lingers on the trek.

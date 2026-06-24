@@ -11,8 +11,8 @@ export function PageHeader({
   actions?: React.ReactNode;
   children?: React.ReactNode;
   /**
-   * Render the fleet bar (instance/player selectors + quick-nav popover) on the
-   * right. Pass `true` for defaults, or an options object to tweak it.
+   * Render the fleet bar (instance/player selectors) on the right. Pass `true`
+   * for defaults, or an options object to tweak it.
    */
   fleet?: boolean | FleetHeaderBarProps;
 }) {

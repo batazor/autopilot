@@ -19,27 +19,21 @@
             "original_width": 720,
             "original_height": 1280
           }
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "screen_id": "event.tundra_trek.stop",
-      "ocr": "references/stop.png",
-      "regions": [
+        },
         {
-          "name": "tundra_trek.next_stop",
+          "name": "tundra_trek.endless_wayfarer",
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
-            "x": 30.0,
-            "y": 90.5,
-            "width": 38.0,
-            "height": 6.8,
+            "x": 82.3617511520737,
+            "y": 6.436676694410617,
+            "width": 14.999999999999988,
+            "height": 6.380678869243276,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "has_red_dot": true
         }
       ]
     },
@@ -156,6 +150,48 @@
           }
         }
       ]
+    },
+    {
+      "id": 7,
+      "screen_id": "",
+      "ocr": "references/idle.png",
+      "regions": [
+        {
+          "name": "tundra_trek.next_stop",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.415148747034586,
+            "y": 90.74861255657926,
+            "width": 33.860946745562146,
+            "height": 3.266599771634148,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "tundra_trek.add",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 83.8170111526191,
+            "y": 0.8055010055780757,
+            "width": 6.789940828402376,
+            "height": 3.5157260994429267,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "screen_id": "",
+      "ocr": "references/reward.png",
+      "regions": []
     }
   ]
 }

@@ -1,121 +1,122 @@
 @layer components {
-  /* --- Fish video validator -------------------------------------------- */
-  .fish-video__intro {
+  /* --- Fish detection panels (shared by fish-detect + plan) ------------ */
+  .fish-plan__intro {
     @apply mt-0 mb-3 text-sm text-wos-text-muted;
   }
 
-  /* Drag & drop upload zone */
-  .fish-dropzone {
-    @apply flex h-56 w-full cursor-pointer flex-col items-center justify-center
-      gap-1 rounded-xl border-2 border-dashed border-wos-border bg-wos-input/40
-      px-6 text-center text-wos-text-muted transition;
+  /* Fishing control card embedded in the Drive logic panel. */
+  .fish-play-card {
+    @apply mb-4;
   }
 
-  .fish-dropzone:hover {
-    @apply border-accent/50 bg-wos-input/70;
-  }
-
-  .fish-dropzone--active {
-    @apply border-accent bg-accent/10 text-wos-text-secondary;
-  }
-
-  .fish-dropzone--busy {
-    @apply pointer-events-none opacity-60;
-  }
-
-  .fish-dropzone__icon {
-    @apply mb-3 h-8 w-8 text-wos-text-muted;
-  }
-
-  .fish-dropzone--active .fish-dropzone__icon {
-    @apply text-accent;
-  }
-
-  .fish-dropzone__title {
-    @apply mb-1 text-sm font-medium text-wos-text-secondary;
-  }
-
-  .fish-dropzone__hint {
-    @apply mb-4 text-xs text-wos-text-muted;
-  }
-
-  .fish-dropzone__browse {
-    @apply inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2
-      text-sm font-medium leading-5 text-white shadow-sm transition
-      hover:bg-accent/85 focus:outline-none focus:ring-4 focus:ring-accent/40;
-  }
-
-  /* Header row: state pill + meta + clear */
-  .fish-status-row {
-    @apply mb-3 flex flex-wrap items-center gap-2;
+  .fish-play-card__head {
+    @apply flex flex-wrap items-center justify-between gap-2;
   }
 
   .fish-meta {
     @apply font-mono text-xs text-wos-text-muted;
   }
 
-  /* Progress bar */
-  .fish-progress {
-    @apply my-3;
+  /* --- Inference control widget --------------------------------------- */
+  .infctl {
+    @apply flex flex-col gap-3;
   }
 
-  .fish-progress__track {
-    @apply h-2 w-full overflow-hidden rounded-full bg-wos-border-subtle/50;
+  .infctl__head {
+    @apply flex flex-wrap items-center justify-between gap-2;
   }
 
-  .fish-progress__fill {
-    @apply h-full rounded-full bg-accent transition-[width] duration-300;
+  .infctl__title {
+    @apply flex items-center gap-2;
   }
 
-  /* Legend chips */
-  .fish-legend {
-    @apply mt-1 flex flex-wrap items-center gap-3 text-xs text-wos-text-muted;
+  .infctl__title h2 {
+    @apply m-0 text-base font-semibold text-wos-text-secondary;
   }
 
-  .fish-legend__item {
-    @apply inline-flex items-center gap-1.5;
+  .infctl__actions {
+    @apply flex items-center gap-2;
   }
 
-  .fish-legend__dot {
-    @apply inline-block h-2.5 w-2.5 rounded-sm;
+  /* Stepper */
+  .infctl-steps {
+    @apply m-0 flex list-none gap-2 p-0;
   }
 
-  /* Filmstrip */
-  .fish-filmstrip {
-    @apply scrollbar-thin mt-3 flex gap-2 overflow-x-auto pb-2;
+  .infctl-step {
+    @apply relative flex flex-1 flex-col items-center gap-1 text-center;
   }
 
-  .fish-thumb {
-    @apply flex flex-none cursor-pointer flex-col items-center gap-1 rounded-lg
-      border border-transparent bg-transparent p-1 transition;
+  /* Connector line between dots */
+  .infctl-step:not(:first-child)::before {
+    @apply absolute right-1/2 top-3 -z-0 h-0.5 w-full bg-wos-border-subtle/60
+      content-[''];
   }
 
-  .fish-thumb:hover {
-    @apply bg-wos-panel-raised/60;
+  .infctl-step--done:not(:first-child)::before,
+  .infctl-step--active:not(:first-child)::before {
+    @apply bg-accent/60;
   }
 
-  .fish-thumb--active {
-    @apply border-accent bg-accent/10;
+  .infctl-step__dot {
+    @apply relative z-10 flex h-6 w-6 items-center justify-center rounded-full
+      border bg-wos-panel text-xs font-semibold;
   }
 
-  .fish-thumb__img {
-    @apply block w-[84px] rounded-md ring-1 ring-wos-border-subtle;
+  .infctl-step__num {
+    @apply text-[0.7rem] leading-none;
   }
 
-  .fish-thumb__cap {
-    @apply font-mono text-[0.7rem] leading-none text-wos-text-muted;
+  .infctl-step--pending .infctl-step__dot {
+    @apply border-wos-border-subtle text-wos-text-muted;
   }
 
-  .fish-thumb--active .fish-thumb__cap {
+  .infctl-step--done .infctl-step__dot {
+    @apply border-accent bg-accent/15 text-accent;
+  }
+
+  .infctl-step--active .infctl-step__dot {
+    @apply border-accent text-accent;
+    animation: approvals-pulse 1.8s ease-in-out infinite;
+  }
+
+  .infctl-step--error .infctl-step__dot {
+    @apply border-[var(--wos-status-danger-fg)] text-[var(--wos-status-danger-fg)];
+  }
+
+  .infctl-step__label {
+    @apply text-xs font-medium text-wos-text-secondary;
+  }
+
+  .infctl-step--pending .infctl-step__label {
+    @apply text-wos-text-muted;
+  }
+
+  .infctl-step__hint {
+    @apply font-mono text-[0.65rem] leading-none text-wos-text-muted;
+  }
+
+  /* Meta + liveness row */
+  .infctl-meta {
+    @apply flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-wos-text-muted;
+  }
+
+  .infctl-meta code {
     @apply text-wos-text-secondary;
   }
 
-  /* Selected frame */
-  .fish-frame-img {
-    @apply w-full rounded-lg ring-1 ring-wos-border-subtle;
+  .infctl-logs-toggle {
+    @apply ml-auto rounded-md px-2 py-0.5 text-xs font-medium text-accent
+      transition hover:bg-accent/10;
   }
 
-  .fish-swipe-empty {
-    @apply text-sm text-wos-text-muted;
+  .infctl-note {
+    @apply m-0 text-xs text-wos-text-muted;
+  }
+
+  .infctl-logs {
+    @apply max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg
+      bg-wos-input/60 p-3 font-mono text-[0.72rem] leading-relaxed
+      text-wos-text-secondary ring-1 ring-wos-border-subtle;
   }
 }

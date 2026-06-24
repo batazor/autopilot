@@ -390,6 +390,23 @@ class SchedulerRunner:
         if not cron_ymls:
             return
 
+        # Focus mode: instances pinned to a single scenario must not have cron
+        # work piled into their queue (the worker would only drop it). Compute
+        # the focused set once per tick rather than per spec×instance.
+        focused_instances: set[str] = set()
+        for inst in self._settings.instances:
+            try:
+                raw_focus = await self._redis.hget(
+                    f"wos:instance:{inst.instance_id}:state", "focus_scenario"
+                )
+            except Exception:
+                raw_focus = None
+            fs = (
+                raw_focus.decode() if isinstance(raw_focus, bytes) else str(raw_focus or "")
+            ).strip()
+            if fs:
+                focused_instances.add(inst.instance_id)
+
         import yaml
 
         for yml in cron_ymls:
@@ -422,6 +439,8 @@ class SchedulerRunner:
             spec_slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", name).strip("._-") or yml.stem
             interval_s = self._cron_interval_seconds(expr)
             for inst in self._settings.instances:
+                if inst.instance_id in focused_instances:
+                    continue
                 if when_current_screen:
                     current_screen = await self._instance_current_screen(inst.instance_id)
                     if when_current_screen in {"unknown", "none", "empty"}:

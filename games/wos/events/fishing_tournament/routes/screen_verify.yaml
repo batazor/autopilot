@@ -1,5 +1,37 @@
 screens:
+  # Pre-start promo splash ("Countdown to Event Start" + Trial Stages).
   event.fishing_tournament:
     rules:
       - match: event.fishing_tournament
+        threshold: 0.9
+
+  # Live tournament hub (Frosty Prospector / Ice Fishing buttons + points
+  # tracker). Distinct from the promo splash above — anchored on the play
+  # buttons, which exist only here (template ~1.0 on this screen vs <0.21 on
+  # gameplay / main_city).
+  main_ready:
+    priority: 30
+    rules:
+      - match: fishing_tournament.play.frosty
+        threshold: 0.85
+
+  # The fishing minigame itself. Anchored on the gameplay screen title (top-left
+  # heading), present for the whole round. terminal: a round is driven by the
+  # fishing exec FSM, not the screen graph; the system_back edge in edge_taps.yaml
+  # is a safety recovery so it can never strand.
+  gameplay:
+    priority: 30
+    terminal: true
+    rules:
+      - match: fishing_tournament.gameplay.title
+        threshold: 0.9
+
+  # Pause modal that overlays a running round — two buttons: "Continue" (resume)
+  # and "Retreat" (abandon the round). Anchored on Retreat, which exists only on
+  # this modal. Priority below gameplay so the modal wins detection even if the
+  # gameplay title still shows behind it.
+  pause:
+    priority: 20
+    rules:
+      - match: fishing_tournament.retreat
         threshold: 0.9

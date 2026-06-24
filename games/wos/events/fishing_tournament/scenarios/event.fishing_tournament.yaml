@@ -2,6 +2,10 @@ enabled: true
 name: Fishing Tournament
 node: event.fishing_tournament
 icon: fishing_tournament
+# Device-level: the flow only reads the screen and taps (claim rewards / play),
+# holding no per-account state, so it runs standalone (Play button / overlay
+# rule) without a bound player — like dreamscape_memory.
+device_level: true
 steps:
   - while_match: button.claim
     max: 3

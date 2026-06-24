@@ -19,6 +19,14 @@ edges:
     main_city: [icon.page.back]
     main_world: [icon.page.back]
     main_menu: [icon.page.back]
+    # The trek hub hosts the Endless Wayfarer deal; its banner (red dot when a
+    # milestone is claimable) opens the deal sub-screen. Gives the navigator a
+    # second route into deals.endless_wayfarer besides the main_city icon.
+    deals.endless_wayfarer: [tundra_trek.endless_wayfarer]
+
+  # Back out of the Endless Wayfarer deal to the trek hub it was opened from.
+  deals.endless_wayfarer:
+    event.tundra_trek: [icon.page.back]
 
   # The travel/stop sub-screen backs out to the event main (signpost) screen,
   # which in turn backs out to main_city. Lets the navigator escape the trek.

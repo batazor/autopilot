@@ -6,6 +6,7 @@ import multiprocessing
 import os
 import signal
 import socket
+import threading
 import time
 from contextlib import suppress as _suppress
 from dataclasses import dataclass
@@ -108,8 +109,39 @@ def _install_child_signal_handlers() -> None:
     signal.signal(signal.SIGTERM, _term)
 
 
+def _install_orphan_watchdog(poll_s: float = 2.0) -> None:
+    """Graceful self-shutdown when our spawner dies.
+
+    Workers run detached (``start_new_session`` for the isolated instance runner)
+    or as ``multiprocessing`` children, so a dead parent reparents us to init
+    (PID 1) instead of taking us down — the process would otherwise linger and
+    keep logging/heartbeating forever. Watch for that reparent and SIGTERM
+    ourselves: the handler installed above unwinds asyncio cleanly and releases
+    the device/scrcpy session.
+
+    Triggers on "``getppid()`` changed" rather than "== 1", so a process started
+    already orphaned (container/launchd) has no owner to track and is left alone.
+    """
+    initial_ppid = os.getppid()
+    if initial_ppid <= 1:
+        return  # launched already orphaned — no owning parent to track
+
+    def _watch() -> None:
+        while True:
+            time.sleep(poll_s)
+            if os.getppid() != initial_ppid:  # original parent gone → reparented
+                logger.info(
+                    "orphan watchdog: parent %s gone, shutting down", initial_ppid
+                )
+                os.kill(os.getpid(), signal.SIGTERM)
+                return
+
+    threading.Thread(target=_watch, daemon=True, name="orphan-watchdog").start()
+
+
 def _worker_process(instance_config: InstanceConfig) -> None:
     _install_child_signal_handlers()
+    _install_orphan_watchdog()
     bootstrap_runtime_observability("worker", instance_id=instance_config.instance_id)
 
     async def _run() -> None:
@@ -155,6 +187,7 @@ def _worker_process(instance_config: InstanceConfig) -> None:
 
 def _scheduler_process() -> None:
     _install_child_signal_handlers()
+    _install_orphan_watchdog()
     bootstrap_runtime_observability("scheduler")
 
     async def _run() -> None:
@@ -525,7 +558,15 @@ def main() -> None:
         "supervisor",
         instance_id=os.environ.get("WOS_INSTANCE_ID") or socket.gethostname(),
     )
-    set_settings(load_settings())
+    settings = load_settings()
+    set_settings(settings)
+    # Host-networked containers share the host's loopback, so an adb server
+    # started here listens on 127.0.0.1:5037 for the whole host — the user never
+    # needs adb installed or ``adb start-server`` run on the host. Idempotent and
+    # non-fatal everywhere (no-op when a server is already up, e.g. local dev).
+    from adb import ensure_adb_server
+
+    ensure_adb_server(settings.worker.adb_executable or "adb")
     assert_startup_configs_valid()
     cleanup_orphaned_sck_capture_helpers()
     ensure_health_watchdog_process()

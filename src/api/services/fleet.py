@@ -225,6 +225,7 @@ def build_fleet_rows(
                 "uptime": _fleet_uptime(row, status),
                 "alert": fleet_alert(row),
                 "paused": row.get("paused") == "1",
+                "focus": (row.get("focus_scenario") or "").strip(),
                 "players": sub_rows,
             }
         )

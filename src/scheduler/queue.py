@@ -646,10 +646,11 @@ class RedisQueue:
         instance_players = self._players_for_instance(instance_id)
         ap = ""
         test_module = ""
+        focus_scenario = ""
         try:
             raw_state = await self._redis.hmget(
                 f"wos:instance:{instance_id}:state",
-                ["active_player", "test_module"],
+                ["active_player", "test_module", "focus_scenario"],
             )
         except Exception:
             raw_state = []
@@ -661,6 +662,10 @@ class RedisQueue:
             raw_tm = raw_state[1] if len(raw_state) > 1 else None
             test_module = (
                 raw_tm.decode() if isinstance(raw_tm, bytes) else str(raw_tm or "")
+            ).strip()
+            raw_focus = raw_state[2] if len(raw_state) > 2 else None
+            focus_scenario = (
+                raw_focus.decode() if isinstance(raw_focus, bytes) else str(raw_focus or "")
             ).strip()
 
         if str(current_screen or "").strip().lower() == "loading":
@@ -715,6 +720,21 @@ class RedisQueue:
 
         if not due:
             return []
+
+        # Focus mode: the instance is pinned to run a single scenario (the
+        # fish-detect Play button / ``botctl run --focus`` / the /run launcher).
+        # Drop everything else so leftover cron work and autonomously-pushed
+        # scenarios stay parked in the queue and only the focused scenario runs.
+        # Honoured here (not at the worker) so peek_top_due / explain_top_n
+        # reflect it too. ``debug`` items still bypass, mirroring the gates below.
+        if focus_scenario:
+            due = [
+                x for x in due
+                if bool(x[1].get("debug"))
+                or self._effective_task_type(x[1]) == focus_scenario
+            ]
+            if not due:
+                return []
 
         # Screen-identity gate: with an unknown ``current_screen``, navigation
         # has no source node to route from, so any ``node:`` scenario would

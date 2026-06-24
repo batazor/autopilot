@@ -194,3 +194,61 @@ async def test_tundra_trek_routes_from_city_and_world(
         ]
     finally:
         screen_graph.invalidate_edge_taps_cache()
+
+
+def test_fsm_button_detector_finds_next_stop_on_idle_frame() -> None:
+    """The FSM's colour finder must locate the orange Next Stop pill on the real
+    stop frame — otherwise the trek can never drive. Guards the detector gates
+    (`_BTN_MIN_H`/`_BTN_MIN_W`/saturation) against regressions."""
+    from games.wos.events.tundra_trek import exec as tt_exec
+
+    frame = cv2.imread(str(MODULE_DIR / "references" / "idle.png"))
+    assert frame is not None
+    btn = tt_exec._find_button(frame)
+    assert btn is not None, "Next Stop pill not detected on idle.png"
+    cx, cy, colour = btn
+    assert colour == "orange"
+    assert 0.4 < cx < 0.6      # horizontally centred
+    assert 0.85 < cy < 0.98    # near the bottom (the button row)
+
+
+def test_fsm_has_button_stuck_guard() -> None:
+    """A non-advancing button tap must not spin the whole step budget (the bug
+    that burned exactly 300 s/run)."""
+    from games.wos.events.tundra_trek import exec as tt_exec
+
+    assert getattr(tt_exec, "_MAX_BTN_STUCK", 0) >= 1
+
+
+def test_next_stop_loop_is_bounded() -> None:
+    """The declarative Next Stop loop must carry a `max` so a tap that fails to
+    advance can't spin until the task timeout."""
+    scenario = _load_yaml("scenarios/event.tundra_trek.yaml")
+    loops = [
+        s
+        for s in scenario["steps"]
+        if s.get("while_match") == "tundra_trek.next_stop"
+    ]
+    assert loops, "next_stop drive loop missing"
+    assert all(isinstance(s.get("max"), int) and s["max"] >= 1 for s in loops)
+
+
+def test_continue_rule_repushes_trek_from_its_own_screens() -> None:
+    """When parked on the trek hub / stop sub-screen with Next Stop visible, an
+    overlay rule must re-push event.tundra_trek so the bot resumes instead of
+    idling (the entry rules only fire on main_city/world/menu)."""
+    analyze = _load_yaml("analyze/analyze.yaml")
+    rules = {rule["name"]: rule for rule in analyze["overlay"]}
+    cont = rules["tundra_trek.stop.continue"]
+
+    assert cont["region"] == "tundra_trek.next_stop"
+    assert cont["action"] == "findIcon"
+    assert set(cont["screens"]) == {"event.tundra_trek", "event.tundra_trek.stop"}
+    assert {"push_scenario": {"name": "event.tundra_trek", "ttl": "1m"}} in cont["steps"]
+    assert cont.get("ttl") == "1m"
+
+    # the battle sub-screen resumes the trek too
+    fight = rules["tundra_trek.fight.continue"]
+    assert fight["region"] == "tundra_trek.fight"
+    assert fight["screens"] == ["event.tundra_trek.stop"]
+    assert {"push_scenario": {"name": "event.tundra_trek", "ttl": "1m"}} in fight["steps"]

@@ -37,3 +37,56 @@ overlay:
       - push_scenario:
           name: event.tundra_trek
           ttl: 1m
+  # Continue / resume: if the bot is parked ON the trek (the hub or a stop
+  # sub-screen) with the orange "Next Stop" pill visible, re-push the trek so it
+  # keeps driving. Without this, once a run ends on event.tundra_trek.stop
+  # nothing re-queues the scenario — the entry rules above only fire on
+  # main_city / main_world / main_menu, so the bot idles on the Next Stop button
+  # forever. The push-entry ttl plus the worker's "same scenario already
+  # running" guard keep this from preempting an in-progress trek run.
+  - name: tundra_trek.stop.continue
+    region: tundra_trek.next_stop
+    action: findIcon
+    template: games/wos/events/tundra_trek/references/crop/idle_tundra_trek.next_stop.png
+    threshold: 0.9
+    min_match_saturation: 60
+    screens:
+      - event.tundra_trek
+      - event.tundra_trek.stop
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.tundra_trek
+          ttl: 1m
+  # Same resume, for the battle sub-screen: event.tundra_trek.stop also covers
+  # the "Fight" frame, where the Next Stop pill is absent. If a run ends parked
+  # on a fight, re-push so the FSM resumes (taps Fight → result → next stop).
+  - name: tundra_trek.fight.continue
+    region: tundra_trek.fight
+    action: findIcon
+    template: games/wos/events/tundra_trek/references/crop/fight_tundra_trek.fight.png
+    threshold: 0.9
+    min_match_saturation: 60
+    screens:
+      - event.tundra_trek.stop
+    ttl: 1m
+    steps:
+      - push_scenario:
+          name: event.tundra_trek
+          ttl: 1m
+  # The trek hub hosts the Endless Wayfarer deal banner. When its red dot is lit
+  # there's a milestone reward to claim, so push the deal's claim scenario — the
+  # navigator routes into deals.endless_wayfarer via the banner edge and back.
+  - name: tundra_trek.endless_wayfarer.claimable
+    region: tundra_trek.endless_wayfarer
+    action: findIcon
+    template: games/wos/events/tundra_trek/references/crop/main_tundra_trek.endless_wayfarer.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - event.tundra_trek
+    ttl: 5m
+    steps:
+      - push_scenario:
+          name: deals.endless_wayfarer
+          ttl: 5m

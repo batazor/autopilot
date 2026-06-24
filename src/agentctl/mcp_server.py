@@ -100,8 +100,9 @@ def bot_run(
     priority: int = 50_000,
     replace: bool = False,
     abort_running: bool = False,
+    focus: bool = False,
 ) -> dict[str, Any]:
-    """Enqueue a scenario to run on an instance (default: now). player_id is required for account-level scenarios."""
+    """Enqueue a scenario on an instance (default: now). player_id is required for account-level scenarios. focus=True runs ONLY this scenario (suppresses crons/overlay/identity, starts a worker if none)."""  # noqa: E501
     return _run(
         core.run_scenario,
         scenario,
@@ -111,7 +112,21 @@ def bot_run(
         priority=priority,
         replace=replace,
         abort_running=abort_running,
+        focus=focus,
     )
+
+
+def bot_focus(
+    scenario: str = "",
+    instance: str | None = None,
+    player_id: str = "",
+    clear: bool = False,
+    stop_worker: bool = False,
+) -> dict[str, Any]:
+    """Pin an instance to run ONLY one scenario (focus mode), or clear=True to resume autopilot. With clear+stop_worker, also stop the isolated worker."""  # noqa: E501
+    if clear:
+        return _run(core.clear_focus, instance, stop_worker=stop_worker)
+    return _run(core.set_focus, scenario, instance, player_id=player_id)
 
 
 def bot_pause(instance: str | None = None) -> dict[str, Any]:
@@ -162,6 +177,7 @@ TOOLS = [
     bot_devices,
     bot_logs,
     bot_run,
+    bot_focus,
     bot_pause,
     bot_resume,
     bot_abort,

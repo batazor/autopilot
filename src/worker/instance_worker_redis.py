@@ -144,6 +144,28 @@ class InstanceWorkerRedisMixin(_Base):
         except Exception:
             logger.debug("Failed to persist instance state to Redis", exc_info=True)
 
+    async def _focus_scenario(self) -> str:
+        """Return the focus scenario for this instance, or "" for autopilot.
+
+        Focus mode (set via the /focus API, ``botctl run --focus`` or the /run
+        launcher) pins the worker to a single scenario: every autonomous enqueue
+        site below early-returns when this is non-empty, and the queue itself
+        only surfaces matching items (see ``RedisQueue._collect_ranked_due``).
+        Read fresh from Redis so a live focus set/clear is honoured next tick.
+        """
+        if self._redis is None:
+            return ""
+        try:
+            from worker.focus_mode import read_focus_async
+
+            scenario, _player = await read_focus_async(
+                self._redis, self._cfg.instance_id
+            )
+            return scenario
+        except Exception:
+            logger.debug("focus: read failed", exc_info=True)
+            return ""
+
     async def _pop_next_task(self) -> QueueItem | None:
         assert self._queue is not None
         current_screen = ""
@@ -302,6 +324,11 @@ class InstanceWorkerRedisMixin(_Base):
         q = self._queue
         r = self._redis
         if q is None or r is None:
+            return
+
+        # Focus mode runs a single scenario with no autonomous work — the
+        # identity probe would enqueue who_i_am the focus filter then drops.
+        if await self._focus_scenario():
             return
 
         current_screen = (await self._instance_current_screen()).lower()

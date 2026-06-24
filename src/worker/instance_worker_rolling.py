@@ -496,6 +496,66 @@ class InstanceWorkerRollingMixin(_Base):
         """Run overlay analysis immediately at startup."""
         await self._overlay_tick_now(reason="startup")
 
+    async def _screen_stream_viewer_active(self) -> bool:
+        """True when a dashboard live-view is attached (API sets a TTL flag).
+
+        Gates the high-fps publish loop so we only encode/push frames while
+        someone is watching. See ``worker.screen_bus`` / ``api.services.screen_stream``.
+        """
+        r = getattr(self, "_redis", None)
+        if r is None:
+            return False
+        try:
+            return bool(
+                await r.exists(f"wos:instance:{self._cfg.instance_id}:screen_viewers")
+            )
+        except Exception:
+            return False
+
+    def _grab_and_encode_screen_jpeg(self, quality: int = 75) -> bytes | None:
+        """Grab the freshest scrcpy frame and JPEG-encode it (rolling executor)."""
+        import cv2
+
+        img = self._grab_layout_bgr_cached(max_age_ms=40.0)
+        if img is None:
+            return None
+        ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, int(quality)])
+        return bytes(buf) if ok else None
+
+    async def _screen_stream_publish_loop(self) -> None:
+        """Publish JPEG frames to the Redis frame bus while a viewer is attached.
+
+        Independent of the heavier ~1 fps analysis loop so the live stream reaches
+        ~20 fps straight from scrcpy's in-memory frame cache (the worker is the
+        sole scrcpy owner — two servers can't coexist on one device). Idle with a
+        cheap EXISTS poll when nobody is watching.
+        """
+        from worker import screen_bus
+
+        seq = 0
+        await asyncio.sleep(1.0)
+        while True:
+            try:
+                if self._stopping:
+                    return
+                if not await self._screen_stream_viewer_active():
+                    await asyncio.sleep(0.5)
+                    continue
+                jpeg = await self._run_rolling_blocking(self._grab_and_encode_screen_jpeg)
+                if jpeg:
+                    seq += 1
+                    await screen_bus.publish_jpeg(self._cfg.instance_id, seq, jpeg)
+                await asyncio.sleep(0.045)  # ~22 fps cap
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.debug(
+                    "[screen-stream] publish loop error on %s",
+                    self._cfg.instance_id,
+                    exc_info=True,
+                )
+                await asyncio.sleep(0.5)
+
     async def _device_reference_snapshot_loop(self) -> None:
         cfg = self._settings.worker
         await asyncio.sleep(0.5)

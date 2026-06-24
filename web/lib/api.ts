@@ -28,7 +28,9 @@ import type {
   DreamscapeSceneRect,
   DreamscapeScenePoint,
   FishDetectResult,
-  FishVideoJob,
+  FishPlanResult,
+  InferenceStatusView,
+  InferenceLogsView,
   InstanceDetail,
   LabelingBundleImport,
   LabelingDocument,
@@ -284,6 +286,98 @@ export async function startLocalBot(): Promise<BotStatusView> {
 
 export async function stopLocalBot(): Promise<BotStatusView> {
   return apiFetch<BotStatusView>("/api/dev/bot/stop", { method: "POST" });
+}
+
+/** Status of the isolated single-instance worker (one device, no scheduler). */
+export type InstanceWorkerStatus = {
+  running: boolean;
+  instance_id: string;
+  pid: number | null;
+  /** Non-empty when the instance is pinned to run only this scenario. */
+  focus_scenario?: string;
+  focus_player?: string;
+};
+
+export async function fetchInstanceWorkerStatus(
+  instanceId: string,
+): Promise<InstanceWorkerStatus> {
+  return apiFetch<InstanceWorkerStatus>(
+    `/api/dev/bot/instance/${encodeURIComponent(instanceId)}`,
+  );
+}
+
+export async function startInstanceWorker(
+  instanceId: string,
+): Promise<InstanceWorkerStatus> {
+  return apiFetch<InstanceWorkerStatus>(
+    `/api/dev/bot/instance/${encodeURIComponent(instanceId)}/start`,
+    { method: "POST" },
+  );
+}
+
+export async function stopInstanceWorker(
+  instanceId: string,
+): Promise<InstanceWorkerStatus> {
+  return apiFetch<InstanceWorkerStatus>(
+    `/api/dev/bot/instance/${encodeURIComponent(instanceId)}/stop`,
+    { method: "POST" },
+  );
+}
+
+/**
+ * Focus mode — pin an instance to run ONLY one scenario. The server validates
+ * the scenario, ensures a single worker is alive, sets the focus flag and
+ * enqueues it in one call (no autonomous crons / overlay pushes / identity).
+ */
+export async function setInstanceFocus(
+  instanceId: string,
+  body: { scenario_key: string; player_id?: string; abort_running?: boolean },
+): Promise<{
+  ok: boolean;
+  instance_id: string;
+  scenario: string;
+  focus: string;
+  worker_started: boolean;
+  task_id: string;
+}> {
+  return apiFetch(
+    `/api/dev/bot/instance/${encodeURIComponent(instanceId)}/focus`,
+    jsonInit("POST", body),
+  );
+}
+
+/** Clear focus mode and stop the isolated worker (returns to autopilot). */
+export async function clearInstanceFocus(
+  instanceId: string,
+): Promise<{ ok: boolean; instance_id: string; focus: string }> {
+  return apiFetch(
+    `/api/dev/bot/instance/${encodeURIComponent(instanceId)}/focus/stop`,
+    { method: "POST" },
+  );
+}
+
+/** MJPEG live screen stream URL (scrcpy) — use directly as an <img> src. */
+export function screenStreamUrl(
+  instanceId: string,
+  cacheKey?: number | string,
+): string {
+  const q = cacheKey != null ? `?t=${encodeURIComponent(String(cacheKey))}` : "";
+  return `${base}/api/instances/${encodeURIComponent(instanceId)}/screen/stream${q}`;
+}
+
+export type ScreenStatus = {
+  instance_id: string;
+  running: boolean;
+  viewers: boolean;
+  has_frame: boolean;
+  last_frame_age_ms: number | null;
+  source: string;
+};
+
+export async function fetchScreenStatus(instanceId: string): Promise<ScreenStatus> {
+  return apiFetch<ScreenStatus>(
+    `/api/instances/${encodeURIComponent(instanceId)}/screen/status`,
+  );
 }
 
 export async function fetchInstances(): Promise<string[]> {
@@ -900,6 +994,40 @@ export async function fetchFishDetections(
   );
 }
 
+export async function fetchFishPlan(
+  instanceId: string,
+  options: { threshold?: number; reset?: boolean } = {},
+): Promise<FishPlanResult> {
+  const q = new URLSearchParams();
+  if (options.threshold != null) q.set("threshold", String(options.threshold));
+  if (options.reset) q.set("reset", "true");
+  const suffix = q.size ? `?${q}` : "";
+  return apiFetch<FishPlanResult>(
+    `/api/instances/${encodeURIComponent(instanceId)}/fish-plan${suffix}`,
+  );
+}
+
+// --- Inference sidecar lifecycle (Fish-detect control widget) ---------------
+export async function fetchInferenceStatus(): Promise<InferenceStatusView> {
+  return apiFetch<InferenceStatusView>("/api/inference/status");
+}
+
+export async function startInference(): Promise<InferenceStatusView> {
+  return apiFetch<InferenceStatusView>("/api/inference/start", {
+    method: "POST",
+  });
+}
+
+export async function stopInference(): Promise<InferenceStatusView> {
+  return apiFetch<InferenceStatusView>("/api/inference/stop", {
+    method: "POST",
+  });
+}
+
+export async function fetchInferenceLogs(tail = 200): Promise<InferenceLogsView> {
+  return apiFetch<InferenceLogsView>(`/api/inference/logs?tail=${tail}`);
+}
+
 export function fishDetectImageUrl(
   instanceId: string,
   cacheKey?: number | string | null,
@@ -908,35 +1036,6 @@ export function fishDetectImageUrl(
   const q = new URLSearchParams({ t: String(cacheKey ?? Date.now()) });
   if (options.threshold != null) q.set("threshold", String(options.threshold));
   return `${base}/api/instances/${encodeURIComponent(instanceId)}/fish-detect/image?${q}`;
-}
-
-export async function uploadFishVideo(
-  file: File,
-  options: { threshold?: number; intervalMs?: number } = {},
-): Promise<{ job_id: string }> {
-  const fd = new FormData();
-  fd.append("file", file);
-  if (options.threshold != null) fd.append("threshold", String(options.threshold));
-  if (options.intervalMs != null) fd.append("interval_ms", String(options.intervalMs));
-  // Don't set Content-Type — the browser fills in the multipart boundary.
-  return apiFetch<{ job_id: string }>("/api/fish-detect/video", {
-    method: "POST",
-    body: fd,
-  });
-}
-
-export async function fetchFishVideoJob(jobId: string): Promise<FishVideoJob> {
-  return apiFetch<FishVideoJob>(`/api/fish-detect/video/${encodeURIComponent(jobId)}`);
-}
-
-export function fishVideoFrameImageUrl(jobId: string, index: number): string {
-  return `${base}/api/fish-detect/video/${encodeURIComponent(jobId)}/frame/${index}/image`;
-}
-
-export async function deleteFishVideoJob(jobId: string): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(`/api/fish-detect/video/${encodeURIComponent(jobId)}`, {
-    method: "DELETE",
-  });
 }
 
 function labelingScopeQuery(

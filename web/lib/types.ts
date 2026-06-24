@@ -48,6 +48,8 @@ export type OverlayArrow = {
   x2: number;
   y2: number;
   label?: string;
+  /** Arrow color (defaults to cyan). */
+  stroke?: string;
 };
 
 export type OverlayShape = OverlayRect | OverlayCrosshair | OverlayArrow;
@@ -856,43 +858,82 @@ export type FishDetectResult = {
   error: string;
 };
 
-export type SwipePrediction = {
-  fish_index: number;
-  center_x: number;
-  center_y: number;
-  escape_to_x: number;
-  escape_to_y: number;
-  catch_to_x: number;
-  catch_to_y: number;
-  escape_deg: number;
-  escape_compass: string;
-  catch_compass: string;
-  speed_px_s: number;
+export type FishPhase = "dodge" | "collect";
+
+/** One horizontal hook steer (pixel coords of the source frame). */
+export type SwipePlan = {
+  direction: "left" | "right";
+  from_x: number;
+  from_y: number;
+  to_x: number;
+  to_y: number;
+  dx: number;
+  phase: FishPhase;
+  target_index: number;
+  reason: string;
 };
 
-export type FishVideoFrame = {
-  index: number;
-  frame_pos: number;
-  t_ms: number;
-  detections: FishDetectionRow[];
-  swipes: SwipePrediction[];
-};
-
-export type FishVideoJob = {
-  job_id: string;
-  state: "queued" | "running" | "done" | "error";
-  processed: number;
-  total: number;
-  fps_in: number;
-  duration_ms: number;
+/** Decoupled per-frame decision from GET /api/instances/{id}/fish-plan. */
+export type FishPlanResult = {
+  instance_id: string;
+  available: boolean;
+  model_id: string;
+  confidence: number;
   frame_width: number;
   frame_height: number;
-  interval_ms: number;
-  threshold: number;
-  model_id: string;
-  available: boolean;
+  preview_available: boolean;
+  preview_rel: string;
+  preview_mtime: number | null;
+  phase: FishPhase;
+  level: number | null;
+  level_total: number | null;
+  level_text: string;
+  hook_x: number | null;
+  hook_y: number | null;
+  protected: boolean | null;
+  /** Travel direction inferred from the hook's vertical zone: "down" | "up". */
+  hook_direction: "down" | "up" | null;
+  target_index: number;
+  swipe: SwipePlan | null;
+  detections: FishDetectionRow[];
   error: string;
-  frames: FishVideoFrame[];
+};
+
+/**
+ * Lifecycle phase of the optional Roboflow inference sidecar container,
+ * surfaced by the Inference control widget on the Fish-detect page.
+ *   docker_unavailable → not_installed → pulling → starting → ready
+ * plus stopped (image present, container off), unhealthy and error.
+ */
+export type InferencePhase =
+  | "docker_unavailable"
+  | "not_installed"
+  | "pulling"
+  | "starting"
+  | "unhealthy"
+  | "ready"
+  | "stopped"
+  | "error";
+
+export type InferenceStatusView = {
+  phase: InferencePhase;
+  ready: boolean;
+  image_present: boolean;
+  container_exists: boolean;
+  /** Raw docker State.Status (running|exited|created|…) or "" when missing. */
+  container_status: string;
+  /** docker State.Health.Status (healthy|starting|unhealthy|none). */
+  health: string;
+  /** A pull/run job is in flight in the API process. */
+  job_active: boolean;
+  url: string;
+  model_id: string;
+  error: string;
+};
+
+export type InferenceLogsView = {
+  lines: string[];
+  container: string;
 };
 
 export type ProbeCropSide = {

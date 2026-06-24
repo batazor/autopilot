@@ -307,6 +307,55 @@ class TapExecutor:
             )
         )
 
+    async def _tap_any_of_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        """Tap the first of several alternative regions that is actually on screen.
+
+        Models a transition triggerable by **any of** several buttons (the screen
+        graph keys edges by destination, so two buttons that both open the same
+        screen can't be two edges — they're one edge with alternative taps). Each
+        candidate is presence-checked with findIcon at its own threshold; the
+        first visible one is tapped. Returns ``False`` when none are visible so
+        the navigator can retry / reroute instead of tapping blindly.
+        """
+        regions = [str(r) for r in (spec.get("regions") or [])]
+        area_doc = self._load_area_doc()
+        for region_name in regions:
+            pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
+            threshold = pair[1].get("threshold", 0.9) if pair is not None else 0.9
+            present = await asyncio.to_thread(
+                self._match_search_region_for_tap,
+                instance_id,
+                region_name,
+                threshold=threshold,
+                state_flat=state_flat,
+            )
+            if present is not None:
+                return await self._tap_region_name_async(
+                    instance_id,
+                    region_name,
+                    from_screen=from_screen,
+                    to_screen=to_screen,
+                    state_flat=state_flat,
+                    path_csv=path_csv,
+                    hop_index=hop_index,
+                )
+        logger.info(
+            "Navigator: any_of — none of %s visible on %s; aborting hop",
+            regions,
+            instance_id,
+        )
+        return False
+
     def _tap_template_icon(
         self,
         instance_id: str,

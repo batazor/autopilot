@@ -1,8 +1,7 @@
-"""Shared helpers for the fish detector debug tools (live frame + video).
+"""Shared helpers for the fish detector debug tools.
 
 Decoding, the JSON detection row shape, and box drawing live here so the live
-``fish_detect`` page and the ``fish_video`` validator render detections
-identically.
+``fish_detect`` page and the ``fish_plan`` panel render detections identically.
 """
 from __future__ import annotations
 

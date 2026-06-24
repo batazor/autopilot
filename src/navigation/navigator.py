@@ -170,6 +170,27 @@ class Navigator:
             hop_index=hop_index,
         )
 
+    async def _tap_any_of_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        return await self._tap_executor._tap_any_of_async(
+            instance_id,
+            spec,
+            from_screen=from_screen,
+            to_screen=to_screen,
+            state_flat=state_flat,
+            path_csv=path_csv,
+            hop_index=hop_index,
+        )
+
     async def _tap_template_icon_async(
         self,
         instance_id: str,
@@ -872,6 +893,16 @@ class Navigator:
                 # structured specs that resolve against the current frame.
                 if isinstance(point, dict) and point.get("type") == "system_back":
                     tapped = await self._system_back_async(instance_id)
+                elif isinstance(point, dict) and point.get("type") == "any_of":
+                    tapped = await self._tap_any_of_async(
+                        instance_id,
+                        point,
+                        from_screen=src_screen,
+                        to_screen=str(dst_screen),
+                        state_flat=state_flat,
+                        path_csv=path_csv,
+                        hop_index=hop_idx,
+                    )
                 elif isinstance(point, dict) and point.get("type") == "template_icon":
                     tapped = await self._tap_template_icon_async(
                         instance_id,

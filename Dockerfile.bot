@@ -1,10 +1,12 @@
 # syntax=docker/dockerfile:1.24
 #
 # Bot worker + scheduler (default CMD), or FastAPI when invoked as ``api``
-# (override via ``command: ["api"]`` in compose). Talks to ADB on the host
-# (BlueStacks / real device) — connect via ``--network=host`` on Linux or
-# ``host.docker.internal`` on Docker Desktop with the host's ``adb start-server``
-# already running and the emulator's port (e.g. ``127.0.0.1:5555``) reachable.
+# (override via ``command: ["api"]`` in compose). Talks to ADB (BlueStacks / real
+# device) over the host's loopback. With ``--network=host`` (Linux, or Docker
+# Desktop host networking) the bot starts its *own* adb server on boot
+# (``adb.ensure_adb_server``) bound to ``127.0.0.1:5037`` — no host adb needed.
+# The bridge-network alternative still works the old way:
+# ``ADB_SERVER_SOCKET=tcp:host.docker.internal:5037`` pointing at a host server.
 #
 # Operator UI: ``Dockerfile.web`` + ``docker compose -f docker-compose.prod.yml``
 # (Next.js on :3000, FastAPI on :8765).

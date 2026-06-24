@@ -64,6 +64,45 @@ def resolve_adb_executable(user_pref: str = "adb") -> str | None:
     return None
 
 
+def ensure_adb_server(user_pref: str = "adb", *, timeout: float = 20.0) -> bool:
+    """Best-effort: make sure a local adb server is running, return success.
+
+    With ``network_mode: host`` the bot/api containers share the host's loopback,
+    so an adb server started *inside* the container (this call, via the bundled
+    ``adb`` binary) listens on ``127.0.0.1:5037`` for the whole host — the bot,
+    the dashboard scan, and any emulator on loopback all reach it, and the user
+    never has to install adb or run ``adb start-server`` on the host.
+
+    ``adb start-server`` is idempotent: when a server is already up (e.g. local
+    dev on macOS, or the sibling container started it first) this is a no-op.
+    Failures are logged, never raised, so a missing/old adb can't block startup.
+    """
+    resolved = resolve_adb_executable(user_pref)
+    if not resolved:
+        logger.warning("ensure_adb_server: adb not found; skipping start-server")
+        return False
+    try:
+        proc = subprocess.run(
+            [resolved, "start-server"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.warning("ensure_adb_server: 'adb start-server' failed: %s", exc)
+        return False
+    if proc.returncode != 0:
+        logger.warning(
+            "ensure_adb_server: 'adb start-server' exited %s: %s",
+            proc.returncode,
+            (proc.stderr or "").strip(),
+        )
+        return False
+    logger.info("ensure_adb_server: adb server is up (%s)", resolved)
+    return True
+
+
 def _stderr_or_signal_detail(returncode: int, stderr: bytes) -> str:
     """Human-readable failure detail; negative ``returncode`` means killed by signal (-N → signal N)."""
     text = stderr.decode(errors="replace").strip()

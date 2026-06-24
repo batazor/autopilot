@@ -398,6 +398,10 @@ class InstanceWorkerScreenMixin(_Base):
                 return
         if self._queue is None:
             return
+        # Focus mode: run only the pinned scenario — don't enqueue the
+        # unknown-screen dismiss recovery (the focus filter would drop it anyway).
+        if await self._focus_scenario():
+            return
         # Onboarding gate: while furnace < 5 the tutorial is still running and the
         # unknown screen is expected — dismissing here would tap forced-tap /
         # hand-pointer steps and break the scripted flow. The onboarding furnace

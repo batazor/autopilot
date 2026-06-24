@@ -427,6 +427,7 @@ def run_scenario(
     priority: int = 50_000,
     replace: bool = False,
     abort_running: bool = False,
+    focus: bool = False,
 ) -> dict[str, Any]:
     """Enqueue a scenario to run on an instance.
 
@@ -434,15 +435,36 @@ def run_scenario(
     the dashboard calendar uses): resolves the scenario, builds a TaskEnvelope,
     ZADDs it, and nudges the scheduler. ``when`` is a unix timestamp; default is
     *now*. Returns ``{task_id, queue_key, replaced, instance_id, scenario}``.
-    """
-    from api.services.queue_api import enqueue_user_task
 
+    With ``focus=True`` the instance is pinned to run ONLY this scenario — all
+    autonomous work (crons, overlay pushes, identity probe) is suppressed and a
+    worker is started if none is alive (see :mod:`api.services.focus`).
+    """
     iid = resolve_instance(instance)
     scenario = str(scenario or "").strip()
     if not scenario:
         msg = "scenario key is required"
         raise AgentctlError(msg)
     client = _redis()
+    if focus:
+        from api.services.focus import focus_instance
+
+        try:
+            res = focus_instance(
+                client,
+                instance_id=iid,
+                scenario_key=scenario,
+                player_id=str(player_id or "").strip(),
+                abort_running=abort_running,
+            )
+        except KeyError as exc:  # unknown scenario
+            raise AgentctlError(str(exc).strip("'")) from exc
+        except ValueError as exc:  # e.g. player required for account-level scenario
+            raise AgentctlError(str(exc)) from exc
+        return res
+
+    from api.services.queue_api import enqueue_user_task
+
     try:
         res = enqueue_user_task(
             client,
@@ -459,6 +481,35 @@ def run_scenario(
     except ValueError as exc:  # e.g. player required for account-level scenario
         raise AgentctlError(str(exc)) from exc
     return {**res, "instance_id": iid, "scenario": scenario}
+
+
+def set_focus(
+    scenario: str,
+    instance: str | None = None,
+    *,
+    player_id: str = "",
+    abort_running: bool = False,
+) -> dict[str, Any]:
+    """Pin an instance to run ONLY ``scenario`` (alias for ``run_scenario(focus=True)``)."""
+    return run_scenario(
+        scenario,
+        instance,
+        player_id=player_id,
+        abort_running=abort_running,
+        focus=True,
+    )
+
+
+def clear_focus(instance: str | None = None, *, stop_worker: bool = False) -> dict[str, Any]:
+    """Clear focus mode, returning the instance to normal autopilot.
+
+    By default leaves the worker running (idle in autopilot); ``stop_worker``
+    also terminates an isolated worker.
+    """
+    from api.services.focus import unfocus_instance
+
+    iid = resolve_instance(instance)
+    return unfocus_instance(_redis(), instance_id=iid, stop_worker=stop_worker)
 
 
 def _send_command(instance: str | None, cmd: dict[str, Any]) -> dict[str, Any]:

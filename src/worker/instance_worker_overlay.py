@@ -306,6 +306,9 @@ class InstanceWorkerOverlayMixin(_Base):
         actions = self._bot_actions
         if actions is None:
             return
+        # Focus mode: no autonomous taps — only the pinned scenario drives the device.
+        if await self._focus_scenario():
+            return
         instance_id = str(self._cfg.instance_id)
         rule_region = str(payload.get("region") or "").strip()
         # Prefer the real match center (``tap_match_*_pct``) — for ``isSearch``
@@ -594,6 +597,12 @@ class InstanceWorkerOverlayMixin(_Base):
             with suppress(TypeError, ValueError):
                 ttl_override = int(ttl_override_raw)
         is_time_throttle_rule = ttl_override > 0
+
+        # Focus mode: state persistence above (current_screen / set_node) still
+        # runs so navigation works, but suppress the autonomous scenario pushes —
+        # only the pinned focus scenario should reach the queue.
+        if await self._focus_scenario():
+            return False
 
         handled = False
         pu = payload.get("pushScenario")

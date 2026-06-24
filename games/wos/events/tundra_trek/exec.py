@@ -73,6 +73,9 @@ _CENTER_TAP = (0.50, 0.46)               # chest mini-game pick (mid-screen targ
 
 _MAX_STEPS = 40        # actions per run; the overlay re-triggers to keep playing
 _MAX_STUCK = 3         # consecutive *unchanged* fallback frames before giving up
+_MAX_BTN_STUCK = 3     # consecutive button taps that don't move the screen before
+                       # giving up (out of fuel, or the tap isn't landing) — without
+                       # this an unadvancing Next Stop spins until the task timeout
 _FRAME_DIFF = 5.0      # mean abs diff (0-255, 80x45 gray) above which "screen moved"
 _MAX_SIGNPOST = 2      # hub taps before concluding the trek is out of fuel
 _MAX_EXIT_BACKS = 8    # system-backs allowed while escaping to a known screen
@@ -200,6 +203,8 @@ async def _exec_drive_tundra_trek(ctx: DslExecContext) -> None:
 
     advances = dismisses = picks = signposts = 0
     stuck = 0
+    btn_stuck = 0
+    last_was_button = False
     prev_sig: Any = None
     fuel_start: int | None = None
     fuel_last: int | None = None
@@ -235,16 +240,32 @@ async def _exec_drive_tundra_trek(ctx: DslExecContext) -> None:
             await _tap(actions, inst, _DISMISS_TAP, "arena.result.exit")
             dismisses += 1
             stuck = 0
+            last_was_button = False
             await asyncio.sleep(1.8)
             continue
 
         # Primary action: the one saturated pill in the lower screen.
         # orange = Next Stop (drive, costs fuel); blue = Fight / Continue / Start.
         if btn is not None:
+            # If the previous action was also a button tap and the screen hasn't
+            # moved since, the drive isn't progressing (out of fuel, or the tap
+            # isn't landing) — count it and bail before spinning the whole budget
+            # on a dead button.
+            if last_was_button and not moved:
+                btn_stuck += 1
+                if btn_stuck >= _MAX_BTN_STUCK:
+                    logger.info(
+                        "tundra_trek FSM: button not advancing after %d taps — stopping",
+                        btn_stuck,
+                    )
+                    break
+            else:
+                btn_stuck = 0
             cx, cy, colour = btn
             await _tap(actions, inst, (cx, cy), f"tundra_trek.{colour}_button")
             advances += 1
             stuck = 0
+            last_was_button = True
             # A blue press may launch a battle; give it longer to resolve before
             # the next probe (which then dismisses the result).
             await asyncio.sleep(6.5 if colour == "blue" else 5.0)
@@ -258,6 +279,7 @@ async def _exec_drive_tundra_trek(ctx: DslExecContext) -> None:
             await _tap(actions, inst, _SIGNPOST_TAP, "tundra_trek.title")
             signposts += 1
             stuck = 0
+            last_was_button = False
             await asyncio.sleep(5.0)
             continue
 
@@ -265,6 +287,7 @@ async def _exec_drive_tundra_trek(ctx: DslExecContext) -> None:
         if "skip" in await _ocr_lower(ocr, frame, _SKIP_WIN):
             await _tap(actions, inst, _SKIP_TAP, "tundra_trek.skip")
             stuck = 0
+            last_was_button = False
             await asyncio.sleep(1.5)
             continue
 
@@ -274,6 +297,7 @@ async def _exec_drive_tundra_trek(ctx: DslExecContext) -> None:
         # bottom tap stops changing anything the screen is likely a chest
         # mini-game (its targets sit mid-screen) → escalate to a centre tap; give
         # up only when even that moves nothing.
+        last_was_button = False
         if moved:
             stuck = 0
             await _tap(actions, inst, _TEXT_SKIP_TAP, "tundra_trek.text_skip")

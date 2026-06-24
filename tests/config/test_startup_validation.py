@@ -740,3 +740,49 @@ def test_startup_validation_accepts_ads_myriad_region_on_real_repo() -> None:
         or "myriad_bazaar.title" in i.message
     ]
     assert myriad_issues == []
+
+
+def test_edge_taps_accepts_any_of_with_known_regions(tmp_path: Path) -> None:
+    # ``any_of`` is a real navigator tap action (one destination reachable by
+    # several buttons — navigator._tap_any_of_async); the validator must accept
+    # it, not reject it as an unknown action type.
+    _scenario_root(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    _write_area_regions(
+        tmp_path,
+        '{"screens":[{"regions":['
+        '{"name":"play.free","bbox":{"x":1,"y":1,"width":1,"height":1}},'
+        '{"name":"play.frosty","bbox":{"x":1,"y":1,"width":1,"height":1}}'
+        "]}]}",
+    )
+    _write_edge_taps(
+        tmp_path,
+        "edges:\n"
+        "  hub:\n"
+        "    gameplay:\n"
+        "      - type: any_of\n"
+        "        regions: [play.free, play.frosty]\n",
+    )
+    issues = validate_startup_configs(tmp_path)
+    assert [i for i in issues if i.source.startswith("edge_taps")] == []
+
+
+def test_edge_taps_any_of_flags_unknown_region(tmp_path: Path) -> None:
+    _scenario_root(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    _write_area_regions(
+        tmp_path,
+        '{"screens":[{"regions":[{"name":"play.free","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
+    )
+    _write_edge_taps(
+        tmp_path,
+        "edges:\n"
+        "  hub:\n"
+        "    gameplay:\n"
+        "      - type: any_of\n"
+        "        regions: [play.free, play.ghost]\n",
+    )
+    issues = validate_startup_configs(tmp_path)
+    assert any(
+        "any_of region" in i.message and "play.ghost" in i.message for i in issues
+    )

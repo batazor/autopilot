@@ -1,21 +1,167 @@
-version: 2
-screens:
-- id: 1
-  screen_id: ''
-  ocr: references/main_city.png
-  regions:
-  - name: main_city.to.fishing_tournament
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 91.46599836366745
-      y: 24.57345524096585
-      width: 5.373492532807728
-      height: 4.134712429762747
-      rotation: 0
-      original_width: 720
-      original_height: 1280
-- id: 2
-  screen_id: ''
-  ocr: references/fishing_tournament.main.png
-  regions: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.fishing_tournament",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 91.49477060643507,
+            "y": 25.506036912302278,
+            "width": 4.256021707451265,
+            "height": 1.7682575246457877,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/fishing_tournament.main.png",
+      "regions": [
+        {
+          "name": "event.fishing_tournament",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.0,
+            "y": 90.0,
+            "width": 40.0,
+            "height": 6.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/main_ready.png",
+      "regions": [
+        {
+          "name": "fishing_tournament.play.frosty",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.638173860878574,
+            "y": 90.41528411307824,
+            "width": 35.63609467455619,
+            "height": 6.006989377530177,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "fishing_tournament.play.free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 53.9944918604968,
+            "y": 90.27558555609444,
+            "width": 37.6331360946745,
+            "height": 5.508736721912749,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/gameplay.png",
+      "regions": [
+        {
+          "name": "fishing_tournament.level",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.39861751152073,
+            "y": 9.73838309375546,
+            "width": 14.999999999999993,
+            "height": 3.017473443825482,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "fishing_tournament.gameplay.pause",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 91.17962155242438,
+            "y": 0.9250104081267937,
+            "width": 7.0416785541372064,
+            "height": 3.6655321791381175,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "fishing_tournament.gameplay.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.8575232524124172,
+            "y": 1.8660629205361143,
+            "width": 4.1927875965576344,
+            "height": 1.5242105644577169,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/pause.png",
+      "regions": [
+        {
+          "name": "fishing_tournament.retreat",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.44470046082949,
+            "y": 46.00000000000001,
+            "width": 15,
+            "height": 8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "fishing_tournament.continue",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 57.01612903225806,
+            "y": 46.129608294930875,
+            "width": 15,
+            "height": 8,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

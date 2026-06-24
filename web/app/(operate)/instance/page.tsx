@@ -127,7 +127,7 @@ function InstancePageInner() {
 
   return (
     <>
-      <PageHeader title="Instance" fleet={{ hideQuickLinks: true }}>
+      <PageHeader title="Instance" fleet>
         {detail ? <StatusPill status={detail.status} /> : null}
       </PageHeader>
       <ErrorBanner message={bannerError} />

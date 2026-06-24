@@ -90,6 +90,7 @@ def _render_status(d: dict[str, Any]) -> str:
     fleet = d.get("fleet", [])
     for r in fleet:
         r["_paused"] = r.get("paused")
+        r["_focus"] = r.get("focus") or "—"
     table = _table(
         fleet,
         [
@@ -99,6 +100,7 @@ def _render_status(d: dict[str, Any]) -> str:
             ("active_player", "PLAYER"),
             ("task", "TASK"),
             ("_paused", "PAUSED"),
+            ("_focus", "FOCUS"),
             ("alert", "ALERT"),
         ],
     )
@@ -332,6 +334,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--priority", type=int, default=50_000)
     p.add_argument("--replace", action="store_true", help="replace existing pending copies")
     p.add_argument("--abort-running", action="store_true", help="abort the in-flight task first")
+    p.add_argument(
+        "--focus",
+        action="store_true",
+        help="run ONLY this scenario (suppress crons/overlay/identity; start a worker if none)",
+    )
+
+    p = sub.add_parser("focus", parents=[common], help="pin/clear focus mode for an instance")
+    _add_inst(p)
+    p.add_argument("--scenario", default="", help="scenario key to pin (omit with --clear)")
+    p.add_argument("--player", default="", help="player id (account-level scenarios)")
+    p.add_argument("--clear", action="store_true", help="clear focus → resume autopilot")
+    p.add_argument(
+        "--stop-worker",
+        action="store_true",
+        help="with --clear, also stop the isolated worker",
+    )
 
     for name, helptext in (("pause", "pause an instance"), ("resume", "resume an instance")):
         p = sub.add_parser(name, parents=[common], help=helptext)
@@ -389,7 +407,18 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
                 priority=args.priority,
                 replace=args.replace,
                 abort_running=args.abort_running,
+                focus=args.focus,
             ),
+            _render_ok,
+        )
+    if cmd == "focus":
+        if args.clear:
+            return (
+                core.clear_focus(args.instance, stop_worker=args.stop_worker),
+                _render_ok,
+            )
+        return (
+            core.set_focus(args.scenario, args.instance, player_id=args.player),
             _render_ok,
         )
     if cmd == "pause":
