@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 # --- Plan reasons ------------------------------------------------------------
 SELECTED = "selected"          # step is the tech to research now
 RC_GATED = "rc_gated"          # researchable techs exist but all need a higher RC
+WA_GATED = "wa_gated"          # top tech is a T11/T12 troop tech needing a higher War Academy
 ALL_MAXED = "all_maxed"        # every reachable tech is maxed
 NONE = "none"                  # nothing to do (empty graph)
 
@@ -99,27 +100,40 @@ def _prereqs_satisfied(
     return True
 
 
+def _gate_note(block: tuple[str, float, str, int], *, rc_level: int, wa_fc: int, lead: str) -> str:
+    """Wording for a blocked tech — RC kind ``("rc", …)`` vs War Academy ``("wa", …)``."""
+    kind, _prio, node_id, needed = block
+    if kind == "wa":
+        return f"{lead} {node_id} needs War Academy FC{needed} (you have {wa_fc})"
+    return f"{lead} {node_id} needs Research Center Lv {needed} (you have {rc_level})"
+
+
 def plan_next(
     graph: ResearchGraph,
     levels: Mapping[str, int],
     rc_level: int,
     *,
+    war_academy_fc: int | None = None,
     weights: Mapping[str, float] | None = None,
     role: RoleProfile | None = None,
 ) -> ResearchPlan:
     """Pick the next tech to research under the value-greedy meta policy.
 
     ``levels`` maps ``node_id`` → current level (0 = not researched). ``rc_level``
-    is the Research Center building level. ``role`` biases the weights toward the
-    account's purpose (farm → economy, fighter → battle; Growth stays universal).
-    Returns the highest-value researchable tech, or ``rc_gated`` / ``all_maxed``
-    when nothing is researchable now.
+    is the Research Center building level. ``war_academy_fc`` is the War Academy's FC
+    level: when given, the T11/T12 troop techs (``gate: "FCx"``) are gated on *it*
+    (a building independent of the RC) and surface ``wa_gated``; when ``None`` (the
+    default) they fall back to the RC fold, unchanged. ``role`` biases the weights.
+    Returns the highest-value researchable tech, or ``rc_gated`` / ``wa_gated`` /
+    ``all_maxed`` when nothing is researchable now.
     """
     eff = effective_priorities(graph, lambda n: base_priority(n, weights, role))
 
     best = None                # (node, next_level, sort_key)
     best_key = None
-    rc_blocked_top: tuple[float, str, int] | None = None   # (prio, node_id, rc_needed)
+    # Highest-value tech we can't reach yet, by gate kind: ("rc"|"wa", prio, node_id, needed).
+    rc_blocked_top: tuple[str, float, str, int] | None = None
+    wa_blocked_top: tuple[str, float, str, int] | None = None
     ranked: list[ResearchCandidate] = []
     any_unmaxed = False
 
@@ -133,36 +147,43 @@ def plan_next(
         if nxt is None or not _prereqs_satisfied(graph, node, levels):
             continue
         prio = eff[node_id]
-        if rc_level >= nxt.rc:
+        wa_gated = war_academy_fc is not None and nxt.war_academy_fc > 0
+        researchable = (war_academy_fc >= nxt.war_academy_fc) if wa_gated else (rc_level >= nxt.rc)
+        if researchable:
             ranked.append(ResearchCandidate(node_id, node.name, prio, nxt.level))
             key = (prio, -node.tier, -nxt.total_cost)
             if best_key is None or key > best_key:
                 best, best_key = (node, nxt, cur), key
-        elif rc_blocked_top is None or prio > rc_blocked_top[0]:
-            rc_blocked_top = (prio, node_id, nxt.rc)
+        elif wa_gated:
+            if wa_blocked_top is None or prio > wa_blocked_top[1]:
+                wa_blocked_top = ("wa", prio, node_id, nxt.war_academy_fc)
+        elif rc_blocked_top is None or prio > rc_blocked_top[1]:
+            rc_blocked_top = ("rc", prio, node_id, nxt.rc)
 
     ranked.sort(key=lambda c: (-c.priority, c.node_id))
     ranked_t = tuple(ranked[:6])
 
+    blockers = [b for b in (rc_blocked_top, wa_blocked_top) if b is not None]
+    top_block = max(blockers, key=lambda b: b[1]) if blockers else None
+
     if best is not None:
         node, nxt, cur = best
         detail = ""
-        if rc_blocked_top and rc_blocked_top[0] > best_key[0]:
-            detail = (
-                f"higher-value {rc_blocked_top[1]} needs Research Center "
-                f"Lv {rc_blocked_top[2]} (you have {rc_level})"
-            )
+        if top_block is not None and top_block[1] > best_key[0]:
+            detail = _gate_note(top_block, rc_level=rc_level,
+                                wa_fc=war_academy_fc or 0, lead="higher-value")
         step = ResearchStep(
             node_id=node.id, branch=node.branch, name=node.name, line=node.line,
             from_level=cur, to_level=nxt.level, rc_required=nxt.rc, priority=best_key[0],
         )
         return ResearchPlan(step, SELECTED, detail, ranked_t)
 
-    if rc_blocked_top is not None:
+    if top_block is not None:
+        reason = WA_GATED if top_block[0] == "wa" else RC_GATED
         return ResearchPlan(
-            None, RC_GATED,
-            f"top researchable tech {rc_blocked_top[1]} needs Research Center "
-            f"Lv {rc_blocked_top[2]} (you have {rc_level})",
+            None, reason,
+            _gate_note(top_block, rc_level=rc_level, wa_fc=war_academy_fc or 0,
+                       lead="top researchable tech"),
             ranked_t,
         )
     # nothing researchable now: everything maxed, or unmaxed but prereq-locked

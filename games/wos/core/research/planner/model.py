@@ -60,13 +60,14 @@ def parse_duration(value: Any) -> int:
 
 @dataclass(frozen=True, slots=True)
 class ResearchLevel:
-    """One level of a tech node: its RC gate, time, power and resource cost."""
+    """One level of a tech node: its building gate, time, power and resource cost."""
 
     level: int
     rc: int                              # Research Center level required
     time_s: int
     power: int | None
     cost: Mapping[str, int]
+    war_academy_fc: int = 0              # War Academy FC level required (T11/T12 troop techs)
 
     @property
     def total_cost(self) -> int:
@@ -188,6 +189,16 @@ def _rc_value(raw: dict[str, Any]) -> int:
     return 30 + int(m.group(1)) if m else 0
 
 
+def _war_academy_fc(raw: dict[str, Any]) -> int:
+    """War Academy FC level a level needs, from its ``gate: "FC5"`` (0 if no gate).
+
+    The T11 Helios / T12 Exalted troop techs are researched in the War Academy and
+    gated by *its* FC level (a building independent of the Research Center) — so this
+    is kept separate from :func:`_rc_value` (which folds the gate into an RC number)."""
+    m = re.search(r"FC-?(\d+)", str(raw.get("gate") or ""), re.IGNORECASE)
+    return int(m.group(1)) if m else 0
+
+
 def _build_level(raw: dict[str, Any]) -> ResearchLevel:
     power = raw.get("power")
     return ResearchLevel(
@@ -196,6 +207,7 @@ def _build_level(raw: dict[str, Any]) -> ResearchLevel:
         time_s=parse_duration(raw.get("time")),
         power=int(power) if isinstance(power, (int, float)) else None,
         cost={str(k): int(v) for k, v in (raw.get("cost") or {}).items()},
+        war_academy_fc=_war_academy_fc(raw),
     )
 
 

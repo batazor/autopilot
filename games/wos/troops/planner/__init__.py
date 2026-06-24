@@ -27,9 +27,12 @@ from .training_costs import (
     tier_cost_time,
     train_eta,
 )
+from .war_academy import BASE_TIER, HELIOS_TIER, unlocked_max_tier
 
 __all__ = [
+    "BASE_TIER",
     "DEFAULT_TARGET",
+    "HELIOS_TIER",
     "MAX_TIER",
     "NONE",
     "PROMOTE",
@@ -46,4 +49,5 @@ __all__ = [
     "rank_troops",
     "tier_cost_time",
     "train_eta",
+    "unlocked_max_tier",
 ]

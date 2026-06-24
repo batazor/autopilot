@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 # Mirror building.planner.schedule's bound on a from-scratch unroll.
 DEFAULT_MAX_STEPS = 2000
 _RESEARCH_CENTER = "research_center"
+_WAR_ACADEMY = "war_academy"
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,7 +189,11 @@ def project_cycle(
         # Fill the (single) research queue if idle — RC gate reads the live build state.
         if not res_ip:
             rc = int(current_rank(build_state, _RESEARCH_CENTER))
-            rplan = research_plan_next(research_graph, res_state, rc, role=role)
+            # War Academy FC level (rank 30+x → FCx) gates the T11/T12 troop techs, so
+            # they unlock only as the build sim raises the War Academy — not the RC.
+            wa_fc = max(0, int(current_rank(build_state, _WAR_ACADEMY)) - 30)
+            rplan = research_plan_next(research_graph, res_state, rc,
+                                       war_academy_fc=wa_fc, role=role)
             step = rplan.step
             if step is not None:
                 node = research_graph.spec(step.node_id)

@@ -250,6 +250,9 @@ class ResearchBody(BaseModel):
     levels: dict[str, int] = Field(default_factory=dict)
     rc_level: int = Field(default=10, ge=1)
     role: str | None = None
+    # War Academy FC level — gates the T11/T12 troop techs independently of the RC.
+    # None → the techs fall back to the RC fold (unchanged).
+    war_academy_fc: int | None = None
 
 
 @router.post("/research")
@@ -261,6 +264,7 @@ def post_research(body: ResearchBody) -> dict[str, Any]:
             _research_graph(),
             body.levels,
             body.rc_level,
+            war_academy_fc=body.war_academy_fc,
             role=_role(body.role),
         )
     )
@@ -734,6 +738,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
     from games.wos.core.pets.planner import plan_next as pet_plan_next
     from games.wos.core.research.planner import plan_next as research_plan_next
     from games.wos.heroes.heroes.planner import plan_next as hero_plan_next
+    from games.wos.troops.planner import TROOP_TYPES, unlocked_max_tier
     from games.wos.troops.planner import plan_next as training_plan_next
 
     bg, rg, hc, pc = (
@@ -754,7 +759,8 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         active_events=[w.slug for w in body.events if w.active],
     )
     rplan = research_plan_next(
-        rg, body.research.levels, body.research.rc_level, role=_role(body.research.role)
+        rg, body.research.levels, body.research.rc_level,
+        war_academy_fc=body.research.war_academy_fc, role=_role(body.research.role),
     )
     hplan = hero_plan_next(
         hc,
@@ -770,9 +776,17 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         server_days=body.pets.server_days,
         role=_role(body.pets.role),
     )
+    # War Academy bridge: cap each camp at the tier its Helios research has unlocked
+    # (T10 until helios_<type> is researched), intersected with the operator's cap.
+    unlocked = unlocked_max_tier(body.research.levels)
+
+    def _troop_cap(value: Any, troop: str) -> int:
+        cap = int(value.get(troop, 11)) if isinstance(value, dict) else int(value)
+        return min(cap, unlocked[troop])
+
     tplan = training_plan_next(
         counts=body.troops.counts,
-        max_tier=body.troops.max_tier,
+        max_tier={t: _troop_cap(body.troops.max_tier, t) for t in TROOP_TYPES},
         fc=body.troops.fc,
         target=body.troops.target,
         batch=body.troops.batch,
