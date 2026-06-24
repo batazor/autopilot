@@ -3,7 +3,9 @@ overlay:
     region: main_city.icon_search
     action: findIcon
     template: games/wos/events/fishing_tournament/references/main_city.to.fishing_tournament.png
-    threshold: 0.9
+    # 0.85 (was 0.9): the small strip icon scores ~0.93 on adb but lands near the
+    # old 0.9 edge on live scrcpy frames — keep margin so the auto-launch fires.
+    threshold: 0.85
     isRedDot: true
     screens:
       - main_city

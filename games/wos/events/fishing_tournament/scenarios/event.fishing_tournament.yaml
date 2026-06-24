@@ -1,5 +1,12 @@
 enabled: true
 name: Fishing Tournament
+# Autonomous launch: the scheduler fires this proactively (cron) so the bot
+# plays a round even if it never idles on main_city with the icon's red dot;
+# the analyze/ overlay rule still pushes it reactively when that red dot shows.
+# When the event is NOT live the icon edge can't resolve → navigate_to clean-
+# fails (no harm). Adjust the hour to your active window / event reset (UTC).
+cron: "0 13 * * *"
+max_reschedule_delay: 6h
 # Enter at the live hub (main_ready), not the pre-event splash: during the
 # tournament the event icon opens the hub directly. The framework routes
 # main_city → main_ready via the icon edge, then drive_fishing starts a round.
