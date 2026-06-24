@@ -1,0 +1,25 @@
+# Troop training cost + time per tier (T1..T11), to be re-encoded as game FACTS.
+#
+# In Whiteout Survival the training COST and TIME are IDENTICAL across the three
+# troop types (infantry / lancer / marksman) at a given tier — only combat stats
+# differ — so rows are keyed by `tier` alone. (If a future tier ever diverges, add
+# an optional `by_type: {infantry: {...}, ...}` override on that row.)
+#   tier  — camp troop level 1..11 (T1 Rookie … T11 Helios)
+#   cost  — per ONE troop: meat / wood / coal / iron (iron + coal bottleneck high tiers)
+#   time  — per ONE troop, "HH:MM:SS" / "Xd" / "Xd HH:MM:SS"
+# Promotion (T_n → T_{n+1}) pays only the DIFFERENCE — derived from these per-tier
+# costs by games/wos/troops/planner/training_costs.py (no separate data needed).
+#
+# STUB — the per-tier numbers are not published in a fetchable static form (the
+# wostools / onechilledgamer calculators hide them behind JS; the community data
+# repos carry combat stats only). Fill `tiers` from the in-game training screen (or
+# a working calculator); until then the planner falls back to no-cost / no-ETA, so
+# nothing regresses. Row format:
+#   - {tier: 1, cost: {meat: 0, wood: 0, coal: 0, iron: 0}, time: "00:00:05"}
+#
+# Read by games/wos/troops/planner/training_costs.py.
+tiers: []
+
+# Optional — troops trained per batch at each camp building level (camp + Camp
+# Expansion research gated). Lets the planner cost a realistic batch, not one troop.
+# capacity_by_camp_level: {}

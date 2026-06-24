@@ -13,10 +13,12 @@ so the ranking is unit-testable; the driver scenario consumes
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from games.wos.core.resources.troop_stats import load_troop_stats
+
+from .training_costs import TrainTier, promote_cost_time, tier_cost_time
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -74,10 +76,13 @@ def plan_training(
 SELECTED = "selected"
 NONE = "none"                     # nothing trainable (every camp tier-capped at 0)
 
+TRAIN = "train"                   # fresh troops
+PROMOTE = "promote"               # raise existing tier-1 troops → tier (pays the diff)
+
 
 @dataclass(frozen=True, slots=True)
 class TrainCandidate:
-    """One trainable troop: the best tier of a camp, with its per-unit power."""
+    """One trainable troop: the best tier of a camp, with its per-unit power + cost."""
 
     troop_type: str           # infantry | lancer | marksman
     tier: int                 # the tier we'd train (highest unlocked ≤ cap)
@@ -85,6 +90,10 @@ class TrainCandidate:
     name: str                 # tier name (Rookie … Helios)
     power: int                # per-unit power — the value of training this unit
     deficit: float            # target_share − actual_share (how under-target, for trace)
+    kind: str = TRAIN         # train (fresh) | promote (raise lower-tier troops)
+    batch: int = 1            # troops this candidate covers (cost/time scale with it)
+    cost: Mapping[str, int] = field(default_factory=dict)   # meat/wood/coal/iron (empty if no data)
+    time_s: int = 0           # training time for the batch (0 if no data)
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,18 +117,24 @@ def plan_next(
     max_tier: int | Mapping[str, int] = MAX_TIER,
     fc: int | Mapping[str, int] = 0,
     target: Mapping[str, float] | None = None,
+    batch: int = 1,
     stats: Mapping[tuple[str, int, int], Any] | None = None,
+    costs: Mapping[int, TrainTier] | None = None,
 ) -> TrainingPlan:
     """Pick the next troop to train: the most-deficient type at its highest tier.
 
     Composition drives *which* type (reusing :func:`rank_troops`); within a camp we
     always train the highest unlocked tier (``max_tier`` — a per-type or scalar cap
     set by the camp level / research, since troop tiers aren't on the server-age
-    clock). The candidate's value is the per-unit ``power`` from the troop-stats data
-    at that ``(tier, fc)``. A type whose ``max_tier`` is <1 (camp not built) is
-    skipped. Pure — ``counts`` (the troop-pool reader) may be ``None`` (meta order).
+    clock). The candidate's value is the per-unit ``power`` from the troop-stats data;
+    its ``cost``/``time_s`` (for ``batch`` troops) come from the training table — empty
+    until that table is filled. When the chosen tier has data, a cheaper ``promote``
+    sibling (raise tier-1 troops, paying the diff) is appended for the trace. A type
+    whose ``max_tier`` is <1 (camp not built) is skipped. Pure — ``counts`` may be
+    ``None`` (meta order).
     """
     table = stats if stats is not None else load_troop_stats()
+    cost_table = costs if costs is not None else None   # None → loaders use the default file
     shares = _shares(counts) if counts is not None else None
     tgt = target or DEFAULT_TARGET
 
@@ -134,11 +149,16 @@ def plan_next(
         if stat is None:
             continue
         deficit = tgt.get(troop, 0.0) - (shares.get(troop, 0.0) if shares else 0.0)
+        cost, time_s = tier_cost_time(tier, batch=batch, table=cost_table)
         candidates.append(TrainCandidate(
             troop_type=troop, tier=tier, fc=fc_lvl,
             name=getattr(stat, "name", ""), power=int(getattr(stat, "power", 0)),
-            deficit=deficit,
+            deficit=deficit, kind=TRAIN, batch=batch, cost=cost, time_s=time_s,
         ))
 
     step = candidates[0] if candidates else None       # most-deficient trainable camp
+    if step is not None and step.tier > 1:             # surface the cheaper promote path
+        pcost, ptime = promote_cost_time(step.tier, batch=batch, table=cost_table)
+        if pcost:
+            candidates.append(replace(step, kind=PROMOTE, cost=pcost, time_s=ptime))
     return TrainingPlan(step, SELECTED if step else NONE, tuple(candidates))

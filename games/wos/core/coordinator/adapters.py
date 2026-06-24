@@ -149,9 +149,9 @@ def from_training_plan(
 
     The planner already chose the type (army-composition deficit) and tier; the
     coordinator slots it at the ``troops`` band (battle category → fighters lift it,
-    farms drop it) and any live training/mobilization event boosts it. ``cost`` is
-    empty — per-troop training resource/time data isn't modelled yet, so training
-    contends on priority alone (and never blocks the shared pool).
+    farms drop it) and any live training/mobilization event boosts it. ``cost`` is the
+    batch's meat/wood/coal/iron from the training table — so training contends on the
+    shared resource pool (empty until that table is filled → contends on priority).
     """
     step = plan.step
     if step is None:
@@ -161,7 +161,7 @@ def from_training_plan(
         channel_kind=TRAINING,
         key=f"{step.troop_type}:t{step.tier}",
         priority=domain_priority("troops", role, boost=(boosts or {}).get("troops", 1.0)),
-        cost={},
+        cost=dict(step.cost),
         detail=f"train {step.troop_type} T{step.tier} ({step.name})",
     )]
 

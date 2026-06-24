@@ -126,6 +126,15 @@ def test_training_channel_joins_the_tick():
     assert action.key.startswith("infantry:")          # infantry is most-deficient
 
 
+def test_training_cost_flows_to_the_shared_pool():
+    """With a cost table, the training pick carries real meat/wood/coal/iron cost."""
+    from games.wos.troops.planner import TrainTier
+    costs = {5: TrainTier(5, {"meat": 1000}, 60)}
+    tplan = training_plan_next(max_tier=5, batch=10, costs=costs)
+    plan = plan_cycle(channels=[Channel("t1", TRAINING)], balances=_BAL, training_plan=tplan)
+    assert plan.decision.commits[0].action.cost == {"meat": 10_000}   # 1000 × batch 10
+
+
 def test_calendar_event_boosts_its_reward_domains():
     """A live Power Up event lifts the any-power domains (incl. research)."""
     rg = load_research_graph()

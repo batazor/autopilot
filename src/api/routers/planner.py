@@ -341,21 +341,37 @@ class TroopsBody(BaseModel):
     max_tier: dict[str, int] | int = 11            # camp/research-gated tier cap
     fc: dict[str, int] | int = 0                   # Fire-Crystal level per type
     target: dict[str, float] | None = None         # army-composition target shares
+    batch: int = 1                                 # troops the pick's cost/time cover
+    target_count: int | None = None                # how many troops to ETA (optional)
+    # Owned heroes ({hero_id: {skill, star}}) → their Training-Speed skill (Ling Xue)
+    # shortens the training ETA. Empty → no buff.
+    owned_heroes: dict[str, dict[str, int]] = Field(default_factory=dict)
 
 
 @router.post("/training")
 def post_training(body: TroopsBody) -> dict[str, Any]:
-    from games.wos.troops.planner import plan_next
+    from games.wos.heroes.heroes.planner import active_city_buffs
+    from games.wos.troops.planner import plan_next, train_eta
 
-    plan = _guard(
-        lambda: plan_next(
+    def run() -> dict[str, Any]:
+        plan = plan_next(
             counts=body.counts,
             max_tier=body.max_tier,
             fc=body.fc,
             target=body.target,
+            batch=body.batch,
         )
-    )
-    return _asdict(plan)
+        out = _asdict(plan)
+        # Training-Speed hero buff shortens the ETA (the loop's payoff).
+        speed = active_city_buffs(_hero_catalog(), body.owned_heroes).get("training", 0.0)
+        out["training_speed_pct"] = speed
+        if plan.step is not None and body.target_count:
+            time_s, cost = train_eta(plan.step.tier, body.target_count, speed_pct=speed)
+            if time_s or cost:                          # omit when the tier has no data yet
+                out["eta"] = {"count": body.target_count, "time_s": time_s, "cost": cost}
+        return out
+
+    return _guard(run)
 
 
 # --------------------------------------------------------------------------- #
@@ -759,6 +775,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         max_tier=body.troops.max_tier,
         fc=body.troops.fc,
         target=body.troops.target,
+        batch=body.troops.batch,
     )
 
     if body.channels is not None:
