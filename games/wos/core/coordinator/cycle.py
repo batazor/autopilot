@@ -40,6 +40,7 @@ from .adapters import (
     from_hero_plan,
     from_pet_plan,
     from_research_plan,
+    from_training_plan,
 )
 from .allocate import coordinate_optimal
 from .coordinator import coordinate
@@ -57,6 +58,7 @@ if TYPE_CHECKING:
     from games.wos.core.research.planner import ResearchGraph, ResearchPlan
     from games.wos.core.roles import RoleProfile
     from games.wos.heroes.heroes.planner import HeroPlan
+    from games.wos.troops.planner import TrainingPlan
 
     from .dailies import DailyTask
     from .economy import EconomyBias
@@ -97,6 +99,7 @@ def plan_cycle(
     research_graph: ResearchGraph | None = None,
     hero_plan: HeroPlan | None = None,
     pet_plan: PetPlan | None = None,
+    training_plan: TrainingPlan | None = None,
     role: RoleProfile | None = None,
     event_windows: Sequence[EventWindow] = (),
     daily_tasks: Sequence[DailyTask] = (),
@@ -143,6 +146,8 @@ def plan_cycle(
         candidates.extend(from_hero_plan(hero_plan, boosts=boosts))
     if pet_plan is not None:
         candidates.extend(from_pet_plan(pet_plan, boosts=boosts))
+    if training_plan is not None:
+        candidates.extend(from_training_plan(training_plan, role=role, boosts=boosts))
     candidates.extend(extra_candidates)
 
     # 4. Safety gates (drops troop-exposing domains in danger) before allocation.

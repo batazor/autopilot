@@ -13,12 +13,16 @@ so the ranking is unit-testable; the driver scenario consumes
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+from games.wos.core.resources.troop_stats import load_troop_stats
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
 TROOP_TYPES: tuple[str, ...] = ("infantry", "lancer", "marksman")
+MAX_TIER = 11                     # T1 (Rookie) … T11 (Helios)
 
 # Target army composition (shares sum ~1.0). Infantry leads as the front line;
 # lancer/marksman split the rest. Meta — override per role/season when desired.
@@ -64,3 +68,77 @@ def plan_training(
         if troop in idle_set:
             return troop
     return None
+
+
+# --- Value-greedy pick: which (type, tier) to train next ---------------------
+SELECTED = "selected"
+NONE = "none"                     # nothing trainable (every camp tier-capped at 0)
+
+
+@dataclass(frozen=True, slots=True)
+class TrainCandidate:
+    """One trainable troop: the best tier of a camp, with its per-unit power."""
+
+    troop_type: str           # infantry | lancer | marksman
+    tier: int                 # the tier we'd train (highest unlocked ≤ cap)
+    fc: int                   # Fire-Crystal level the stat lookup used
+    name: str                 # tier name (Rookie … Helios)
+    power: int                # per-unit power — the value of training this unit
+    deficit: float            # target_share − actual_share (how under-target, for trace)
+
+
+@dataclass(frozen=True, slots=True)
+class TrainingPlan:
+    """What to train now: the best camp pick plus the ranked trace."""
+
+    step: TrainCandidate | None
+    reason: str
+    candidates: tuple[TrainCandidate, ...] = field(default_factory=tuple)
+
+
+def _cap_for(value: Any, troop_type: str, default: int) -> int:
+    """Resolve a per-type or scalar cap/level for ``troop_type``."""
+    get = getattr(value, "get", None)
+    return int(get(troop_type, default)) if callable(get) else int(value)
+
+
+def plan_next(
+    counts: Mapping[str, int] | None = None,
+    *,
+    max_tier: int | Mapping[str, int] = MAX_TIER,
+    fc: int | Mapping[str, int] = 0,
+    target: Mapping[str, float] | None = None,
+    stats: Mapping[tuple[str, int, int], Any] | None = None,
+) -> TrainingPlan:
+    """Pick the next troop to train: the most-deficient type at its highest tier.
+
+    Composition drives *which* type (reusing :func:`rank_troops`); within a camp we
+    always train the highest unlocked tier (``max_tier`` — a per-type or scalar cap
+    set by the camp level / research, since troop tiers aren't on the server-age
+    clock). The candidate's value is the per-unit ``power`` from the troop-stats data
+    at that ``(tier, fc)``. A type whose ``max_tier`` is <1 (camp not built) is
+    skipped. Pure — ``counts`` (the troop-pool reader) may be ``None`` (meta order).
+    """
+    table = stats if stats is not None else load_troop_stats()
+    shares = _shares(counts) if counts is not None else None
+    tgt = target or DEFAULT_TARGET
+
+    candidates: list[TrainCandidate] = []
+    for troop in rank_troops(counts, target):          # already deficit / meta order
+        cap = _cap_for(max_tier, troop, MAX_TIER)
+        if cap < 1:
+            continue                                   # camp can't train anything yet
+        tier = min(cap, MAX_TIER)
+        fc_lvl = max(0, _cap_for(fc, troop, 0))
+        stat = table.get((troop, tier, fc_lvl))
+        if stat is None:
+            continue
+        deficit = tgt.get(troop, 0.0) - (shares.get(troop, 0.0) if shares else 0.0)
+        candidates.append(TrainCandidate(
+            troop_type=troop, tier=tier, fc=fc_lvl,
+            name=getattr(stat, "name", ""), power=int(getattr(stat, "power", 0)),
+            deficit=deficit,
+        ))
+
+    step = candidates[0] if candidates else None       # most-deficient trainable camp
+    return TrainingPlan(step, SELECTED if step else NONE, tuple(candidates))

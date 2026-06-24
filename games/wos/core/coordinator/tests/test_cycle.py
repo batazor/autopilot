@@ -14,6 +14,7 @@ from games.wos.core.coordinator import (
     MARCH,
     PET,
     RESEARCH,
+    TRAINING,
     CandidateAction,
     Channel,
     DailyTask,
@@ -31,6 +32,7 @@ from games.wos.core.research.planner import load_research_graph
 from games.wos.core.research.planner import plan_next as research_plan_next
 from games.wos.heroes.heroes.planner import HeroSpec
 from games.wos.heroes.heroes.planner import plan_next as hero_plan_next
+from games.wos.troops.planner import plan_next as training_plan_next
 
 # Plenty of base resources so research never starves on the shared pool.
 _BAL = {"meat": 10**9, "wood": 10**9, "coal": 10**9, "iron": 10**9, "steel": 10**9}
@@ -107,6 +109,21 @@ def test_all_development_channels_share_one_tick():
     kinds = {c.action.channel_kind for c in plan.decision.commits}
     assert kinds == {CONSTRUCTION, RESEARCH, HERO, PET}
     assert len(plan.decision.commits) == 4
+
+
+def test_training_channel_joins_the_tick():
+    """A troop-training pick fills the TRAINING channel (most-deficient type first)."""
+    tplan = training_plan_next(counts={"infantry": 0, "lancer": 5000, "marksman": 5000})
+    plan = plan_cycle(
+        channels=[Channel("t1", TRAINING)],
+        balances=_BAL,
+        training_plan=tplan,
+    )
+    assert len(plan.decision.commits) == 1
+    action = plan.decision.commits[0].action
+    assert action.channel_kind == TRAINING
+    assert action.domain == "troops"
+    assert action.key.startswith("infantry:")          # infantry is most-deficient
 
 
 def test_calendar_event_boosts_its_reward_domains():

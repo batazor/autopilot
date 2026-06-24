@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .model import CONSTRUCTION, HERO, MARCH, PET, RESEARCH, CandidateAction
+from .model import CONSTRUCTION, HERO, MARCH, PET, RESEARCH, TRAINING, CandidateAction
 from .objective import TRACK_DOMAIN, domain_priority
 
 if TYPE_CHECKING:
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from games.wos.core.roles import RoleProfile
     from games.wos.heroes.heroes.planner import HeroPlan
     from games.wos.intel.planner import IntelPlan
+    from games.wos.troops.planner import TrainingPlan
 
 
 def from_build_slate(
@@ -135,6 +136,33 @@ def from_pet_plan(
         priority=domain_priority("pets", boost=(boosts or {}).get("pets", 1.0)),
         cost=dict(step.cost),
         detail=f"{step.pet_id} {step.kind} -> {step.to_level}",
+    )]
+
+
+def from_training_plan(
+    plan: TrainingPlan,
+    *,
+    role: RoleProfile | None = None,
+    boosts: Mapping[str, float] | None = None,
+) -> list[CandidateAction]:
+    """The troop-training candidate (one camp pick) for the TRAINING channel.
+
+    The planner already chose the type (army-composition deficit) and tier; the
+    coordinator slots it at the ``troops`` band (battle category → fighters lift it,
+    farms drop it) and any live training/mobilization event boosts it. ``cost`` is
+    empty — per-troop training resource/time data isn't modelled yet, so training
+    contends on priority alone (and never blocks the shared pool).
+    """
+    step = plan.step
+    if step is None:
+        return []
+    return [CandidateAction(
+        domain="troops",
+        channel_kind=TRAINING,
+        key=f"{step.troop_type}:t{step.tier}",
+        priority=domain_priority("troops", role, boost=(boosts or {}).get("troops", 1.0)),
+        cost={},
+        detail=f"train {step.troop_type} T{step.tier} ({step.name})",
     )]
 
 

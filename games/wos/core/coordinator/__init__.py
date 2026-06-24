@@ -13,6 +13,7 @@ from .adapters import (
     from_intel_plan,
     from_pet_plan,
     from_research_plan,
+    from_training_plan,
 )
 from .allocate import coordinate_optimal
 from .chief_orders import ChiefOrderPlan, recommend_orders
@@ -139,6 +140,7 @@ __all__ = [
     "from_intel_plan",
     "from_pet_plan",
     "from_research_plan",
+    "from_training_plan",
     "gather_candidates",
     "intel_intent",
     "march_channels",

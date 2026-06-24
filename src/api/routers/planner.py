@@ -334,6 +334,31 @@ def post_pets(body: PetsBody) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Troop training
+# --------------------------------------------------------------------------- #
+class TroopsBody(BaseModel):
+    counts: dict[str, int] | None = None          # per-type pool (from the reader)
+    max_tier: dict[str, int] | int = 11            # camp/research-gated tier cap
+    fc: dict[str, int] | int = 0                   # Fire-Crystal level per type
+    target: dict[str, float] | None = None         # army-composition target shares
+
+
+@router.post("/training")
+def post_training(body: TroopsBody) -> dict[str, Any]:
+    from games.wos.troops.planner import plan_next
+
+    plan = _guard(
+        lambda: plan_next(
+            counts=body.counts,
+            max_tier=body.max_tier,
+            fc=body.fc,
+            target=body.target,
+        )
+    )
+    return _asdict(plan)
+
+
+# --------------------------------------------------------------------------- #
 # Intel
 # --------------------------------------------------------------------------- #
 class IntelEventBody(BaseModel):
@@ -651,6 +676,7 @@ class FullPlanBody(BaseModel):
     research: ResearchBody = Field(default_factory=ResearchBody)
     heroes: HeroesBody = Field(default_factory=HeroesBody)
     pets: PetsBody = Field(default_factory=PetsBody)
+    troops: TroopsBody = Field(default_factory=TroopsBody)
     # Shared resource pool the coordinator spends. Defaults to the union of the
     # hero + pet namespaced balances (book:* / shard:* / pet_food / pet_shard:*);
     # add meat/wood/coal/iron/steel to let research contend instead of starving.
@@ -682,6 +708,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         HERO,
         PET,
         RESEARCH,
+        TRAINING,
         Channel,
         DailyTask,
         EventWindow,
@@ -691,6 +718,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
     from games.wos.core.pets.planner import plan_next as pet_plan_next
     from games.wos.core.research.planner import plan_next as research_plan_next
     from games.wos.heroes.heroes.planner import plan_next as hero_plan_next
+    from games.wos.troops.planner import plan_next as training_plan_next
 
     bg, rg, hc, pc = (
         _building_graph(),
@@ -726,6 +754,12 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         server_days=body.pets.server_days,
         role=_role(body.pets.role),
     )
+    tplan = training_plan_next(
+        counts=body.troops.counts,
+        max_tier=body.troops.max_tier,
+        fc=body.troops.fc,
+        target=body.troops.target,
+    )
 
     if body.channels is not None:
         channels = [Channel(id=c.id, kind=c.kind) for c in body.channels]
@@ -738,6 +772,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             Channel(id="research_1", kind=RESEARCH),
             Channel(id="hero_1", kind=HERO),
             Channel(id="pet_1", kind=PET),
+            Channel(id="training_1", kind=TRAINING),
         ]
 
     if body.balances is not None:
@@ -754,6 +789,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         research_graph=rg,
         hero_plan=hplan,
         pet_plan=pplan,
+        training_plan=tplan,
         event_windows=[EventWindow(**w.model_dump()) for w in body.events],
         daily_tasks=[DailyTask(**t.model_dump()) for t in body.dailies],
         seconds_to_reset=body.seconds_to_reset,
@@ -765,6 +801,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             "research": _asdict(rplan),
             "heroes": _asdict(hplan),
             "pets": _asdict(pplan),
+            "troops": _asdict(tplan),
         },
         "candidates": [_asdict(c) for c in plan.candidates],
         "decision": _asdict(plan.decision),
