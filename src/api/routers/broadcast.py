@@ -21,6 +21,7 @@ class MessageBody(BaseModel):
     text: str
     category: str = "custom"
     game_scope: str = "all"
+    channel: str = "alliance"
     trigger_kind: str = "cron"
     cron: str = ""
     cond: str = ""

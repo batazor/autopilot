@@ -1,8 +1,9 @@
 """Redis key builders for broadcast cooldown + claim locks (pure strings).
 
-Both are keyed per ``(game, alliance, message)`` — the alliance, not the account,
-is the unit of de-duplication: many accounts may be in one alliance but the chat
-should see a reminder once.
+Both are keyed per ``(game, scope, message)``. ``scope`` is the de-duplication
+unit: the alliance name for alliance-chat messages (many accounts share one
+alliance but the chat should see a reminder once), or the literal ``"world"`` for
+world/global-chat messages (one post per game across the whole fleet).
 
 * **cooldown** (``…:sent:…``) — written with ``EX`` after a successful post; its
   mere presence means "still cooling down", so other accounts' ticks skip it.
@@ -17,16 +18,16 @@ PREFIX = "bcast"
 
 
 def _slug(value: str) -> str:
-    """Collapse an alliance name to a Redis-safe token (no spaces/colons)."""
+    """Collapse a scope/game token to a Redis-safe string (no spaces/colons)."""
     s = re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_")
     return s or "none"
 
 
-def sent_key(game: str, alliance: str, message_id: str) -> str:
-    """Per-alliance cooldown stamp (TTL = the message's cooldown/cron interval)."""
-    return f"{PREFIX}:{_slug(game)}:{_slug(alliance)}:sent:{message_id}"
+def sent_key(game: str, scope: str, message_id: str) -> str:
+    """Per-scope cooldown stamp (TTL = the message's cooldown/cron interval)."""
+    return f"{PREFIX}:{_slug(game)}:{_slug(scope)}:sent:{message_id}"
 
 
-def claim_key(game: str, alliance: str, message_id: str) -> str:
-    """Per-alliance same-tick claim lock (short TTL; SET NX EX before posting)."""
-    return f"{PREFIX}:{_slug(game)}:{_slug(alliance)}:claim:{message_id}"
+def claim_key(game: str, scope: str, message_id: str) -> str:
+    """Per-scope same-tick claim lock (short TTL; SET NX EX before posting)."""
+    return f"{PREFIX}:{_slug(game)}:{_slug(scope)}:claim:{message_id}"

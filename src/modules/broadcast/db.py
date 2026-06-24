@@ -18,9 +18,11 @@ from sqlmodel import Field, Session, SQLModel, delete, select
 from config import orm
 from config.state_sqlite import state_db_path
 
-from .models import BroadcastMessage
+from .models import CHANNEL_ALLIANCE, BroadcastMessage
 
 if TYPE_CHECKING:
+    import sqlite3
+
     from sqlalchemy.engine import Engine
 
 _lock = threading.RLock()
@@ -34,6 +36,7 @@ class BroadcastMessageRow(SQLModel, table=True):
     text: str = ""
     category: str = "custom"
     game_scope: str = "all"
+    channel: str = CHANNEL_ALLIANCE
     trigger_kind: str = "cron"
     cron: str = ""
     cond: str = ""
@@ -56,10 +59,23 @@ class BroadcastSendRow(SQLModel, table=True):
     sent_at: float = 0.0
 
 
+def _add_channel_column(conn: sqlite3.Connection) -> None:
+    """Add the ``channel`` column to a pre-existing catalog table (defensive)."""
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(broadcast_messages)")}
+    if "channel" not in cols:
+        conn.execute(
+            "ALTER TABLE broadcast_messages "
+            f"ADD COLUMN channel TEXT NOT NULL DEFAULT '{CHANNEL_ALLIANCE}'"
+        )
+
+
 def _ensure_schema(engine: Engine) -> None:
     SQLModel.metadata.create_all(
         engine, tables=[BroadcastMessageRow.__table__, BroadcastSendRow.__table__]
     )
+    # ``create_all`` is CREATE-IF-NOT-EXISTS, so it won't add the column to a
+    # table created before ``channel`` existed — migrate it explicitly.
+    orm.apply_migrations(engine, "broadcast", [("001_channel", _add_channel_column)])
 
 
 def _engine() -> Engine:
@@ -75,6 +91,7 @@ def _to_message(row: BroadcastMessageRow) -> BroadcastMessage:
         text=row.text,
         category=row.category,
         game_scope=row.game_scope,
+        channel=row.channel or CHANNEL_ALLIANCE,
         trigger_kind=row.trigger_kind,
         cron=row.cron or "",
         cond=row.cond or "",
@@ -120,6 +137,7 @@ def upsert_message(msg: BroadcastMessage, *, now: float | None = None) -> Broadc
         row.text = msg.text
         row.category = msg.category
         row.game_scope = msg.game_scope
+        row.channel = msg.channel
         row.trigger_kind = msg.trigger_kind
         row.cron = msg.cron or ""
         row.cond = msg.cond or ""

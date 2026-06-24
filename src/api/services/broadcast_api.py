@@ -15,9 +15,11 @@ from modules.broadcast import db, seed
 from modules.broadcast.engine import cron_interval_seconds
 from modules.broadcast.models import (
     CATEGORIES,
+    CHANNEL_ALLIANCE,
     MAX_TEXT_LEN,
     TRIGGER_CRON,
     TRIGGER_EVENT,
+    VALID_CHANNELS,
     VALID_SCOPES,
     VALID_TRIGGERS,
     BroadcastMessage,
@@ -76,6 +78,8 @@ def _as_int(value: Any, *, field: str, default: int = 0, minimum: int | None = N
 def _validate(msg: BroadcastMessage) -> None:
     if msg.game_scope not in VALID_SCOPES:
         _fail(f"scope must be one of {VALID_SCOPES}")
+    if msg.channel not in VALID_CHANNELS:
+        _fail(f"channel must be one of {VALID_CHANNELS}")
     if msg.trigger_kind not in VALID_TRIGGERS:
         _fail(f"trigger must be one of {VALID_TRIGGERS}")
     text = (msg.text or "").strip()
@@ -111,6 +115,7 @@ def _message_from_body(body: dict[str, Any]) -> BroadcastMessage:
         text=str(body.get("text") or ""),
         category=category,
         game_scope=str(body.get("game_scope") or "all").strip(),
+        channel=str(body.get("channel") or CHANNEL_ALLIANCE).strip(),
         trigger_kind=trigger,
         cron=str(body.get("cron") or "").strip() if trigger == TRIGGER_CRON else "",
         cond=str(body.get("cond") or "").strip() if trigger == TRIGGER_EVENT else "",

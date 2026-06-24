@@ -2,6 +2,7 @@
 
 export type GameScope = "wos" | "kingshot" | "all";
 export type TriggerKind = "cron" | "event";
+export type Channel = "alliance" | "world";
 
 export interface BroadcastMessage {
   id: string;
@@ -9,6 +10,7 @@ export interface BroadcastMessage {
   text: string;
   category: string;
   game_scope: GameScope;
+  channel: Channel;
   trigger_kind: TriggerKind;
   cron: string;
   cond: string;

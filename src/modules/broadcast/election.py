@@ -58,3 +58,23 @@ def elect_broadcaster(
     if not pool:
         return None
     return min(pool, key=lambda c: _fid_sort_key(c.fid)).fid
+
+
+def elect_global_broadcaster(
+    candidates: Iterable[Candidate],
+    active_fids: Iterable[str],
+) -> str | None:
+    """The single fid that should post a **world/global** message, or ``None``.
+
+    World chat isn't per-alliance, so one account across the whole fleet posts
+    (lowest active eligible fid) — alliance membership is ignored.
+    """
+    active = {str(f).strip() for f in active_fids if str(f).strip()}
+    pool = [
+        c
+        for c in candidates
+        if c.eligible and str(c.fid).strip() and str(c.fid).strip() in active
+    ]
+    if not pool:
+        return None
+    return min(pool, key=lambda c: _fid_sort_key(c.fid)).fid

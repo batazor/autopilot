@@ -29,7 +29,8 @@ from typing import TYPE_CHECKING, Any
 from layout.types import Point
 
 from . import db, engine, keys
-from .election import Candidate, elect_broadcaster
+from .election import Candidate, elect_broadcaster, elect_global_broadcaster
+from .models import CHANNEL_WORLD
 
 if TYPE_CHECKING:
     from tasks.dsl_exec.context import DslExecContext
@@ -98,12 +99,23 @@ def _roster(game: str) -> list[Candidate]:
     return out
 
 
-async def _last_sent_map(redis: Any, game: str, alliance: str, ids: list[str], now: float) -> dict[str, float | None]:
-    """Per-message last-sent timestamp; a present-but-unparsable key counts as just-sent."""
+def _scope_for(channel: str, alliance: str) -> str:
+    """De-dup scope for a message: the alliance, or ``"world"`` for global chat."""
+    return CHANNEL_WORLD if channel == CHANNEL_WORLD else alliance
+
+
+async def _last_sent_map(
+    redis: Any, game: str, scoped_ids: list[tuple[str, str]], now: float
+) -> dict[str, float | None]:
+    """Per-message last-sent timestamp; a present-but-unparsable key counts as just-sent.
+
+    ``scoped_ids`` is ``[(message_id, scope), ...]`` so each message is looked up
+    under its own de-dup scope (alliance vs world).
+    """
     out: dict[str, float | None] = {}
-    for mid in ids:
+    for mid, scope in scoped_ids:
         try:
-            raw = await redis.get(keys.sent_key(game, alliance, mid))
+            raw = await redis.get(keys.sent_key(game, scope, mid))
         except Exception:
             raw = None
         if raw is None:
@@ -170,7 +182,8 @@ async def _type_and_send(actions: Any, game: str, iid: str, text: str) -> bool:
 
 
 async def run_broadcast_tick(ctx: DslExecContext, *, game: str) -> None:
-    """Post one due alliance reminder for ``game`` if this account is the broadcaster."""
+    """Post one due reminder for ``game`` (alliance or world chat) if this account
+    is the elected broadcaster for that message's channel."""
     from tasks import dsl_runtime
 
     redis = ctx.redis_client
@@ -179,7 +192,7 @@ async def run_broadcast_tick(ctx: DslExecContext, *, game: str) -> None:
         ctx.result.update({"action": "no_target"})
         return
 
-    # Alliance from this player's own state.
+    # Alliance from this player's own state (empty is fine for world messages).
     store = None
     alliance = ""
     try:
@@ -190,56 +203,69 @@ async def run_broadcast_tick(ctx: DslExecContext, *, game: str) -> None:
             alliance = str(store.get("alliance.name") or "").strip()
     except Exception:
         logger.debug("broadcast: alliance lookup failed player=%s", player, exc_info=True)
-    if not alliance:
-        ctx.result.update({"action": "no_alliance"})
-        return
 
-    # Elect one broadcaster per alliance (deterministic, lowest active eligible fid).
-    elected = elect_broadcaster(_roster(game), alliance, await _active_fids(redis))
-    if elected and elected != player:
-        ctx.result.update({"action": "not_broadcaster", "elected": elected, "alliance": alliance})
-        return
-
-    # Select the single due message.
     messages = db.list_messages(game=game, enabled_only=True)
     if not messages:
         ctx.result.update({"action": "no_messages"})
         return
+    # Alliance-channel messages need an alliance; world-channel ones don't.
+    usable = [m for m in messages if m.channel == CHANNEL_WORLD or alliance]
+    if not usable:
+        ctx.result.update({"action": "no_alliance"})
+        return
+
+    # Select the single due message (across both channels).
     flat = store.to_flat_dict() if store is not None else {}
     now = time.time()
-    last_sent = await _last_sent_map(redis, game, alliance, [m.id for m in messages], now)
-    msg = engine.select_due_message(messages, flat, now, last_sent, game)
+    scoped = [(m.id, _scope_for(m.channel, alliance)) for m in usable]
+    last_sent = await _last_sent_map(redis, game, scoped, now)
+    msg = engine.select_due_message(usable, flat, now, last_sent, game)
     if msg is None:
         ctx.result.update({"action": "none_due", "alliance": alliance})
+        return
+    scope = _scope_for(msg.channel, alliance)
+
+    # Elect one broadcaster: per-alliance for alliance chat, global for world chat.
+    active = await _active_fids(redis)
+    roster = _roster(game)
+    if msg.channel == CHANNEL_WORLD:
+        elected = elect_global_broadcaster(roster, active)
+    else:
+        elected = elect_broadcaster(roster, alliance, active)
+    if elected and elected != player:
+        ctx.result.update(
+            {"action": "not_broadcaster", "elected": elected, "channel": msg.channel}
+        )
         return
 
     # Same-tick race guard: only the account that takes the claim posts.
     try:
-        claimed = await redis.set(keys.claim_key(game, alliance, msg.id), player, nx=True, ex=_CLAIM_TTL_S)
+        claimed = await redis.set(keys.claim_key(game, scope, msg.id), player, nx=True, ex=_CLAIM_TTL_S)
     except Exception:
         claimed = True  # best-effort: a Redis hiccup shouldn't block the post
     if not claimed:
-        ctx.result.update({"action": "claimed_by_other", "message_id": msg.id, "alliance": alliance})
+        ctx.result.update({"action": "claimed_by_other", "message_id": msg.id, "scope": scope})
         return
 
-    # Deliver.
+    # Deliver — to the world or alliance chat tab.
+    node = "chat.world" if msg.channel == CHANNEL_WORLD else "chat.alliance"
     actions = dsl_runtime.bot_actions()
     nav = dsl_runtime.navigator(actions, redis_client=redis)
-    if not await nav.navigate_to("chat.alliance", ctx.instance_id):
-        ctx.result.update({"action": "nav_failed", "message_id": msg.id, "alliance": alliance})
+    if not await nav.navigate_to(node, ctx.instance_id):
+        ctx.result.update({"action": "nav_failed", "message_id": msg.id, "node": node})
         return
     if not await _type_and_send(actions, game, ctx.instance_id, msg.text):
-        ctx.result.update({"action": "send_failed", "message_id": msg.id, "alliance": alliance})
+        ctx.result.update({"action": "send_failed", "message_id": msg.id})
         return
 
     # Stamp cooldown so no account reposts within the window; log; return home.
     cooldown_s = max(60, engine.min_gap_seconds(msg))
     try:
-        await redis.set(keys.sent_key(game, alliance, msg.id), str(now), ex=cooldown_s)
+        await redis.set(keys.sent_key(game, scope, msg.id), str(now), ex=cooldown_s)
     except Exception:
         logger.debug("broadcast: cooldown stamp failed", exc_info=True)
     try:
-        db.record_send(message_id=msg.id, game=game, alliance=alliance, fid=player, text=msg.text, sent_at=now)
+        db.record_send(message_id=msg.id, game=game, alliance=scope, fid=player, text=msg.text, sent_at=now)
     except Exception:
         logger.debug("broadcast: send-log write failed", exc_info=True)
     try:
@@ -248,8 +274,9 @@ async def run_broadcast_tick(ctx: DslExecContext, *, game: str) -> None:
         logger.debug("broadcast: return-home nav failed", exc_info=True)
 
     ctx.result.update(
-        {"action": "sent", "message_id": msg.id, "title": msg.title, "alliance": alliance}
+        {"action": "sent", "message_id": msg.id, "title": msg.title, "channel": msg.channel, "scope": scope}
     )
     logger.info(
-        "broadcast: posted %r to alliance=%s game=%s player=%s", msg.id, alliance, game, player
+        "broadcast: posted %r to %s (scope=%s) game=%s player=%s",
+        msg.id, msg.channel, scope, game, player,
     )

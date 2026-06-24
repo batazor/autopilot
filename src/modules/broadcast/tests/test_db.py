@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 from modules.broadcast import db, seed
-from modules.broadcast.models import SCOPE_KINGSHOT, SCOPE_WOS, BroadcastMessage
+from modules.broadcast.models import (
+    CHANNEL_WORLD,
+    SCOPE_KINGSHOT,
+    SCOPE_WOS,
+    BroadcastMessage,
+)
 
 
 def _msg(id_: str, *, scope: str = SCOPE_WOS, enabled: bool = True) -> BroadcastMessage:
@@ -61,6 +66,13 @@ def test_send_log_roundtrip() -> None:
     assert len(abc) == 1 and abc[0].fid == "42"
 
 
+def test_channel_roundtrip_defaults_alliance() -> None:
+    db.upsert_message(_msg("a"))  # default channel
+    db.upsert_message(BroadcastMessage(id="w", title="w", text="join", channel=CHANNEL_WORLD))
+    assert db.get_message("a").channel == "alliance"
+    assert db.get_message("w").channel == "world"
+
+
 def test_seed_defaults_is_idempotent() -> None:
     added = seed.seed_defaults()
     assert added  # starter set inserted
@@ -68,3 +80,6 @@ def test_seed_defaults_is_idempotent() -> None:
     assert again == []  # nothing new on a second run
     ids = {m.id for m in db.list_messages()}
     assert "starter_foundry_battle" in ids
+    # The world-chat recruiting starter ships too.
+    world = db.get_message("starter_world_recruit")
+    assert world is not None and world.channel == "world"

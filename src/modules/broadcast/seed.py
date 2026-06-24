@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from . import db
 from .models import (
+    CHANNEL_WORLD,
     SCOPE_ALL,
     TRIGGER_CRON,
     TRIGGER_EVENT,
@@ -76,6 +77,18 @@ STARTER_MESSAGES: tuple[BroadcastMessage, ...] = (
         cond="event_bear_hunt == 1",
         cooldown_minutes=240,
         priority=10,
+    ),
+    BroadcastMessage(
+        id="starter_world_recruit",
+        title="World-chat recruiting",
+        text="🔥 We're recruiting active players! Friendly alliance, daily events — join us!",
+        category="custom",
+        game_scope=SCOPE_ALL,
+        channel=CHANNEL_WORLD,
+        trigger_kind=TRIGGER_CRON,
+        cron="0 */6 * * *",           # shout every 6 hours
+        cooldown_minutes=0,
+        priority=70,
     ),
 )
 

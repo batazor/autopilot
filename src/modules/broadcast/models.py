@@ -19,6 +19,11 @@ TRIGGER_CRON = "cron"      # fire on a fixed cadence (the cron interval)
 TRIGGER_EVENT = "event"    # fire while an ``eval_cond`` expression is true
 VALID_TRIGGERS: tuple[str, ...] = (TRIGGER_CRON, TRIGGER_EVENT)
 
+# Which in-game chat tab the message posts to.
+CHANNEL_ALLIANCE = "alliance"  # alliance chat — de-duplicated per alliance
+CHANNEL_WORLD = "world"        # world/global chat (e.g. recruiting) — one post per game
+VALID_CHANNELS: tuple[str, ...] = (CHANNEL_ALLIANCE, CHANNEL_WORLD)
+
 # UI grouping only — not behavioural.
 CATEGORIES: tuple[str, ...] = ("event", "tip", "daily", "custom")
 
@@ -35,6 +40,7 @@ class BroadcastMessage:
     text: str                           # the actual chat message (free-form)
     category: str = "custom"
     game_scope: str = SCOPE_ALL         # wos | kingshot | all
+    channel: str = CHANNEL_ALLIANCE     # alliance | world
     trigger_kind: str = TRIGGER_CRON    # cron | event
     cron: str = ""                      # cron expr when trigger_kind == cron
     cond: str = ""                      # eval_cond expr when trigger_kind == event

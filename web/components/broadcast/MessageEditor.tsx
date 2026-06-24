@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui";
 import {
   type BroadcastMessage,
+  type Channel,
   type EventFlag,
   type GameScope,
   type MessageDraft,
@@ -12,6 +13,10 @@ import {
 } from "@/lib/broadcast-api";
 
 const SCOPES: GameScope[] = ["all", "wos", "kingshot"];
+const CHANNELS: { value: Channel; label: string; hint: string }[] = [
+  { value: "alliance", label: "Alliance chat", hint: "One account per alliance posts" },
+  { value: "world", label: "World chat", hint: "Global — e.g. recruiting" },
+];
 const CATEGORIES = ["event", "tip", "daily", "custom"];
 // Cron presets restricted to the two scheduler-supported shapes.
 const CRON_PRESETS: { value: string; label: string }[] = [
@@ -29,6 +34,7 @@ const BLANK: MessageDraft = {
   text: "",
   category: "custom",
   game_scope: "all",
+  channel: "alliance",
   trigger_kind: "cron",
   cron: "0 */12 * * *",
   cond: "",
@@ -156,6 +162,32 @@ export function MessageEditor({
               onChange={(e) => set("cooldown_minutes", Number(e.target.value))}
             />
           </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Chat channel</label>
+          <div className="flex flex-wrap gap-2">
+            {CHANNELS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => set("channel", c.value)}
+                title={c.hint}
+                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                  draft.channel === c.value
+                    ? "border-emerald-400/60 bg-emerald-500/15 text-wos-text"
+                    : "border-wos-border-subtle text-wos-text-muted"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-wos-text-muted">
+            {draft.channel === "world"
+              ? "Posts to world/global chat — one account across the fleet posts it."
+              : "Posts to alliance chat — one eligible account per alliance posts it."}
+          </p>
         </div>
 
         <div>

@@ -53,6 +53,9 @@ function MessageRow({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-wos-text">{m.title}</span>
+            <Pill tone={m.channel === "world" ? "busy" : "live"}>
+              {m.channel === "world" ? "world" : "alliance"}
+            </Pill>
             <Pill tone={scopeTone(m.game_scope)}>{m.game_scope}</Pill>
             <Pill tone="neutral">{m.category}</Pill>
             <span className="text-xs text-wos-text-muted">{m.trigger_label}</span>
@@ -161,9 +164,11 @@ export default function BroadcastPage() {
           </div>
         }
       >
-        Reminders the bot posts into alliance chat — on a schedule or while an
-        in-game event is live. One eligible account per alliance posts each
-        message (cooldown-deduped). Edit freely; texts can be any language.
+        Reminders the bot posts into <strong>alliance</strong> or{" "}
+        <strong>world</strong> chat — on a schedule or while an in-game event is
+        live. Alliance messages post once per alliance; world messages (e.g.
+        recruiting) post once across the fleet. All cooldown-deduped; texts can
+        be any language.
       </PageHeader>
 
       {error && (
