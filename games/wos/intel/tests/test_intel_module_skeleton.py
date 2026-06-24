@@ -81,13 +81,11 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     assert steps[2]["wait_screen"]["any"] == ["intel.fight"]
     assert steps[3] == {"click": "intel.fight.view"}
     assert steps[4]["wait_screen"]["any"] == ["intel.explore", "main_world"]
-    assert steps[5] == {
-        "cond": "currentNode == intel.explore",
-        "steps": [{"click": "intel.explore"}],
-    }
+    assert steps[5] == {"wait": "1s"}
     assert steps[6] == {
-        "cond": "currentNode == main_world",
-        "steps": [{"click": "intel.attack"}],
+        "match": "intel.explore.is_blue",
+        "steps": [{"click": "intel.explore"}],
+        "else": [{"click": "intel.attack"}],
     }
     assert steps[7]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
     deploy_branch = steps[8]
@@ -186,6 +184,35 @@ async def test_attack_region_detected_on_attack_reference() -> None:
     )
 
     assert out["intel.attack.visible"]["matched"] is True
+
+
+@pytest.mark.asyncio
+async def test_explore_button_color_discriminates_blue_vs_attack() -> None:
+    # The intel_run branch picks Explore vs Attack by the button colour: the blue
+    # Explore button (exploration target) must match `intel.explore.is_blue`, the
+    # orange Attack button (combat target) must NOT. Colour survives scrcpy H.264
+    # where the small title OCR does not.
+    area_doc = load_area_doc(REPO_ROOT)
+    rule = {
+        "name": "intel.explore.is_blue.check",
+        "region": "intel.explore.is_blue",
+        "action": "color_check",
+        "type": "blue",
+        "threshold": 0.5,
+    }
+    explore = cv2.imread(str(MODULE_DIR / "references" / "explore.png"))
+    attack = cv2.imread(str(MODULE_DIR / "references" / "attack.png"))
+    assert explore is not None and attack is not None
+
+    out_explore = await evaluate_overlay_rules_async(
+        explore, area_doc, REPO_ROOT, [rule], current_screen="intel.explore"
+    )
+    out_attack = await evaluate_overlay_rules_async(
+        attack, area_doc, REPO_ROOT, [rule], current_screen="main_world"
+    )
+
+    assert out_explore["intel.explore.is_blue.check"]["matched"] is True
+    assert out_attack["intel.explore.is_blue.check"]["matched"] is False
 
 
 def _load_exec_module() -> Any:

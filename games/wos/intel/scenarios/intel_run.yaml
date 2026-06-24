@@ -39,11 +39,15 @@ steps:
       max: 5
       interval: 500ms
 
-  - cond: currentNode == intel.explore
+  # The View opens a target panel over the world map; both panel kinds detect as
+  # main_world, so branch on the BUTTON COLOUR (survives scrcpy H.264, unlike the
+  # title OCR): a blue Explore button ⇒ exploration target, else the orange
+  # Attack button ⇒ combat target. (intel.explore.is_blue is a color_check region.)
+  - wait: 1s
+  - match: intel.explore.is_blue
     steps:
       - click: intel.explore
-  - cond: currentNode == main_world
-    steps:
+    else:
       - click: intel.attack
   - wait_screen:
       any: [heroes.deploy, squad_settings]
