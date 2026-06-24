@@ -174,6 +174,38 @@ async def test_tick_skips_during_cooldown():
 
 
 @pytest.mark.asyncio
+async def test_tick_board_ttl_extends_cooldown_beyond_static():
+    # Board "Refreshes in" = 12000s; last intel ran 1000s ago. The static 900s
+    # cooldown would allow a re-run, but the live board TTL says it hasn't
+    # refreshed yet → suppressed.
+    queue = _FakeQueue(last_run=9_000.0)  # 1000s since → past the static 900
+    redis = _FakeRedis({"stamina": "100", "intel.refresh_in": "12000"})
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert result.enqueued == ()
+    assert queue.calls == []
+
+
+@pytest.mark.asyncio
+async def test_tick_board_ttl_elapsed_dispatches_intel():
+    # Board "Refreshes in" = 60s; last intel ran 100s ago → the board has
+    # refreshed → dispatch (the static 900s cooldown would have blocked this).
+    queue = _FakeQueue(last_run=9_900.0)  # 100s since → under the static 900
+    redis = _FakeRedis({"stamina": "100", "intel.refresh_in": "60"})
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert [e.task_type for e in result.enqueued] == ["intel_run"]
+
+
+@pytest.mark.asyncio
 async def test_tick_skips_without_stamina_reading():
     queue = _FakeQueue(last_run=None)
     redis = _FakeRedis({})  # no stamina yet → don't act blind

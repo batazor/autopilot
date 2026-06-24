@@ -1,0 +1,20 @@
+enabled: true
+name: "Intel: claim floor (cron)"
+priority: 50_000
+
+# Twice-a-day floor for Intel. The MARCH coordinator normally dispatches
+# intel_run when a march slot is free + stamina allows + the board has
+# refreshed (paced by intel.refresh_in). But if slots stay busy or the stamina
+# read is missing, intel never runs and the passive "Claim All" rewards pile
+# up. This low-priority cron re-runs intel_run regardless of slots/stamina, so
+# the Claim All loop (which runs before any deploy and exits cleanly with no
+# marker to fight) collects rewards at least 2x/day. skip_if_duplicate + the
+# running-task guard prevent pile-up against a coordinator-dispatched run.
+cron: "0 */12 * * *"
+cond: "active_player != null"
+
+steps:
+  - push_scenario:
+      name: intel_run
+      priority: 50_000
+      skip_if_duplicate: true

@@ -70,25 +70,30 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     assert scenario["enabled"] is True
     assert scenario["node"] == "intel"
     steps = scenario["steps"]
-    assert steps[0]["while_match"] == "intel.claim_all"
-    assert steps[0]["max"] == 1
-    claim_steps = steps[0]["steps"]
+    assert steps[0] == {
+        "ocr": "intel.refresh_in",
+        "type": "time",
+        "store": "intel.refresh_in",
+    }
+    assert steps[1]["while_match"] == "intel.claim_all"
+    assert steps[1]["max"] == 1
+    claim_steps = steps[1]["steps"]
     assert {"click": "intel.claim_all"} in claim_steps
     assert any(step.get("while_match") == "button.click_to_continue" for step in claim_steps)
     assert any(step.get("while_match") == "button.tap_anywhere_to_exit" for step in claim_steps)
-    assert steps[1]["exec"] == "tap_intel_fight"
-    assert steps[1]["threshold"] == 0.72
-    assert steps[2]["wait_screen"]["any"] == ["intel.fight"]
-    assert steps[3] == {"click": "intel.fight.view"}
-    assert steps[4]["wait_screen"]["any"] == ["intel.explore", "main_world"]
-    assert steps[5] == {"wait": "1s"}
-    assert steps[6] == {
+    assert steps[2]["exec"] == "tap_intel_fight"
+    assert steps[2]["threshold"] == 0.72
+    assert steps[3]["wait_screen"]["any"] == ["intel.fight"]
+    assert steps[4] == {"click": "intel.fight.view"}
+    assert steps[5]["wait_screen"]["any"] == ["intel.explore", "main_world"]
+    assert steps[6] == {"wait": "1s"}
+    assert steps[7] == {
         "match": "intel.explore.is_blue",
         "steps": [{"click": "intel.explore"}],
         "else": [{"click": "intel.attack"}],
     }
-    assert steps[7]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
-    deploy_branch = steps[8]
+    assert steps[8]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
+    deploy_branch = steps[9]
     assert deploy_branch["cond"] == "currentNode == heroes.deploy"
     assert deploy_branch["steps"] == [
         {"click": "heroes.deploy.equalize"},
@@ -107,7 +112,7 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
             "extra_seconds": 15,
         },
     ]
-    squad_branch = steps[9]
+    squad_branch = steps[10]
     assert squad_branch["cond"] == "currentNode == squad_settings"
     squad_steps = squad_branch["steps"]
     assert {"click": "squad_settings.quick_deploy"} in squad_steps
@@ -213,6 +218,52 @@ async def test_explore_button_color_discriminates_blue_vs_attack() -> None:
 
     assert out_explore["intel.explore.is_blue.check"]["matched"] is True
     assert out_attack["intel.explore.is_blue.check"]["matched"] is False
+
+
+def test_refresh_timer_parses_with_prefix() -> None:
+    # The board timer reads "Refreshes in: HH:MM:SS"; the type:time OCR handler
+    # must tolerate the prefix and yield seconds.
+    from tasks.dsl_ocr_mixin import _parse_hms_to_seconds
+
+    assert _parse_hms_to_seconds("Refreshes in: 03:23:15") == 12195
+    assert _parse_hms_to_seconds("03:22:15") == 12135
+    assert _parse_hms_to_seconds("") is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_timer_region_reads_board_ttl() -> None:
+    # intel_run reads the board "Refreshes in" countdown via the
+    # intel.refresh_in region (type: time) so the MARCH coordinator can pace the
+    # next run. Confirm the region OCRs a sane multi-hour countdown off the
+    # reference frame.
+    from config.loader import load_settings
+    from layout.types import Region
+    from ocr.client import OcrClient
+    from tasks.dsl_ocr_mixin import _parse_hms_to_seconds
+
+    area_doc = load_area_doc(REPO_ROOT)
+    bbox = None
+    for screen in area_doc.get("screens", []):
+        for region in screen.get("regions", []):
+            if region.get("name") == "intel.refresh_in":
+                bbox = region["bbox"]
+    assert bbox is not None, "intel.refresh_in region missing from area.yaml"
+
+    image = cv2.imread(str(MODULE_DIR / "references" / "main.png"))
+    assert image is not None
+    h, w = image.shape[:2]
+    region_px = Region(
+        round(bbox["x"] / 100 * w),
+        round(bbox["y"] / 100 * h),
+        round(bbox["width"] / 100 * w),
+        round(bbox["height"] / 100 * h),
+    )
+    result = await OcrClient(load_settings()).ocr_region(
+        image, region_px, region_id="intel.refresh_in"
+    )
+    seconds = _parse_hms_to_seconds(result.text)
+    # A multi-hour board refresh (reference reads ~03:2x:xx).
+    assert seconds is not None and 3600 <= seconds <= 6 * 3600
 
 
 def _load_exec_module() -> Any:

@@ -393,6 +393,13 @@ async def run_march_tick(
         state = await _read_player_state(redis, player_id)
     stamina = _to_float(state.get("stamina", ""))
     reserve = _intel_reserve(state)
+    # Pace blind intel re-runs by the live board-refresh timer ("Refreshes in:
+    # HH:MM:SS", stored as seconds by intel_run) — don't re-run until the board
+    # has actually refreshed. Falls back to the static cooldown placeholder
+    # until the timer has been read at least once.
+    board_ttl = _to_float(state.get("intel.refresh_in", ""))
+    if board_ttl is not None and board_ttl > 0:
+        cooldown_s = board_ttl
     secs_since = await _seconds_since_last_intel(
         queue, instance_id=instance_id, player_id=player_id, now=now
     )

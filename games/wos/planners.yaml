@@ -31,7 +31,7 @@ planners:
     enabled_key: enabled
     trace_key: "wos:player:{fid}:march_decisions"
     observed_inputs: []          # runs even partially-blind (gather fallback fills slots)
-    note: "Единственный LIVE планировщик: заполняет свободные march-слоты каждый тик."
+    note: "Единственный LIVE планировщик: заполняет свободные march-слоты каждый тик; intel паузится живым board-TTL (intel.refresh_in)."
 
   - name: stamina
     title: "Бюджет выносливости"
@@ -41,7 +41,7 @@ planners:
     enabled_key: enabled
     trace_key: "wos:player:{fid}:stamina_decisions"
     observed_inputs: [stamina]
-    note: "enabled:false — потребители (joe/intel/beast) пока заглушки wait:1s."
+    note: "enabled:false как диспатчер — но это источник резерва/бюджета, который march читает (reserve_for). intel_run уже реальный сценарий (не заглушка)."
 
   - name: resources
     title: "Аллокатор общих ресурсов (слоты/войска/герои)"
@@ -83,8 +83,8 @@ planners:
     config: games/wos/core/coordinator/march.yaml
     enabled_key: enabled
     trace_key: "wos:player:{fid}:march_decisions"
-    observed_inputs: []
-    note: "Не отдельный тик: march вызывает intel_intent под кулдауном/слотами."
+    observed_inputs: [intel.refresh_in]
+    note: "Не отдельный тик: march вызывает intel_intent; кулдаун = живой board-TTL intel.refresh_in (фолбэк 900с) + cron-флор 2×/день (intel_claim.cron)."
 
   - name: research
     title: "Планировщик исследований (value-greedy)"
@@ -184,3 +184,23 @@ planners:
     observed_inputs:
       - "heroes.entries"
     note: "Расширение heroes: уровень/EXP (db/hero_xp.yaml) + roadmap по level/star/skill; LEVEL_UP читает heroes.entries.<id>.level."
+
+  - name: svs
+    title: "Калькулятор очков SvS (prep-фаза)"
+    domain: SVS
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs: []          # берёт план тратами как вход оператора; live-ридера фаз нет
+    note: "Только калькулятор: очки prep-фазы по db/svs_prep.yaml (points-per-item, 5 дней). Тайминг трат + ридер дня — отложены; таблица очков войск частичная (T10/T11)."
+
+  - name: koi
+    title: "Калькулятор очков King of Icefield (7 дней)"
+    domain: KOI
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs: []          # план тратами как вход оператора; live-ридера фаз нет
+    note: "Только калькулятор: очки KoI по db/koi_points.yaml (points-per-item, 7 дней, войска дни 4/6). Изолированная копия svs; таблица очков войск пустая (в источнике нет)."

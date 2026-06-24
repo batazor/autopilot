@@ -5,6 +5,13 @@ priority: 80_060          # 80_000 base + demand priority 60
 node: intel
 
 steps:
+  # Read the board's "Refreshes in: HH:MM:SS" timer (seconds) so the MARCH
+  # coordinator can pace the next intel run to the real board refresh instead
+  # of the static cooldown placeholder.
+  - ocr: intel.refresh_in
+    type: time
+    store: intel.refresh_in
+
   - while_match: intel.claim_all
     max: 1
     retry:

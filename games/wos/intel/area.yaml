@@ -36,6 +36,21 @@
           }
         },
         {
+          "name": "intel.refresh_in",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.7,
+          "bbox": {
+            "x": 53.26760260446194,
+            "y": 8.161417353003653,
+            "width": 19.14572864321601,
+            "height": 3.1324182122806428,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "intel.title",
           "action": "text",
           "threshold": 0.9,
