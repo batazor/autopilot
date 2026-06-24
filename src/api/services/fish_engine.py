@@ -60,7 +60,7 @@ _LEVEL_TREND_WINDOW = 3       # readings compared to decide up/down/flat
 # The hook descends from the top and reels back up: high on screen ⇒ going down
 # ("едем вниз"), low ⇒ going up ("набор высоты"). The mid band is ambiguous.
 _HOOK_TOP_ZONE = 0.45         # hook_y fraction below this ⇒ descending
-_HOOK_BOTTOM_ZONE = 0.55      # hook_y fraction above this ⇒ ascending
+_HOOK_BOTTOM_ZONE = 0.50      # hook_y fraction above this ⇒ ascending (lower half)
 
 # --- fish tracking -----------------------------------------------------------
 _MATCH_MAX_DIST_PX = 160.0    # max centre travel to call it the same fish
@@ -130,6 +130,7 @@ class ActionPlan(TypedDict):
     level_total: int | None
     hook_x: int | None
     hook_y: int | None
+    hook_detected: bool       # was the cyan ring actually found (vs. fallback/estimate)
     protected: bool | None    # blue shield ring present around the hook (None: unknown)
     hook_direction: str | None  # "down" | "up" | None — travel dir from hook y-zone
     target_index: int         # index into ``tracked``, or -1
@@ -213,16 +214,17 @@ def resolve_phase(
 ) -> Phase:
     """Final phase from the direction signals, strongest first.
 
-    Going **down** ⇒ ``dodge``; going **up** ⇒ ``collect``. The hook's vertical
-    position is the primary tell (top ⇒ down, bottom ⇒ up); the blue shield also
-    means descending; in the ambiguous mid-screen band with no shield we fall
-    back to the altitude counter's direction.
+    The altitude counter climbing ("набор высоты") is the RELIABLE ascent signal
+    ⇒ ``collect`` (catch fish) — it wins over the hook read, which often anchors
+    high (the cyan ring drops to the green node when its shield is spent, so the
+    hook reads "descending" even mid-ascent). A hook in the lower half also
+    collects. Otherwise a high hook / raised shield ⇒ descending ⇒ ``dodge``.
     """
-    if protected or hook_direction == "down":
+    if level_trend(levels, min_delta=min_delta) == "up" or hook_direction == "up":
+        return "collect"  # набор высоты, or hook low ⇒ ascending ⇒ catch
+    if hook_direction == "down" or protected:
         return "dodge"
-    if hook_direction == "up":
-        return "collect"
-    return decide_phase(levels, min_delta=min_delta)
+    return "dodge"
 
 
 # --- hook detection ----------------------------------------------------------
@@ -588,6 +590,7 @@ def plan_action(
         level_total=None,
         hook_x=hook[0],
         hook_y=hook[1],
+        hook_detected=real_hook is not None,
         protected=protected,
         hook_direction=hook_direction,
         target_index=target_index,

@@ -67,7 +67,7 @@ _ENTRY_BUTTONS = (
     ("fishing_tournament.go_fish", "main_ready_fishing_tournament.go_fish.png"),
     ("fishing_tournament.play.free", "main_ready_fishing_tournament.play.free.png"),
 )
-_ENTRY_MATCH_THR = 0.80
+_ENTRY_MATCH_THR = 0.72  # tolerant of scrcpy-frame variance (adb match ~0.90)
 
 # Run budget. A round is ~tens of seconds of swiping; inference latency (not the
 # 100 ms capture cadence) sets the real tick rate, so cap by wall-clock too.
@@ -103,9 +103,10 @@ _SCREEN_RECHECK = 4
 # pays the full scan.
 _GAMEPLAY_TITLE_CROP = "gameplay_fishing_tournament.gameplay.title.png"
 _GAMEPLAY_FAST_THR = 0.80
-# Altitude moves slowly — OCR the level counter (slow Tesseract) every Nth
-# gameplay tick, reuse the last value between (keeps the trend window).
-_LEVEL_OCR_EVERY = 3
+# The altitude counter is now the PRIMARY phase signal (набор высоты → collect),
+# so OCR it every tick to catch the start of an ascent promptly. (Was every 3rd
+# for FPS, but missing the ascent costs far more than a few ms of Tesseract.)
+_LEVEL_OCR_EVERY = 1
 # EMA factor for the fish velocity vector (1.0 = raw, no smoothing). <1 blends
 # the new inter-frame estimate with the prior so the lead doesn't jitter.
 _VEL_EMA_ALPHA = 0.5
@@ -337,6 +338,7 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
     last_level: int | None = None
     prev_rows: list[Any] | None = None
     prev_tracked: list[Any] | None = None  # last tick's TrackedFish (EMA velocity)
+    est_hook: tuple[int, int] | None = None  # last-known hook, carried by swipes
     prev_cap: float | None = None   # capture time of the previous gameplay frame
     prev_sig: Any = None
     last_screen = ""
@@ -471,6 +473,7 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
                 hook_speed_px_s=_HOOK_STEER_SPEED_PX_S,
                 prev_tracked=prev_tracked,
                 vel_ema_alpha=_VEL_EMA_ALPHA,
+                fallback_hook=est_hook,  # better steer origin when the ring is lost
             )
             prev_rows = rows
             prev_tracked = plan["tracked"]
@@ -483,6 +486,15 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
                 if swiped:
                     swipes += 1
 
+            # Hook-position robustness: snap the estimate to a real detection,
+            # else carry it forward by the swipe we just issued (so the next
+            # tick steers from where the hook actually is, not a fixed point).
+            if plan["hook_detected"] and plan["hook_x"] is not None:
+                est_hook = (plan["hook_x"], plan["hook_y"])
+            elif est_hook is not None and swiped and swipe is not None:
+                est_hook = (int(min(_W - 1, max(0, est_hook[0] + swipe["dx"]))),
+                            est_hook[1])
+
             # Per-tick telemetry — the tuning signal (phase correctness, swipe
             # steering, whether the swipe ACTUALLY ran, altitude/level progress).
             ticks.append({
@@ -493,6 +505,7 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
                 "hook_y_frac": (round(plan["hook_y"] / _H, 3)
                                 if plan["hook_y"] is not None else None),
                 "hook_dir": plan["hook_direction"],
+                "hook_det": plan["hook_detected"],
                 "protected": plan["protected"],
                 "n_dets": plan["detections"],
                 "swipe_dir": (swipe["direction"] if swipe else None),
@@ -543,6 +556,15 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             "phase_collect": sum(1 for t in ticks if t["phase"] == "collect"),
             "swipe_left": sum(1 for t in ticks if t["swipe_dir"] == "left"),
             "swipe_right": sum(1 for t in ticks if t["swipe_dir"] == "right"),
+            # Why the phase split looks the way it does (diagnoses dodge-bias):
+            # how often the ring was found, where it read, and shield-up rate.
+            "hook_detected_pct": (round(100 * sum(1 for t in ticks if t["hook_det"])
+                                        / len(ticks)) if ticks else None),
+            "hook_dir_down": sum(1 for t in ticks if t["hook_dir"] == "down"),
+            "hook_dir_up": sum(1 for t in ticks if t["hook_dir"] == "up"),
+            "hook_dir_none": sum(1 for t in ticks if t["hook_dir"] is None),
+            "protected_pct": (round(100 * sum(1 for t in ticks if t["protected"])
+                                    / len(ticks)) if ticks else None),
             "trend_up_ever": any(t["trend"] == "up" for t in ticks),
             "level_min": min(seen_levels) if seen_levels else None,
             "level_max": max(seen_levels) if seen_levels else None,

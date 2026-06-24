@@ -77,30 +77,43 @@ def test_decide_phase_follows_direction() -> None:
     assert decide_phase([14, 16, 16, 16]) == "dodge"  # climb stopped → revert
 
 
-def test_resolve_phase_shield_forces_dodge() -> None:
-    # Shield up ⇒ descending ("идём вниз") ⇒ dodge even while the counter climbs.
-    assert resolve_phase([14, 16], protected=True) == "dodge"
-    # Shield down, no hook signal ⇒ fall back to the altitude direction.
-    assert resolve_phase([14, 16], protected=False) == "collect"
-    assert resolve_phase([16, 14], protected=False) == "dodge"
-    assert resolve_phase([14, 14], protected=False) == "dodge"
+def test_resolve_phase_altitude_gain_is_primary() -> None:
+    # "Набор высоты" (counter climbing) ⇒ ascending ⇒ COLLECT — over an
+    # unreliable hook read and even with the shield up (the bug the operator hit:
+    # the altitude rose but the bot never collected because the hook read "down"
+    # and the shield forced dodge).
+    assert resolve_phase([14, 16], hook_direction="down") == "collect"
+    assert resolve_phase([14, 16], protected=True) == "collect"
+    assert resolve_phase([14, 16]) == "collect"
+
+
+def test_resolve_phase_descent_dodges() -> None:
+    # Counter NOT climbing + hook high / shield up ⇒ descending ⇒ dodge.
+    assert resolve_phase([16, 14], hook_direction="down") == "dodge"
+    assert resolve_phase([14, 14], protected=True) == "dodge"
+    assert resolve_phase([16, 14]) == "dodge"
+
+
+def test_resolve_phase_hook_low_also_collects() -> None:
+    # A hook in the lower half collects even if the counter isn't (yet) climbing.
+    assert resolve_phase([16, 14], hook_direction="up") == "collect"
 
 
 def test_hook_zone_direction() -> None:
     h = 1280
     assert hook_zone_direction(int(0.15 * h), h) == "down"   # high on screen
     assert hook_zone_direction(int(0.85 * h), h) == "up"     # low on screen
-    assert hook_zone_direction(int(0.50 * h), h) is None     # ambiguous middle
+    # The lower HALF now reads ascending (was a dead zone at 0.55).
+    assert hook_zone_direction(int(0.55 * h), h) == "up"
+    assert hook_zone_direction(int(0.47 * h), h) is None     # tiny mid dead band
     assert hook_zone_direction(None, h) is None
     assert hook_zone_direction(100, 0) is None
 
 
-def test_resolve_phase_hook_position_is_primary() -> None:
-    # Hook high ⇒ descending ⇒ dodge, even though the counter is climbing.
-    assert resolve_phase([14, 16], hook_direction="down") == "dodge"
-    # Hook low ⇒ ascending ⇒ collect, even though the counter is falling.
+def test_resolve_phase_hook_low_collects_while_counter_falls() -> None:
+    # Hook low ⇒ ascending ⇒ collect, even when the counter isn't climbing.
     assert resolve_phase([16, 14], hook_direction="up") == "collect"
-    # No hook signal ⇒ fall back to the altitude direction.
+    # No hook signal + climbing counter ⇒ collect (altitude direction).
     assert resolve_phase([14, 16], hook_direction=None) == "collect"
 
 
@@ -295,6 +308,15 @@ def test_plan_dodge_holds_in_open_water() -> None:
     assert plan_dodge(hook, tracked) is None
 
 
+def test_plan_action_reports_hook_not_detected_and_uses_fallback() -> None:
+    # No frame → the cyan ring can't be found: hook_detected is False and the
+    # supplied fallback (the driver's carried estimate) is used as the origin,
+    # not the fixed top-centre default.
+    plan = plan_action(None, [_row(360, 220)], [16, 14], fallback_hook=(420, 300))
+    assert plan["hook_detected"] is False
+    assert (plan["hook_x"], plan["hook_y"]) == (420, 300)
+
+
 def test_track_fish_ema_blends_with_prior_velocity() -> None:
     # Prior velocity 100 px/s east; this frame the fish is momentarily still.
     # EMA(α=0.5) reports the blend (50), not the raw single-frame 0 — steadier lead.
@@ -345,4 +367,7 @@ def test_plan_action_reports_protected_shield_on_real_frame() -> None:
     # descent (hook position + shield) overrides → dodge.
     assert plan["hook_direction"] == "down"
     assert plan["level_trend"] == "up"
-    assert plan["phase"] == "dodge"
+    # The climbing counter ("набор высоты") now drives the phase ⇒ collect, even
+    # with the hook high + shield up (the operator confirmed the altitude is the
+    # reliable ascent signal; the hook read is unreliable mid-ascent).
+    assert plan["phase"] == "collect"
