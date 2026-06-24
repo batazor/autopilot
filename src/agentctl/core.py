@@ -737,14 +737,32 @@ _DIFF_NOISE = (
     "inst:last_overlay_",
 )
 
+# Epoch-timestamp fields (``*.synced_at``, ``*.level_at``, ``*.detail_seen_at`` …)
+# churn on every read regardless of whether the value changed — drop them so the
+# diff highlights the actual reader output, not the heartbeat of having run.
+_DIFF_NOISE_SUFFIX = ("_at", "_ts")
+
 
 def _state_snapshot(client: redis.Redis, instance_id: str, fid: str) -> dict[str, str]:
-    """Flat snapshot of the instance hash (+ player hash) for before/after diffing."""
+    """Flat snapshot for before/after diffing: the Redis instance hash (``inst:``),
+    the Redis player hash (``player:``) and the **durable SQLite player state**
+    (``db:``). Readers persist to SQLite (``heroes.entries.*``, ``buildings.levels.*``,
+    …) which the Redis hashes don't mirror — including it lets ``drive`` surface a
+    reader's real output without a separate ``botctl player``.
+    """
     from dashboard.redis_client import get_instance_state, get_player_state_hash
 
     snap = {f"inst:{k}": v for k, v in get_instance_state(client, instance_id).items()}
     if fid:
         snap.update({f"player:{k}": v for k, v in get_player_state_hash(client, fid).items()})
+        try:
+            from config.state_store import get_state_store
+
+            store = get_state_store().get(fid)
+            if store is not None:
+                snap.update({f"db:{k}": _cell(v) for k, v in store.to_flat_dict().items()})
+        except Exception:
+            pass
     return snap
 
 
@@ -755,6 +773,8 @@ def _state_diff(before: dict[str, str], after: dict[str, str]) -> dict[str, Any]
         if before.get(k) == after.get(k):
             continue
         if any(k.startswith(n) for n in _DIFF_NOISE):
+            continue
+        if k.endswith(_DIFF_NOISE_SUFFIX):
             continue
         out[k] = {"before": before.get(k), "after": after.get(k)}
     return out

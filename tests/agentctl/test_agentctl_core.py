@@ -443,6 +443,69 @@ def test_drive_assembles_trace_diff_and_restores_approval(
     assert "wos:ui:click_approval:enabled:bs1" in fr.deleted
 
 
+def test_drive_diff_includes_durable_sqlite_state(
+    monkeypatch: pytest.MonkeyPatch, one_instance: None
+) -> None:
+    """The diff surfaces durable SQLite player state (``db:``) a reader wrote,
+    not just the Redis hashes — that's where readers persist their output."""
+
+    class FR:
+        def __init__(self) -> None:
+            self.store: dict[str, str] = {}
+
+        def get(self, k: str):
+            return self.store.get(k)
+
+        def set(self, k: str, v: str) -> None:
+            self.store[k] = v
+
+        def delete(self, k: str) -> None:
+            self.store.pop(k, None)
+
+    monkeypatch.setattr("dashboard.redis_client.require_redis_connection", lambda: FR())
+    monkeypatch.setattr("dashboard.redis_client.get_instance_state", lambda *_a, **_k: {})
+    monkeypatch.setattr("dashboard.redis_client.get_player_state_hash", lambda *_a, **_k: {})
+
+    # durable store: empty before, the reader's writes after. The epoch-timestamp
+    # field churns every run, so it must be filtered out of the diff.
+    flats = iter([
+        {},
+        {
+            "heroes.entries.charlie.star": 4,
+            "heroes.entries.charlie.level": 73,
+            "heroes.entries.charlie.detail_seen_at": 1782328656.12,
+        },
+    ])
+
+    class _Store:
+        def __init__(self, flat: dict) -> None:
+            self._flat = flat
+
+        def to_flat_dict(self) -> dict:
+            return self._flat
+
+    class _StateStore:
+        def get(self, _fid: str):  # noqa: ANN202
+            return _Store(next(flats))
+
+    monkeypatch.setattr("config.state_store.get_state_store", lambda: _StateStore())
+
+    class _Result:
+        success = True
+        metadata = {"scenario_completed": True, "reason": "success", "steps_trace": []}
+
+    async def _fake_async(iid, scn, fid, timeout):  # noqa: ANN001, ANN202
+        return _Result()
+
+    monkeypatch.setattr(core, "_drive_async", _fake_async)
+
+    out = core.drive("scan_hero_details", "bs1", player_id="42", approval=False)
+    assert out["state_diff"]["db:heroes.entries.charlie.star"] == {"before": None, "after": "4"}
+    assert out["state_diff"]["db:heroes.entries.charlie.level"] == {"before": None, "after": "73"}
+    # the ``*_at`` timestamp is heartbeat churn — excluded from the diff.
+    assert "db:heroes.entries.charlie.detail_seen_at" not in out["state_diff"]
+
+
 def test_why_idle_falls_back_to_last_history_task(
     fake_redis_z: FakeRedisZ, one_instance: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
