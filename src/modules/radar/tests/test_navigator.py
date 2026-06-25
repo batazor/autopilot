@@ -144,3 +144,86 @@ def test_route_to_stops_when_stalled(monkeypatch):
     )
     # Stalled out well before max_steps (no progress) rather than swiping 50×.
     assert len(calls) <= 6
+
+
+# --- OCR-plate localization (snow-gap fallback) --------------------------------
+
+import modules.radar.navigator as _nv  # noqa: E402
+
+
+def _nav_multi(buildings):
+    return Navigator(
+        canvas=np.zeros((10, 10, 3), np.uint8),
+        buildings=buildings,
+        scale=(1.0, 1.0),
+        crop={"x": 0, "y": 0, "w": 720, "h": 1280},  # crop centre = (360, 640)
+        tess="tesseract",
+    )
+
+
+def _frame():
+    return np.zeros((1280, 720, 3), np.uint8)
+
+
+def test_locate_by_plates_single(monkeypatch):
+    # Furnace known at canvas (1000,800), seen 100px right+down of screen centre
+    # → crop centre sits 100px left+up of it on the canvas = (900, 700).
+    nav = _nav_multi({"furnace": ((1000.0, 800.0), "Furnace")})
+    monkeypatch.setattr(
+        _nv, "detect_labels",
+        lambda _f, _c, _t: [{"name": "Furnace", "confidence": 90, "frame_px": [460, 740]}],
+    )
+    got = nav._locate_by_plates(_frame())
+    assert got is not None
+    assert math.isclose(got[0], 900) and math.isclose(got[1], 700)
+
+
+def test_locate_by_plates_drops_outlier(monkeypatch):
+    # Two plates agree on (900,700); a third (wrong) lands far off → dropped.
+    nav = _nav_multi({
+        "furnace": ((1000.0, 800.0), "Furnace"),
+        "clinic": ((1200.0, 800.0), "Clinic"),
+        "arena": ((2000.0, 2000.0), "Arena"),
+    })
+    dets = [
+        {"name": "Furnace", "confidence": 90, "frame_px": [460, 740]},  # → (900,700)
+        {"name": "Clinic", "confidence": 90, "frame_px": [660, 740]},   # → (900,700)
+        {"name": "Arena", "confidence": 90, "frame_px": [360, 640]},    # → (2000,2000)
+    ]
+    monkeypatch.setattr(_nv, "detect_labels", lambda _f, _c, _t: dets)
+    got = nav._locate_by_plates(_frame())
+    assert math.hypot(got[0] - 900, got[1] - 700) <= 5
+
+
+def test_locate_by_plates_none_when_no_match(monkeypatch):
+    nav = _nav_multi({"furnace": ((1000.0, 800.0), "Furnace")})
+    monkeypatch.setattr(
+        _nv, "detect_labels",
+        lambda _f, _c, _t: [{"name": "Unknown", "confidence": 90, "frame_px": [360, 640]}],
+    )
+    assert nav._locate_by_plates(_frame()) is None
+
+
+def test_locate_uses_orb_when_available(monkeypatch):
+    nav = _nav_multi({})
+    monkeypatch.setattr(_nv, "_canvas_offset", lambda _canvas, _sub: (10.0, 20.0))
+    got = nav.locate(_frame())  # crop centre (360,640) + off (10,20)
+    assert math.isclose(got[0], 370) and math.isclose(got[1], 660)
+
+
+def test_locate_falls_back_to_plates_when_orb_fails(monkeypatch):
+    nav = _nav_multi({"furnace": ((1000.0, 800.0), "Furnace")})
+    monkeypatch.setattr(_nv, "_canvas_offset", lambda _canvas, _sub: None)  # snow
+    monkeypatch.setattr(
+        _nv, "detect_labels",
+        lambda _f, _c, _t: [{"name": "Furnace", "confidence": 90, "frame_px": [460, 740]}],
+    )
+    got = nav.locate(_frame())
+    assert got is not None and math.isclose(got[0], 900) and math.isclose(got[1], 700)
+
+
+def test_locate_none_when_orb_and_plates_fail(monkeypatch):
+    nav = _nav_multi({"furnace": ((1000.0, 800.0), "Furnace")})
+    monkeypatch.setattr(_nv, "_canvas_offset", lambda _canvas, _sub: None)
+    monkeypatch.setattr(_nv, "detect_labels", lambda _f, _c, _t: [])
+    assert nav.locate(_frame()) is None

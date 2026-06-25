@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import statistics
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,7 +23,14 @@ from typing import TYPE_CHECKING
 
 import cv2
 
-from modules.radar.labels import BUILDINGS_NAME, _canvas_offset, _norm
+from modules.radar.labels import (
+    BUILDINGS_NAME,
+    _canvas_offset,
+    _compatible,
+    _norm,
+    _tesseract_cmd,
+    detect_labels,
+)
 from modules.radar.scanner import MANIFEST_NAME
 from modules.radar.stitch import MAP_FULL_NAME
 
@@ -44,6 +52,9 @@ _PROGRESS_EPS = 8.0
 # A centred building's name plate floats ABOVE its footprint, so the tap that
 # opens it lands this far below the screen centre.
 _OPEN_TAP_OFFSET_Y = 70.0
+# When localizing by >=1 building plate, a per-building canvas estimate further
+# than this from the median is a mismatched/duplicate-name plate — dropped.
+_PLATE_OUTLIER_PX = 120.0
 
 
 def open_tap_point() -> tuple[float, float]:
@@ -115,6 +126,9 @@ class Navigator:
     buildings: dict[str, tuple[tuple[float, float], str]]  # norm name → (canvas_px, display)
     scale: tuple[float, float]
     crop: dict
+    # tesseract binary for the OCR-plate localization fallback; resolved lazily
+    # when blank so direct construction (tests) needs no settings.
+    tess: str = ""
 
     @classmethod
     def from_run(cls, run_dir: str | Path) -> Navigator:
@@ -135,7 +149,9 @@ class Navigator:
             _norm(b["name"]): ((float(b["canvas_px"][0]), float(b["canvas_px"][1])), b["name"])
             for b in reg.get("buildings", [])
         }
-        return cls(canvas=canvas, buildings=buildings, scale=scale, crop=crop)
+        return cls(
+            canvas=canvas, buildings=buildings, scale=scale, crop=crop, tess=_tesseract_cmd()
+        )
 
     def names(self) -> list[str]:
         return sorted(v[1] for v in self.buildings.values())
@@ -149,14 +165,63 @@ class Navigator:
         return hits[0] if hits else None
 
     def locate(self, frame: np.ndarray) -> tuple[float, float] | None:
-        """Where the screen centre currently sits on the canvas (px), by ORB —
-        or None when the live view does not overlap the scanned map."""
+        """Where the screen centre currently sits on the canvas (px).
+
+        ORB texture-matching first (fast, sub-pixel). When that finds no overlap
+        — the live view is mostly featureless snow/water, where ORB has nothing
+        to match — fall back to reading the visible building name-plates and
+        matching them to the registry by NAME (:meth:`_locate_by_plates`), which
+        bridges the snow gaps that broke ORB. ``None`` only when neither works."""
         c = self.crop
         sub = frame[c["y"] : c["y"] + c["h"], c["x"] : c["x"] + c["w"]]
         off = _canvas_offset(self.canvas, sub)  # canvas px = sub px + off
-        if off is None:
+        if off is not None:
+            return (c["w"] / 2.0 + off[0], c["h"] / 2.0 + off[1])
+        return self._locate_by_plates(frame)
+
+    def _locate_by_plates(self, frame: np.ndarray) -> tuple[float, float] | None:
+        """Localize by OCR-reading the visible building name-plates and matching
+        them to the registry by name — robust over snow where ORB fails.
+
+        Each matched building gives one estimate of the crop-centre canvas
+        position (same convention as :meth:`locate`): a building known at canvas
+        ``(Bx, By)`` and seen at full-frame ``(fx, fy)`` puts the crop centre at
+        ``(Bx - fx + crop.x + crop.w/2, By - fy + crop.y + crop.h/2)``. With
+        several plates the median is taken and estimates far from it (a
+        mismatched or duplicate-name plate) are dropped. ``None`` when nothing
+        matches."""
+        c = self.crop
+        try:
+            dets = detect_labels(frame, c, self.tess or _tesseract_cmd())
+        except Exception:
+            logger.debug("navigator: plate detection failed", exc_info=True)
             return None
-        return (c["w"] / 2.0 + off[0], c["h"] / 2.0 + off[1])
+        cx0 = c["x"] + c["w"] / 2.0
+        cy0 = c["y"] + c["h"] / 2.0
+        ests: list[tuple[float, float]] = []
+        for det in dets:
+            n = _norm(det["name"])
+            if not n:
+                continue
+            entry = self.buildings.get(n)
+            if entry is None:  # tolerate cut text, but only if it's unambiguous
+                hits = [v for k, v in self.buildings.items() if _compatible(n, k)]
+                if len(hits) != 1:
+                    continue
+                entry = hits[0]
+            (bx, by), _disp = entry
+            fx, fy = det["frame_px"]
+            ests.append((bx - fx + cx0, by - fy + cy0))
+        if not ests:
+            return None
+        if len(ests) == 1:
+            return ests[0]
+        mx = statistics.median(e[0] for e in ests)
+        my = statistics.median(e[1] for e in ests)
+        inl = [e for e in ests if math.hypot(e[0] - mx, e[1] - my) <= _PLATE_OUTLIER_PX]
+        if not inl:
+            return (mx, my)
+        return (sum(e[0] for e in inl) / len(inl), sum(e[1] for e in inl) / len(inl))
 
     def _locate_retry(
         self, capture: Callable[[], np.ndarray], retries: int = 4

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import tempfile
 import threading
@@ -27,6 +28,7 @@ from modules.radar.stitch_georef import MAP_META_NAME, _write_map_meta  # noqa: 
 # ``move_prior`` / ``MatchEdge`` / the test helpers) stays stable after the
 # split. ``frames_consistent`` and ``move_prior`` are used by the scanner too.
 from modules.radar.stitch_matching import (  # noqa: F401  (re-exported)
+    MATCH_MIN_SCORE,
     MatchEdge,
     _drop_outlier_edges,
     _feature_mask,
@@ -171,6 +173,91 @@ def run_stitch(run_dir: Path, *, preview_long_side: int = PREVIEW_LONG_SIDE) -> 
         return _run_stitch_locked(run_dir, preview_long_side=preview_long_side)
 
 
+# A plate edge is kept only when its offset agrees with the grid-prior step to
+# within this many px. A correct same-building match equals the local camera
+# step; a wrong cross-match of two same-normalized buildings (``Shelter 1`` vs
+# ``Shelter 4``) lands the inter-building distance away → rejected.
+_PLATE_EDGE_GATE_PX = 80.0
+# Only pair frames within this grid (Chebyshev) distance — with 50 % overlap a
+# building is co-visible in adjacent frames only; bounds the edge count.
+_PLATE_EDGE_MAX_CELLS = 2
+
+
+def _plate_match_edges(
+    entries: list[dict],
+    images: list[np.ndarray | None],
+    crop: dict | None,
+    right: tuple[float, float],
+    down: tuple[float, float],
+) -> list[MatchEdge]:
+    """Synthetic stitch edges from shared building name-plates (snow-gap anchors).
+
+    ORB has nothing to match over featureless snow, so frame pairs whose overlap
+    is snow get no edge and drift/fold. Building name-plates are OCR-distinctive
+    even next to snow: a building read in two frames is the SAME world point, so
+    its per-frame positions give a direct ``pos_j - pos_i = frame_px_i -
+    frame_px_j`` constraint that bridges the snow gap. The joint solve weights
+    these alongside ORB edges.
+
+    Two filters keep matches honest: (1) only names UNIQUE within each frame are
+    considered (no two ``Shelter`` plates in one frame), and (2) a candidate edge
+    is kept only if its offset matches the grid-prior step ``dix·right+diy·down``
+    to ``_PLATE_EDGE_GATE_PX`` — which rejects cross-matching DIFFERENT
+    same-normalized buildings across frames (their offset is the inter-building
+    distance off the local step). Best-effort: OCR failure → no edges (ORB-only).
+    """
+    if crop is None:
+        return []
+    try:
+        from collections import defaultdict
+
+        from modules.radar.labels import _norm, _tesseract_cmd, detect_labels
+    except Exception:
+        logger.debug("stitch: labels import failed — no plate edges", exc_info=True)
+        return []
+    tess = _tesseract_cmd()
+    # norm-name → [(frame_idx, ix, iy, fx, fy, conf)] for names unique per frame
+    name_frames: dict[str, list[tuple[int, int, int, float, float, float]]] = defaultdict(list)
+    for k, img in enumerate(images):
+        if img is None:
+            continue
+        try:
+            dets = detect_labels(img, crop, tess)
+        except Exception:
+            logger.debug("stitch: plate detection failed for frame %d", k, exc_info=True)
+            continue
+        byname: dict[str, list[tuple[float, float, float]]] = defaultdict(list)
+        for det in dets:
+            n = _norm(det["name"])
+            if n:
+                byname[n].append(
+                    (float(det["frame_px"][0]), float(det["frame_px"][1]), float(det["confidence"]))
+                )
+        ix, iy = int(entries[k]["ix"]), int(entries[k]["iy"])
+        for n, occ in byname.items():
+            if len(occ) == 1:  # ambiguous (duplicate-name) plates within a frame skipped
+                fx, fy, conf = occ[0]
+                name_frames[n].append((k, ix, iy, fx, fy, conf))
+    out: list[MatchEdge] = []
+    for occ in name_frames.values():
+        for a in range(len(occ)):
+            ka, ixa, iya, fxa, fya, ca = occ[a]
+            for b in range(a + 1, len(occ)):
+                kb, ixb, iyb, fxb, fyb, cb = occ[b]
+                dix, diy = ixb - ixa, iyb - iya
+                if (dix == 0 and diy == 0) or max(abs(dix), abs(diy)) > _PLATE_EDGE_MAX_CELLS:
+                    continue
+                dx, dy = fxa - fxb, fya - fyb  # implied pos[b] - pos[a]
+                exp_x = dix * right[0] + diy * down[0]
+                exp_y = dix * right[1] + diy * down[1]
+                if math.hypot(dx - exp_x, dy - exp_y) > _PLATE_EDGE_GATE_PX:
+                    continue  # wrong same-name building, or OCR fluke
+                out.append(MatchEdge(ka, kb, dx, dy, max(min(ca, cb) / 100.0, MATCH_MIN_SCORE)))
+    if out:
+        logger.info("radar: stitch — %d OCR name-plate edge(s) added (snow-gap anchors)", len(out))
+    return out
+
+
 def _run_stitch_locked(run_dir: Path, *, preview_long_side: int = PREVIEW_LONG_SIDE) -> Path:
     manifest_path = run_dir / MANIFEST_NAME
     if not manifest_path.is_file():
@@ -255,6 +342,9 @@ def _run_stitch_locked(run_dir: Path, *, preview_long_side: int = PREVIEW_LONG_S
         fallback_right=(step_x, 0.0),
         fallback_down=(0.0, step_y),
     )
+    # Anchor frame pairs whose overlap is featureless snow (no ORB edge) by the
+    # building name-plates they share — bridges the gaps that drift/fold the map.
+    edges = edges + _plate_match_edges(entries, images, cfg.get("crop"), right, down)
     # Operator-marked corners (if any) pin the grid to the square game-coordinate
     # lattice: the solve places their frames so each corner lands on its known
     # game vertex, spreading the accumulated drift out over the edge graph.
