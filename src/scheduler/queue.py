@@ -320,19 +320,23 @@ class RedisQueue:
         """True if the queue already has a matching item.
 
         Matching rules:
-        - Always filters by ``(instance_id, task_type)``.
+        - Always filters by ``(instance_id, logical_task_type)`` — the queued
+          item is identified by its scenario, so a generic DSL envelope
+          (``task_type="dsl_scenario"`` + ``dsl_scenario`` key) matches a caller
+          asking about that scenario key, exactly like the Lua dedup does.
         - Region filters unless ``ignore_region=True``.
         - Player-bound enqueue (``player_id != ""``) matches device-level
           (``data.player_id == ""``) and same-player in-flight items. A
-          cross-player in-flight item with the same ``task_type`` does **not**
+          cross-player in-flight item with the same scenario does **not**
           block — players on one instance run independent task streams.
         - Device-level enqueue (``player_id == ""``) matches any player's
           in-flight item — one device-level push blocks re-pushing for everyone.
 
         Read-only counterpart to the atomic ``_DEDUP_ZADD_LUA`` used inside
-        :meth:`schedule`; both implement the same predicate. Direct callers
-        (``scheduler/runner.py``) use this as a best-effort pre-filter before
-        ``schedule(skip_if_duplicate=True)`` makes the final atomic decision.
+        :meth:`schedule`; both resolve the stored item's logical type so they
+        implement the same predicate. Direct callers (``scheduler/runner.py``)
+        use this as a best-effort pre-filter before ``schedule(skip_if_duplicate=True)``
+        makes the final atomic decision.
 
         Always scans the queue ZSET — the previous index-based fast path stored
         full payloads (with random ``task_id`` and varying ``run_at``), so two
@@ -358,7 +362,7 @@ class RedisQueue:
                 continue
             if str(data.get("instance_id", "")) != iid:
                 continue
-            if str(data.get("task_type", "")) != task_type:
+            if logical_task_type(data) != task_type:
                 continue
             data_pid = str(data.get("player_id", ""))
             if not device_level_enqueue and data_pid != "" and data_pid != pid:
@@ -1082,7 +1086,13 @@ class RedisQueue:
                     return
 
     async def remove_by_task_type(self, task_type: str, instance_id: str) -> int:
-        """Remove all queued items matching task_type + instance_id. Returns count removed."""
+        """Remove all queued items whose scenario == ``task_type`` on ``instance_id``.
+
+        Matches by ``logical_task_type`` so a generic DSL envelope
+        (``task_type="dsl_scenario"`` carrying the key in ``dsl_scenario``) is
+        evicted by its scenario key, consistent with dedup and the running-task
+        guard. Returns the count removed.
+        """
         import json
 
         key = _queue_key(instance_id)
@@ -1094,7 +1104,7 @@ class RedisQueue:
             except Exception:
                 continue
             if (
-                str(data.get("task_type") or "") == task_type
+                logical_task_type(data) == task_type
                 and str(data.get("instance_id") or "") == instance_id
             ):
                 to_remove.append(raw)

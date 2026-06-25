@@ -20,7 +20,7 @@ from dsl.cron_specs import (
     resolve_cron_priority,
     resolve_cron_task_type,
 )
-from scheduler.queue import RedisQueue
+from scheduler.queue import RedisQueue, logical_task_type
 from scheduler.wake import WAKE_CHANNEL
 
 if TYPE_CHECKING:
@@ -250,6 +250,11 @@ class SchedulerRunner:
         in the sorted set — once the worker pops a long-running item the
         queue is empty and a fresh scheduler tick would otherwise re-enqueue
         the same logical task.
+
+        Matches by ``logical_task_type`` so a generic DSL envelope in flight
+        (``task_type="dsl_scenario"`` carrying the scenario in ``dsl_scenario``)
+        is recognised by its scenario key — without it a cron whose key equals
+        that scenario would not see the running item and would enqueue a dup.
         """
         assert self._redis is not None
         raw = await self._redis.get(f"wos:queue:running:{instance_id}")
@@ -260,7 +265,7 @@ class SchedulerRunner:
             data = json.loads(text)
         except json.JSONDecodeError:
             return False
-        if str(data.get("task_type") or "") != task_type:
+        if logical_task_type(data) != task_type:
             return False
         running_player = str(data.get("player_id") or "")
         return not player_id or running_player == player_id

@@ -619,12 +619,17 @@ class InstanceWorker(
         if not isinstance(data, dict):
             data = {}
 
+        from scheduler.queue import logical_task_type
+
         started_at = float(data.get("started_at") or 0.0)
         finished_at = float(time.time())
         row = {
             "task_id": str(data.get("task_id") or ""),
             "task_type": str(data.get("task_type") or ""),
-            "scenario": str(data.get("task_type") or ""),
+            # ``scenario`` is the YAML that ran: resolve the generic DSL envelope
+            # (task_type="dsl_scenario") to its real key via the running key's
+            # ``dsl_scenario`` field instead of mislabelling it "dsl_scenario".
+            "scenario": logical_task_type(data),
             "player_id": str(data.get("player_id") or ""),
             "instance_id": self._cfg.instance_id,
             "priority": data.get("priority"),

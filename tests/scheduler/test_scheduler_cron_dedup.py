@@ -102,6 +102,52 @@ async def test_interval_cron_skips_enqueue_when_task_already_running(
 
 
 @pytest.mark.asyncio
+async def test_interval_cron_skips_when_generic_dsl_payload_already_running(
+    redis_async: aioredis.Redis,
+    settings: Settings,
+) -> None:
+    """A generic DSL envelope in flight (``task_type="dsl_scenario"`` with the
+    scenario carried in ``dsl_scenario``) must block a cron whose key equals
+    that scenario. The running-key guard matches by ``logical_task_type``, not
+    the literal transport type — without it the cron wouldn't see the in-flight
+    notify/optimizer push and would enqueue a duplicate."""
+    await redis_async.set(
+        "wos:queue:running:bs1",
+        json.dumps(
+            {
+                "task_id": "notify-inflight",
+                "task_type": "dsl_scenario",
+                "dsl_scenario": "claim_trials",
+                "player_id": "p1",
+                "instance_id": "bs1",
+            }
+        ),
+        ex=180,
+    )
+
+    runner = _make_runner(settings)
+    queue = RedisQueue(redis_async, settings)
+    runner._redis = redis_async
+    runner._queue = queue
+    now = time.time()
+
+    await runner._ensure_interval_cron_item(
+        name="claim_trials", spec_slug="claim_trials", expr="*/5 * * * *",
+        task_type="claim_trials", priority=10, instance_id="bs1",
+        player_id="p1", interval_s=300, now=now,
+    )
+    await runner._ensure_interval_cron_item(
+        name="check_city", spec_slug="check_city", expr="*/5 * * * *",
+        task_type="check_main_city", priority=10, instance_id="bs1",
+        player_id="p1", interval_s=300, now=now,
+    )
+
+    items = await queue.peek_all()
+    queued_types = sorted(i.task_type for i in items)
+    assert queued_types == ["check_main_city"], [(i.task_id, i.task_type) for i in items]
+
+
+@pytest.mark.asyncio
 async def test_cron_min_furnace_level_gates_check_main_city(
     redis_async: aioredis.Redis,
     settings: Settings,

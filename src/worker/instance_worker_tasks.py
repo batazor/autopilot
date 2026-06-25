@@ -99,6 +99,11 @@ class InstanceWorkerTasksMixin(_Base):
                 running_payload: dict[str, object] = {
                     "task_id": item.task_id,
                     "task_type": item.task_type,
+                    # Carry the scenario key for generic DSL envelopes
+                    # (task_type="dsl_scenario") so the running-task dedup guard
+                    # (`runner._task_already_running`) can match by logical type
+                    # and not re-enqueue a scenario already in flight.
+                    "dsl_scenario": item.dsl_scenario or "",
                     "player_id": item.player_id,
                     "priority": item.priority,
                     "instance_id": self._cfg.instance_id,
