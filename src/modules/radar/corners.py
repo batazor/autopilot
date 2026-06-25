@@ -129,6 +129,91 @@ def save_corners(
     return sidecar
 
 
+def save_anchors(
+    run_dir: str | Path,
+    anchors: list[dict],
+    *,
+    frame_w: int,
+    frame_h: int,
+    game_size: int | None = None,
+    merge: bool = True,
+) -> dict:
+    """Persist operator *landmark* anchors (known structures) as grid constraints.
+
+    Generalises :func:`save_corners` beyond the 4 kingdom vertices: each anchor is
+    ``{"game_xy": (x, y), "canvas_px": (px, py), "label": str}`` — a click on a
+    structure whose game coordinate is known exactly (e.g. the Sunfire Castle at
+    ``(597, 597)`` or a fort). The click is resolved to ``(frame_key, frame_px)``
+    exactly like a corner and written into the **same** ``corners.json`` list, so
+    :func:`load_corner_constraints` and the solver consume it unchanged — they only
+    read ``game_xy``/``frame_key``/``frame_px`` and never care whether a constraint
+    is a corner or a landmark.
+
+    With ``merge`` (default) the run's existing corners/landmarks are kept; entries
+    with the same label are replaced. ``game_size`` defaults to the existing
+    sidecar's value (then 1200). Raises ``ValueError`` if a click lands off the map,
+    ``map_meta`` is missing, or fewer than 3 total constraints would remain (an
+    affine needs ≥3 non-collinear points).
+    """
+    run_dir = Path(run_dir)
+    meta_path = run_dir / MAP_META_NAME
+    if not meta_path.is_file():
+        msg = f"{meta_path} not found — stitch the run before marking anchors"
+        raise ValueError(msg)
+    frames = json.loads(meta_path.read_text(encoding="utf-8")).get("frames") or {}
+    if not frames:
+        msg = "map_meta.json has no per-frame positions — re-stitch the run"
+        raise ValueError(msg)
+
+    new_labels = {str(a.get("label") or "") for a in anchors}
+    kept: list[dict] = []
+    existing = read_corners(run_dir) if merge else None
+    if existing:
+        if game_size is None:
+            game_size = existing.get("game_size")
+        for e in existing.get("corners") or []:
+            label = str(e.get("corner") or e.get("label") or "")
+            if label and label in new_labels:
+                continue  # superseded by a fresh click below
+            kept.append(e)
+    if game_size is None:
+        game_size = 1200
+
+    added: list[dict] = []
+    for a in anchors:
+        gxy = a.get("game_xy")
+        cpx = a.get("canvas_px")
+        if gxy is None or cpx is None:
+            msg = "each anchor needs game_xy and canvas_px"
+            raise ValueError(msg)
+        hit = map_click_to_frame((float(cpx[0]), float(cpx[1])), frames, frame_w, frame_h)
+        if hit is None:
+            msg = f"anchor {a.get('label') or list(gxy)} is off the scanned map"
+            raise ValueError(msg)
+        frame_key, frame_px = hit
+        added.append(
+            {
+                "label": str(a.get("label") or f"{int(gxy[0])}:{int(gxy[1])}"),
+                "game_xy": [int(gxy[0]), int(gxy[1])],
+                "frame_key": frame_key,
+                "frame_px": list(frame_px),
+                "canvas_px": [round(float(cpx[0]), 1), round(float(cpx[1]), 1)],
+            }
+        )
+
+    corners = kept + added
+    if len(corners) < 3:
+        msg = f"need at least 3 total constraints to pin the grid, got {len(corners)}"
+        raise ValueError(msg)
+    sidecar = {"game_size": int(game_size), "corners": corners}
+    (run_dir / CORNERS_SIDECAR_NAME).write_text(json.dumps(sidecar, indent=2), encoding="utf-8")
+    logger.info(
+        "radar anchors: %d landmark + %d kept = %d constraint(s) → %s",
+        len(added), len(kept), len(corners), CORNERS_SIDECAR_NAME,
+    )
+    return sidecar
+
+
 def load_corner_constraints(
     run_dir: str | Path, entries: list[dict]
 ) -> list[tuple[int, tuple[float, float], tuple[float, float]]]:

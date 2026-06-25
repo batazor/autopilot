@@ -1,0 +1,180 @@
+# Sunfire Castle territory map — fixed structure coordinates (game facts).
+#
+# Source: wostools.net Territory Planner (https://wostools.net/territory-planner),
+# facts re-encoded from the page's static data (extracted 2026-06-25). Re-encoding
+# game FACTS only — the fixed positions of structures on the kingdom/state world map
+# (the global map), which are identical on every server. No fabricated numbers.
+#
+# COORDINATE SYSTEM: these ARE the main global (state/kingdom) world-map tile
+# coordinates — the 1200x1200 grid the radar scans. Each coordinate is [col, row]
+# = in-game [X, Y]: origin top-left, col/X increasing right, row/Y increasing down.
+# The Sunfire Castle territory sits at the centre of the map; castle is (597,597).
+# Usable directly as ground-truth anchors for the radar game<->canvas affine.
+#
+# Structure groups:
+#  - castle:      the central Sunfire Castle (size-4 footprint).
+#  - turrets:     4 size-2 turrets hugging the castle centre.
+#  - strongholds: 4 inner capture points.
+#  - fortresses:  12 outer capture points. (strongholds + fortresses = the 16 forts.)
+#  - buff_facilities: 74 capturable buff towers in 8 types. Each grants a city buff
+#    (bonus) while held; 'booster' is the buff %, 'level' the facility tier. The
+#    'tech' type (Research Speed) is the in-game research/'lab' facility.
+#  - zones: axis-aligned bounding boxes (inclusive col/row) describing the planner's
+#    territory bands — useful seed regions for a global-screen zone/markup editor.
+#
+# Consumer: none yet (harvested data). Intended for radar marker overlays + global-map
+# ground-truth anchors and a future zone-markup planner.
+
+grid_size: 1200
+
+castle: {col: 597, row: 597, size: 4, label: "Sunfire Castle"}
+
+turrets:
+  - {col: 593, row: 593, label: "North Turret"}
+  - {col: 603, row: 593, label: "East Turret"}
+  - {col: 603, row: 603, label: "South Turret"}
+  - {col: 593, row: 603, label: "West Turret"}
+
+strongholds:
+  - {col: 394, row: 597, label: "Stronghold 1"}
+  - {col: 597, row: 794, label: "Stronghold 2"}
+  - {col: 794, row: 597, label: "Stronghold 3"}
+  - {col: 597, row: 394, label: "Stronghold 4"}
+
+fortresses:
+  - {col: 366, row: 957, label: "Fortress 1"}
+  - {col: 588, row: 957, label: "Fortress 2"}
+  - {col: 846, row: 957, label: "Fortress 3"}
+  - {col: 957, row: 828, label: "Fortress 4"}
+  - {col: 957, row: 606, label: "Fortress 5"}
+  - {col: 957, row: 348, label: "Fortress 6"}
+  - {col: 846, row: 237, label: "Fortress 7"}
+  - {col: 588, row: 237, label: "Fortress 8"}
+  - {col: 366, row: 237, label: "Fortress 9"}
+  - {col: 237, row: 348, label: "Fortress 10"}
+  - {col: 237, row: 588, label: "Fortress 11"}
+  - {col: 237, row: 828, label: "Fortress 12"}
+
+# 8 buff types; coordinates grouped by facility level (capture difficulty/tier).
+buff_facilities:
+  construction:
+    label: "Construction"
+    bonus: "Construction Speed"        # buff granted while held
+    color: "#42a5f5"
+    levels:
+      - level: 1
+        booster: "+5%"
+        heavily_injured: "10%"
+        losses: "0%"
+        coordinates: [[1068,138], [537,138], [138,138], [138,666], [138,1038], [666,1068], [1068,567], [1068,1068]]
+      - level: 3
+        booster: "+8%"
+        heavily_injured: "20%"
+        losses: "0%"
+        coordinates: [[486,327], [768,867], [867,567], [327,666]]
+  defense:
+    label: "Defense"
+    bonus: "Troop Defense"        # buff granted while held
+    color: "#26c6da"
+    levels:
+      - level: 2
+        booster: "+5%"
+        heavily_injured: "20%"
+        losses: "0%"
+        coordinates: [[666,138], [438,267], [138,537], [237,768], [537,1038], [738,957], [1068,666], [957,438]]
+      - level: 4
+        booster: "+8%"
+        heavily_injured: "30%"
+        losses: "0%"
+        coordinates: [[816,717], [387,717], [588,327]]
+  tech:
+    label: "Tech"
+    bonus: "Research Speed"        # buff granted while held
+    color: "#ffa726"
+    levels:
+      - level: 1
+        booster: "+5%"
+        heavily_injured: "10%"
+        losses: "0%"
+        coordinates: [[957,237], [666,267], [237,237], [267,537], [237,957], [537,936], [936,537], [957,957]]
+      - level: 3
+        booster: "+8%"
+        heavily_injured: "30%"
+        losses: "0%"
+        coordinates: [[867,327], [327,327], [327,867], [867,867]]
+  weapon:
+    label: "Weapons"
+    bonus: "Troop Attack"        # buff granted while held
+    color: "#ef5350"
+    levels:
+      - level: 2
+        booster: "+5%"
+        heavily_injured: "20%"
+        losses: "0%"
+        coordinates: [[867,138], [366,138], [138,438], [138,867], [438,1068], [1068,327], [1068,867], [867,1068]]
+      - level: 4
+        booster: "+8%"
+        heavily_injured: "30%"
+        losses: "10%"
+        coordinates: [[816,486], [387,486], [588,867]]
+  gathering:
+    label: "Gathering"
+    bonus: "Gathering Speed"        # buff granted while held
+    color: "#ab47bc"
+    levels:
+      - level: 1
+        booster: "+5%"
+        heavily_injured: "10%"
+        losses: "0%"
+        coordinates: [[957,138], [537,87], [138,237], [87,666], [267,1068], [636,1137], [1137,567], [1068,936]]
+  production:
+    label: "Production"
+    bonus: "RSS Gathering Speed"        # buff granted while held
+    color: "#66bb6a"
+    levels:
+      - level: 1
+        booster: "+5%"
+        heavily_injured: "10%"
+        losses: "0%"
+        coordinates: [[1068,237], [768,138], [237,138], [138,327], [138,957], [327,1038], [1068,747], [957,1068]]
+  training:
+    label: "Training"
+    bonus: "Training Speed"        # buff granted while held
+    color: "#ffee58"
+    levels:
+      - level: 2
+        booster: "+5%"
+        heavily_injured: "20%"
+        losses: "0%"
+        coordinates: [[237,486], [138,747], [486,957], [768,1038], [957,747], [1068,486], [486,138], [768,237]]
+  expedition:
+    label: "Expedition"
+    bonus: "March Speed"        # buff granted while held
+    color: "#f48fb1"
+    levels:
+      - level: 3
+        booster: "+15%"
+        heavily_injured: "30%"
+        losses: "0%"
+        coordinates: [[768,327], [327,567], [486,867], [867,666]]
+
+# Planner territory bands (inclusive bounding boxes on the 1200 grid).
+zones:
+  - id: w
+    note: "castle core"
+    min_col: 552
+    min_row: 552
+    max_col: 647
+    max_row: 647
+  - id: m
+    note: "inner ring (strongholds band)"
+    min_col: 450
+    min_row: 450
+    max_col: 750
+    max_row: 750
+  - id: p
+    note: "outer territory (fortresses band)"
+    min_col: 300
+    min_row: 300
+    max_col: 900
+    max_row: 900

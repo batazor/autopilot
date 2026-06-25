@@ -14,6 +14,7 @@ import {
   Polygon,
   Polyline,
   TileLayer,
+  Tooltip,
   useMap,
   useMapEvents,
 } from "react-leaflet";
@@ -23,7 +24,9 @@ import {
   gameToCanvas,
   radarTileUrl,
   type RadarCoordsAffine,
+  type RadarTerritory,
   type RadarTilesMeta,
+  type RadarZone,
 } from "@/lib/radar-api";
 
 type Viewport = { center: L.LatLng; zoom: number };
@@ -206,12 +209,150 @@ function TileHighlight({
   );
 }
 
+// Marker style per fixed-structure kind (castle/forts/turrets). Buff towers use
+// their own per-type colour from the game data, so they're handled separately.
+const STRUCT_STYLE: Record<string, { radius: number; color: string }> = {
+  castle: { radius: 8, color: "#ef4444" },
+  stronghold: { radius: 6, color: "#f59e0b" },
+  fortress: { radius: 5, color: "#3b82f6" },
+  turret: { radius: 3, color: "#e5e7eb" },
+};
+
+/** Fixed Sunfire Castle structures + buff towers + zone bands, drawn in game
+ * coordinates over the anchored global_map (forts/castle as markers, towers
+ * colour-coded by buff type, zones as dashed boxes). Read-only facts. */
+function StructureOverlay({
+  coords,
+  maxZoom,
+  territory,
+}: {
+  coords: RadarCoordsAffine;
+  maxZoom: number;
+  territory: RadarTerritory;
+}) {
+  const map = useMap();
+  const c2ll = (gx: number, gy: number) =>
+    map.unproject(gameToCanvas(gx, gy, coords), maxZoom);
+  return (
+    <>
+      {territory.zones.map((z) => (
+        <Polygon
+          key={`zone-${z.id}`}
+          positions={[
+            c2ll(z.min_col, z.min_row),
+            c2ll(z.max_col, z.min_row),
+            c2ll(z.max_col, z.max_row),
+            c2ll(z.min_col, z.max_row),
+          ]}
+          interactive={false}
+          pathOptions={{
+            color: z.color ?? "#a78bfa",
+            weight: 1.5,
+            fill: false,
+            dashArray: "6 4",
+            opacity: 0.6,
+          }}
+        />
+      ))}
+      {territory.towers.map((tw) => (
+        <CircleMarker
+          key={tw.tower_id}
+          center={c2ll(tw.col, tw.row)}
+          radius={4}
+          pathOptions={{
+            color: tw.color,
+            weight: 1,
+            fillColor: tw.color,
+            fillOpacity: 0.85,
+          }}
+        >
+          <Tooltip>
+            {tw.label} {tw.booster} · L{tw.level} · {tw.col}:{tw.row}
+          </Tooltip>
+        </CircleMarker>
+      ))}
+      {territory.structures.map((s, i) => {
+        const style = STRUCT_STYLE[s.kind] ?? STRUCT_STYLE.fortress;
+        return (
+          <CircleMarker
+            key={`struct-${i}`}
+            center={c2ll(s.col, s.row)}
+            radius={style.radius}
+            pathOptions={{
+              color: style.color,
+              weight: 2,
+              fillColor: style.color,
+              fillOpacity: 0.5,
+            }}
+          >
+            <Tooltip>
+              {s.label} · {s.col}:{s.row}
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
+
+/** Editable operator zones drawn as filled polygons in game coordinates (correct
+ * under a rotated affine, unlike an axis-aligned Leaflet Rectangle). Clicking a
+ * zone selects it; the numeric panel + draw mode live on the page. */
+function ZoneLayer({
+  coords,
+  maxZoom,
+  zones,
+  selectedId,
+  onSelect,
+}: {
+  coords: RadarCoordsAffine;
+  maxZoom: number;
+  zones: RadarZone[];
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
+}) {
+  const map = useMap();
+  const c2ll = (gx: number, gy: number) =>
+    map.unproject(gameToCanvas(gx, gy, coords), maxZoom);
+  return (
+    <>
+      {zones.map((z) => {
+        const selected = z.id === selectedId;
+        const color = z.color ?? "#22d3ee";
+        return (
+          <Polygon
+            key={z.id}
+            positions={[
+              c2ll(z.min_col, z.min_row),
+              c2ll(z.max_col, z.min_row),
+              c2ll(z.max_col, z.max_row),
+              c2ll(z.min_col, z.max_row),
+            ]}
+            eventHandlers={onSelect ? { click: () => onSelect(z.id) } : undefined}
+            pathOptions={{
+              color,
+              weight: selected ? 3 : 1.5,
+              fillColor: color,
+              fillOpacity: selected ? 0.25 : 0.1,
+            }}
+          />
+        );
+      })}
+    </>
+  );
+}
+
 export default function RadarMapViewer({
   runId,
   meta,
   onMapReady,
   onMapClick,
   cornerMarkers,
+  territory,
+  showTerritory,
+  zones,
+  selectedZoneId,
+  onSelectZone,
 }: {
   runId: string;
   meta: RadarTilesMeta;
@@ -220,6 +361,13 @@ export default function RadarMapViewer({
   onMapClick?: (canvasPx: [number, number]) => void;
   // Canvas-pixel positions of already-placed corner marks, drawn as dots.
   cornerMarkers?: [number, number][];
+  // Fixed Sunfire Castle structures to overlay (global_map, anchored runs only).
+  territory?: RadarTerritory | null;
+  showTerritory?: boolean;
+  // Editable operator zones (game coords); rendered + selectable when provided.
+  zones?: RadarZone[] | null;
+  selectedZoneId?: string | null;
+  onSelectZone?: (id: string) => void;
 }) {
   const mapRef = useRef<L.Map | null>(null);
   const [hover, setHover] = useState<GameXY | null>(null);
@@ -256,6 +404,18 @@ export default function RadarMapViewer({
             <TileHighlight coords={coords} maxZoom={meta.max_zoom} hover={hover} />
             <CoordReadout coords={coords} maxZoom={meta.max_zoom} onHover={setHover} />
           </>
+        ) : null}
+        {coords && showTerritory && territory ? (
+          <StructureOverlay coords={coords} maxZoom={meta.max_zoom} territory={territory} />
+        ) : null}
+        {coords && zones && zones.length ? (
+          <ZoneLayer
+            coords={coords}
+            maxZoom={meta.max_zoom}
+            zones={zones}
+            selectedId={selectedZoneId}
+            onSelect={onSelectZone}
+          />
         ) : null}
         {onMapClick ? (
           <ClickCapture maxZoom={meta.max_zoom} onMapClick={onMapClick} />

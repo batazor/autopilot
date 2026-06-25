@@ -28,10 +28,15 @@ import {
   deleteRadarRun,
   fetchRadarActive,
   fetchRadarInstances,
+  canvasToGame,
   fetchRadarManifest,
   fetchRadarRuns,
+  fetchRadarTerritory,
   fetchRadarTilesMeta,
+  fetchTerritoryLayout,
+  markRadarAnchors,
   markRadarCorners,
+  saveTerritoryLayout,
   radarPreviewUrl,
   startRadarScan,
   stopRadarScan,
@@ -43,7 +48,9 @@ import {
   type RadarGridCell,
   type RadarManifest,
   type RadarTarget,
+  type RadarZone,
 } from "@/lib/radar-api";
+import { ZoneEditorPanel } from "@/components/radar/ZoneEditorPanel";
 
 const RadarMapViewer = dynamic(() => import("@/components/radar/RadarMapViewer"), {
   ssr: false,
@@ -224,6 +231,16 @@ export default function RadarPage() {
   const [live, dispatch] = useReducer(liveReducer, LIVE_IDLE);
   // Corner-marking mode: operator clicks the 4 kingdom vertices to pin the grid.
   const [marking, setMarking] = useState(false);
+  const [showTerritory, setShowTerritory] = useState(false);
+  const [markingLandmarks, setMarkingLandmarks] = useState(false);
+  const [landmarkClicks, setLandmarkClicks] = useState<
+    { game_xy: [number, number]; canvas_px: [number, number]; label: string }[]
+  >([]);
+  const [editingZones, setEditingZones] = useState(false);
+  const [zones, setZones] = useState<RadarZone[]>([]);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [drawingZone, setDrawingZone] = useState(false);
+  const [drawFirst, setDrawFirst] = useState<[number, number] | null>(null);
   const [markStep, setMarkStep] = useState(0);
   const [cornerClicks, setCornerClicks] = useState<Partial<Record<RadarCorner, [number, number]>>>(
     {},
@@ -262,6 +279,19 @@ export default function RadarPage() {
     queryKey: ["radar", "manifest", runId],
     queryFn: () => fetchRadarManifest(runId as string),
     enabled: runId !== null,
+  });
+  // Fixed Sunfire Castle structures — static facts, fetched once and overlaid on
+  // global_map runs that carry a coordinate affine.
+  const territory = useQuery({
+    queryKey: ["radar", "territory"],
+    queryFn: fetchRadarTerritory,
+    staleTime: Infinity,
+  });
+  // Operator-editable zone layout (seeded from the yaml bands on first use).
+  const layout = useQuery({
+    queryKey: ["radar", "territory", "layout"],
+    queryFn: fetchTerritoryLayout,
+    staleTime: Infinity,
   });
 
   const refreshAll = useCallback(
@@ -413,9 +443,90 @@ export default function RadarPage() {
     },
     [marking, markStep, cornerClicks, markCorners],
   );
+  const markAnchors = useMutation({
+    mutationFn: (
+      anchors: { game_xy: [number, number]; canvas_px: [number, number]; label: string }[],
+    ) => markRadarAnchors(runId as string, anchors),
+    onSuccess: () => {
+      setMarkingLandmarks(false);
+      setLandmarkClicks([]);
+      showInfo("Pinning the grid to the marked landmarks — the map updates when it finishes");
+    },
+  });
+
+  // Landmark marking: each click snaps to the nearest known structure (castle /
+  // forts — turrets are too close to the centre to disambiguate) and records its
+  // exact game coordinate as a constraint. ≥3 then pin via markAnchors.
+  const handleLandmarkClick = useCallback(
+    (canvasPx: [number, number]) => {
+      const coords = tiles.data?.coords;
+      const structs = territory.data?.structures;
+      if (!coords || !structs) return;
+      const [gx, gy] = canvasToGame(canvasPx[0], canvasPx[1], coords);
+      let best: { col: number; row: number; label: string; d: number } | null = null;
+      for (const s of structs) {
+        if (s.kind === "turret") continue;
+        const d = Math.hypot(s.col - gx, s.row - gy);
+        if (!best || d < best.d) best = { col: s.col, row: s.row, label: s.label, d };
+      }
+      if (!best || best.d > 90) {
+        showInfo("Click closer to a castle or fort marker to snap the anchor");
+        return;
+      }
+      const picked = best;
+      setLandmarkClicks((prev) => [
+        ...prev.filter((a) => a.label !== picked.label),
+        { game_xy: [picked.col, picked.row], canvas_px: canvasPx, label: picked.label },
+      ]);
+    },
+    [tiles.data, territory.data, showInfo],
+  );
+  const saveZones = useMutation({
+    mutationFn: (zs: RadarZone[]) => saveTerritoryLayout({ zones: zs, objects: [] }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["radar", "territory", "layout"] });
+      showSuccess(`Zone layout saved (${res.zones} zone${res.zones === 1 ? "" : "s"})`);
+    },
+  });
+
+  // Zone draw: two clicks = opposite corners → a new zone in game coordinates.
+  const handleZoneDrawClick = useCallback(
+    (canvasPx: [number, number]) => {
+      const coords = tiles.data?.coords;
+      if (!coords) return;
+      const [gx, gy] = canvasToGame(canvasPx[0], canvasPx[1], coords);
+      const p: [number, number] = [Math.round(gx), Math.round(gy)];
+      if (!drawFirst) {
+        setDrawFirst(p);
+        return;
+      }
+      const id = `zone_${Date.now().toString(36)}`;
+      setZones((prev) => [
+        ...prev,
+        {
+          id,
+          label: "zone",
+          color: "#22d3ee",
+          min_col: Math.min(drawFirst[0], p[0]),
+          min_row: Math.min(drawFirst[1], p[1]),
+          max_col: Math.max(drawFirst[0], p[0]),
+          max_row: Math.max(drawFirst[1], p[1]),
+        },
+      ]);
+      setSelectedZoneId(id);
+      setDrawFirst(null);
+      setDrawingZone(false);
+    },
+    [tiles.data, drawFirst],
+  );
   const cornerMarkers = useMemo<[number, number][]>(
-    () => (marking ? Object.values(cornerClicks) : []),
-    [marking, cornerClicks],
+    () =>
+      marking
+        ? Object.values(cornerClicks)
+        : markingLandmarks
+          ? landmarkClicks.map((a) => a.canvas_px)
+          : [],
+    [marking, cornerClicks, markingLandmarks, landmarkClicks],
   );
   const deleteRun = useMutation({
     mutationFn: deleteRadarRun,
@@ -462,11 +573,39 @@ export default function RadarPage() {
       <RadarMapViewer
         runId={runId}
         meta={tiles.data}
-        onMapClick={marking ? handleMapClick : undefined}
-        cornerMarkers={marking ? cornerMarkers : undefined}
+        onMapClick={
+          marking
+            ? handleMapClick
+            : markingLandmarks
+              ? handleLandmarkClick
+              : editingZones && drawingZone
+                ? handleZoneDrawClick
+                : undefined
+        }
+        cornerMarkers={marking || markingLandmarks ? cornerMarkers : undefined}
+        territory={territory.data}
+        showTerritory={showTerritory || markingLandmarks}
+        zones={editingZones ? zones : undefined}
+        selectedZoneId={selectedZoneId}
+        onSelectZone={setSelectedZoneId}
       />
     );
-  }, [runId, tiles.data, marking, handleMapClick, cornerMarkers]);
+  }, [
+    runId,
+    tiles.data,
+    marking,
+    markingLandmarks,
+    handleMapClick,
+    handleLandmarkClick,
+    handleZoneDrawClick,
+    cornerMarkers,
+    territory.data,
+    showTerritory,
+    editingZones,
+    drawingZone,
+    zones,
+    selectedZoneId,
+  ]);
 
   // Idle metrics come from the selected run's manifest; live ones from SSE.
   const manifestStats = useMemo(() => {
@@ -669,7 +808,11 @@ export default function RadarPage() {
             Assemble base map
           </Button>
         ) : null}
-        {selectedTarget === "global_map" && !scanActive && selectedRunHasMap ? (
+        {selectedTarget === "global_map" &&
+        !scanActive &&
+        selectedRunHasMap &&
+        !markingLandmarks &&
+        !editingZones ? (
           marking ? (
             <Button
               variant="secondary"
@@ -695,6 +838,82 @@ export default function RadarPage() {
               Mark corners
             </Button>
           )
+        ) : null}
+        {/* Landmark anchors: pin the grid to known structures (castle/forts) at
+            their exact game coordinates. Needs the coordinate affine + territory. */}
+        {selectedTarget === "global_map" &&
+        !scanActive &&
+        selectedRunHasMap &&
+        tiles.data?.coords &&
+        territory.data &&
+        !marking &&
+        !editingZones ? (
+          markingLandmarks ? (
+            <>
+              <Button
+                pending={markAnchors.isPending}
+                disabled={landmarkClicks.length < 3}
+                title="Pin the grid to the marked landmarks (need at least 3)"
+                onClick={() => markAnchors.mutate(landmarkClicks)}
+              >
+                Pin ({landmarkClicks.length})
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setMarkingLandmarks(false);
+                  setLandmarkClicks([]);
+                }}
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="secondary"
+              disabled={busyOnOtherTarget}
+              title="Click the castle and forts on the map; each snaps to its known game coordinate and pins the grid (extra ground-truth anchors beyond the 4 corners)"
+              onClick={() => {
+                setLandmarkClicks([]);
+                setMarkingLandmarks(true);
+              }}
+            >
+              Mark landmarks
+            </Button>
+          )
+        ) : null}
+        {selectedTarget === "global_map" &&
+        selectedRunHasMap &&
+        !marking &&
+        !markingLandmarks &&
+        !editingZones ? (
+          <Button
+            variant="secondary"
+            title="Overlay the fixed Sunfire Castle structures (castle, forts, buff towers, zone bands) at their game coordinates — a visual check that the coordinate grid is anchored correctly"
+            onClick={() => setShowTerritory((v) => !v)}
+          >
+            {showTerritory ? "Hide territory" : "Show territory"}
+          </Button>
+        ) : null}
+        {selectedTarget === "global_map" &&
+        selectedRunHasMap &&
+        tiles.data?.coords &&
+        !marking &&
+        !markingLandmarks &&
+        !editingZones ? (
+          <Button
+            variant="secondary"
+            title="Draw and edit territory zones over the map (saved in game coordinates)"
+            onClick={() => {
+              setZones(layout.data?.zones ?? []);
+              setSelectedZoneId(null);
+              setDrawingZone(false);
+              setDrawFirst(null);
+              setEditingZones(true);
+            }}
+          >
+            Edit zones
+          </Button>
         ) : null}
         {statusPill}
         <div className="ml-auto" />
@@ -811,6 +1030,29 @@ export default function RadarPage() {
             </div>
           )}
       </div>
+
+      {editingZones ? (
+        <ZoneEditorPanel
+          zones={zones}
+          selectedId={selectedZoneId}
+          onSelect={setSelectedZoneId}
+          onChange={setZones}
+          onSave={() => saveZones.mutate(zones)}
+          saving={saveZones.isPending}
+          drawing={drawingZone}
+          onToggleDraw={() => {
+            setDrawFirst(null);
+            setDrawingZone((v) => !v);
+          }}
+          onClose={() => {
+            setEditingZones(false);
+            setDrawingZone(false);
+            setDrawFirst(null);
+            setSelectedZoneId(null);
+          }}
+          gridSize={territory.data?.grid_size ?? 1200}
+        />
+      ) : null}
 
       {/* Metric cards */}
       <div className="metrics-row">

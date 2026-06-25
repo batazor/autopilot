@@ -1994,7 +1994,13 @@ export type PlannerDomain =
   | "safety"
   | "chief_orders"
   | "speedups"
-  | "currency";
+  | "currency"
+  | "svs"
+  | "koi"
+  | "rfc"
+  | "alliance_showdown"
+  | "tower_capture"
+  | "vip";
 
 /** Planner results are domain-specific dataclasses; rendered generically. */
 export type PlannerResult = Record<string, unknown>;

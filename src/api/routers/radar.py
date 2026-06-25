@@ -8,6 +8,7 @@ bridged from the ``radar:events_stream`` Redis stream over SSE.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import re
@@ -129,6 +130,98 @@ def list_runs(target: str | None = None) -> list[dict[str, Any]]:
 @router.get("/active")
 def get_active_scan(client: RedisDep) -> dict[str, Any]:
     return {"active": read_active(client)}
+
+
+# --------------------------------------------------------------------------- #
+# Sunfire Castle territory — fixed global-map structures + buff towers + zones.
+# Game facts (games/wos/db/sunfire_castle_territory.yaml) drawn as an overlay on
+# the global_map view; the editable zone layout is a mutable sidecar under runs.
+# --------------------------------------------------------------------------- #
+_TERRITORY_LAYOUT_NAME = "territory_layout.json"
+# Seed colours for the 3 canonical zone bands (w/m/p) when no layout exists yet.
+_ZONE_SEED_COLORS = {"w": "#E24B4A", "m": "#BA7517", "p": "#639922"}
+
+
+def _territory_layout_path() -> Path:
+    return runs_root() / _TERRITORY_LAYOUT_NAME
+
+
+@router.get("/territory")
+def get_territory() -> dict[str, Any]:
+    """The fixed Sunfire Castle structures + buff towers + zone bands (read-only facts)."""
+    from games.wos.core.sunfire_castle import iter_structures, load_territory
+
+    t = load_territory()
+    return {
+        "grid_size": t.grid_size,
+        "structures": [dataclasses.asdict(s) for s in iter_structures(t)],
+        "towers": [dataclasses.asdict(tw) for tw in t.towers],
+        "zones": [dataclasses.asdict(z) for z in t.zones],
+    }
+
+
+def _seed_layout() -> dict[str, Any]:
+    """Default editable layout: the canonical zone bands, no operator objects yet."""
+    from games.wos.core.sunfire_castle import load_territory
+
+    zones = [
+        {
+            "id": z.id,
+            "label": z.label,
+            "color": _ZONE_SEED_COLORS.get(z.id, "#22d3ee"),
+            "min_col": z.min_col,
+            "min_row": z.min_row,
+            "max_col": z.max_col,
+            "max_row": z.max_row,
+        }
+        for z in load_territory().zones
+    ]
+    return {"zones": zones, "objects": []}
+
+
+@router.get("/territory/layout")
+def get_territory_layout() -> dict[str, Any]:
+    """The operator's editable zone layout (seeded from the yaml bands on first use)."""
+    path = _territory_layout_path()
+    if not path.is_file():
+        return _seed_layout()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(status_code=500, detail=f"layout unreadable: {exc}") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=500, detail="layout is not a JSON object")
+    data.setdefault("zones", [])
+    data.setdefault("objects", [])
+    return data
+
+
+class TerritoryZone(BaseModel):
+    id: str
+    label: str = ""
+    color: str = "#22d3ee"
+    min_col: int
+    min_row: int
+    max_col: int
+    max_row: int
+
+
+class TerritoryLayoutBody(BaseModel):
+    zones: list[TerritoryZone] = []
+    objects: list[dict[str, Any]] = []
+
+
+@router.put("/territory/layout")
+def put_territory_layout(body: TerritoryLayoutBody) -> dict[str, Any]:
+    """Persist the operator's zone layout to ``<runs_root>/territory_layout.json``."""
+    payload = body.model_dump()
+    path = _territory_layout_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"layout not saved: {exc}") from exc
+    return {"status": "ok", "zones": len(payload["zones"]), "objects": len(payload["objects"])}
 
 
 @router.get("/instances")
@@ -513,6 +606,57 @@ def mark_corners(
         raise HTTPException(status_code=409, detail=f"run {run_id} is already re-stitching")
     background.add_task(_restitch_corners_blocking, run_id, run_dir)
     return {"run_id": run_id, "corners": len(sidecar["corners"]), "status": "pinning"}
+
+
+class AnchorMark(BaseModel):
+    # A click on a known structure: its exact game coordinate + the canvas pixel
+    # where the operator clicked it on the stitched map.
+    game_xy: tuple[int, int]
+    canvas_px: tuple[float, float]
+    label: str = ""
+
+
+class MarkAnchorsRequest(BaseModel):
+    anchors: list[AnchorMark]
+    # Merge with any already-marked corners/landmarks (default) vs replace them.
+    merge: bool = True
+
+
+@router.post("/runs/{run_id}/anchors", status_code=202)
+def mark_anchors(
+    run_id: str, body: MarkAnchorsRequest, client: RedisDep, background: BackgroundTasks
+) -> dict[str, Any]:
+    """Pin the coordinate grid to operator-marked *landmark* anchors (known structures).
+
+    Generalises corner-marking: instead of the 4 kingdom vertices, the operator
+    clicks fixed Sunfire Castle structures (castle, forts) whose game coordinates are
+    known exactly. Each click becomes a per-frame constraint with its known game_xy,
+    written into the same ``corners.json`` and re-stitched through the existing
+    corner-pinned solve. Completion is announced as ``tiles_ready`` on the SSE stream.
+    """
+    run_dir = _run_dir(run_id)
+    manifest = _read_manifest(run_dir)
+    game_size = int((manifest.get("config") or {}).get("game_size") or 1200)
+    fsize = manifest.get("frame_size") or {}
+    fw, fh = int(fsize.get("w") or 720), int(fsize.get("h") or 1280)
+    from modules.radar.corners import save_anchors
+
+    try:
+        sidecar = save_anchors(
+            run_dir,
+            [
+                {"game_xy": a.game_xy, "canvas_px": a.canvas_px, "label": a.label}
+                for a in body.anchors
+            ],
+            frame_w=fw, frame_h=fh, game_size=game_size, merge=body.merge,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    key = _TILES_BUILD_KEY_FMT.format(run_id=run_id)
+    if not client.set(key, "1", nx=True, ex=_TILES_BUILD_TTL_S):
+        raise HTTPException(status_code=409, detail=f"run {run_id} is already re-stitching")
+    background.add_task(_restitch_corners_blocking, run_id, run_dir)
+    return {"run_id": run_id, "anchors": len(sidecar["corners"]), "status": "pinning"}
 
 
 @router.post("/scan/stop")

@@ -89,13 +89,13 @@ planners:
   - name: research
     title: "Планировщик исследований (value-greedy)"
     domain: RESEARCH
-    wired: calculator
-    config: ""
+    wired: cron
+    config: games/wos/core/research_center/scenarios/by_cron/research.plan_tick.cron.yaml
     enabled_key: enabled
     trace_key: ""
     observed_inputs:
       - "research.levels.*"
-    note: "Только /planner-калькулятор; в шедулер не подключён + нет ридера уровней техов."
+    note: "Крон */10м (research.plan_tick) кладёт planner.next_research в state. Тех-дерево залейблено: ридер sync_research_levels (читает research.levels.* + research.center.level со всех трёх вкладок) и диспатч start_idle_research теперь enabled. Покрытие копится по запускам — пока какой-то лайн ещё не считан, planner может разок выбрать уже maxed тех (диспатч само-лечит, помечая его maxed)."
 
   - name: heroes
     title: "Планировщик прокачки героев"
@@ -174,6 +174,17 @@ planners:
       - "hero_gear.owned"
     note: "Только калькулятор; 3 трека из db/gear/enhancement.yaml, нет ридера уровней по трекам."
 
+  - name: vip
+    title: "Планировщик VIP (уровни 1→12)"
+    domain: VIP
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs:
+      - "vip.level"
+    note: "Калькулятор XP-лестницы (db/vip_levels.yaml, факты wostools) + координатор-канал VIP. Ридер sync_vip_level пишет vip.level; счётчик предметов VIP Points пока не читается → live-арбитраж инертен, ежедневная трата идёт через vip.daily. Реальные $-пакеты/гемы намеренно не моделируем."
+
   - name: hero_upgrade
     title: "Калькулятор апгрейда героя (level/star/skill roadmap)"
     domain: HERO
@@ -204,3 +215,33 @@ planners:
     trace_key: ""
     observed_inputs: []          # план тратами как вход оператора; live-ридера фаз нет
     note: "Только калькулятор: очки KoI по db/koi_points.yaml (points-per-item, 7 дней, войска дни 4/6). Изолированная копия svs; таблица очков войск пустая (в источнике нет)."
+
+  - name: rfc
+    title: "RFC-калькулятор (конвертация FC→RFC)"
+    domain: RFC
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs: []          # цель RFC / инвентарь FC как вход оператора
+    note: "Только калькулятор: еженедельная конвертация по db/rfc_conversion.yaml (5 тиров, EV) → FC-бюджет + недели на N RFC (Tier-1 эффективный темп). Не RNG."
+
+  - name: alliance_showdown
+    title: "Калькулятор очков Alliance Showdown (6 стадий)"
+    domain: ALLIANCE_SHOWDOWN
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs: []          # план тратами + стадия как вход оператора; live-ридера стадий нет
+    note: "Калькулятор очков по db/alliance_showdown_points.yaml (points-per-item, 6 стадий, бонус Baldur +5%/ур.) + тилт координатора: stage_domain_tilt поднимает домен с макс. очками стадии (Mithril→hero_gear и т.д.), вливается в plan_cycle когда окно активно и оператор задал стадию. Таблица очков войск не раскрыта в источнике; расписание стадий серверо-зависимо (стадию задаёт оператор)."
+
+  - name: tower_capture
+    title: "Калькулятор захвата buff-башен (Sunfire Castle)"
+    domain: TOWER_CAPTURE
+    wired: calculator
+    config: ""
+    enabled_key: enabled
+    trace_key: ""
+    observed_inputs: []          # контроль башен (held) задаёт оператор; live-ридера нет
+    note: "Только калькулятор: ранжирует 74 buff-башни (db/sunfire_castle_territory.yaml, факты wostools territory-planner) по value = баф% × роль(категория buff-типа) × близость-к-замку. Не конкурирует за общий пул ресурсов → без coordinator-канала. Ридера захваченных башен нет (held как вход оператора)."

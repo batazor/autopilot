@@ -172,6 +172,70 @@ export async function fetchRadarTilesMeta(runId: string): Promise<RadarTilesMeta
   }
 }
 
+// --- Sunfire Castle territory (fixed global-map structures + buff towers + zones) ---
+
+export type RadarStructure = {
+  kind: "castle" | "turret" | "stronghold" | "fortress" | string;
+  label: string;
+  col: number;
+  row: number;
+  size: number;
+};
+
+export type RadarTower = {
+  tower_id: string;
+  buff_type: string;
+  label: string;
+  bonus: string;
+  color: string;
+  level: number;
+  booster: string;
+  booster_pct: number;
+  heavily_injured: string;
+  losses: string;
+  col: number;
+  row: number;
+  dist_from_castle: number;
+};
+
+export type RadarZone = {
+  id: string;
+  label: string;
+  min_col: number;
+  min_row: number;
+  max_col: number;
+  max_row: number;
+  color?: string;
+};
+
+export type RadarTerritory = {
+  grid_size: number;
+  structures: RadarStructure[];
+  towers: RadarTower[];
+  zones: RadarZone[];
+};
+
+/** The fixed structures + buff towers + zone bands (read-only game facts). */
+export function fetchRadarTerritory(): Promise<RadarTerritory> {
+  return rfetch("/api/radar/territory");
+}
+
+export type TerritoryLayout = {
+  zones: RadarZone[];
+  objects: Record<string, unknown>[];
+};
+
+/** The operator's editable zone layout (seeded from the yaml bands on first use). */
+export function fetchTerritoryLayout(): Promise<TerritoryLayout> {
+  return rfetch("/api/radar/territory/layout");
+}
+
+export function saveTerritoryLayout(
+  layout: TerritoryLayout,
+): Promise<{ status: string; zones: number; objects: number }> {
+  return rfetch("/api/radar/territory/layout", jsonInit("PUT", layout));
+}
+
 export type RadarInstance = {
   instance_id: string;
   serial: string;
@@ -229,6 +293,28 @@ export function markRadarCorners(
   return rfetch(
     `/api/radar/runs/${encodeURIComponent(runId)}/corners`,
     jsonInit("POST", { corners }),
+  );
+}
+
+/** A landmark anchor: a known structure's exact game coordinate + the canvas pixel
+ * where the operator clicked it on the stitched map. */
+export type RadarAnchor = {
+  game_xy: [number, number];
+  canvas_px: [number, number];
+  label?: string;
+};
+
+/** Pin a run's coordinate grid to operator-clicked landmark structures (castle,
+ * forts) at their known game coordinates — generalises corner-marking. Merges with
+ * any already-marked corners/landmarks by default; re-stitches + re-tiles. */
+export function markRadarAnchors(
+  runId: string,
+  anchors: RadarAnchor[],
+  merge = true,
+): Promise<{ run_id: string; anchors: number; status: string }> {
+  return rfetch(
+    `/api/radar/runs/${encodeURIComponent(runId)}/anchors`,
+    jsonInit("POST", { anchors, merge }),
   );
 }
 

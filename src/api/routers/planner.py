@@ -83,6 +83,13 @@ def _hero_gear_data() -> Any:
     return load_hero_gear_data()
 
 
+@lru_cache(maxsize=1)
+def _territory_data() -> Any:
+    from games.wos.core.sunfire_castle import load_territory
+
+    return load_territory()
+
+
 @lru_cache(maxsize=4)
 def _unlock_schedule(profile: str) -> Any:
     from games.wos.core.calendar.server_unlocks import load_unlock_schedule
@@ -268,22 +275,31 @@ class ResearchBody(BaseModel):
     # War Academy FC level — gates the T11/T12 troop techs independently of the RC.
     # None → the techs fall back to the RC fold (unchanged).
     war_academy_fc: int | None = None
+    # Aggregate roadmap: when set, also return totals (cost/time/power) to raise each
+    # node levels → target_levels. research_speed_pct shortens the roadmap time.
+    target_levels: dict[str, int] | None = None
+    research_speed_pct: float = 0.0
 
 
 @router.post("/research")
 def post_research(body: ResearchBody) -> dict[str, Any]:
-    from games.wos.core.research.planner import plan_next
+    from games.wos.core.research.planner import plan_next, research_roadmap
 
-    plan = _guard(
-        lambda: plan_next(
-            _research_graph(),
-            body.levels,
-            body.rc_level,
-            war_academy_fc=body.war_academy_fc,
-            role=_role(body.role),
+    def run() -> dict[str, Any]:
+        graph = _research_graph()
+        plan = plan_next(
+            graph, body.levels, body.rc_level,
+            war_academy_fc=body.war_academy_fc, role=_role(body.role),
         )
-    )
-    return _asdict(plan)
+        out = _asdict(plan)
+        if body.target_levels:
+            out["roadmap"] = _asdict(research_roadmap(
+                graph, body.levels, body.target_levels,
+                research_speed_pct=body.research_speed_pct,
+            ))
+        return out
+
+    return _guard(run)
 
 
 # --------------------------------------------------------------------------- #
@@ -353,22 +369,28 @@ class PetsBody(BaseModel):
     resources: dict[str, int] = Field(default_factory=dict)
     server_days: int | None = None
     role: str | None = None
+    # Aggregate roadmap: when set, also return the advancement score (→ SvS pts) +
+    # at-max troop ATK/DEF % to raise each pet from its owned level → target_levels.
+    target_levels: dict[str, int] | None = None
 
 
 @router.post("/pets")
 def post_pets(body: PetsBody) -> dict[str, Any]:
-    from games.wos.core.pets.planner import plan_next
+    from games.wos.core.pets.planner import pet_roadmap, plan_next
 
-    plan = _guard(
-        lambda: plan_next(
-            _pet_catalog(),
-            body.owned,
-            body.resources,
-            server_days=body.server_days,
-            role=_role(body.role),
+    def run() -> dict[str, Any]:
+        catalog = _pet_catalog()
+        plan = plan_next(
+            catalog, body.owned, body.resources,
+            server_days=body.server_days, role=_role(body.role),
         )
-    )
-    return _asdict(plan)
+        out = _asdict(plan)
+        if body.target_levels:
+            current = {pid: int(o.get("level", 0) or 0) for pid, o in body.owned.items()}
+            out["roadmap"] = _asdict(pet_roadmap(catalog, current, body.target_levels))
+        return out
+
+    return _guard(run)
 
 
 # --------------------------------------------------------------------------- #
@@ -456,6 +478,35 @@ def post_hero_gear(body: HeroGearBody) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# VIP (single linear track VIP 1 → 12)
+# --------------------------------------------------------------------------- #
+class VipBody(BaseModel):
+    current_level: int = 1                                  # current VIP level (1-12; 0 → base)
+    current_xp: int = 0                                     # VIP XP banked toward the next level
+    resources: dict[str, int] = Field(default_factory=dict)  # {"vip_points": n} budget
+    role: str | None = None
+    target_level: int | None = None                        # roadmap target (totals + item plan)
+
+
+@router.post("/vip")
+def post_vip(body: VipBody) -> dict[str, Any]:
+    from games.wos.core.vip.planner import plan_next, vip_roadmap
+
+    def run() -> dict[str, Any]:
+        plan = plan_next(
+            body.current_level, body.current_xp, body.resources, role=_role(body.role),
+        )
+        out = _asdict(plan)
+        if body.target_level:
+            out["roadmap"] = _asdict(
+                vip_roadmap(body.current_level, body.current_xp, body.target_level)
+            )
+        return out
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
 # Troop training
 # --------------------------------------------------------------------------- #
 class TroopsBody(BaseModel):
@@ -491,6 +542,225 @@ def post_training(body: TroopsBody) -> dict[str, Any]:
             time_s, cost = train_eta(plan.step.tier, body.target_count, speed_pct=speed)
             if time_s or cost:                          # omit when the tier has no data yet
                 out["eta"] = {"count": body.target_count, "time_s": time_s, "cost": cost}
+        return out
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
+# SvS prep-phase points (calculator only)
+# --------------------------------------------------------------------------- #
+class SvsTroopBody(BaseModel):
+    action: str                          # "train" | "promote"
+    qty: int = 1
+    tier: int | None = None              # for train
+    from_tier: int | None = None         # for promote
+    to_tier: int | None = None           # for promote
+
+
+class SvsBody(BaseModel):
+    plan: dict[str, dict[str, int]] = Field(default_factory=dict)  # {day: {activity: qty}}
+    troops: list[SvsTroopBody] = Field(default_factory=list)       # optional Day-4 troops
+    target: int | None = None                                     # personal points goal
+
+
+@router.post("/svs")
+def post_svs(body: SvsBody) -> dict[str, Any]:
+    from games.wos.core.svs import TroopPlanItem, load_svs_prep, score_plan
+
+    def run() -> dict[str, Any]:
+        prep = load_svs_prep()
+        troops = [
+            TroopPlanItem(
+                action=t.action, qty=t.qty,
+                tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
+            )
+            for t in body.troops
+        ]
+        score = score_plan(body.plan, troops=troops, prep=prep)
+        out = _asdict(score)
+        out["days"] = {d: spec.name for d, spec in sorted(prep.days.items())}
+        if body.target:
+            remaining = max(0, body.target - score.total)
+            out["target"] = {
+                "goal": body.target,
+                "remaining": remaining,
+                "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
+            }
+        return out
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
+# KoI (King of the Icefield) prep-points (calculator only)
+# --------------------------------------------------------------------------- #
+class KoiTroopBody(BaseModel):
+    action: str                          # "train" | "promote"
+    qty: int = 1
+    day: int = 4                         # KoI troop days are 4 and 6
+    tier: int | None = None              # for train
+    from_tier: int | None = None         # for promote
+    to_tier: int | None = None           # for promote
+
+
+class KoiBody(BaseModel):
+    plan: dict[str, dict[str, int]] = Field(default_factory=dict)  # {day: {activity: qty}}
+    troops: list[KoiTroopBody] = Field(default_factory=list)       # Day-4/6 troops
+    target: int | None = None                                     # Medal-of-Honor goal
+
+
+@router.post("/koi")
+def post_koi(body: KoiBody) -> dict[str, Any]:
+    from games.wos.core.koi import KoiTroopPlanItem, load_koi_points, score_plan
+
+    def run() -> dict[str, Any]:
+        prep = load_koi_points()
+        troops = [
+            KoiTroopPlanItem(
+                action=t.action, qty=t.qty, day=t.day,
+                tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
+            )
+            for t in body.troops
+        ]
+        score = score_plan(body.plan, troops=troops, prep=prep)
+        out = _asdict(score)
+        out["days"] = {d: spec.name for d, spec in sorted(prep.days.items())}
+        if body.target:
+            remaining = max(0, body.target - score.total)
+            out["target"] = {
+                "goal": body.target,
+                "remaining": remaining,
+                "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
+            }
+        return out
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
+# Sunfire Castle buff-tower capture (calculator only)
+# --------------------------------------------------------------------------- #
+class TowerCaptureBody(BaseModel):
+    controlled: dict[str, bool] = Field(default_factory=dict)  # tower_id → held?
+    role: str | None = None                                    # account role tilt
+    target_count: int = 5                                      # top-N picks (≤0 = all)
+
+
+@router.post("/tower_capture")
+def post_tower_capture(body: TowerCaptureBody) -> dict[str, Any]:
+    from games.wos.core.sunfire_castle import rank_towers
+
+    def run() -> dict[str, Any]:
+        ranking = rank_towers(
+            controlled=body.controlled,
+            role=body.role,
+            target_count=body.target_count,
+            territory=_territory_data(),
+        )
+        return _asdict(ranking)
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
+# Alliance Showdown points (calculator only)
+# --------------------------------------------------------------------------- #
+class AllianceShowdownTroopBody(BaseModel):
+    action: str                          # "train" | "promote"
+    qty: int = 1
+    stage: int = 4                       # Alliance Showdown troop stages are 4 and 6
+    tier: int | None = None              # for train
+    from_tier: int | None = None         # for promote
+    to_tier: int | None = None           # for promote
+
+
+class AllianceShowdownBody(BaseModel):
+    plan: dict[str, dict[str, int]] = Field(default_factory=dict)  # {stage: {activity: qty}}
+    troops: list[AllianceShowdownTroopBody] = Field(default_factory=list)  # Stage-4/6 troops
+    baldur: dict[str, int] = Field(default_factory=dict)          # {stage: Baldur level 1-6}
+    target: int | None = None                                     # personal points goal
+
+
+@router.post("/alliance_showdown")
+def post_alliance_showdown(body: AllianceShowdownBody) -> dict[str, Any]:
+    from games.wos.core.alliance_showdown import (
+        TroopPlanItem,
+        load_showdown_points,
+        score_plan,
+    )
+
+    PERSONAL_RANKING_FLOOR = 300_000     # source: min points for personal ranking rewards
+
+    def run() -> dict[str, Any]:
+        points = load_showdown_points()
+        troops = [
+            TroopPlanItem(
+                action=t.action, qty=t.qty, stage=t.stage,
+                tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
+            )
+            for t in body.troops
+        ]
+        baldur = {int(s): int(lvl) for s, lvl in body.baldur.items()}
+        score = score_plan(body.plan, troops=troops, baldur=baldur, points=points)
+        out = _asdict(score)
+        out["stages"] = {
+            s: {
+                "name": spec.name,
+                "victory_points": spec.victory_points,
+                "milestone_cap": spec.milestone_cap,
+            }
+            for s, spec in sorted(points.stages.items())
+        }
+        out["personal_ranking_floor"] = PERSONAL_RANKING_FLOOR
+        if body.target:
+            remaining = max(0, body.target - score.total)
+            out["target"] = {
+                "goal": body.target,
+                "remaining": remaining,
+                "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
+            }
+        return out
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
+# RFC (Fire Crystal → Refined Fire Crystal weekly conversion)
+# --------------------------------------------------------------------------- #
+class RfcBody(BaseModel):
+    target_rfc: int | None = None        # → FC budget + weeks via efficient Tier-1 pace
+    with_discount: bool = True           # apply the daily 50%-off conversion
+    conversions: int | None = None       # advanced: EV of N conversions...
+    start_index: int = 0                 # ...starting at this weekly conversion index (0-99)
+
+
+@router.post("/rfc")
+def post_rfc(body: RfcBody) -> dict[str, Any]:
+    from dataclasses import asdict
+
+    from games.wos.core.rfc import (
+        convert_path,
+        efficient_weekly,
+        load_rfc_conversion,
+        plan_for_rfc,
+    )
+
+    def run() -> dict[str, Any]:
+        prep = load_rfc_conversion()
+        out: dict[str, Any] = {
+            "tiers": [asdict(t) for t in prep.tiers],
+            "weekly_cap": prep.weekly_cap,
+            "efficient_weekly": _asdict(efficient_weekly(prep=prep)),
+        }
+        if body.target_rfc is not None:
+            out["plan"] = _asdict(
+                plan_for_rfc(body.target_rfc, with_discount=body.with_discount, prep=prep)
+            )
+        if body.conversions is not None:
+            out["path"] = _asdict(
+                convert_path(body.conversions, body.start_index, prep=prep)
+            )
         return out
 
     return _guard(run)
@@ -818,6 +1088,7 @@ class FullPlanBody(BaseModel):
     charms: CharmsBody = Field(default_factory=CharmsBody)
     gear: GearBody = Field(default_factory=GearBody)
     hero_gear: HeroGearBody = Field(default_factory=HeroGearBody)
+    vip: VipBody = Field(default_factory=VipBody)
     # Shared resource pool the coordinator spends. Defaults to the union of the
     # hero + pet namespaced balances (book:* / shard:* / pet_food / pet_shard:*);
     # add meat/wood/coal/iron/steel to let research contend instead of starving.
@@ -833,6 +1104,11 @@ class FullPlanBody(BaseModel):
     dailies: list[DailyTaskBody] = Field(default_factory=list)
     seconds_to_reset: float | None = None
     threat: SafetyBody | None = None
+    # Alliance Showdown current stage (1-6). When set and an ``alliance_showdown`` event
+    # window is active, the stage's per-domain point weights tilt investment toward what
+    # scores most (e.g. Stage 4 → hero_gear). Omit → no per-stage tilt (the catalog
+    # construction/research/training floor still applies while the window is active).
+    alliance_showdown_stage: int | None = None
 
 
 def _full_plan(body: FullPlanBody) -> dict[str, Any]:
@@ -858,6 +1134,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
     from games.wos.core.hero_gear.planner import plan_next as hero_gear_plan_next
     from games.wos.core.pets.planner import plan_next as pet_plan_next
     from games.wos.core.research.planner import plan_next as research_plan_next
+    from games.wos.core.vip.planner import plan_next as vip_plan_next
     from games.wos.heroes.heroes.planner import plan_next as hero_plan_next
     from games.wos.troops.planner import TROOP_TYPES, unlocked_max_tier
     from games.wos.troops.planner import plan_next as training_plan_next
@@ -925,6 +1202,10 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         body.hero_gear.owned, body.hero_gear.resources,
         furnace_level=body.hero_gear.furnace_level, role=_role(body.hero_gear.role),
     )
+    vplan = vip_plan_next(
+        body.vip.current_level, body.vip.current_xp, body.vip.resources,
+        role=_role(body.vip.role),
+    )
 
     if body.channels is not None:
         channels = [Channel(id=c.id, kind=c.kind) for c in body.channels]
@@ -945,7 +1226,19 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             **dict(body.charms.resources),
             **dict(body.gear.resources),
             **dict(body.hero_gear.resources),
+            **dict(body.vip.resources),
         }
+
+    # Alliance Showdown per-stage investment tilt: only when the window is live AND the
+    # operator supplied the current stage (the stage→date schedule is server-specific and
+    # not readable). Lifts the domain that scores most points this stage (e.g. hero_gear
+    # on the Mithril stage); empty → no-op, the EVENT_CATALOG floor still applies.
+    event_domain_boosts: dict[str, float] = {}
+    as_active = any(w.slug == "alliance_showdown" and w.active for w in body.events)
+    if as_active and body.alliance_showdown_stage is not None:
+        from games.wos.core.alliance_showdown import stage_domain_tilt
+
+        event_domain_boosts = stage_domain_tilt(body.alliance_showdown_stage)
 
     plan = plan_cycle(
         channels=channels,
@@ -960,7 +1253,9 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
         charms_plan=chplan,
         gear_plan=gplan,
         hero_gear_plan=hgplan,
+        vip_plan=vplan,
         event_windows=[EventWindow(**w.model_dump()) for w in body.events],
+        event_domain_boosts=event_domain_boosts,
         daily_tasks=[DailyTask(**t.model_dump()) for t in body.dailies],
         seconds_to_reset=body.seconds_to_reset,
         threat=ThreatState(**body.threat.model_dump()) if body.threat is not None else None,
@@ -975,6 +1270,7 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
             "charms": _asdict(chplan),
             "gear": _asdict(gplan),
             "hero_gear": _asdict(hgplan),
+            "vip": _asdict(vplan),
         },
         "candidates": [_asdict(c) for c in plan.candidates],
         "decision": _asdict(plan.decision),
@@ -1000,6 +1296,7 @@ class OverviewBody(BaseModel):
     charms: CharmsBody | None = None        # owned + target_level
     gear: GearBody | None = None            # owned + target_level
     hero_gear: HeroGearBody | None = None   # owned + targets (per track)
+    vip: VipBody | None = None              # current_level + target_level
     heroes: list[HeroRoadmapBody] = Field(default_factory=list)   # per-hero level/star/skill
 
 
@@ -1012,6 +1309,7 @@ def _overview(body: OverviewBody) -> dict[str, Any]:
     from games.wos.core.charms.planner import charm_roadmap
     from games.wos.core.gear.planner import gear_roadmap
     from games.wos.core.hero_gear.planner import hero_gear_roadmap
+    from games.wos.core.vip.planner import vip_roadmap
     from games.wos.heroes.heroes.planner import hero_upgrade_roadmap
 
     domains: dict[str, Any] = {}
@@ -1028,6 +1326,10 @@ def _overview(body: OverviewBody) -> dict[str, Any]:
         domains["gear"] = _add(gear_roadmap(body.gear.owned, body.gear.target_level))
     if body.hero_gear is not None and body.hero_gear.targets:
         domains["hero_gear"] = _add(hero_gear_roadmap(body.hero_gear.owned, body.hero_gear.targets))
+    if body.vip is not None and body.vip.target_level:
+        domains["vip"] = _add(
+            vip_roadmap(body.vip.current_level, body.vip.current_xp, body.vip.target_level)
+        )
     catalog = _hero_catalog()
     for h in body.heroes:
         spec = catalog.get(h.hero_id)
