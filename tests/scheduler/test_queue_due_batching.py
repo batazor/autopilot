@@ -132,6 +132,54 @@ async def test_collect_ranked_due_skips_queue_fetch_while_loading() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_collect_ranked_due_does_not_skip_when_expired_in_first_page(
+    redis_async: object,
+) -> None:
+    """Expired members are removed AFTER the offset-based walk, not during it.
+
+    Regression: with > one page of due items and an expired item in the first
+    page, a ZREM mid-iteration shifted every later member back one slot, so the
+    next page's ``start=offset`` skipped that many un-parsed (valid) items —
+    they silently never ran. Dropping expired members after the pass keeps the
+    pagination window stable.
+    """
+    r = redis_async
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+    now = time.time()
+    n_total = QUEUE_DUE_ZRANGE_BATCH + 6  # forces a second offset page
+    n_expired = 3  # all in the first page (lowest run_at → lowest ZSET index)
+
+    pipe = r.pipeline(transaction=False)  # type: ignore[attr-defined]
+    valid_ids: list[str] = []
+    for i in range(n_total):
+        run_at = now - 500 + i  # strictly ascending, all due (<= now)
+        body: dict[str, Any] = {
+            "task_id": f"item-{i}",
+            "player_id": "",
+            "task_type": "who_i_am",  # device-level → passes the no-active-player gate
+            "priority": 50_000,
+            "run_at": run_at,
+            "instance_id": "bs1",
+            "created_at": run_at,
+        }
+        if i < n_expired:
+            body["expires_at"] = now - 1.0  # already expired
+        else:
+            valid_ids.append(f"item-{i}")
+        pipe.zadd("wos:queue:bs1", {json.dumps(body): run_at})
+    await pipe.execute()
+
+    ranked = await q._collect_ranked_due("bs1", "main_city", now)
+    got_ids = {data["task_id"] for _sk, _raw, data, _meta in ranked}
+
+    # Every non-expired due item must surface — none skipped by the offset shift.
+    assert got_ids == set(valid_ids), sorted(set(valid_ids) - got_ids)
+    # The 3 expired members were dropped from the ZSET after the walk.
+    assert await r.zcard("wos:queue:bs1") == len(valid_ids)  # type: ignore[attr-defined]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_schedule_pop_due_preserves_args(redis_async: object) -> None:
     r = redis_async
     q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]

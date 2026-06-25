@@ -169,6 +169,48 @@ async def test_device_level_positive_gap_bypasses_margin(
 
 
 @pytest.mark.asyncio
+async def test_device_level_resolved_from_generic_dsl_envelope(
+    monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
+) -> None:
+    """A device-level scenario pushed as a generic envelope (``task_type="dsl_scenario"``
+    with the key in ``dsl_scenario``) must be recognised as device-level. The check
+    resolves the effective scenario, not the literal transport type — otherwise it
+    would look up ``"dsl_scenario"`` (not a real scenario) and refuse to yield."""
+    _patch_read_current_screen(monkeypatch)
+    _patch_peek_top(
+        monkeypatch,
+        QueueItem(
+            task_id="top-generic",
+            player_id="p1",
+            task_type="dsl_scenario",
+            dsl_scenario="dismiss_unknown_popup",
+            priority=82_000,
+            run_at=0.0,
+            instance_id="bs1",
+            effective_priority=82_000,
+        ),
+    )
+    seen_keys: list[str] = []
+
+    def _is_device_level(_root: object, key: str) -> bool:
+        seen_keys.append(key)
+        return key == "dismiss_unknown_popup"
+
+    monkeypatch.setattr(
+        "dsl.dsl_schema.dsl_scenario_yaml_device_level", _is_device_level
+    )
+    # gap = 2_000 < margin; only the device-level bypass can produce a yield.
+    task = _make_task(effective_priority=80_000, redis_client=redis_async)
+
+    result = await task._preempted_by_higher_priority("bs1", step_index=0)
+
+    assert result is not None, "device-level resolved via dsl_scenario must bypass margin"
+    assert seen_keys == ["dismiss_unknown_popup"], "lookup must use the real scenario key"
+    md = result.metadata or {}
+    assert md["preempted_by"] == "dismiss_unknown_popup"  # not the literal "dsl_scenario"
+
+
+@pytest.mark.asyncio
 async def test_anti_starvation_immunity_after_three_yields(
     monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
 ) -> None:

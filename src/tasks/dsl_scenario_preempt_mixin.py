@@ -158,12 +158,19 @@ class DslScenarioPreemptMixin(_Base):
         gap = top_eff - my_eff
         if gap <= 0:
             return None
+        # Resolve the real scenario key: a generic DSL envelope carries
+        # ``task_type="dsl_scenario"`` with the scenario in ``dsl_scenario``, so
+        # a literal ``task_type`` lookup would miss a device-level pushed
+        # scenario and wrongly refuse to yield for it below the margin.
+        from scheduler.queue_payload import effective_task_type
+
+        top_scenario = effective_task_type(top.task_type, top.dsl_scenario)
         try:
             from config.paths import repo_root
             from dsl.dsl_schema import dsl_scenario_yaml_device_level
 
             top_is_device_level = dsl_scenario_yaml_device_level(
-                repo_root(), str(top.task_type or "")
+                repo_root(), top_scenario
             )
         except Exception:
             top_is_device_level = False
@@ -178,7 +185,7 @@ class DslScenarioPreemptMixin(_Base):
                 yc,
                 self.scenario_key,
                 my_eff,
-                top.task_type,
+                top_scenario,
                 top_eff,
                 gap,
             )
@@ -192,7 +199,7 @@ class DslScenarioPreemptMixin(_Base):
             new_yc,
             self.scenario_key,
             my_eff,
-            top.task_type,
+            top_scenario,
             top_eff,
             gap,
         )
@@ -203,7 +210,7 @@ class DslScenarioPreemptMixin(_Base):
                 "scenario": self.scenario_key,
                 "reason": "preempted_by_higher_priority",
                 "preempted": True,
-                "preempted_by": top.task_type,
+                "preempted_by": top_scenario,
                 "preempted_by_priority": top_eff,
                 "running_effective_priority": my_eff,
                 "yielded_at_step": step_index,

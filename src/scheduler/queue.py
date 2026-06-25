@@ -653,6 +653,12 @@ class RedisQueue:
 
         key = _queue_key(instance_id)
         due: list[tuple[str, dict[str, Any]]] = []
+        # Expired members are collected here and dropped only AFTER the walk
+        # finishes. ``_iter_due_queue_raw`` pages the ZSET offset-based, so a
+        # ZREM mid-iteration shifts every later member back one slot and the
+        # next page's ``start=offset`` would skip an un-parsed item. Deleting
+        # after the pass keeps the pagination window stable.
+        expired: list[tuple[str, dict[str, Any], float]] = []
         truncated = False
         if QUEUE_DUE_PARSE_MAX is not None:
             try:
@@ -673,22 +679,31 @@ class RedisQueue:
                 exp_at = 0.0
             if 0.0 < exp_at <= now:
                 # Stale item (e.g. a daily-mission push past the game-day
-                # reset) — drop instead of running. Losing the ZREM race to a
-                # sibling worker is fine; the item is gone either way.
-                with contextlib.suppress(Exception):
-                    await self._redis.zrem(key, raw)
-                logger.info(
-                    "queue: dropped expired task instance=%s type=%s expired %.0fs ago",
-                    instance_id,
-                    str(data.get("task_type", "")),
-                    now - exp_at,
-                )
+                # reset) — queue for removal after the walk, don't run it.
+                expired.append((raw, data, exp_at))
                 continue
             pid = str(data.get("player_id", ""))
             if str(data.get("instance_id", "")) == instance_id and (
                 pid == "" or pid in instance_players
             ):
                 due.append((raw, data))
+
+        if expired:
+            # One pipelined ZREM after the offset-based walk has completed.
+            # Losing the race to a sibling worker is fine — ZREM of an
+            # already-removed member is a harmless no-op.
+            with contextlib.suppress(Exception):
+                pipe = self._redis.pipeline(transaction=False)
+                for raw, _data, _exp in expired:
+                    pipe.zrem(key, raw)
+                await pipe.execute()
+            for _raw, data, exp_at in expired:
+                logger.info(
+                    "queue: dropped expired task instance=%s type=%s expired %.0fs ago",
+                    instance_id,
+                    str(data.get("task_type", "")),
+                    now - exp_at,
+                )
         if truncated:
             logger.warning(
                 "queue due backlog large instance=%s due_in_zset>%s parsed=%s "
