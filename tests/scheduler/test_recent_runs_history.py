@@ -21,6 +21,7 @@ from config.loader import get_settings
 from scheduler.queue import (
     RECENT_RUNS_RETENTION_CAP,
     RedisQueue,
+    _last_run_key,
     _recent_runs_key,
 )
 
@@ -113,3 +114,69 @@ async def test_oldest_age_none_for_empty_history(redis_async: object) -> None:
     q = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
     age = await q.oldest_recent_run_age(instance_id="empty", now=time.time())
     assert age is None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_last_run_survives_recent_runs_count_cap(redis_async: object) -> None:
+    """The reported bug: a busy queue evicts a long cron's run from the ZSET.
+
+    A 12h cron fires, then a burst of other tasks overflows the
+    ``RECENT_RUNS_RETENTION_CAP``-entry ZSET, evicting the cron's entry. The
+    dedicated ``last_run`` marker is NOT subject to the count cap, so
+    ``last_run_at`` must still report when the cron last ran — otherwise a
+    restart would re-fire the 12h cron immediately.
+    """
+    q = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
+    iid = "bs_busy"
+    now = time.time()
+
+    # The long cron fires once, the oldest event of all.
+    cron_ts = now - 3600
+    await q._append_recent_run(
+        instance_id=iid, task_type="long_cron", player_id="p1", now=cron_ts
+    )
+
+    # A burst of unrelated work overflows the count cap; the cron's ZSET entry
+    # (the oldest by score) is trimmed away.
+    overflow = RECENT_RUNS_RETENTION_CAP + 25
+    for i in range(overflow):
+        await q._append_recent_run(
+            instance_id=iid, task_type="busy", player_id="p1", now=now - (overflow - i)
+        )
+
+    # Confirm the precondition: the cron is gone from the capped ZSET.
+    members = await redis_async.zrangebyscore(  # type: ignore[attr-defined]
+        _recent_runs_key(iid), "-inf", "+inf"
+    )
+    assert not any(
+        (m.decode() if isinstance(m, bytes) else str(m)).startswith("long_cron|")
+        for m in members
+    ), "test precondition: cron entry must have been evicted from recent_runs"
+
+    # The marker survives → cadence is remembered.
+    got = await q.last_run_at(instance_id=iid, task_type="long_cron", player_id="p1")
+    assert got is not None
+    assert abs(got - cron_ts) < 0.5
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_last_run_at_falls_back_to_zset_without_marker(redis_async: object) -> None:
+    """Mid-upgrade: a ZSET entry exists but the dedicated marker was never set.
+
+    ``last_run_at`` must fall back to the ZSET scan so an in-flight deployment
+    doesn't lose every cron's cadence the moment the new code ships.
+    """
+    q = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
+    iid = "bs_legacy"
+    now = time.time()
+    await q._append_recent_run(
+        instance_id=iid, task_type="legacy", player_id="p1", now=now - 200
+    )
+    # Simulate a pre-marker world by deleting the dedicated key only.
+    await redis_async.delete(_last_run_key(iid, "legacy", "p1"))  # type: ignore[attr-defined]
+
+    got = await q.last_run_at(instance_id=iid, task_type="legacy", player_id="p1")
+    assert got is not None
+    assert abs(got - (now - 200)) < 0.5

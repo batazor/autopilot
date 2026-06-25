@@ -111,6 +111,52 @@ def _recent_runs_key(instance_id: str) -> str:
     return f"wos:instance:{iid}:recent_runs"
 
 
+def logical_task_type(data: dict[str, Any]) -> str:
+    """The scenario-identifying type for a queue payload — the single source of truth.
+
+    Cron-scheduled scenarios enqueue with ``task_type`` already set to the scenario key
+    (``resolve_cron_task_type`` → file stem). Notify pushes
+    (``notify.publisher.enqueue_scenario``), the optimizer dispatcher, and the calendar
+    instead use the generic worker-dispatch shape ``task_type="dsl_scenario"`` with the
+    real key carried in the ``dsl_scenario`` field. This resolves both to the SAME
+    identifier so a scenario is treated as itself regardless of how it was dispatched.
+
+    Used everywhere a payload must be identified *by scenario* rather than by transport
+    envelope: node / gating / ranking lookups (via :meth:`RedisQueue._effective_task_type`)
+    AND the ``recent_runs`` debuff history (key + count). Keying recent history on the
+    literal ``task_type`` collapsed every ``dsl_scenario`` push into one bucket, so
+    unrelated notify/optimizer/calendar scenarios debuffed each other as one type — this
+    function is what keeps their histories distinct.
+    """
+    ttype = str(data.get("task_type") or "").strip()
+    if ttype == "dsl_scenario":
+        ds = str(data.get("dsl_scenario") or "").strip()
+        if ds:
+            return ds
+    return ttype
+
+
+# Per-logical-task last-run marker, kept SEPARATE from the capped ``recent_runs``
+# ZSET. ``recent_runs`` is bounded by ``RECENT_RUNS_RETENTION_CAP`` (100 entries)
+# so a busy instance evicts old rows fast — a 12-hour cron's last execution can
+# be pushed out of that window long before 12 hours pass. Reading cron cadence
+# from there would then "forget" the last run after a restart and re-fire the
+# cron immediately. This dedicated key is one-per-(instance, task_type, player),
+# so the count cap on ``recent_runs`` can never evict it; only its own TTL can.
+def _last_run_key(instance_id: str, task_type: str, player_id: str) -> str:
+    iid = str(instance_id or "").strip() or "unknown"
+    tt = str(task_type or "").strip()
+    pid = str(player_id or "").strip()
+    return f"wos:scheduler:last_run:{iid}:{tt}:{pid}"
+
+
+# TTL for the dedicated last-run marker. Self-refreshes on every execution, so
+# this only has to exceed the longest cron interval (plus restart gaps) by a
+# margin — 30 days comfortably covers daily/weekly crons while still GC-ing the
+# markers of retired task types.
+LAST_RUN_RETENTION_SECONDS = 30 * 86400
+
+
 @lru_cache(maxsize=1024)
 def _bfs_hops_cached(src: str, dst: str, fp: tuple[Any, ...] | None) -> int | None:
     """Shortest-path hop count over the screen graph, or None if unreachable.
@@ -453,14 +499,11 @@ class RedisQueue:
         empty and burned on the DSL ``awaiting_screen_identity`` early-exit,
         re-queued every 5s — the exact hot loop the gate exists to prevent.
         Resolve the field-carried key so those pushes are gated/ranked like
-        their cron equivalents.
+        their cron equivalents. Thin alias of the module-level
+        :func:`logical_task_type` (the single source of truth, shared with
+        ``recent_runs`` history so the two never drift apart).
         """
-        ttype = str(data.get("task_type") or "").strip()
-        if ttype == "dsl_scenario":
-            ds = str(data.get("dsl_scenario") or "").strip()
-            if ds:
-                return ds
-        return ttype
+        return logical_task_type(data)
 
     @staticmethod
     def _task_type_to_required_node() -> dict[str, str]:
@@ -809,7 +852,11 @@ class RedisQueue:
                 continue
             await self._append_recent_run(
                 instance_id=instance_id,
-                task_type=str(data.get("task_type", "")),
+                # Logical (per-scenario) type, NOT the literal envelope: a
+                # ``dsl_scenario`` push records under its real key so unrelated
+                # notify/optimizer/calendar scenarios keep distinct recent_runs
+                # histories instead of debuffing each other as one bucket.
+                task_type=logical_task_type(data),
                 player_id=str(data.get("player_id", "")),
                 now=now,
             )
@@ -854,6 +901,10 @@ class RedisQueue:
                 {
                     "task_id": str(data.get("task_id") or ""),
                     "task_type": str(data.get("task_type") or ""),
+                    # Per-scenario identity — for ``dsl_scenario`` pushes this is the
+                    # real key (the literal ``task_type`` above is just the envelope),
+                    # so the panel shows what actually ran / what recent_debuff keys on.
+                    "logical_task_type": logical_task_type(data),
                     "player_id": str(data.get("player_id") or ""),
                     "base_priority": int(meta["base_priority"]),
                     "effective_priority": int(meta["effective_priority"]),
@@ -1142,17 +1193,32 @@ class RedisQueue:
     ) -> float | None:
         """Latest timestamp at which ``(task_type, player_id)`` was popped on this instance.
 
-        Reads the recent_runs ZSET in score-descending order and returns the
-        first member matching the ``"<task_type>|<player_id>|<uuid>"`` shape.
-        ``None`` when no matching entry exists (cold start, or pruned out of
-        retention) — callers should treat that as "no constraint, run now".
+        Primary source is the dedicated ``last_run`` marker (see
+        ``_last_run_key``): one key per ``(instance, task_type, player)`` that
+        the ``recent_runs`` count cap can never evict, so a long-interval cron's
+        cadence survives even on a busy instance. Falls back to scanning the
+        ``recent_runs`` ZSET — both for entries written before this marker
+        existed (mid-upgrade) and as a defensive backstop. ``None`` when neither
+        source has a match (cold start, or pruned out of retention) — callers
+        should treat that as "no constraint, run now".
 
         Used by interval-cron scheduling to compute ``run_at = max(now,
         last_run + interval)``: after a restart we don't re-fire the cron
         the instant the throttle key is gone — we honor the natural cadence
-        from the on-disk history that survives Redis restarts only as long
-        as ``RECENT_RUNS_RETENTION_SECONDS``.
+        from history that survives Redis restarts (the marker for as long as
+        ``LAST_RUN_RETENTION_SECONDS``).
         """
+        last_run_key = _last_run_key(instance_id, task_type, player_id)
+        try:
+            raw_marker = await self._redis.get(last_run_key)
+        except Exception:
+            logger.debug("last_run marker read failed", exc_info=True)
+            raw_marker = None
+        if raw_marker is not None:
+            s = raw_marker.decode() if isinstance(raw_marker, bytes) else str(raw_marker)
+            with contextlib.suppress(TypeError, ValueError):
+                return float(s)
+
         key = _recent_runs_key(instance_id)
         prefix = f"{task_type}|{player_id}|"
         try:
@@ -1260,12 +1326,17 @@ class RedisQueue:
 
         member = f"{task_type}|{player_id}|{uuid.uuid4().hex[:8]}"
         key = _recent_runs_key(instance_id)
+        last_run_key = _last_run_key(instance_id, task_type, player_id)
         try:
             pipe = self._redis.pipeline(transaction=True)
             pipe.zadd(key, {member: now})
             pipe.zremrangebyscore(key, "-inf", now - RECENT_RUNS_RETENTION_SECONDS)
             pipe.zremrangebyrank(key, 0, -(RECENT_RUNS_RETENTION_CAP + 1))
             pipe.expire(key, RECENT_RUNS_RETENTION_SECONDS * 2)
+            # Cron-cadence marker — survives the ZSET count cap (see
+            # ``_last_run_key``). pop_due records executions in monotonic
+            # ``now`` order, so a plain SET is always the latest run.
+            pipe.set(last_run_key, repr(float(now)), ex=LAST_RUN_RETENTION_SECONDS)
             await pipe.execute()
         except Exception:
             logger.warning("recent_runs append failed for key=%s", key, exc_info=True)
@@ -1292,13 +1363,13 @@ class RedisQueue:
         out: list[tuple[tuple[int, int, int, float, float], str, dict[str, Any], dict[str, Any]]] = []
         for raw, data in due:
             base = int(data.get("priority", 0))
-            ttype = str(data.get("task_type", ""))
             # Node / debuff maps are keyed by scenario key; notify and optimizer
             # pushes carry the key in ``dsl_scenario`` under a generic
             # ``task_type="dsl_scenario"``. Resolve it so a notify-pushed
             # ``node:`` scenario is ranked with its real hops instead of
-            # silently degrading to 0-hops FIFO. ``recent_count`` still keys on
-            # the literal ``task_type`` — that's what ``recent_runs`` records.
+            # silently degrading to 0-hops FIFO — and so ``recent_count`` keys on
+            # the SAME logical type ``recent_runs`` now records (below), keeping
+            # distinct scenarios from sharing one debuff bucket.
             ttype_eff = self._effective_task_type(data)
             pid = str(data.get("player_id", ""))
             required_node = required_node_map.get(ttype_eff, "")
@@ -1315,7 +1386,7 @@ class RedisQueue:
                 current_screen=current_screen,
                 required_node=required_node,
                 hops=hops,
-                recent_count=recent_counts.get((ttype, pid), 0),
+                recent_count=recent_counts.get((ttype_eff, pid), 0),
                 recent_runs_cap=RECENT_RUNS_CAP,
                 no_recent_debuff_member=ttype_eff in no_recent_debuff,
                 run_at=float(data.get("run_at", now)),
