@@ -1,11 +1,17 @@
 screens:
-  # Registers `island` (Daybreak Island) as a verifiable FSM node. OCR the screen
-  # title rather than a template so it survives reskins.
-  # TODO(on-device labeling): tighten island.title's bbox + confirm the exact
-  # title text ("Daybreak Island") against a real capture.
+  # Registers `island` (the "My Island" / Daybreak Island view) as a verifiable
+  # FSM node. OCR the screen title rather than a template so it survives reskins.
+  # Verified on bs1: the title reads "My Island" (not "Daybreak Island"); the
+  # panel "Tree of Life" green button lands here with the camera centred on the
+  # Tree of Life and its Life Essence collect bubble lit.
+  # Priority 8 (below main_world's 10): the island IS a world-map-style view and
+  # carries the same "return to city" button main_world keys on, so it must be
+  # probed FIRST and disambiguated by its unique "My Island" title — otherwise
+  # main_world's earlier rule claims the frame.
   island:
-    priority: 31
+    priority: 8
     rules:
       - ocr: island.title
-        contains: Daybreak
-        threshold: 0.8
+        contains: Island
+        threshold: 0.6
+        preprocess: title_line

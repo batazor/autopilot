@@ -1,0 +1,24 @@
+enabled: false
+# On-device War Academy tech-level reader: keeps research.levels.* (the T11/T12
+# nodes — shared node ids with the RC reader) + war_academy.fc fresh so
+# plan_next_war_academy sees real levels instead of running blind. Sibling of
+# research_center's sync_research_levels; the War Academy tech-tree is radar-gated
+# (a building screen), so it drives the camera there before sweeping.
+#
+# SHIPS DISABLED — the War Academy is "Not yet built" on every available dev
+# account, so the sweep geometry (reused from the RC tree) is UNVERIFIED. Flip on
+# only after calibrating against a real capture and validating with
+# `botctl drive sync_war_academy_levels --inst <id> --player <fid> --no-approval`.
+name: "🎖️ Sync War Academy levels (reader)"
+device_level: true
+priority: 40_000
+cron: "41 */6 * * *"            # every 6h, offset to avoid pileups with the RC reader
+cond: currentNode == main_city
+steps:
+  - exec: dismiss_popup
+  - exec: navigate_to_building
+    building: war_academy
+    open: true
+  - cond: nav.ok ~= "1"
+    steps:
+      - exec: sync_war_academy_levels

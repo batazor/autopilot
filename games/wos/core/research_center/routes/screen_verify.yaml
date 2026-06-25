@@ -1,0 +1,13 @@
+screens:
+  # Registers `research_center` as a verifiable FSM node (it was an edge/allowed
+  # node in building.upgrade but had no verify rule — the same gap intel had).
+  # OCR the screen title rather than a template so it survives event reskins.
+  # TODO(on-device labeling): tighten research_center.title's bbox in area.yaml
+  # against a real Research Center capture — the current bbox is a top-center
+  # estimate.
+  research_center:
+    priority: 31
+    rules:
+      - ocr: research_center.title
+        contains: Research
+        threshold: 0.8

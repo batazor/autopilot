@@ -911,7 +911,35 @@ async def _exec_scan_main_menu_panel(ctx: DslExecContext) -> None:
 
 
 _TAP_ACCEPT_MAX_SWEEPS = 8
-_TAP_PANEL_ROW_MAX_SWEEPS = 8
+# The City list runs ~11 sections deep (Building Queue … Trek); the deepest
+# actionable rows we tap by slug (My Rewards · Online Rewards ≈ row 7, Life
+# Essence · Tree of Life ≈ row 9) sit well below an 8-sweep reach. Only these
+# scroll-and-tap scaffolds use ``_scroll_find_and_tap`` (the other dispatched
+# rows navigate self-contained), so a deeper budget purely extends reach — a row
+# found early still taps early.
+_TAP_PANEL_ROW_MAX_SWEEPS = 16
+
+
+async def _capture_panel_frame(actions: Any, instance_id: str) -> np.ndarray | None:
+    """Lossless adb screencap for the scroll-find sweep, scrcpy as fallback.
+
+    The City-panel rows carry small title/status text; the scrcpy H.264 stream
+    degrades it enough to drop short titles below the section/row match (the same
+    reason research_center's tech-tree reader prefers adb). adb screencap is
+    slower (~300 ms) but lossless and coexists with scrcpy, so the deep
+    scroll-find lands its target far more reliably. Falls back to the configured
+    backend if adb capture is unavailable.
+    """
+    try:
+        return await asyncio.to_thread(actions.capture_screen_bgr_adb, instance_id)
+    except Exception:
+        logger.debug("main_menu panel: adb capture failed, trying default backend",
+                     exc_info=True)
+    try:
+        return await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+    except Exception:
+        logger.exception("main_menu panel: screen capture failed instance=%s", instance_id)
+        return None
 
 
 async def _scroll_find_and_tap(
@@ -948,11 +976,8 @@ async def _scroll_find_and_tap(
         await asyncio.sleep(0.5)
 
     for sweep in range(max_sweeps):
-        try:
-            image = await asyncio.to_thread(
-                actions.capture_screen_bgr, ctx.instance_id
-            )
-        except Exception:
+        image = await _capture_panel_frame(actions, ctx.instance_id)
+        if image is None:
             logger.exception(
                 "dsl exec %s: capture failed instance=%s", log_label, ctx.instance_id
             )

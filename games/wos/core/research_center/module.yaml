@@ -1,0 +1,12 @@
+id: research_center
+title: Research Center
+description: >-
+  Research Center screen node + value-greedy research planner wiring. A cron
+  reads the tech levels (research.levels.* + research.center.level) and stashes
+  the next-tech pick in planner.next_research; the on-device tech-level reader
+  (sync_research_levels) and the start-idle dispatcher (start_idle_research)
+  ship disabled until the tech-tree regions are labeled.
+area: area.yaml
+scenarios: scenarios
+references: references
+wiki: false

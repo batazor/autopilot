@@ -9,17 +9,43 @@
         {
           "name": "island.title",
           "action": "text",
-          "threshold": 0.8,
+          "threshold": 0.6,
           "bbox": {
-            "x": 28.0,
-            "y": 3.0,
-            "width": 44.0,
-            "height": 5.0,
+            "x": 5.0,
+            "y": 1.3,
+            "width": 26.0,
+            "height": 3.6,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
           "type": "string"
+        },
+        {
+          "name": "island.life_essence.collect",
+          "action": "click",
+          "bbox": {
+            "x": 42.0,
+            "y": 20.0,
+            "width": 13.0,
+            "height": 9.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "island.to_city",
+          "action": "click",
+          "bbox": {
+            "x": 84.0,
+            "y": 89.0,
+            "width": 11.0,
+            "height": 8.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

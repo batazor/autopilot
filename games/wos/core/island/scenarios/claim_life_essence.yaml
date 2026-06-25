@@ -1,13 +1,17 @@
-enabled: false
+enabled: true
 # Claim the Tree of Life's passive Life Essence from the main_menu City panel.
-# Pushed by the panel scan when the Life Essence · Tree of Life row is claimable
-# (self-gated on THIS scenario's `enabled`). Ships DISABLED: the panel-row tap
-# either collects in-place or jumps to Daybreak Island — the island claim button
-# + harvest popup need on-device labeling.
+# Pushed by the panel scan when the "Life Essence · Tree of Life" row is
+# claimable (self-gated on THIS scenario's `enabled`).
 #
-# TODO(on-device): confirm whether the green-button tap collects directly or
-# opens the island; label island.* claim regions; then drive the claim. The
-# island planner (core/island/planner) can later decide ToL-level upgrades.
+# Flow verified on bs1 (acct 401227964):
+#   1. tap_main_menu_panel_row taps the row's green check, which jumps to
+#      "My Island" with the camera centred on the Tree of Life and its Life
+#      Essence collect bubble lit (~48%, 24%).
+#   2. wait_screen confirms we landed on the island node.
+#   3. click island.life_essence.collect taps the bubble → "+<amount>" floats up
+#      and the bubble clears (collect confirmed by hand on 2026-06-25).
+#   4. click island.to_city returns to the city so the bot isn't stranded on the
+#      island (mirrors accept_troops ending back on main_city).
 name: 🌳 Claim Life Essence (Tree of Life)
 node: main_menu
 cond: "active_player != null"
@@ -16,5 +20,16 @@ steps:
     section: life_essence
     row: tree_of_life
     approval_region: main_menu.panel.life_essence.tree_of_life
-  # - wait_screen: { any: [island, rewards], max: 8, interval: 500ms }
-  # - ... claim on island ...   # TODO after labeling
+  - wait: 2s
+  - wait_screen:
+      any: [island]
+      max: 8
+      interval: 500ms
+  - cond: currentNode == island
+    steps:
+      - click: island.life_essence.collect
+      - wait: 1.5s
+      # Back to the city (the island "City" gate tab) so downstream scenarios
+      # find us on main_city, not stranded on the island.
+      - click: island.to_city
+      - wait: 1s

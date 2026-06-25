@@ -1,0 +1,13 @@
+enabled: true
+name: 🧠 Research planner · pick next tech
+device_level: true
+priority: 55_000
+# Recompute the value-greedy research recommendation from the tech levels read so
+# far (research.levels.* + research.center.level) and stash it in instance state
+# (planner.next_research / .next_research_name / .research_reason). Pure compute —
+# no device taps; mirrors building.plan_tick.cron. Stays blind (rc_gated) until
+# sync_research_levels reads tech levels on-device.
+cron: "*/10 * * * *"
+cond: currentNode == main_city
+steps:
+  - exec: plan_next_research

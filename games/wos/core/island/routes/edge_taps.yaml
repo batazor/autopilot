@@ -1,0 +1,8 @@
+edges:
+  # The island ("My Island" / Daybreak) is reached by the panel "Tree of Life"
+  # green-button jump (an exec tap), not a screen-graph edge, so there is no
+  # main_city -> island entry here. But the navigator must be able to route OFF
+  # the island back home, so register the return: tap the on-screen "City" gate
+  # tab (island.to_city) to land back on main_city.
+  island:
+    main_city: [island.to_city]

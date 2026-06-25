@@ -1,18 +1,16 @@
-enabled: false
+enabled: true
 # Claim the "Online Rewards" (online-time rewards) from the main_menu City panel.
-# The rewards module already owns the generic reward-popup detection + exit
-# (page.rewards ribbon + exit_rewards_popup). This dedicated scenario taps the
-# Online Rewards row's green collect button on the panel, then claims through the
-# rewards popup that appears.
+# Pushed by the panel scan when the My Rewards · Online Rewards row reads
+# Completed/Claimable (self-gated on THIS scenario's `enabled`).
 #
-# Pushed by main_menu's panel scan when the My Rewards · Online Rewards row reads
-# Completed/Claimable (self-gated on THIS scenario's `enabled`). Ships DISABLED:
-# the post-tap claim-button region + the "Online Rewards" screen flow need
-# on-device labeling (the panel-row tap + the rewards-popup claim sequence).
-#
-# TODO(on-device): confirm what the green-button tap opens (a rewards popup vs a
-# dedicated Online Rewards screen) and label the claim button; then drive the
-# claim + exit_rewards_popup chain.
+# Flow observed on bs1 (acct 401227964): the row's green check does NOT collect
+# in place — it jumps to main_city with the camera centred on the rewards
+# building (the row stayed "Completed" after the green-check tap alone), exactly
+# like the Training "Completed" rows. So this mirrors accept_troops_*: tap the
+# row, land on main_city, tap the centred building's collect bubble, then let the
+# rewards popup be dismissed. The rewards module already auto-dismisses reward
+# ribbons at device level (analyze/analyze.yaml); exit_rewards_popup makes the
+# dismissal explicit for a standalone drive too.
 name: 🎁 Claim online rewards
 node: main_menu
 cond: "active_player != null"
@@ -21,5 +19,18 @@ steps:
     section: my_rewards
     row: online_rewards
     approval_region: main_menu.panel.my_rewards.online_rewards
-  # - wait_screen: { any: [rewards], max: 8, interval: 500ms }
-  # - push_scenario: exit_rewards_popup   # TODO after labeling the claim flow
+  - wait: 2s
+  - wait_screen:
+      any: [main_city, rewards]
+      max: 8
+      interval: 500ms
+  # The green check centred the Online Rewards building; tap it (same target
+  # accept_troops uses) to open the chest UI and collect the ready chest. Verified
+  # on bs1: the chest screen then read "Next Chest Ready In 00:00:28" (claimed).
+  - cond: currentNode == main_city
+    steps:
+      - click: main_city.center_building
+      - wait: 1.5s
+  # Close the chest modal / any reward ribbon so the bot isn't stranded on it
+  # (template-free modal dismisser — the X / Claim / tap-to-continue).
+  - exec: dismiss_popup

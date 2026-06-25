@@ -1,28 +1,33 @@
 enabled: false
-# Idle War Academy research slot → start the best researchable War Academy tech.
-# Sibling of research_center's start_idle_research, but for the War Academy
-# building + its FC-gated T11/T12 troop techs (helios_*/exalted_* in
-# db/research.yaml). The research planner already surfaces these via plan_next's
-# `war_academy_fc` param (wa_gated picks) — so the dispatcher reuses it, scoped to
-# WA-gated nodes.
+# Idle War Academy research slot → plan → navigate → start the best WA tech.
+# Sibling of research_center's start_idle_research, for the War Academy building
+# + its FC-gated T11/T12 troop techs (helios_*/exalted_*, branches t11_*/t12_* in
+# db/research.yaml). The research planner surfaces these via plan_next's
+# `war_academy_fc` param; this scenario's plan_next_war_academy exec runs that over
+# a War-Academy-scoped subgraph.
 #
 # Pushed by main_menu's panel scan when the "War Academy" Tech-Research row reads
-# Idle (self-gated on THIS scenario's `enabled`, so flipping it on is the single
-# switch). Ships DISABLED: needs on-device labeling of the War Academy tech-tree
-# (regions, tile OCR) + a WA-tech-level reader, exactly like research_center.
+# Idle (self-gated on THIS scenario's `enabled`).
 #
-# TODO(on-device): after navigate, open the WA tech tree, pick the planner's
-# wa_gated tech, locate its tile, tap → Research. Mirror games/wos/core/
-# research_center/exec.py (sweep + start_planned_research) with war_academy_fc.
-name: 🎖️▶️ Start idle War Academy research
+# SHIPS DISABLED — and stays so until the War Academy can be exercised on-device.
+# The building is "Not yet built" on every available dev account (bs1 furnace 30,
+# bs3 furnace 1), so the tech-tree tab geometry in exec.py is UNVERIFIED (carried
+# over from the Research Center tree). The planner half (plan_next_war_academy) is
+# pure-compute and unit-tested; flip `enabled: true` only after calibrating the WA
+# tab/tile geometry against a real capture (mirror research_center's references/ +
+# area.yaml workflow) and validating with `botctl drive start_idle_war_academy`.
+name: 🎖️▶️ Start idle War Academy research · plan → navigate → research
 device_level: true
 priority: 56_000
 cond: research.war_academy.state.isAvailable ~= "1"
 steps:
   - exec: dismiss_popup
-  - exec: navigate_to_building
-    building: war_academy
-    open: true
-  # - cond: nav.ok ~= "1"
-  #   steps:
-  #     - exec: start_planned_war_academy   # TODO after labeling
+  - exec: plan_next_war_academy
+  - cond: planner.next_war_academy != ""
+    steps:
+      - exec: navigate_to_building
+        building: war_academy
+        open: true
+      - cond: nav.ok ~= "1"
+        steps:
+          - exec: start_planned_war_academy

@@ -1,13 +1,26 @@
-enabled: false
+enabled: true
 # Expert · Learn Skills — act on the City-panel "Expert" row.
 # Pushed by the panel scan when the Expert row is idle/claimable (self-gated on
-# THIS scenario's `enabled`). Ships DISABLED: the feature's in-game UX is UNKNOWN
-# (what does the green/blue button open — a Heroes/Expert screen? a learn-skill
-# popup? a timed claim?). NEEDS ON-DEVICE DISCOVERY first.
+# THIS scenario's `enabled`).
 #
-# TODO(on-device discovery): tap the Expert row, capture what the game shows,
-# then author the real flow (navigate + learn/claim) and label its regions.
-name: 🎓 Expert · learn skills
+# On-device discovery (bs1, acct 401227964): the row's blue button opens the
+# Expert building hall; drilling in reaches an expert's (e.g. Cyrille) Skills tab
+# where leveling a skill SPENDS Learning XP + currency via a green "To Upgrade"
+# check. Per the operator decision this scenario is NAVIGATE-ONLY: it surfaces
+# the Expert screen and never auto-spends (no skill-investment strategy exists
+# yet — that belongs in a future expert planner, like research/pets), so it is
+# safe to keep enabled.
+#
+# It deliberately does NOT system_back afterwards: the row tap can flakily miss
+# (row_not_found), and a blind back from the resulting main_city pops the
+# Quit-game dialog. Instead it stops after surfacing the Expert hall (an
+# `unknown` interior) and lets the worker's standard unknown-screen recovery
+# (system_back → main_city, verified) bring the bot home on the next tick.
+#
+# Note: the Expert row stays "Idle" while an upgrade is affordable, so an enabled
+# navigate-only scenario re-fires once per panel sweep. If that churn is
+# unwanted, flip `enabled: false` until a spend strategy lands.
+name: 🎓 Expert · learn skills (navigate-only)
 node: main_menu
 cond: "active_player != null"
 steps:
@@ -15,4 +28,3 @@ steps:
     section: expert
     row: learn_skills
     approval_region: main_menu.panel.expert.learn_skills
-  # - ... discovery needed: what screen appears? ...
