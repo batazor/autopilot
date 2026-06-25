@@ -7,6 +7,7 @@ from games.wos.core.coordinator import (
     CandidateAction,
     Channel,
     ThreatState,
+    Utility,
     apply_safety,
     assess_safety,
     coordinate,
@@ -86,8 +87,8 @@ def test_actions_are_urgency_ordered():
 
 def test_apply_safety_drops_exposing_candidates():
     cands = [
-        CandidateAction("gather", MARCH, "gather_coal", 720),
-        CandidateAction("building_progression", CONSTRUCTION, "furnace", 850),
+        CandidateAction("gather", MARCH, "gather_coal", Utility(base_value=720)),
+        CandidateAction("building_progression", CONSTRUCTION, "furnace", Utility(base_value=850)),
     ]
     d = assess_safety(ThreatState(pvp_window=True))
     kept = apply_safety(cands, d)
@@ -96,8 +97,8 @@ def test_apply_safety_drops_exposing_candidates():
 
 def test_safe_mode_end_to_end_blocks_gather_keeps_build():
     cands = [
-        CandidateAction("gather", MARCH, "gather_coal", 720),
-        CandidateAction("building_progression", CONSTRUCTION, "furnace", 850),
+        CandidateAction("gather", MARCH, "gather_coal", Utility(base_value=720)),
+        CandidateAction("building_progression", CONSTRUCTION, "furnace", Utility(base_value=850)),
     ]
     d = assess_safety(ThreatState(incoming_attack=True))
     dec = coordinate([Channel("m1", MARCH), Channel("c1", CONSTRUCTION)], apply_safety(cands, d), {})

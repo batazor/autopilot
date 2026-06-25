@@ -17,6 +17,7 @@ from .adapters import (
     from_pet_plan,
     from_research_plan,
     from_training_plan,
+    from_vip_plan,
 )
 from .allocate import coordinate_optimal
 from .chief_orders import ChiefOrderPlan, recommend_orders
@@ -70,10 +71,12 @@ from .model import (
     PET,
     RESEARCH,
     TRAINING,
+    VIP,
     CandidateAction,
     Channel,
     Commit,
     CoordinatorDecision,
+    Utility,
 )
 from .objective import DOMAIN_BAND, TRACK_DOMAIN, domain_priority
 from .premium import (
@@ -114,6 +117,7 @@ __all__ = [
     "RESEARCH",
     "TRACK_DOMAIN",
     "TRAINING",
+    "VIP",
     "ActionStat",
     "CalendarBias",
     "CandidateAction",
@@ -143,6 +147,7 @@ __all__ = [
     "SpeedupPlan",
     "SpeedupTask",
     "ThreatState",
+    "Utility",
     "allocate_currency",
     "apply_feedback",
     "apply_safety",
@@ -164,6 +169,7 @@ __all__ = [
     "from_pet_plan",
     "from_research_plan",
     "from_training_plan",
+    "from_vip_plan",
     "gather_candidates",
     "intel_intent",
     "investment_domain_names",

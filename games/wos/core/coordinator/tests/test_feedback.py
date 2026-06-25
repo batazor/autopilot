@@ -6,6 +6,7 @@ from games.wos.core.coordinator import (
     CandidateAction,
     FeedbackState,
     Outcome,
+    Utility,
     apply_feedback,
     record,
     record_many,
@@ -52,8 +53,8 @@ def test_apply_feedback_penalises_stuck_candidate_priority():
     s = record_many(FeedbackState(), _stalls("furnace", "building_progression", 3))
     bias = tuning(s)
     cands = [
-        CandidateAction("building_progression", CONSTRUCTION, "furnace", 850),
-        CandidateAction("building_economy", CONSTRUCTION, "sawmill", 520),
+        CandidateAction("building_progression", CONSTRUCTION, "furnace", Utility(base_value=850)),
+        CandidateAction("building_economy", CONSTRUCTION, "sawmill", Utility(base_value=520)),
     ]
     out = {c.key: c.priority for c in apply_feedback(cands, bias)}
     assert out["furnace"] < 850                       # penalised
@@ -62,5 +63,5 @@ def test_apply_feedback_penalises_stuck_candidate_priority():
 
 
 def test_apply_feedback_noop_without_backoff():
-    cands = [CandidateAction("building_progression", CONSTRUCTION, "furnace", 850)]
+    cands = [CandidateAction("building_progression", CONSTRUCTION, "furnace", Utility(base_value=850))]
     assert apply_feedback(cands, tuning(FeedbackState()))[0].priority == 850

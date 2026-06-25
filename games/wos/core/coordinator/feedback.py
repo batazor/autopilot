@@ -112,11 +112,17 @@ def apply_feedback(
     candidates: Sequence[CandidateAction],
     bias: FeedbackBias,
 ) -> list[CandidateAction]:
-    """Penalise the priority of backed-off candidates (self-healing — not removed)."""
+    """Penalise the priority of backed-off candidates (self-healing — not removed).
+
+    Scales the candidate's :class:`~model.Utility` weight (a post-hoc multiplier on
+    ``total``), so the whole utility is backed off and the breakdown stays intact.
+    """
     if not bias.backoff:
         return list(candidates)
     out: list[CandidateAction] = []
     for c in candidates:
         penalty = bias.backoff.get(c.key, 1.0)
-        out.append(replace(c, priority=c.priority * penalty) if penalty != 1.0 else c)
+        if penalty != 1.0:
+            c = replace(c, utility=replace(c.utility, weight=c.utility.weight * penalty))
+        out.append(c)
     return out

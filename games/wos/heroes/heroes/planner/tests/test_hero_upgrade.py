@@ -50,9 +50,10 @@ def test_level_up_flows_through_the_hero_adapter():
     owned = {"nat": {"level": 5, "star": 0, "skill": 0}}
     plan = plan_next(CAT, owned, {"hero_xp": 10**6}, furnace_level=10)   # only XP affordable
     assert plan.step.kind == LEVEL_UP
-    action = from_hero_plan(plan)[0]
-    assert action.channel_kind == HERO
-    assert action.cost == {"hero_xp": 1500}
+    actions = from_hero_plan(plan)                                       # the full ranked set now
+    assert actions and all(a.channel_kind == HERO for a in actions)
+    level_up = next(a for a in actions if a.key.endswith(f":{LEVEL_UP}"))
+    assert level_up.cost == {"hero_xp": 1500}                           # level 5→6 = xp[6]
 
 
 # --- roadmap (the calculator's headline) --------------------------------------

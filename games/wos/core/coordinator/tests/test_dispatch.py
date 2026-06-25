@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from games.wos.core.coordinator import MARCH, CandidateAction, Commit, CoordinatorDecision
+from games.wos.core.coordinator import MARCH, CandidateAction, Commit, CoordinatorDecision, Utility
 from games.wos.core.coordinator.dispatch import (
     DISPATCH_PRIORITY_BASE,
     MarchScenario,
@@ -49,7 +49,7 @@ def _march_action(domain: str, *, priority: float, cost: dict[str, int] | None =
         domain=domain,
         channel_kind=MARCH,
         key=f"{domain}:k",
-        priority=priority,
+        utility=Utility(base_value=priority),
         cost=cost or {},
     )
 

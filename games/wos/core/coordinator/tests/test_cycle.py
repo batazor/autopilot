@@ -22,6 +22,7 @@ from games.wos.core.coordinator import (
     FeedbackState,
     Outcome,
     ThreatState,
+    Utility,
     plan_cycle,
     record_many,
 )
@@ -222,7 +223,7 @@ def test_quest_claims_and_one_shot_nudges_surface():
 
 def test_threat_suppresses_exposing_domains_and_raises_shield():
     """In danger: gather is dropped from the channel plan, a shield action is queued."""
-    gather = CandidateAction("gather", MARCH, "gather_coal", 720.0)
+    gather = CandidateAction("gather", MARCH, "gather_coal", Utility(base_value=720.0))
     plan = plan_cycle(
         channels=[Channel("m1", MARCH)], balances={"stamina": 100},
         extra_candidates=[gather],

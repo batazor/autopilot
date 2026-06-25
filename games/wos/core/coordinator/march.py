@@ -24,7 +24,7 @@ from .adapters import from_intel_plan
 from .allocate import coordinate_optimal
 from .coordinator import coordinate
 from .economy import economy_bias, gather_candidates
-from .model import MARCH, CandidateAction, Channel
+from .model import MARCH, CandidateAction, Channel, Utility
 from .objective import domain_priority
 
 if TYPE_CHECKING:
@@ -76,7 +76,7 @@ def intel_intent(
         domain="intel",
         channel_kind=MARCH,
         key="intel:run",
-        priority=domain_priority("intel", role, boost=boost),
+        utility=Utility(base_value=domain_priority("intel", role, boost=boost)),
         cost={"stamina": int(cost)},
         detail="intel run (blind)",
     )
@@ -109,7 +109,7 @@ def timed_event_intent(
         domain=domain,
         channel_kind=MARCH,
         key=key or f"{domain}:run",
-        priority=domain_priority(domain, role, boost=boost),
+        utility=Utility(base_value=domain_priority(domain, role, boost=boost)),
         cost=dict(cost or {}),
         detail=f"{domain} (event)",
     )

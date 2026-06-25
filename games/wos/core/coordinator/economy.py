@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from .model import MARCH, CandidateAction
+from .model import MARCH, CandidateAction, Utility
 from .objective import domain_priority
 
 if TYPE_CHECKING:
@@ -118,7 +118,9 @@ def gather_candidates(
             domain="gather",
             channel_kind=MARCH,
             key=f"gather_{resource}",
-            priority=domain_priority("gather", role, rank_nudge=-float(i), boost=bias.gather_boost),
+            utility=Utility(
+                base_value=domain_priority("gather", role, rank_nudge=-float(i), boost=bias.gather_boost)
+            ),
             cost={},
             detail=f"gather {resource}",
         ))

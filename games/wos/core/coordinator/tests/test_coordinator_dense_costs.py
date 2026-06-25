@@ -20,13 +20,14 @@ from games.wos.core.coordinator import (
     RESEARCH,
     CandidateAction,
     Channel,
+    Utility,
     coordinate,
 )
 
 
 def _cand(domain, kind, key, priority, cost=None):
     return CandidateAction(domain=domain, channel_kind=kind, key=key,
-                           priority=priority, cost=cost or {})
+                           utility=Utility(base_value=priority), cost=cost or {})
 
 
 def test_shared_resource_couples_domains_across_different_channels():

@@ -43,12 +43,14 @@ def domain_priority(
     rank_nudge: float = 0.0,
     boost: float = 1.0,
 ) -> float:
-    """Cross-domain priority for a domain's action.
+    """Cross-domain ``base_value`` for a domain's action.
 
-    ``rank_nudge`` (small, usually ≤0) preserves intra-domain order when a domain
-    offers several candidates for several channels (e.g. queue-1 above queue-2).
-    ``boost`` is the calendar/event multiplier (>1 while a points event rewards
-    this domain — see :mod:`events`), applied on top of the role tilt.
+    ``rank_nudge`` carries the candidate's normalised intra-domain value (see
+    :func:`adapters._intra`): a small term, ≪ the gap between domain bands, that orders
+    a domain's alternatives within its band without reordering domains. (Historically
+    a ``-i`` ordinal; now a value-derived magnitude.) ``boost`` is the calendar/event
+    multiplier (>1 while a points event rewards this domain — see :mod:`events`),
+    applied on top of the role tilt.
     """
     band = DOMAIN_BAND.get(domain, DEFAULT_BAND)
     if role is not None:

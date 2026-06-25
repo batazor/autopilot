@@ -840,6 +840,7 @@ def post_coordinator(body: CoordinatorBody) -> dict[str, Any]:
     from games.wos.core.coordinator import (
         CandidateAction,
         Channel,
+        Utility,
         coordinate,
         coordinate_optimal,
     )
@@ -850,7 +851,7 @@ def post_coordinator(body: CoordinatorBody) -> dict[str, Any]:
             domain=c.domain,
             channel_kind=c.channel_kind,
             key=c.key,
-            priority=c.priority,
+            utility=Utility(base_value=c.priority),
             cost=dict(c.cost),
             detail=c.detail,
         )
