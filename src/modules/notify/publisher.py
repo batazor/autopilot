@@ -13,16 +13,12 @@ import time
 import uuid
 from typing import Any
 
+from scheduler.queue_payload import enqueue_sync, queue_key
+
 from . import config
 from .logging_setup import get_logger
 
 log = get_logger("publisher")
-
-
-def _queue_key(instance_id: str) -> str:
-    """Same convention as ``scheduler.queue._queue_key`` / dispatcher."""
-    iid = (instance_id or "").strip()
-    return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
 
 
 class RedisPublisher:
@@ -96,35 +92,48 @@ class RedisPublisher:
         *,
         priority: int = config.PUSH_SCENARIO_PRIORITY,
     ) -> bool:
-        """Push a DSL scenario directly onto the worker queue.
+        """Push a DSL scenario onto the worker queue via the shared enqueue facade.
 
-        Writes a ``task_type=dsl_scenario`` envelope to ``wos:queue:<instance>``
-        via ``ZADD`` with ``run_at=now`` as the score — the exact primitive the
-        scheduler/optimizer use (see ``optimizer.dispatcher.enqueue_envelope``)
-        so the worker picks it up through its normal ``pop_due`` path. Returns
-        True on a successful write.
+        Routes through :func:`scheduler.queue_payload.enqueue_sync` — the same
+        canonical payload builder, atomic Lua dedup, and dashboard ``queue``
+        event the async scheduler uses — instead of a raw ``ZADD``, so a
+        notify push is indistinguishable from a scheduler one (and a flurry of
+        the same notification no longer piles up duplicate queue items).
+
+        Returns True on a write, False when dedup found the same scenario already
+        queued for this player or the write failed.
         """
         now = time.time()
-        body: dict[str, Any] = {
-            "task_id": f"notify:{uuid.uuid4().hex[:12]}",
-            "player_id": str(player_id),
-            "task_type": "dsl_scenario",
-            "priority": int(priority),
-            "run_at": now,
-            "instance_id": str(instance_id),
-            "created_at": now,
-            "dsl_scenario": scenario_key,
-        }
-        qk = _queue_key(instance_id)
+        qk = queue_key(instance_id)
         try:
-            self._ensure_client().zadd(qk, {json.dumps(body): now})
+            enqueued = enqueue_sync(
+                self._ensure_client(),
+                task_id=f"notify:{uuid.uuid4().hex[:12]}",
+                player_id=str(player_id),
+                task_type="dsl_scenario",
+                priority=int(priority),
+                run_at=now,
+                instance_id=str(instance_id),
+                dsl_scenario=scenario_key,
+                created_at=now,
+                # Notify pushes carry no region; dedup by (instance, scenario,
+                # player) like the in-DSL ``push_scenario`` path.
+                skip_if_duplicate=True,
+                dedup_ignore_region=True,
+            )
             self.connected = True
             self.last_error = None
-            log.info(
-                "Enqueued scenario %s for player=%s -> %s",
-                scenario_key, player_id, qk,
-            )
-            return True
+            if enqueued:
+                log.info(
+                    "Enqueued scenario %s for player=%s -> %s",
+                    scenario_key, player_id, qk,
+                )
+            else:
+                log.info(
+                    "Skipped duplicate scenario %s for player=%s (already queued on %s)",
+                    scenario_key, player_id, qk,
+                )
+            return enqueued
         except Exception as exc:
             self.connected = False
             self.last_error = str(exc)

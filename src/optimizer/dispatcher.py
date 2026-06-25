@@ -16,11 +16,12 @@ templates with node ``page.heroes.<hero_id>``.
 """
 from __future__ import annotations
 
-import json
 import time
 import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from scheduler.queue_payload import build_queue_body, enqueue_sync, queue_key
 
 if TYPE_CHECKING:
     import redis
@@ -72,45 +73,46 @@ def region_for(c: Candidate) -> str | None:
 def envelope_to_redis_payload(env: TaskEnvelope) -> dict[str, object]:
     """Return the JSON-ready body the scheduler reads off the queue.
 
-    Mirrors ``scheduler.queue.RedisQueue.schedule`` field-for-field so a
-    task pushed from here is indistinguishable from one the runner pushed.
+    Built through :func:`scheduler.queue_payload.build_queue_body` — the same
+    canonical payload builder ``RedisQueue.schedule`` uses — so a task pushed
+    from here is field-for-field indistinguishable from a scheduler push.
     """
-    body: dict[str, object] = {
-        "task_id": env.task_id,
-        "player_id": env.player_id,
-        "task_type": env.task_type,
-        "priority": env.priority,
-        "run_at": env.run_at,
-        "instance_id": env.instance_id,
-        "created_at": time.time(),
-    }
-    if env.region:
-        body["region"] = env.region
-    if env.set_node:
-        body["set_node"] = env.set_node
-    if env.dsl_scenario:
-        body["dsl_scenario"] = env.dsl_scenario
-    return body
-
-
-def queue_key(instance_id: str) -> str:
-    """Same convention as ``scheduler.queue._queue_key``."""
-    iid = (instance_id or "").strip()
-    return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
+    return build_queue_body(
+        task_id=env.task_id,
+        player_id=env.player_id,
+        task_type=env.task_type,
+        priority=env.priority,
+        run_at=env.run_at,
+        instance_id=env.instance_id,
+        region=env.region,
+        set_node=env.set_node,
+        dsl_scenario=env.dsl_scenario,
+    )
 
 
 def enqueue_envelope(env: TaskEnvelope, client: redis.Redis) -> str:
     """Push a task envelope onto the sync Redis client.
 
-    Uses ``ZADD`` with the run-at timestamp as score (the same primitive
-    the async scheduler uses) so the bot's worker picks it up via the
-    normal ``pop_due`` path. Returns the queue key it was written to.
+    Routes through :func:`scheduler.queue_payload.enqueue_sync` — the shared
+    payload builder + dashboard ``queue`` event the async scheduler uses — so
+    the dashboard refreshes on dispatch and the payload can't drift from the
+    scheduler's. Dispatch is operator/optimizer-driven and deliberate, so it
+    does not dedup (``skip_if_duplicate`` is left off). Returns the queue key it
+    was written to.
     """
-    body = envelope_to_redis_payload(env)
-    payload = json.dumps(body)
-    qk = queue_key(env.instance_id)
-    client.zadd(qk, {payload: env.run_at})
-    return qk
+    enqueue_sync(
+        client,
+        task_id=env.task_id,
+        player_id=env.player_id,
+        task_type=env.task_type,
+        priority=env.priority,
+        run_at=env.run_at,
+        instance_id=env.instance_id,
+        region=env.region,
+        set_node=env.set_node,
+        dsl_scenario=env.dsl_scenario,
+    )
+    return queue_key(env.instance_id)
 
 
 def build_envelope(

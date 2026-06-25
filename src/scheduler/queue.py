@@ -11,6 +11,17 @@ from typing import TYPE_CHECKING, Any
 
 from config.devices import player_ids_for_device_candidates
 from config.paths import repo_root
+from scheduler.queue_payload import (
+    DEDUP_ZADD_LUA as _DEDUP_ZADD_LUA,
+)
+from scheduler.queue_payload import (
+    build_queue_body,
+    dedup_zadd_args,
+    effective_task_type,
+)
+from scheduler.queue_payload import (
+    queue_key as _queue_key,
+)
 from scheduler.ranking import (  # noqa: F401  (re-exported for back-compat)
     HOPS_DEBUFF_CAP_HOPS,
     HOPS_SENTINEL,
@@ -51,61 +62,6 @@ QUEUE_DUE_PARSE_MAX = 512
 QUEUE_POP_LOG_CANDIDATE_LIMIT = 5
 
 
-def _queue_key(instance_id: str) -> str:
-    iid = str(instance_id or "").strip()
-    return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
-
-
-# Atomic dedup-then-ZADD. Two producers (e.g. rolling overlay tick and the
-# after-task overlay tick) used to both pass ``has_pending_duplicate`` and
-# both ZADD the same logical scenario, since the Python guard read the ZSET
-# in one round-trip and wrote in another. Moving the scan + write into a
-# single ``EVAL`` makes Redis the serialization point.
-#
-# Match semantics (same as :meth:`RedisQueue.has_pending_duplicate`):
-# * always filter ``(instance_id, task_type)``;
-# * region filters unless ``ignore_region == "1"``;
-# * player-bound enqueue (``player_id != ""``) matches in-flight items whose
-#   ``data.player_id`` is either ``""`` (device-level) or the same player —
-#   so a queued cross-player item for the same task_type doesn't block;
-# * device-level enqueue (``player_id == ""``) matches any player — one
-#   queued device-level item blocks re-pushing for everyone.
-#
-# Returns 1 if ZADD was applied, 0 if a duplicate was found and ZADD skipped.
-_DEDUP_ZADD_LUA = """
-local function s(v)
-    if v == nil or v == cjson.null then return "" end
-    return tostring(v)
-end
-
-local task_type = ARGV[3]
-local player_id = ARGV[4]
-local instance_id = ARGV[5]
-local want_region = ARGV[6]
-local ignore_region = ARGV[7] == "1"
-local device_level_enqueue = player_id == ""
-
-local items = redis.call("ZRANGEBYSCORE", KEYS[1], "-inf", "+inf")
-for i = 1, #items do
-    local ok, data = pcall(cjson.decode, items[i])
-    if ok and type(data) == "table" then
-        if s(data.instance_id) == instance_id
-           and s(data.task_type) == task_type then
-            local data_pid = s(data.player_id)
-            if device_level_enqueue or data_pid == "" or data_pid == player_id then
-                if ignore_region or s(data.region) == want_region then
-                    return 0
-                end
-            end
-        end
-    end
-end
-
-redis.call("ZADD", KEYS[1], ARGV[2], ARGV[1])
-return 1
-"""
-
-
 def _recent_runs_key(instance_id: str) -> str:
     iid = str(instance_id or "").strip() or "unknown"
     return f"wos:instance:{iid}:recent_runs"
@@ -127,13 +83,12 @@ def logical_task_type(data: dict[str, Any]) -> str:
     literal ``task_type`` collapsed every ``dsl_scenario`` push into one bucket, so
     unrelated notify/optimizer/calendar scenarios debuffed each other as one type — this
     function is what keeps their histories distinct.
+
+    Dict adapter over :func:`scheduler.queue_payload.effective_task_type`, which is the
+    scalar SSOT shared with the enqueue-side Lua dedup so ranking, history, and dedup all
+    resolve a payload to the same scenario identity.
     """
-    ttype = str(data.get("task_type") or "").strip()
-    if ttype == "dsl_scenario":
-        ds = str(data.get("dsl_scenario") or "").strip()
-        if ds:
-            return ds
-    return ttype
+    return effective_task_type(data.get("task_type"), data.get("dsl_scenario"))
 
 
 # Per-logical-task last-run marker, kept SEPARATE from the capped ``recent_runs``
@@ -290,69 +245,43 @@ class RedisQueue:
         """
         import json
 
-        body: dict[str, Any] = {
-            "task_id": task_id,
-            "player_id": player_id,
-            "task_type": task_type,
-            "priority": priority,
-            "run_at": run_at,
-            "instance_id": instance_id,
-        }
-        if region is not None and str(region).strip() != "":
-            body["region"] = str(region).strip()
-        if tap_x_pct is not None:
-            body["tap_x_pct"] = float(tap_x_pct)
-        if tap_y_pct is not None:
-            body["tap_y_pct"] = float(tap_y_pct)
-        if threshold is not None:
-            body["threshold"] = float(threshold)
-        if score is not None:
-            fs = float(score)
-            body["score"] = fs
-            # Alias: some payloads/tools only preserved one key; pop_due prefers this first.
-            body["overlay_match_score"] = fs
-        if set_node is not None and str(set_node).strip() != "":
-            body["set_node"] = str(set_node).strip()
-        if dsl_scenario is not None and str(dsl_scenario).strip() != "":
-            body["dsl_scenario"] = str(dsl_scenario).strip()
-        if isinstance(args, dict) and args:
-            body["args"] = json.loads(json.dumps(args))
-        if match_top_left_x is not None:
-            body["match_top_left_x"] = int(match_top_left_x)
-        if match_top_left_y is not None:
-            body["match_top_left_y"] = int(match_top_left_y)
-        if template_w is not None:
-            body["template_w"] = int(template_w)
-        if template_h is not None:
-            body["template_h"] = int(template_h)
-        if tap_match_x_pct is not None:
-            body["tap_match_x_pct"] = float(tap_match_x_pct)
-        if tap_match_y_pct is not None:
-            body["tap_match_y_pct"] = float(tap_match_y_pct)
-        if start_step_index:
-            body["start_step_index"] = int(start_step_index)
-        if expires_at is not None and float(expires_at) > 0.0:
-            body["expires_at"] = float(expires_at)
-        body["created_at"] = time.time()
+        # ``build_queue_body`` is the single source of truth for the payload
+        # shape — shared with the sync facade (notify / optimizer) so the field
+        # set can't drift between enqueue paths.
+        body = build_queue_body(
+            task_id=task_id,
+            player_id=player_id,
+            task_type=task_type,
+            priority=priority,
+            run_at=run_at,
+            instance_id=instance_id,
+            region=region,
+            tap_x_pct=tap_x_pct,
+            tap_y_pct=tap_y_pct,
+            threshold=threshold,
+            score=score,
+            set_node=set_node,
+            dsl_scenario=dsl_scenario,
+            args=args,
+            match_top_left_x=match_top_left_x,
+            match_top_left_y=match_top_left_y,
+            template_w=template_w,
+            template_h=template_h,
+            tap_match_x_pct=tap_match_x_pct,
+            tap_match_y_pct=tap_match_y_pct,
+            start_step_index=start_step_index,
+            expires_at=expires_at,
+        )
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         qk = _queue_key(instance_id)
 
         if skip_if_duplicate:
-            want_region = (
-                str(region).strip() if region is not None and str(region).strip() else ""
-            )
             rv = await self._dedup_zadd_script(
                 keys=[qk],
-                args=[
-                    payload,
-                    run_at,
-                    task_type,
-                    player_id or "",
-                    instance_id or "",
-                    want_region,
-                    "1" if dedup_ignore_region else "0",
-                ],
+                args=dedup_zadd_args(
+                    body, payload, dedup_ignore_region=dedup_ignore_region
+                ),
             )
             try:
                 applied = int(rv) == 1

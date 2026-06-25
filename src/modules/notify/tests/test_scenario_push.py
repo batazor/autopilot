@@ -72,10 +72,25 @@ def test_resolve_missing_db_returns_none(tmp_path, monkeypatch):
 class _FakeClient:
     def __init__(self) -> None:
         self.zcalls = []
+        self.published = []
 
     def zadd(self, key, mapping):
         self.zcalls.append((key, mapping))
         return 1
+
+    def eval(self, _script, _numkeys, *keys_and_args):
+        # The publisher enqueues through the shared ``enqueue_sync`` facade with
+        # ``skip_if_duplicate=True``, i.e. the atomic DEDUP_ZADD_LUA. Simulate it
+        # on a fresh queue: no existing duplicate → ZADD the member, return 1.
+        # ARGV layout: (queue_key, payload, run_at, eff_type, pid, iid, region, ignore)
+        key, payload, score = keys_and_args[0], keys_and_args[1], keys_and_args[2]
+        self.zcalls.append((key, {payload: score}))
+        return 1
+
+    def publish(self, channel, message):
+        # Dashboard ``queue/enqueue`` event — best-effort, recorded for assertions.
+        self.published.append((channel, message))
+        return 0
 
 
 def _service_with_fake_redis():
