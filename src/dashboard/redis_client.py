@@ -685,7 +685,17 @@ def reschedule_queue_task(
                 continue
             data["run_at"] = scheduled_at
             new_payload = json.dumps(data, ensure_ascii=False)
-            client.zrem(key, payload)
+            # Atomic claim via ZREM, mirroring scheduler.queue.pop_due: only
+            # re-add the rewritten row if *we* removed the original. If a worker
+            # popped this task between our read and ZREM, ZREM returns 0 and we
+            # must NOT ZADD — otherwise we'd re-queue an already-running task and
+            # cause a double execution.
+            try:
+                removed = int(client.zrem(key, payload))
+            except (TypeError, ValueError):
+                removed = 0
+            if removed != 1:
+                return False
             client.zadd(key, {new_payload: scheduled_at})
             return True
     return False
@@ -724,7 +734,17 @@ def run_queue_task_now(client: redis.Redis, task_id: str) -> bool:
             data["run_at"] = now
             new_payload = json.dumps(data, ensure_ascii=False)
             # ZSET members are byte-exact: rescore = ZREM old + ZADD new.
-            client.zrem(key, payload)
+            # Atomic claim via ZREM, mirroring scheduler.queue.pop_due: only
+            # re-add the rewritten row if *we* removed the original. If a worker
+            # popped this task between our read and ZREM, ZREM returns 0 and we
+            # must NOT ZADD — otherwise we'd re-queue an already-running task and
+            # cause a double execution.
+            try:
+                removed = int(client.zrem(key, payload))
+            except (TypeError, ValueError):
+                removed = 0
+            if removed != 1:
+                return False
             client.zadd(key, {new_payload: now})
             return True
     return False
