@@ -9,7 +9,13 @@ screens:
       action: reward_ribbon
       type: orange
       threshold: 0.35
-      min_component_y_ratio: 0.15
+      # 0.04 floor (the top-aligned onboarding-band reject, see the detector test):
+      # the real upgraded-popup orange ribbon sits at component y_ratio ~0.065 on
+      # page.rewards_upgraded.png. The blue rewards rule needs a 0.15 floor to fend
+      # off the blue Daily-Deals / Welcome-back banners, but that floor does NOT
+      # apply here — orange has no such look-alikes, and 0.15 wrongly rejected the
+      # genuine upgraded ribbon (→ screen read as `unknown`).
+      min_component_y_ratio: 0.04
       min_component_height_ratio: 0.7
 
   rewards:

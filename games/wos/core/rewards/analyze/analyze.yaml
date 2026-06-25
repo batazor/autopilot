@@ -35,14 +35,12 @@ overlay:
     device_level: true
     type: orange
     threshold: 0.35
-    # 0.15 floor: a real rewards ribbon sits mid-popup (component y_ratio ~0.24
-    # on bs1), while the "Daily Deals" shop banner hugs the top of this bbox
-    # (y_ratio ~0.00) and otherwise scores a near-identical blue mask (~0.58) —
-    # the only clean discriminator is vertical position. Was 0.04, which the
-    # scrcpy/normalized worker frame intermittently crossed → the bot mistook
-    # Daily Deals for a rewards popup and looped exit_rewards_popup (prio 120k),
-    # starving the daily queue.
-    min_component_y_ratio: 0.15
+    # 0.04 floor (top-aligned onboarding-band reject): the genuine upgraded-popup
+    # orange ribbon sits at component y_ratio ~0.065 (page.rewards_upgraded.png).
+    # The 0.15 floor below belongs to the BLUE rewards rule — it fends off the
+    # blue Daily-Deals / Welcome-back banners, which have no orange look-alike, so
+    # copying it here wrongly suppressed the real upgraded popup (no exit pushed).
+    min_component_y_ratio: 0.04
     min_component_height_ratio: 0.7
     ttl: 5s
     priority: 120_000
