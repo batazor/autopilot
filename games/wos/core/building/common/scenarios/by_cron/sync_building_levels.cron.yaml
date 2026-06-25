@@ -1,0 +1,17 @@
+enabled: true
+name: "🏗️ Sync building levels (reader)"
+device_level: true
+priority: 39_000
+# Keystone reader for the build planner: drives the radar navigator across the
+# scanned main_city, opens each building, OCRs its "<Name> Lv. N" plate and
+# mirrors buildings.levels.* — so plan_next_builds picks real low buildings
+# instead of treating everything as level 0. Sibling of sync_research_levels.
+#
+# Slow + tap-heavy (one route per building) and it leaves main_city, so it runs
+# rarely and at low priority; check_main_city brings the bot home afterwards.
+# Needs a saved main_city radar scan for this account (see runs/citymap).
+cron: "41 */12 * * *"          # twice a day, offset off the hour
+cond: currentNode == main_city
+steps:
+  - exec: dismiss_popup
+  - exec: sweep_building_levels

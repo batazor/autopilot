@@ -1,0 +1,14 @@
+id: war_academy
+title: War Academy
+description: >-
+  War Academy screen node + idle-research dispatcher. The War Academy is a
+  separate building from the Research Center; it runs the T11/T12 troop techs
+  (helios_* / exalted_* in db/research.yaml, gated by the War Academy's FC level,
+  not the RC level). The start-idle dispatcher (start_idle_war_academy) ships
+  DISABLED until the War Academy tech-tree is labeled on-device (mirror of
+  research_center). The main_menu panel scan pushes it when the "War Academy" row
+  reads Idle — self-gated on this scenario's `enabled` flag.
+area: area.yaml
+scenarios: scenarios
+references: references
+wiki: false

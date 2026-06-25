@@ -95,23 +95,51 @@ def test_building_upgrade_scenarios_use_blue_button_mask() -> None:
             assert step["threshold"] == 0.5
 
 
-def test_main_menu_building_queue_scenarios_use_blue_button_mask() -> None:
-    for rel in (
-        "../../main_menu/scenarios/building_queue_1_empty.yaml",
-        "../../main_menu/scenarios/building_queue_2_empty.yaml",
+def _collect(steps: list, key: str) -> list:
+    """Recursively gather the values of ``step[key]`` across nested ``steps``."""
+    out: list = []
+    for step in steps or []:
+        if not isinstance(step, dict):
+            continue
+        if key in step:
+            out.append(step[key])
+        out.extend(_collect(step.get("steps") or [], key))
+    return out
+
+
+def test_main_menu_building_queue_scenarios_are_planner_driven() -> None:
+    """The queue scenarios no longer blind-click blue CTAs (that drifted onto the
+    wrong screen). They plan via plan_builds, navigate the radar to the chosen
+    building, and hand off to building.upgrade — which carries the blue-button
+    mask (asserted by test_building_upgrade_scenario_blue_button_mask above)."""
+    for rel, key in (
+        ("../../main_menu/scenarios/building_queue_1_empty.yaml", "planner.build_q1"),
+        ("../../main_menu/scenarios/building_queue_2_empty.yaml", "planner.build_q2"),
     ):
         doc = yaml.safe_load((COMMON_DIR / rel).read_text())
-        masked = {
-            step["while_match"]: step
-            for step in doc["steps"]
-            if step.get("while_match") in {"upgrade_button", "upgrade_blue_button"}
-        }
-        assert set(masked) == {"upgrade_button", "upgrade_blue_button"}
-        for step in masked.values():
-            assert step["action"] == "cta_button"
-            assert step["color"] == "blue"
-            assert step["threshold"] == 0.5
-            assert "min_match_saturation" not in step
+        assert doc["node"] == "main_city"
+        steps = doc["steps"]
+        execs = _collect(steps, "exec")
+        assert "plan_next_builds" in execs
+        assert "navigate_to_building" in execs
+        assert "building.upgrade" in _collect(steps, "push_scenario")
+        # the navigate step reads this queue's distinct pick, not the furnace-first
+        # planner.next_building.
+        nav = next(s for s in _collect_steps(steps) if s.get("exec") == "navigate_to_building")
+        assert nav["building_key"] == key
+        # no blind blue-button clicking remains in the queue scenarios themselves
+        assert not _collect(steps, "while_match")
+
+
+def _collect_steps(steps: list) -> list:
+    """Flatten nested step dicts (depth-first)."""
+    out: list = []
+    for step in steps or []:
+        if not isinstance(step, dict):
+            continue
+        out.append(step)
+        out.extend(_collect_steps(step.get("steps") or []))
+    return out
 
 
 def _load_reference_bgr(rel: str):

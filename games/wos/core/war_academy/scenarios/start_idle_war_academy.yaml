@@ -1,0 +1,28 @@
+enabled: false
+# Idle War Academy research slot → start the best researchable War Academy tech.
+# Sibling of research_center's start_idle_research, but for the War Academy
+# building + its FC-gated T11/T12 troop techs (helios_*/exalted_* in
+# db/research.yaml). The research planner already surfaces these via plan_next's
+# `war_academy_fc` param (wa_gated picks) — so the dispatcher reuses it, scoped to
+# WA-gated nodes.
+#
+# Pushed by main_menu's panel scan when the "War Academy" Tech-Research row reads
+# Idle (self-gated on THIS scenario's `enabled`, so flipping it on is the single
+# switch). Ships DISABLED: needs on-device labeling of the War Academy tech-tree
+# (regions, tile OCR) + a WA-tech-level reader, exactly like research_center.
+#
+# TODO(on-device): after navigate, open the WA tech tree, pick the planner's
+# wa_gated tech, locate its tile, tap → Research. Mirror games/wos/core/
+# research_center/exec.py (sweep + start_planned_research) with war_academy_fc.
+name: 🎖️▶️ Start idle War Academy research
+device_level: true
+priority: 56_000
+cond: research.war_academy.state.isAvailable ~= "1"
+steps:
+  - exec: dismiss_popup
+  - exec: navigate_to_building
+    building: war_academy
+    open: true
+  # - cond: nav.ok ~= "1"
+  #   steps:
+  #     - exec: start_planned_war_academy   # TODO after labeling

@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 63,
+      "screen_id": "island",
+      "ocr": "references/island.png",
+      "regions": [
+        {
+          "name": "island.title",
+          "action": "text",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 28.0,
+            "y": 3.0,
+            "width": 44.0,
+            "height": 5.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}

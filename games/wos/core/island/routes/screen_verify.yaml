@@ -1,0 +1,11 @@
+screens:
+  # Registers `island` (Daybreak Island) as a verifiable FSM node. OCR the screen
+  # title rather than a template so it survives reskins.
+  # TODO(on-device labeling): tighten island.title's bbox + confirm the exact
+  # title text ("Daybreak Island") against a real capture.
+  island:
+    priority: 31
+    rules:
+      - ocr: island.title
+        contains: Daybreak
+        threshold: 0.8

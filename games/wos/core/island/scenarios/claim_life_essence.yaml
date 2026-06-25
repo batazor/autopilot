@@ -1,0 +1,20 @@
+enabled: false
+# Claim the Tree of Life's passive Life Essence from the main_menu City panel.
+# Pushed by the panel scan when the Life Essence · Tree of Life row is claimable
+# (self-gated on THIS scenario's `enabled`). Ships DISABLED: the panel-row tap
+# either collects in-place or jumps to Daybreak Island — the island claim button
+# + harvest popup need on-device labeling.
+#
+# TODO(on-device): confirm whether the green-button tap collects directly or
+# opens the island; label island.* claim regions; then drive the claim. The
+# island planner (core/island/planner) can later decide ToL-level upgrades.
+name: 🌳 Claim Life Essence (Tree of Life)
+node: main_menu
+cond: "active_player != null"
+steps:
+  - exec: tap_main_menu_panel_row
+    section: life_essence
+    row: tree_of_life
+    approval_region: main_menu.panel.life_essence.tree_of_life
+  # - wait_screen: { any: [island, rewards], max: 8, interval: 500ms }
+  # - ... claim on island ...   # TODO after labeling

@@ -1,0 +1,12 @@
+id: island
+title: Daybreak Island
+description: >-
+  Daybreak Island screen node + Life Essence claim. The island already has a
+  value-greedy planner (core/island/planner); this adds the on-screen side — a
+  claim scenario for the Tree of Life's passive Life Essence, pushed by the
+  main_menu panel scan when the "Tree of Life" row is claimable. Ships DISABLED
+  until the island screen + claim button are labeled on-device.
+area: area.yaml
+scenarios: scenarios
+references: references
+wiki: false

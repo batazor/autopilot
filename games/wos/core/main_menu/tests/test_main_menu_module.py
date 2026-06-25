@@ -612,7 +612,13 @@ async def test_exec_scan_panel_pushes_accept_for_completed_troops(
     async def _publish(*_args: object, **_kwargs: object) -> None:
         return None
 
+    # building.png shows idle build queues, completed troops AND an idle Research
+    # Center row. Every panel push self-gates on the target scenario's `enabled`
+    # flag; pin it True for determinism so the full per-row dispatch set fires.
+    import dsl.dsl_schema as schema
+
     monkeypatch.setattr(mod.dsl_runtime, "bot_actions", lambda: _FakeActions())
+    monkeypatch.setattr(schema, "dsl_scenario_yaml_enabled", lambda *_a, **_k: True)
     monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
     monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
 
@@ -632,6 +638,7 @@ async def test_exec_scan_panel_pushes_accept_for_completed_troops(
         "accept_troops_marksman",
         "building_queue_1_empty",
         "building_queue_2_empty",
+        "start_idle_research",
     ]
     assert updates["troops.infantry.state.isReady"] is True
     assert updates["buildings.queue.1.state.isIdle"] is True
@@ -647,7 +654,200 @@ async def test_exec_scan_panel_pushes_accept_for_completed_troops(
         "accept_troops_marksman",
         "building_queue_1_empty",
         "building_queue_2_empty",
+        "start_idle_research",
     ]
+
+
+@pytest.mark.asyncio
+async def test_exec_scan_panel_pushes_train_for_idle_troops(
+    redis_async: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All three camps Idle → three troops.<type>.train pushes (no 30m cron wait)."""
+    import json
+
+    mod = _load_exec_module()
+
+    rows = [
+        {
+            "section": "training",
+            "row": troop,
+            "title": troop.capitalize(),
+            "status_text": "Idle",
+            "kind": "idle",
+            "remaining_s": 0,
+            "button": "blue",
+            "red_dot": False,
+            "cy": 400 + idx * 60,
+        }
+        for idx, troop in enumerate(("infantry", "lancer", "marksman"))
+    ]
+
+    async def _fake_scan(_image: object, *, ocr: object) -> list[dict[str, object]]:
+        return rows
+
+    class _FakeActions:
+        def capture_screen_bgr(self, _instance_id: str) -> object:
+            return object()
+
+    class _PlayerStore:
+        def update_from_flat(self, _flat: dict[str, object]) -> None:
+            return None
+
+    class _StateStore:
+        def get_or_create(self, _player_id: str) -> _PlayerStore:
+            return _PlayerStore()
+
+    async def _publish(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    import dsl.dsl_schema as schema
+
+    monkeypatch.setattr(mod.dsl_runtime, "bot_actions", lambda: _FakeActions())
+    monkeypatch.setattr(mod, "_scan_panel_rows", _fake_scan)
+    monkeypatch.setattr(schema, "dsl_scenario_yaml_enabled", lambda *_a, **_k: True)
+    monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
+    monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
+
+    ctx = DslExecContext(
+        redis_client=redis_async,
+        player_id="p1",
+        instance_id="bs1",
+        args={},
+        result={},
+    )
+    await mod.DSL_EXEC_HANDLERS["scan_main_menu_panel"](ctx)
+
+    assert ctx.result["action"] == "stored"
+    assert sorted(ctx.result["pushed"]) == [
+        "troops.infantry.train",
+        "troops.lancer.train",
+        "troops.marksman.train",
+    ]
+    queued = [
+        json.loads(raw)["task_type"]
+        for raw in await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    ]
+    assert sorted(queued) == [
+        "troops.infantry.train",
+        "troops.lancer.train",
+        "troops.marksman.train",
+    ]
+
+
+_DISPATCH_CASES = [
+    ("training", "completed", "infantry", "accept_troops_infantry"),
+    ("training", "idle", "lancer", "troops.lancer.train"),
+    ("building_queue", "idle", "queue_1", "building_queue_1_empty"),
+    ("building_queue", "idle", "queue_2", "building_queue_2_empty"),
+    ("tech_research", "idle", "center", "start_idle_research"),
+    ("tech_research", "idle", "war_academy", "start_idle_war_academy"),
+    ("alliance_contribution", "claimable", "alliance_contribution", "alliance.tech.contribute"),
+    ("recruit_heroes", "free", "advanced", "free_recruitments_today"),
+    ("pet_adventure", "completed", "pet_adventure", "journey_of_light"),
+    ("labyrinth", "claimable", "gear_forge", "event.labyrinth.gear_forge"),
+    ("labyrinth", "claimable", "gaia_heart", "event.labyrinth.gaia_heart"),
+    ("trek", "claimable", "tundra_trek", "event.tundra_trek"),
+    ("my_rewards", "claimable", "online_rewards", "claim_online_rewards"),
+    ("life_essence", "claimable", "tree_of_life", "claim_life_essence"),
+    ("expert", "idle", "learn_skills", "learn_skills"),
+    ("childrens_day", "claimable", "childrens_day", "event.childrens_day"),
+    ("popularity_king", "claimable", "popularity_king_competition", "event.popularity_king_competition"),
+    ("rose_defense", "claimable", "rose_defense_battle", "event.rose_defense_battle"),
+    ("honey_language_mall", "claimable", "honey_language_mall", "event.honey_language_mall"),
+    ("honeymoon_trip", "claimable", "honeymoon_trip", "event.honeymoon_trip"),
+]
+
+
+@pytest.mark.parametrize(("section", "kind", "row", "scenario"), _DISPATCH_CASES)
+def test_dispatch_table_resolves_every_actionable_row(
+    section: str, kind: str, row: str, scenario: str
+) -> None:
+    """Every panel row's actionable (section, kind) resolves to its OWN scenario."""
+    mod = _load_exec_module()
+    rule = mod._dispatch_rule_for(section, kind, row)
+    assert rule is not None, f"no dispatch rule for {section}/{kind}/{row}"
+    assert mod._resolve_dispatch_scenario(rule, row) == scenario
+
+
+@pytest.mark.parametrize(
+    ("section", "kind", "row"),
+    [
+        ("training", "in_progress", "infantry"),   # mid-training → no push
+        ("tech_research", "locked", "war_academy"),  # not built → no push
+        ("building_queue", "in_progress", "queue_1"),  # building → no push
+        ("alliance_contribution", "in_progress", "alliance_contribution"),
+    ],
+)
+def test_dispatch_table_ignores_non_actionable_kinds(section: str, kind: str, row: str) -> None:
+    """Rows that aren't pending action (in_progress/locked) match no dispatch rule."""
+    mod = _load_exec_module()
+    assert mod._dispatch_rule_for(section, kind, row) is None
+
+
+@pytest.mark.asyncio
+async def test_exec_scan_panel_research_idle_push_gated_on_dispatch_enabled(
+    redis_async: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Idle Research Center row → start_idle_research, but only when that
+    dispatcher is enabled (it ships disabled until the tech-tree is labeled)."""
+    import dsl.dsl_schema as schema
+
+    mod = _load_exec_module()
+
+    rows = [
+        {
+            "section": "tech_research",
+            "row": "center",
+            "title": "Center Research",
+            "status_text": "Idle",
+            "kind": "idle",
+            "remaining_s": 0,
+            "button": "blue",
+            "red_dot": False,
+            "cy": 600,
+        }
+    ]
+
+    async def _fake_scan(_image: object, *, ocr: object) -> list[dict[str, object]]:
+        return rows
+
+    class _FakeActions:
+        def capture_screen_bgr(self, _instance_id: str) -> object:
+            return object()
+
+    class _PlayerStore:
+        def update_from_flat(self, _flat: dict[str, object]) -> None:
+            return None
+
+    class _StateStore:
+        def get_or_create(self, _player_id: str) -> _PlayerStore:
+            return _PlayerStore()
+
+    async def _publish(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(mod.dsl_runtime, "bot_actions", lambda: _FakeActions())
+    monkeypatch.setattr(mod, "_scan_panel_rows", _fake_scan)
+    monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
+    monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
+
+    # 1. dispatcher disabled (default) → no research push
+    monkeypatch.setattr(schema, "dsl_scenario_yaml_enabled", lambda *_a, **_k: False)
+    ctx = DslExecContext(
+        redis_client=redis_async, player_id="p1", instance_id="bs1", args={}, result={}
+    )
+    await mod.DSL_EXEC_HANDLERS["scan_main_menu_panel"](ctx)
+    assert ctx.result["pushed"] == []
+
+    # 2. dispatcher enabled → push start_idle_research
+    monkeypatch.setattr(schema, "dsl_scenario_yaml_enabled", lambda *_a, **_k: True)
+    ctx2 = DslExecContext(
+        redis_client=redis_async, player_id="p1", instance_id="bs1", args={}, result={}
+    )
+    await mod.DSL_EXEC_HANDLERS["scan_main_menu_panel"](ctx2)
+    assert ctx2.result["pushed"] == ["start_idle_research"]
 
 
 @pytest.mark.asyncio

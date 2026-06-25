@@ -1,0 +1,12 @@
+screens:
+  # Registers `war_academy` as a verifiable FSM node (it was an allowed node in
+  # building.upgrade with no verify rule — same gap research_center had). OCR the
+  # screen title so it survives reskins.
+  # TODO(on-device labeling): tighten war_academy.title's bbox against a real
+  # War Academy capture — current bbox is a top-center estimate.
+  war_academy:
+    priority: 31
+    rules:
+      - ocr: war_academy.title
+        contains: War Academy
+        threshold: 0.8

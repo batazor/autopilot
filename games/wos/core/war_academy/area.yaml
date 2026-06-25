@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 62,
+      "screen_id": "war_academy",
+      "ocr": "references/war_academy.png",
+      "regions": [
+        {
+          "name": "war_academy.title",
+          "action": "text",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 28.0,
+            "y": 3.0,
+            "width": 44.0,
+            "height": 5.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}

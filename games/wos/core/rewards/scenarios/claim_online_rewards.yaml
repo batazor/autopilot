@@ -1,0 +1,25 @@
+enabled: false
+# Claim the "Online Rewards" (online-time rewards) from the main_menu City panel.
+# The rewards module already owns the generic reward-popup detection + exit
+# (page.rewards ribbon + exit_rewards_popup). This dedicated scenario taps the
+# Online Rewards row's green collect button on the panel, then claims through the
+# rewards popup that appears.
+#
+# Pushed by main_menu's panel scan when the My Rewards · Online Rewards row reads
+# Completed/Claimable (self-gated on THIS scenario's `enabled`). Ships DISABLED:
+# the post-tap claim-button region + the "Online Rewards" screen flow need
+# on-device labeling (the panel-row tap + the rewards-popup claim sequence).
+#
+# TODO(on-device): confirm what the green-button tap opens (a rewards popup vs a
+# dedicated Online Rewards screen) and label the claim button; then drive the
+# claim + exit_rewards_popup chain.
+name: 🎁 Claim online rewards
+node: main_menu
+cond: "active_player != null"
+steps:
+  - exec: tap_main_menu_panel_row
+    section: my_rewards
+    row: online_rewards
+    approval_region: main_menu.panel.my_rewards.online_rewards
+  # - wait_screen: { any: [rewards], max: 8, interval: 500ms }
+  # - push_scenario: exit_rewards_popup   # TODO after labeling the claim flow

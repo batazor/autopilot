@@ -432,6 +432,77 @@ _IDLE_BUILDING_QUEUE_SCENARIOS = {
     "queue_2": "building_queue_2_empty",
 }
 
+# Declarative per-row dispatch: each actionable (section, kind) row pushes its OWN
+# dedicated scenario. ``scenario`` is a fixed key, a ``{row}`` template, or
+# ``scenario_map`` (per-row). ``rows`` (optional) restricts which row slugs match.
+# EVERY push self-gates on the TARGET scenario's YAML ``enabled`` flag, so a
+# scaffolded (``enabled: false``) scenario is wired here but never pushed until it
+# is flipped on (after on-device labeling) — the single switch that activates a row.
+# ``kinds`` = the actionable states that warrant a push (never in_progress/locked/
+# empty). Priorities: starts (build/train/research) 78-80k sit ABOVE claims (74k)
+# so a free build/training queue is filled before opportunistic claims.
+_PANEL_DISPATCH: tuple[dict[str, Any], ...] = (
+    # --- starts (idle slot → begin work) ---
+    {"section": "training", "kinds": ("completed",), "scenario": "accept_troops_{row}",
+     "priority": 80_000, "rows": _TROOP_TYPES},
+    {"section": "training", "kinds": ("idle",), "scenario": "troops.{row}.train",
+     "priority": 78_000, "rows": _TROOP_TYPES},
+    {"section": "building_queue", "kinds": ("idle",), "scenario_map": _IDLE_BUILDING_QUEUE_SCENARIOS,
+     "priority": 80_000},
+    {"section": "tech_research", "kinds": ("idle",), "scenario": "start_idle_research",
+     "priority": 78_000, "rows": ("center",)},
+    {"section": "tech_research", "kinds": ("idle",), "scenario": "start_idle_war_academy",
+     "priority": 78_000, "rows": ("war_academy",)},  # scaffold (enabled:false)
+    # --- claims/collects (green button / claimable) ---
+    {"section": "alliance_contribution", "kinds": ("claimable",), "scenario": "alliance.tech.contribute",
+     "priority": 74_000},
+    {"section": "recruit_heroes", "kinds": ("free",), "scenario": "free_recruitments_today",
+     "priority": 74_000},
+    {"section": "pet_adventure", "kinds": ("completed", "free"), "scenario": "journey_of_light",
+     "priority": 74_000},
+    {"section": "labyrinth", "kinds": ("claimable",), "scenario": "event.labyrinth.{row}",
+     "priority": 74_000},
+    {"section": "trek", "kinds": ("claimable",), "scenario": "event.tundra_trek",
+     "priority": 74_000},
+    {"section": "my_rewards", "kinds": ("completed", "claimable"), "scenario": "claim_online_rewards",
+     "priority": 74_000},  # scaffold (enabled:false)
+    {"section": "life_essence", "kinds": ("claimable",), "scenario": "claim_life_essence",
+     "priority": 74_000},  # scaffold (enabled:false)
+    {"section": "expert", "kinds": ("idle", "claimable"), "scenario": "learn_skills",
+     "priority": 74_000},  # scaffold (enabled:false)
+    # --- seasonal events (row visible only while the event is live → self-gating) ---
+    {"section": "childrens_day", "kinds": ("claimable",), "scenario": "event.childrens_day",
+     "priority": 74_000},
+    {"section": "popularity_king", "kinds": ("claimable",), "scenario": "event.popularity_king_competition",
+     "priority": 74_000},
+    {"section": "rose_defense", "kinds": ("claimable",), "scenario": "event.rose_defense_battle",
+     "priority": 74_000},
+    {"section": "honey_language_mall", "kinds": ("claimable",), "scenario": "event.honey_language_mall",
+     "priority": 74_000},
+    {"section": "honeymoon_trip", "kinds": ("claimable",), "scenario": "event.honeymoon_trip",
+     "priority": 74_000},
+)
+
+
+def _resolve_dispatch_scenario(rule: dict[str, Any], row: str) -> str:
+    """Resolve a dispatch rule's scenario key for a given row slug (or '' if none)."""
+    smap = rule.get("scenario_map")
+    if smap is not None:
+        return str(smap.get(row) or "")
+    return str(rule.get("scenario") or "").format(row=row)
+
+
+def _dispatch_rule_for(section: str, kind: str, row: str) -> dict[str, Any] | None:
+    """First dispatch rule matching (section, kind, row) — the row's owning rule."""
+    for rule in _PANEL_DISPATCH:
+        if rule["section"] != section or kind not in rule["kinds"]:
+            continue
+        allowed = rule.get("rows")
+        if allowed is not None and row not in allowed:
+            continue
+        return rule
+    return None
+
 
 def _slugify(text: str) -> str:
     out = re.sub(r"[^a-z0-9]+", "_", (text or "").strip().lower())
@@ -784,42 +855,42 @@ async def _exec_scan_main_menu_panel(ctx: DslExecContext) -> None:
         ctx.result.update({"reason": "state_persist_failed"})
         return
 
+    # Per-row dispatch: each actionable row pushes its OWN scenario (see
+    # _PANEL_DISPATCH). Every push self-gates on the target scenario's `enabled`
+    # flag — scaffolded (enabled:false) rows are wired but stay dormant until
+    # flipped on. The flag is read once per distinct scenario via a local cache.
+    enabled_cache: dict[str, bool] = {}
+
+    def _scenario_enabled(key: str) -> bool:
+        if key not in enabled_cache:
+            try:
+                from config.paths import repo_root as _repo_root
+                from dsl.dsl_schema import dsl_scenario_yaml_enabled as _yaml_enabled
+
+                enabled_cache[key] = _yaml_enabled(_repo_root(), key) is True
+            except Exception:
+                enabled_cache[key] = False
+        return enabled_cache[key]
+
     pushed: list[str] = []
     for r in rows:
-        if (
-            r["section"] == "training"
-            and r["row"] in _TROOP_TYPES
-            and r["kind"] == "completed"
-        ):
-            scenario = f"accept_troops_{r['row']}"
-            ok = await _enqueue_scenario(
-                redis_async=ctx.redis_client,
-                instance_id=ctx.instance_id,
-                player_id=player_id,
-                scenario=scenario,
-                priority=80_000,
-                run_at=now,
-                skip_if_duplicate=True,
-            )
-            if ok:
-                pushed.append(scenario)
-        elif (
-            r["section"] == "building_queue"
-            and r["kind"] == "idle"
-            and r["row"] in _IDLE_BUILDING_QUEUE_SCENARIOS
-        ):
-            scenario = _IDLE_BUILDING_QUEUE_SCENARIOS[str(r["row"])]
-            ok = await _enqueue_scenario(
-                redis_async=ctx.redis_client,
-                instance_id=ctx.instance_id,
-                player_id=player_id,
-                scenario=scenario,
-                priority=80_000,
-                run_at=now,
-                skip_if_duplicate=True,
-            )
-            if ok:
-                pushed.append(scenario)
+        rule = _dispatch_rule_for(str(r["section"]), str(r["kind"]), str(r["row"]))
+        if rule is None:
+            continue
+        scenario = _resolve_dispatch_scenario(rule, str(r["row"]))
+        if not scenario or not _scenario_enabled(scenario):
+            continue
+        ok = await _enqueue_scenario(
+            redis_async=ctx.redis_client,
+            instance_id=ctx.instance_id,
+            player_id=player_id,
+            scenario=scenario,
+            priority=int(rule["priority"]),
+            run_at=now,
+            skip_if_duplicate=True,
+        )
+        if ok:
+            pushed.append(scenario)
 
     await publish_dashboard_event_throttled_async(
         ctx.redis_client,

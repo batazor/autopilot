@@ -1,0 +1,18 @@
+enabled: false
+# Expert · Learn Skills — act on the City-panel "Expert" row.
+# Pushed by the panel scan when the Expert row is idle/claimable (self-gated on
+# THIS scenario's `enabled`). Ships DISABLED: the feature's in-game UX is UNKNOWN
+# (what does the green/blue button open — a Heroes/Expert screen? a learn-skill
+# popup? a timed claim?). NEEDS ON-DEVICE DISCOVERY first.
+#
+# TODO(on-device discovery): tap the Expert row, capture what the game shows,
+# then author the real flow (navigate + learn/claim) and label its regions.
+name: 🎓 Expert · learn skills
+node: main_menu
+cond: "active_player != null"
+steps:
+  - exec: tap_main_menu_panel_row
+    section: expert
+    row: learn_skills
+    approval_region: main_menu.panel.expert.learn_skills
+  # - ... discovery needed: what screen appears? ...

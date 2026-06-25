@@ -196,3 +196,14 @@ def test_rewards_exit_scenarios_are_device_level() -> None:
     ):
         doc = yaml.safe_load((MODULE_DIR / rel).read_text(encoding="utf-8"))
         assert doc["device_level"] is True
+
+
+def test_claim_online_rewards_scaffold_ships_disabled() -> None:
+    """The main_menu panel dispatch targets claim_online_rewards for the My
+    Rewards · Online Rewards row; it ships disabled (self-gate keeps it dormant)
+    until the claim flow is labeled on-device."""
+    doc = yaml.safe_load(
+        (MODULE_DIR / "scenarios/claim_online_rewards.yaml").read_text(encoding="utf-8")
+    )
+    assert doc["enabled"] is False
+    assert doc["steps"][0]["exec"] == "tap_main_menu_panel_row"

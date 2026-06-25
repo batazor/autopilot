@@ -1,0 +1,12 @@
+id: expert
+title: Expert
+description: >-
+  Expert · Learn Skills feature, surfaced as a City-panel row. The in-game UX is
+  not yet characterised (claim earned skill points? upgrade an expert's affinity?
+  a timed activity?). The learn_skills scenario ships DISABLED pending an on-device
+  discovery pass; the main_menu panel scan pushes it when the Expert row is
+  actionable, self-gated on its `enabled` flag. Expert catalog data lives in
+  db/experts/.
+scenarios: scenarios
+references: references
+wiki: false

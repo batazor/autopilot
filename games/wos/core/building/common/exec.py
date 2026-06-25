@@ -35,6 +35,24 @@ def _parse_level(title: str) -> tuple[str, int] | None:
     return slug, int(m.group(2))
 
 
+def _levels_from_plate_texts(texts: Any) -> dict[str, int]:
+    """Pure: OCR'd ``"<Name> Lv. N"`` title plates → ``{slug: level}``.
+
+    Keeps the highest level seen per slug (a re-sighting never lowers a reading)
+    and drops plates with no parseable level. The on-device sweep collects the
+    plate texts; this is the testable aggregation seam.
+    """
+    out: dict[str, int] = {}
+    for text in texts or ():
+        parsed = _parse_level(text if isinstance(text, str) else "")
+        if not parsed:
+            continue
+        slug, level = parsed
+        if level > out.get(slug, -1):
+            out[slug] = level
+    return out
+
+
 async def _exec_record_building_level(ctx: Any) -> None:
     from tasks.dsl_exec.context import (
         _decode_redis_raw,
@@ -173,6 +191,55 @@ def _resolve_target_name(building: str, nav_buildings: dict) -> str | None:
     return None
 
 
+async def _exec_plan_next_builds(ctx: Any) -> None:
+    """Multi-queue build planner: ``plan_builds`` → ``planner.build_q1`` / ``.build_q2``.
+
+    Unlike ``plan_next_building`` (single furnace-first progression, which returns
+    ``goal_reached`` once the furnace hits the cap), ``plan_builds`` keeps the free
+    queues busy with the value-greedy economy/camp slate — so a developed city with
+    a maxed furnace still gets two *distinct* picks. Reads ``buildings.levels.*``
+    from the instance hash and writes one pick per free queue (default 2) plus its
+    to-level, so ``building_queue_{1,2}_empty`` can ``navigate_to_building`` each.
+    The picks are only as good as the level coverage — without the building-level
+    reader the planner runs blind (treats unread buildings as level 0).
+    """
+    from games.wos.core.building.planner import load_graph, plan_builds
+
+    r = ctx.redis_client
+    if r is None:
+        ctx.result.update({"reason": "no_redis_client"})
+        return
+    inst_key = f"wos:instance:{ctx.instance_id}:state"
+    try:
+        state = await r.hgetall(inst_key)
+    except Exception:
+        state = {}
+    levels = _read_levels(state)
+    try:
+        free = max(1, min(2, int(ctx.args.get("free_queues") or 2)))
+    except (TypeError, ValueError):
+        free = 2
+
+    slate = plan_builds(load_graph(), levels, free_queues=free)
+    picks = slate.picks
+    mapping: dict[str, str] = {"planner.build_reason": slate.reason}
+    for i in range(2):
+        pick = picks[i] if i < len(picks) else None
+        mapping[f"planner.build_q{i + 1}"] = pick.instance_id if pick else ""
+        mapping[f"planner.build_q{i + 1}_to_level"] = str(pick.to_level) if pick else ""
+    try:
+        await r.hset(inst_key, mapping=mapping)
+    except Exception:
+        logger.debug("plan_next_builds: state write failed", exc_info=True)
+
+    chosen = [p.instance_id for p in picks[:2]]
+    ctx.result.update({"action": "planned", "picks": chosen, "reason": slate.reason, "levels": levels})
+    logger.info(
+        "plan_next_builds: picks=%s reason=%s free=%d levels=%d instance=%s",
+        chosen, slate.reason, free, len(levels), ctx.instance_id,
+    )
+
+
 async def _exec_navigate_to_building(ctx: Any) -> None:
     """Drive the camera to the planned building via the radar navigator.
 
@@ -193,7 +260,12 @@ async def _exec_navigate_to_building(ctx: Any) -> None:
     inst_key = f"wos:instance:{ctx.instance_id}:state"
     building = str(ctx.args.get("building") or "").strip()
     if not building and r is not None:
-        building = _decode_redis_raw(await r.hget(inst_key, "planner.next_building"))
+        # ``building_key`` lets a caller point at a non-default state field (the
+        # multi-queue flow writes its picks to planner.build_q1 / .build_q2); a
+        # given-but-empty key returns no_building rather than silently falling
+        # back to the furnace-first planner.next_building.
+        key = str(ctx.args.get("building_key") or "").strip() or "planner.next_building"
+        building = _decode_redis_raw(await r.hget(inst_key, key))
     if not building:
         ctx.result.update({"reason": "no_building"})
         return
@@ -284,8 +356,110 @@ async def _exec_navigate_to_building(ctx: Any) -> None:
     )
 
 
+async def _exec_sweep_building_levels(ctx: Any) -> None:
+    """Read every scanned building's level → ``buildings.levels.*`` (planner keystone).
+
+    For each building in the latest main_city radar scan, route the camera to it,
+    open its panel, OCR the ``"<Name> Lv. N"`` title plate, parse the level, then
+    close the panel. Mirrors all reads to the instance hash so the build planner
+    (``plan_next_builds``) sees real levels instead of treating every unread
+    building as level 0. Reuses the radar Navigator (``navigate_to_building``) and
+    ``_parse_level`` (``record_building_level``). Needs a saved main_city scan for
+    THIS account; best-effort per building (a route/OCR miss skips that one).
+    """
+    import asyncio
+
+    from config.loader import load_settings
+    from layout.types import Region
+    from modules.radar.config import runs_root
+    from modules.radar.navigator import Navigator, latest_city_run, open_tap_point
+    from tasks import dsl_runtime
+
+    r = ctx.redis_client
+    if r is None:
+        ctx.result.update({"reason": "no_redis_client"})
+        return
+    run = latest_city_run(runs_root())
+    if run is None:
+        ctx.result.update({"reason": "no_city_map"})
+        return
+
+    settings = load_settings()
+    serial = next(
+        (i.bluestacks_window_title for i in settings.instances if i.instance_id == ctx.instance_id),
+        None,
+    )
+    adb_bin = settings.worker.adb_executable or "adb"
+    oc = dsl_runtime.ocr_client()
+    title_pct = (1.7, 34.7, 61.2, 9.1)  # building.title plate "<Name> Lv. N"
+    back_pct = (5.5, 6.2)               # top-left back arrow closes a building panel
+
+    def _build() -> Any:
+        from modules.radar.device import RadarDevice, pick_serial
+
+        nav = Navigator.from_run(run)
+        device = RadarDevice(serial or pick_serial(adb_bin), adb_bin)
+        return nav, device
+
+    nav, device = await asyncio.to_thread(_build)
+
+    def _route_and_open(name: str) -> Any:
+        ok = nav.route_to(
+            name, device.capture, lambda x1, y1, x2, y2: device.swipe(x1, y1, x2, y2, 450)
+        )
+        if not ok:
+            return None
+        device.tap(*open_tap_point())
+        return device.capture()
+
+    levels: dict[str, int] = {}
+    names = nav.names()
+    for name in names:
+        try:
+            frame = await asyncio.to_thread(_route_and_open, name)
+        except Exception:
+            logger.debug("sweep_building_levels: route failed for %s", name, exc_info=True)
+            continue
+        if frame is None:
+            continue
+        h, w = frame.shape[:2]
+        x, y, bw, bh = title_pct
+        region = Region(int(x / 100 * w), int(y / 100 * h), int(bw / 100 * w), int(bh / 100 * h))
+        try:
+            res = await oc.ocr_region(frame, region, preprocess="title_line", region_id="bldg_title")
+            text = getattr(res, "text", "") or ""
+        except Exception:
+            text = ""
+        parsed = _parse_level(text)
+        if parsed:
+            slug, lvl = parsed
+            if lvl > levels.get(slug, -1):
+                levels[slug] = lvl
+        # Close the panel (top-left back) so the next route sees the bare map.
+        await asyncio.to_thread(device.tap, back_pct[0] / 100 * w, back_pct[1] / 100 * h)
+
+    if not levels:
+        ctx.result.update({"reason": "no_levels_read", "buildings": len(names)})
+        return
+
+    inst_key = f"wos:instance:{ctx.instance_id}:state"
+    mapping = {f"buildings.levels.{slug}": str(lvl) for slug, lvl in levels.items()}
+    try:
+        await r.hset(inst_key, mapping=mapping)
+    except Exception:
+        logger.debug("sweep_building_levels: state write failed", exc_info=True)
+
+    ctx.result.update({"action": "stored", "levels": levels, "buildings": len(names)})
+    logger.info(
+        "sweep_building_levels: read %d/%d levels instance=%s",
+        len(levels), len(names), ctx.instance_id,
+    )
+
+
 DSL_EXEC_HANDLERS = {
     "record_building_level": _exec_record_building_level,
     "plan_next_building": _exec_plan_next_building,
+    "plan_next_builds": _exec_plan_next_builds,
+    "sweep_building_levels": _exec_sweep_building_levels,
     "navigate_to_building": _exec_navigate_to_building,
 }
