@@ -143,6 +143,21 @@ buildings:
   category: unknown
   wiki_url: https://www.whiteoutsurvival.wiki/buildings/war-academy/
   file: war_academy.yaml
+- id: dock
+  name: Dock
+  category: special
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/
+  file: dock.yaml
+- id: fishing_hut
+  name: Fishing Hut
+  category: event
+  wiki_url: https://www.whiteoutsurvival.wiki/events/fishing-tournament/
+  file: fishing_hut.yaml
+- id: monument
+  name: Monument
+  category: decoration
+  wiki_url: https://www.whiteoutsurvival.wiki/buildings/
+  file: monument.yaml
 - id: fire_crystal_marksman_camp
   name: Fire Crystal Marksman Camp
   category: unknown

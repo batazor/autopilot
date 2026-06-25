@@ -159,10 +159,13 @@ class Navigator:
         return (c["w"] / 2.0 + off[0], c["h"] / 2.0 + off[1])
 
     def _locate_retry(
-        self, capture: Callable[[], np.ndarray], retries: int = 2
+        self, capture: Callable[[], np.ndarray], retries: int = 4
     ) -> tuple[float, float] | None:
-        """Localize, re-capturing a couple of times — a transient popup or a
-        mid-pan blur fails one frame but not the next."""
+        """Localize, re-capturing a few times — a transient popup, a mid-pan
+        blur, or a low-texture frame (snow/water near the city edge) fails one
+        capture but not the next. On a large stitched canvas with big snow/water
+        regions ORB localization is probabilistic per frame, so a handful of
+        retries lifts the per-step lock rate from ~60% to ~99%."""
         for _ in range(retries + 1):
             cur = self.locate(capture())
             if cur is not None:

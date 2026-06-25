@@ -8,6 +8,9 @@ worker-side machinery.
 
 from __future__ import annotations
 
+import re
+import subprocess
+import time
 from typing import TYPE_CHECKING
 
 from adb.controller import AdbController
@@ -17,6 +20,12 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     import numpy as np
+
+# Linux input event codes used for the multitouch pinch (sendevent is numeric).
+_EV_SYN, _SYN_REPORT, _SYN_MT_REPORT = 0, 0, 2
+_EV_KEY, _BTN_TOUCH = 1, 330
+_EV_ABS, _ABS_MT_TRACKING_ID, _ABS_MT_POSITION_X, _ABS_MT_POSITION_Y = 3, 57, 53, 54
+_SCREEN_W, _SCREEN_H = 720, 1280
 
 
 class ScanStopped(RuntimeError):
@@ -95,6 +104,115 @@ class RadarDevice:
             msg = f"screencap failed on {self._serial}: {err}"
             raise RuntimeError(msg)
         return img
+
+    def _adb_shell(self, cmd: str) -> str:
+        return subprocess.run(
+            [self._adb_bin, "-s", self._serial, "shell", cmd],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+
+    def _touch_device(self) -> tuple[str, int, int] | None:
+        """``(event_path, max_x, max_y)`` of the multitouch (``ABS_MT_POSITION``)
+        input device, parsed from ``getevent -pl``; ``None`` if none is found.
+
+        Cached after the first probe — the touchscreen does not change.
+        """
+        cached = getattr(self, "_touch_cache", False)
+        if cached is not False:
+            return cached  # type: ignore[return-value]
+        dev: str | None = None
+        mx: int | None = None
+        my: int | None = None
+        result: tuple[str, int, int] | None = None
+        for line in self._adb_shell("getevent -pl").splitlines():
+            head = re.search(r"add device \d+:\s*(\S+)", line)
+            if head:
+                dev, mx, my = head.group(1), None, None
+                continue
+            if dev is None:
+                continue
+            xm = re.search(r"ABS_MT_POSITION_X.*max\s+(\d+)", line)
+            if xm:
+                mx = int(xm.group(1))
+            ym = re.search(r"ABS_MT_POSITION_Y.*max\s+(\d+)", line)
+            if ym:
+                my = int(ym.group(1))
+            if mx and my:
+                result = (dev, mx, my)
+                break
+        self._touch_cache = result
+        return result
+
+    def zoom_out(self, steps: int = 7, *, settle_s: float = 0.25) -> bool:
+        """Pinch the city map fully out via multitouch ``sendevent``.
+
+        The radar scan wants a FIXED, fully-zoomed-out scale for repeatable
+        distances (and so localization at scan time matches navigation time).
+        ``adb input`` is single-touch only, so this drives the touchscreen
+        directly: two contacts converge toward the screen centre, frame by
+        frame with a short device-side delay so the game registers a real pinch
+        gesture (a single instantaneous burst is ignored). The game clamps at
+        minimum zoom, so ``steps`` just needs to be "enough" to bottom out —
+        the landing scale is then identical every call.
+
+        Type-A multitouch (BlueStacks "Virtual Touch" and similar). Returns
+        False when no ``ABS_MT_POSITION`` device is present (nothing tapped).
+        """
+        td = self._touch_device()
+        if td is None:
+            return False
+        dev, maxx, maxy = td
+
+        def ex(x: float) -> int:
+            return max(0, min(maxx, round(x / _SCREEN_W * maxx)))
+
+        def ey(y: float) -> int:
+            return max(0, min(maxy, round(y / _SCREEN_H * maxy)))
+
+        def se(t: int, c: int, v: int) -> str:
+            return f"sendevent {dev} {t} {c} {v}"
+
+        cx, cy = _SCREEN_W / 2.0, _SCREEN_H / 2.0
+        # Two fingers start spread diagonally and converge → zoom out.
+        a0, a1 = (cx - 160, cy - 160), (cx - 30, cy - 30)
+        b0, b1 = (cx + 160, cy + 160), (cx + 30, cy + 30)
+        frames = 16
+
+        def _frame(ax: float, ay: float, bx: float, by: float) -> list[str]:
+            return [
+                se(_EV_ABS, _ABS_MT_TRACKING_ID, 0),
+                se(_EV_ABS, _ABS_MT_POSITION_X, ex(ax)),
+                se(_EV_ABS, _ABS_MT_POSITION_Y, ey(ay)),
+                se(_EV_SYN, _SYN_MT_REPORT, 0),
+                se(_EV_ABS, _ABS_MT_TRACKING_ID, 1),
+                se(_EV_ABS, _ABS_MT_POSITION_X, ex(bx)),
+                se(_EV_ABS, _ABS_MT_POSITION_Y, ey(by)),
+                se(_EV_SYN, _SYN_MT_REPORT, 0),
+                se(_EV_SYN, _SYN_REPORT, 0),
+                "sleep 0.018",
+            ]
+
+        for _ in range(max(1, steps)):
+            self._maybe_abort()
+            parts = [se(_EV_KEY, _BTN_TOUCH, 1)]
+            for i in range(frames + 1):
+                t = i / frames
+                parts += _frame(
+                    a0[0] + (a1[0] - a0[0]) * t,
+                    a0[1] + (a1[1] - a0[1]) * t,
+                    b0[0] + (b1[0] - b0[0]) * t,
+                    b0[1] + (b1[1] - b0[1]) * t,
+                )
+            parts += [  # lift both contacts
+                se(_EV_SYN, _SYN_MT_REPORT, 0),
+                se(_EV_KEY, _BTN_TOUCH, 0),
+                se(_EV_SYN, _SYN_REPORT, 0),
+            ]
+            self._adb_shell(" ; ".join(parts))
+            time.sleep(settle_s)
+        return True
 
 
 def pick_serial(adb_bin: str = "adb") -> str:

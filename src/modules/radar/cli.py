@@ -11,7 +11,11 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from modules.radar.config import default_config_path
+from modules.radar.config import (
+    DEFAULT_TARGET,
+    RADAR_TARGETS,
+    default_config_path,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -23,7 +27,20 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     scan = sub.add_parser("scan", help="run the full grid scan")
-    scan.add_argument("--config", type=Path, default=default_config_path())
+    scan.add_argument(
+        "--target",
+        default=DEFAULT_TARGET,
+        choices=RADAR_TARGETS,
+        help="which game view to scan (global_map / main_city / island). Selects the "
+        "default --config and is recorded on the manifest so navigation / map tabs "
+        "can filter by it. Default: global_map.",
+    )
+    scan.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="config YAML (default: the committed config for --target)",
+    )
     scan.add_argument("--out", type=Path, help="run directory (default runs/<YYYY-MM-DD>/)")
     scan.add_argument("--serial", help="override the configured ADB serial")
     scan.add_argument("--adb-bin", help="override the configured adb executable")
@@ -71,7 +88,10 @@ def main() -> None:
                 sys.stdout.write(f"radar: resuming most recent run {out}\n")
             if out is None:
                 out = Path("runs") / datetime.now(tz=UTC).strftime("%Y-%m-%d")
-            run_scan(args.config, out, serial=args.serial, adb_bin=args.adb_bin)
+            config = args.config or default_config_path(args.target)
+            run_scan(
+                config, out, serial=args.serial, adb_bin=args.adb_bin, target=args.target
+            )
         elif args.command == "stitch":
             from modules.radar.stitch import run_stitch
 

@@ -1,0 +1,10 @@
+id: fishing_hut
+name: Fishing Hut
+category: event
+requires: []
+requirements_by_level: {}
+# City building where fishing is started (the monthly Fishing Tournament event).
+# No dedicated wiki building page; unlock requirement and per-level costs are
+# unverified, so left empty rather than fabricated.
+wiki_url: https://www.whiteoutsurvival.wiki/events/fishing-tournament/
+note: Fishing Tournament building; unlock level and costs unverified.

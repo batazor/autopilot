@@ -1,0 +1,18 @@
+id: dock
+name: Dock
+category: special
+requires:
+- building: furnace
+  level: 19
+requirements_by_level:
+  '1':
+    prerequisites: Furnace 19
+    build_cost: []
+    construction_time: '-'
+    building_power: null
+# Unlocks at Furnace 19: sends survivors to explore the ocean and, after ~3
+# days, discovers Daybreak Island — the gateway to the island feature. Not
+# listed on the wiki buildings index; facts from community guides. Per-level
+# cost/time/power left empty rather than fabricated.
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/
+note: Island-access building (Furnace 19); not on the wiki buildings index, cost data unverified.

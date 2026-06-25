@@ -1034,6 +1034,71 @@ class ScrcpyClient:
             )
         self._send_touch(_ACTION_UP, x2, y2, pressure=_PRESSURE_UP, buttons=0)
 
+    def pinch(
+        self,
+        p0_from: tuple[float, float],
+        p0_to: tuple[float, float],
+        p1_from: tuple[float, float],
+        p1_to: tuple[float, float],
+        *,
+        duration_ms: int = 320,
+        steps: int = 16,
+    ) -> None:
+        """Two-finger pinch: pointers 0 and 1 travel ``*_from → *_to`` at the
+        same time (real multitouch, unlike single-pointer ``adb input``).
+        Coords are device px. Contacts converging → zoom out; diverging → in."""
+        (ax0, ay0), (ax1, ay1) = p0_from, p0_to
+        (bx0, by0), (bx1, by1) = p1_from, p1_to
+        n = max(2, int(steps))
+        self._send_touch(
+            _ACTION_DOWN, ax0, ay0, pressure=_PRESSURE_DOWN, buttons=_BUTTON_PRIMARY, pointer_id=0
+        )
+        self._send_touch(
+            _ACTION_DOWN, bx0, by0, pressure=_PRESSURE_DOWN, buttons=_BUTTON_PRIMARY, pointer_id=1
+        )
+        step_s = max(0.0, duration_ms / 1000.0 / n)
+        for i in range(1, n + 1):
+            t = i / n
+            time.sleep(step_s)
+            self._send_touch(
+                _ACTION_MOVE,
+                ax0 + (ax1 - ax0) * t,
+                ay0 + (ay1 - ay0) * t,
+                pressure=_PRESSURE_DOWN,
+                buttons=_BUTTON_PRIMARY,
+                pointer_id=0,
+            )
+            self._send_touch(
+                _ACTION_MOVE,
+                bx0 + (bx1 - bx0) * t,
+                by0 + (by1 - by0) * t,
+                pressure=_PRESSURE_DOWN,
+                buttons=_BUTTON_PRIMARY,
+                pointer_id=1,
+            )
+        self._send_touch(_ACTION_UP, ax1, ay1, pressure=_PRESSURE_UP, buttons=0, pointer_id=0)
+        self._send_touch(_ACTION_UP, bx1, by1, pressure=_PRESSURE_UP, buttons=0, pointer_id=1)
+
+    def zoom_out(self, *, steps: int = 7, frac: float = 0.42) -> None:
+        """Pinch fully out (repeat until the game clamps at min zoom) so the
+        scan/navigation run at one fixed, repeatable scale. Uses ``_codec_size``
+        so it is resolution-correct on any device."""
+        if self._codec_size is None:
+            msg = "scrcpy control socket not started"
+            raise RuntimeError(msg)
+        w, h = self._codec_size
+        cx, cy = w / 2.0, h / 2.0
+        far = min(w, h) * frac
+        near = min(w, h) * 0.06
+        for _ in range(max(1, steps)):
+            self.pinch(
+                (cx - far, cy - far),
+                (cx - near, cy - near),
+                (cx + far, cy + far),
+                (cx + near, cy + near),
+            )
+            time.sleep(0.25)
+
     # -- context manager sugar ---------------------------------------------
 
     def __enter__(self) -> ScrcpyClient:

@@ -1,0 +1,11 @@
+id: monument
+name: Monument
+category: decoration
+requires: []
+requirements_by_level: {}
+# Decorative city structure. The wiki documents "monuments" mainly as Daybreak
+# Island decorations (e.g. the Starry Lighthouse); a standalone city Monument
+# has no dedicated wiki page, so details are unverified and left empty rather
+# than fabricated.
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/
+note: Decorative structure; details unverified (no dedicated wiki page).
