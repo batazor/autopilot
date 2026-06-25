@@ -209,6 +209,43 @@ async def test_exec_plan_next_research_writes_pick(redis_async: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_plan_next_research_pushes_reader_when_history_empty(redis_async: Any) -> None:
+    """No recorded research history → the planner pushes sync_research_levels to
+    sweep all 3 branches and store what's researched, instead of planning blind."""
+    import json
+
+    bind_active_game("wos")
+    mod = _load_exec_module()
+
+    inst_key = "wos:instance:bs1:state"
+    await redis_async.delete(inst_key)
+    await redis_async.delete("wos:player:testfid:state")
+    await redis_async.delete("wos:queue:bs1")
+
+    ctx = DslExecContext(
+        redis_client=redis_async,
+        player_id="testfid",  # resolvable → reader can be enqueued (per-account)
+        instance_id="bs1",
+        args={},
+        result={},
+    )
+    await mod.DSL_EXEC_HANDLERS["plan_next_research"](ctx)
+
+    assert ctx.result["action"] == "needs_reader"
+    assert ctx.result["reason"] == "research_history_empty"
+    assert ctx.result["pushed"] == "sync_research_levels"
+
+    queued = [
+        json.loads(raw)["task_type"]
+        for raw in await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    ]
+    assert "sync_research_levels" in queued
+
+    nxt = await redis_async.hget(inst_key, "planner.next_research")
+    assert (nxt.decode() if isinstance(nxt, bytes) else nxt) == ""
+
+
+@pytest.mark.asyncio
 async def test_exec_sync_research_levels_noops_without_device(
     redis_async: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:

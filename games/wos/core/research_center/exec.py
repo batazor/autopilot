@@ -738,6 +738,59 @@ async def _exec_plan_next_research(ctx: Any) -> None:
     levels = _read_research_levels(state)
     rc_level = _state_get_int(state, "research.center.level", 0)
 
+    # Self-heal blindness: if the player's research history isn't recorded yet,
+    # push the on-device reader to sweep all 3 branches and store what's been
+    # researched (to what level) — the planner can't pick anything until then.
+    # sync_research_levels' canonical home is the player hash (research is
+    # per-account), so re-check there before deciding the history is empty;
+    # skip_if_duplicate dedups with its 6h cron.
+    if not levels:
+        import time
+
+        from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
+        from tasks.dsl_scenario_helpers import _enqueue_scenario
+
+        player_id = await _resolve_player_id_for_device_level_exec(ctx)
+        if player_id:
+            try:
+                pstate = await r.hgetall(f"wos:player:{player_id}:state")
+            except Exception:
+                pstate = {}
+            levels = _read_research_levels(pstate)
+            if not rc_level:
+                rc_level = _state_get_int(pstate, "research.center.level", 0)
+        if not levels:
+            pushed = await _enqueue_scenario(
+                redis_async=r,
+                instance_id=ctx.instance_id,
+                player_id=player_id or "",
+                scenario="sync_research_levels",
+                priority=60_000,
+                run_at=time.time(),
+                skip_if_duplicate=True,
+            )
+            try:
+                await r.hset(
+                    inst_key,
+                    mapping={"planner.research_reason": "needs_reader", "planner.next_research": ""},
+                )
+            except Exception:
+                logger.debug("plan_next_research: needs_reader state write failed", exc_info=True)
+            ctx.result.update(
+                {
+                    "action": "needs_reader",
+                    "pushed": "sync_research_levels" if pushed else "",
+                    "reason": "research_history_empty",
+                }
+            )
+            logger.info(
+                "plan_next_research: research history empty → pushed sync_research_levels "
+                "(player=%s instance=%s)",
+                player_id or "-",
+                ctx.instance_id,
+            )
+            return
+
     plan = plan_next(load_research_graph(), levels, rc_level)
     step = plan.step
     mapping: dict[str, str] = {"planner.research_reason": plan.reason}
