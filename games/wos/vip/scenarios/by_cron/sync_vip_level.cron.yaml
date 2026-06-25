@@ -1,0 +1,27 @@
+enabled: true
+name: "👑 Sync VIP level (reader)"
+
+# Background reader: keeps vip.level fresh so the VIP planner sees the real level
+# instead of the schema default (0). Mirrors the keystone sync_furnace_level
+# reader — an account-level cron that OCRs a level off a profile/menu screen and
+# persists it, WITHOUT an identity gate so it keeps reading after onboarding.
+#
+# The vip screen is reachable from main_city via the page.vip edge tap (no radar
+# scan). Low priority + slow cron: VIP level changes over days, and this navigates
+# off main_city, so it must never preempt real work (check_main_city brings the
+# bot home afterwards).
+priority: 40_000
+cron: "23 */6 * * *"           # every 6h, offset off the hour to avoid pileups
+node: vip
+cond: "active_player != null"
+
+steps:
+  - ocr: page.vip.level
+    store: vip.level
+    type: integer
+    preprocess: fast_digits     # digit whitelist; confidence is ~0 even when correct
+    threshold: 0.0              # so a valid level isn't dropped as low-confidence
+
+  # Reads vip.level back off the player/instance hash and persists it to the
+  # durable profile + Redis hashes (the VIP planner reads vip.level).
+  - exec: sync_vip_level

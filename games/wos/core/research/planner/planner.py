@@ -188,3 +188,67 @@ def plan_next(
         )
     # nothing researchable now: everything maxed, or unmaxed but prereq-locked
     return ResearchPlan(None, ALL_MAXED if not any_unmaxed else NONE)
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchRoadmap:
+    """Totals to bring a set of techs current → target (the calculator's output)."""
+
+    cost: Mapping[str, int]   # per-resource totals (meat/wood/.../fire_crystal/…)
+    total_cost: int           # sum across all resources
+    power_gain: int           # total power added (levels that carry power)
+    steps: int                # number of level-ups summed
+    time_s: int               # base total research seconds
+    time_s_adjusted: int      # time_s under a research-speed buff
+    missing: tuple[str, ...]  # target node ids absent from the graph
+
+
+def research_roadmap(
+    graph: ResearchGraph,
+    current: Mapping[str, int],
+    target: Mapping[str, int],
+    *,
+    research_speed_pct: float = 0.0,
+) -> ResearchRoadmap:
+    """Total resource cost + research time + power to raise each tech current→target.
+
+    Gating-agnostic, exactly like the building/charm/gear roadmaps: for every node in
+    ``target`` it sums each level from ``current+1`` up to the target (clamped to the
+    node's max level; a target ≤ current contributes nothing). A target id absent from
+    the graph is reported in ``missing``. ``time_s_adjusted`` applies a research-speed
+    buff via the shared ``apply_speed`` (``+X%`` → ``time/(1+X/100)``)."""
+    from games.wos.core.building.planner.schedule import apply_speed
+
+    cost: dict[str, int] = {}
+    power_gain = 0
+    steps = 0
+    time_s = 0
+    missing: list[str] = []
+
+    for node_id, tgt in (target or {}).items():
+        node = graph.spec(str(node_id))
+        if node is None:
+            missing.append(str(node_id))
+            continue
+        cur = int((current or {}).get(node_id, 0) or 0)
+        top = min(int(tgt), node.max_level)
+        for level in range(cur + 1, top + 1):
+            lv = node.level_at(level)
+            if lv is None:
+                continue
+            for res, amt in lv.cost.items():
+                cost[res] = cost.get(res, 0) + int(amt)
+            if lv.power:
+                power_gain += int(lv.power)
+            time_s += int(lv.time_s)
+            steps += 1
+
+    return ResearchRoadmap(
+        cost=dict(sorted(cost.items())),
+        total_cost=sum(cost.values()),
+        power_gain=power_gain,
+        steps=steps,
+        time_s=time_s,
+        time_s_adjusted=apply_speed(time_s, research_speed_pct),
+        missing=tuple(missing),
+    )

@@ -40,6 +40,14 @@ def test_dev_channels_cover_every_investment_lane():
     assert {"charm_1", "gear_1", "hero_gear_1", "training_1", "hero_1", "pet_1", "research_1"} <= ids
 
 
+def test_vip_domain_is_wired():
+    assert DOMAIN_BAND["vip"] == 543.0
+    assert DOMAIN_CATEGORY["vip"] == "growth"          # VIP buffs are universal growth
+    assert "vip" in channel_kinds()
+    assert ("vip_1", "vip") in dev_channels()
+    assert "vip" in investment_domain_names()
+
+
 def test_planners_yaml_registers_every_investment_domain():
     doc = yaml.safe_load(PLANNERS_YAML.read_text(encoding="utf-8")) or {}
     registered = {str(p["name"]) for p in (doc.get("planners") or [])}

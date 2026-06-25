@@ -24,8 +24,10 @@ from .planner import (
     WA_GATED,
     ResearchCandidate,
     ResearchPlan,
+    ResearchRoadmap,
     ResearchStep,
     plan_next,
+    research_roadmap,
 )
 from .policy import (
     BRANCH_ORDER,
@@ -47,6 +49,7 @@ __all__ = [
     "ResearchLevel",
     "ResearchNode",
     "ResearchPlan",
+    "ResearchRoadmap",
     "ResearchStep",
     "base_priority",
     "build_graph",
@@ -54,4 +57,5 @@ __all__ = [
     "load_research_graph",
     "parse_duration",
     "plan_next",
+    "research_roadmap",
 ]

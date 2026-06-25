@@ -1,0 +1,101 @@
+# SvS (Server vs Server) Prep-Phase scoring — points earned per activity, per day.
+#
+# Source: wostools.net SvS Prep-Phase guide + calculator (2026), facts re-encoded
+# (extracted 2026-06-25). Re-encoding game FACTS only — no fabricated numbers.
+#
+# The prep phase is 5 themed days; each unit of an activity earns a fixed number of
+# SvS points, and the SAME activity can score on more than one day (e.g. Refined
+# Fire Crystals on Days 1/2/5). Structure is day → activity → points-per-unit, which
+# mirrors the source's per-day cards exactly (no day-set inference). Read by
+# games/wos/core/svs/prep_points.py — a pure what-if scorer, NOT the power-derived
+# event tilt in db/event_scoring.yaml (different model, different consumer).
+#
+# NOTE on completeness: every points-per-unit value below is taken verbatim from the
+# source. The Day-4 troop_points table is the ONE incompletely-sourced piece (only
+# T10/T11 are documented in the source text) — flagged there, not fabricated.
+
+days:
+  1:
+    name: City Construction
+    activities:
+      chief_charm_score: 70              # per +1 charm score
+      fire_crystal_building: 2000        # per Fire Crystal on a building upgrade (start counts)
+      construction_speedup_min: 30       # per minute
+      fc_shard_research: 1000            # per Fire Crystal Shard used for research
+      research_speedup_min: 30
+      refined_fire_crystal_building: 30000
+      training_speedup_min: 30
+      expert_speedup_min: 30             # Expert Skills Learning speedup
+  2:
+    name: Research Day
+    activities:
+      fc_shard_research: 1000
+      research_speedup_min: 30
+      lucky_wheel: 8000                  # per spin
+      hero_shard_rare: 350              # per shard, ascending heroes
+      hero_shard_epic: 1220
+      hero_shard_mythic: 3040
+      gather_meat_per_1000: 2            # per 1,000 meat gathered (march returns in-window)
+      gather_wood_per_1000: 2
+      gather_coal_per_200: 2
+      gather_iron_per_50: 2
+      expert_sigil: 6000                 # per sigil, excludes Common sigils
+      book_of_knowledge: 60
+      fire_crystal_building: 2000        # Medium value here, same per-unit points as Day 1
+      construction_speedup_min: 30
+      training_speedup_min: 30
+      expert_speedup_min: 30
+      refined_fire_crystal_building: 30000
+  3:
+    name: Beast Slay
+    activities:
+      pet_advancement_score: 50          # per +1 pet advancement score
+      wild_mark_advanced: 15000          # per Advanced Wild Mark (pet refinement)
+      wild_mark_common: 1150             # per Common Wild Mark
+      chief_charm_score: 70
+      polar_terror_rally: 30000          # per Polar Terror rally kill
+      beast_l1_10: 9000                  # per beast kill, by level band
+      beast_l11_15: 9750
+      beast_l16_20: 10500
+      beast_l21_25: 11250
+      beast_l26_30: 12000
+      expert_sigil: 6000
+      book_of_knowledge: 60
+      lucky_wheel: 8000
+      hero_shard_rare: 350
+      hero_shard_epic: 1220
+      hero_shard_mythic: 3040
+  4:
+    name: Hero Development
+    activities:
+      chief_charm_score: 70
+      hero_gear_essence_stone: 4000      # per Hero Gear Essence Stone
+      hero_widget: 8000                  # per Widget of any Hero Exclusive Gear
+      mithril: 144000                    # per Mithril — highest single-item value
+      # Troop training/promotion that FINISHES on Day 4 also scores — see troop_points.
+  5:
+    name: Power Boost
+    activities:
+      pet_advancement_score: 50
+      wild_mark_advanced: 15000
+      wild_mark_common: 1150
+      chief_gear_score: 35               # per +1 chief gear score (Day 5 only)
+      hero_gear_essence_stone: 4000
+      hero_widget: 8000
+      mithril: 144000
+      fire_crystal_building: 2000
+      construction_speedup_min: 30
+      research_speedup_min: 30
+      training_speedup_min: 30
+      expert_speedup_min: 30
+      fc_shard_research: 1000
+      refined_fire_crystal_building: 30000
+
+# Day-4 troop points (per troop trained). Promotion T_from -> T_to is worth the
+# DIFFERENCE pts[to] - pts[from] (source worked example: T10->T11 = 75 - 60 = 15).
+# PARTIAL: only T10 and T11 are documented in the source text; the rest of the tier
+# table sits behind the calculator's interactive Day-4 panel and is not exposed.
+# Unknown tiers are reported as "incomplete" by the scorer, never silently 0.
+troop_points:
+  10: 60
+  11: 75

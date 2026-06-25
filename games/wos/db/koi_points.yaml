@@ -1,0 +1,110 @@
+# King of the Icefield (KoI) scoring — points earned per activity, per day.
+#
+# Source: wostools.net KoI calculator (https://wostools.net/koi-calculator), facts
+# re-encoded (extracted 2026-06-25). Re-encoding game FACTS only — no fabricated numbers.
+#
+# KoI is a 7-day cross-state development race (every ~4 weeks, ~2 weeks after SvS). Each
+# day has a theme; each unit of an activity earns a fixed number of points, and the same
+# activity can score on more than one day. Structure is day -> activity -> points-per-unit
+# (mirrors the source's per-day cards). Read by games/wos/core/koi/koi_points.py — a pure
+# what-if scorer keyed to the `king_of_icefield` event (NOT the power-derived
+# state_of_power tilt in db/event_scoring.yaml; different model, different consumer).
+#
+# Faithfulness notes:
+#  - Days 2/3 list only mythic+epic hero shards in the source (rare not stated); Day 7
+#    says "all hero shard types" -> rare/epic/mythic included.
+#  - Gathering is encoded as a single `gather_per_batch` (source: "3 pts per batch",
+#    resource unit unspecified) rather than the per-resource keys SvS uses.
+#  - Troop training/promotion scores on Days 4 AND 6, but the source exposes NO per-tier
+#    point table for KoI -> troop_points is left empty (the scorer flags tiers as unknown,
+#    never silently 0). Do NOT borrow SvS's T10/T11 numbers — different event, unsourced.
+
+days:
+  1:
+    name: City Construction
+    activities:
+      refined_fire_crystal_building: 30000
+      fire_crystal_building: 2000
+      fc_shard_research: 1000
+      construction_speedup_min: 30
+      research_speedup_min: 30
+      chief_charm_score: 70
+      training_speedup_min: 30
+      expert_speedup_min: 30
+  2:
+    name: Hero Development
+    activities:
+      mithril: 144000
+      lucky_wheel: 8000
+      hero_widget: 8000
+      expert_sigil: 6000              # excludes Common sigils
+      hero_gear_essence_stone: 4000
+      hero_shard_mythic: 3040
+      hero_shard_epic: 1220
+      refined_fire_crystal_building: 30000
+      book_of_knowledge: 60
+      fc_shard_research: 1000
+      construction_speedup_min: 30
+      research_speedup_min: 30
+      training_speedup_min: 30
+      expert_speedup_min: 30
+  3:
+    name: Basic Skills Up
+    activities:
+      wild_mark_advanced: 15000
+      lucky_wheel: 8000
+      expert_sigil: 6000
+      book_of_knowledge: 60
+      expert_speedup_min: 30
+      wild_mark_common: 1150
+      hero_shard_mythic: 3040
+      hero_shard_epic: 1220
+      pet_advancement_score: 50
+      chief_charm_score: 70
+  4:
+    name: Combat Training
+    activities:
+      mithril: 144000
+      hero_widget: 8000
+      hero_gear_essence_stone: 4000
+      chief_charm_score: 70
+      # Troops trained/promoted that FINISH this day also score — see troop_points.
+  5:
+    name: Basic Skills Up (Again)
+    activities:
+      mithril: 144000
+      refined_fire_crystal_building: 30000
+      hero_widget: 8000
+      hero_gear_essence_stone: 4000
+      fire_crystal_building: 2000
+      construction_speedup_min: 30
+      research_speedup_min: 30
+      expert_speedup_min: 30
+      training_speedup_min: 30
+      fc_shard_research: 1000
+  6:
+    name: Combat Training (Again)
+    activities:
+      chief_gear_score: 36             # per +1 chief gear score
+      # Troops finishing this day also score — see troop_points.
+  7:
+    name: Hero Development (Again)
+    activities:
+      chief_gear_score: 36
+      refined_fire_crystal_building: 30000
+      wild_mark_advanced: 15000
+      hero_shard_mythic: 3040
+      hero_shard_epic: 1220
+      hero_shard_rare: 350
+      fire_crystal_building: 2000
+      fc_shard_research: 1000
+      construction_speedup_min: 30
+      research_speedup_min: 30
+      training_speedup_min: 30
+      expert_speedup_min: 30
+      pet_advancement_score: 50
+      gather_per_batch: 3              # per gathering march batch (only day gathering scores)
+
+# Day-4/Day-6 troop training points (per troop). EMPTY: source exposes no per-tier table
+# for KoI. The scorer reports any troop tier as unknown rather than fabricating values.
+troop_points: {}

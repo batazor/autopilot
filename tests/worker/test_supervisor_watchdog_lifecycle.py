@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+import adb
 from worker import async_supervisor, supervisor
 
 
@@ -75,8 +76,17 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
         "bootstrap_runtime_observability",
         lambda *_args, **_kwargs: events.append("bootstrap"),
     )
-    monkeypatch.setattr(supervisor, "load_settings", lambda: object())
+    monkeypatch.setattr(
+        supervisor,
+        "load_settings",
+        lambda: SimpleNamespace(worker=SimpleNamespace(adb_executable="adb")),
+    )
     monkeypatch.setattr(supervisor, "set_settings", lambda _settings: None)
+    # ``main()`` ensures a host adb server at boot via ``from adb import
+    # ensure_adb_server`` — patch the source module so the import binds the
+    # stub (the call would otherwise fork a real adb server). Not part of the
+    # watchdog lifecycle, so it stays off the ``events`` sequence below.
+    monkeypatch.setattr(adb, "ensure_adb_server", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(supervisor, "assert_startup_configs_valid", lambda: None)
     monkeypatch.setattr(
         supervisor,

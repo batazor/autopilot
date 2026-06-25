@@ -1,0 +1,155 @@
+# Alliance Showdown scoring — points earned per activity, per stage.
+#
+# Source: wostools.net Alliance Showdown calculator + guide (2026), facts re-encoded
+# (extracted 2026-06-25 via the r.jina.ai proxy, the calculator page itself is behind
+# Cloudflare). Re-encoding game FACTS only — no fabricated numbers.
+#
+# Alliance Showdown is a ~6.5-day cross-state event of 6 themed stages; each unit of an
+# activity earns a fixed number of points, and the SAME activity can score on more than
+# one stage (Mithril on Stages 4 & 6, Refined Fire Crystals on Stages 1/5/6, …). Stages
+# 1-4 last ~24h (milestone cap 125,000 pts each), Stage 5 ~24h (cap 187,500) and Stage 6
+# is a 36h finale (cap 187,500) where ALL prior activities are available. 13 Victory
+# Points total across the event; an alliance needs 7+ to win. Personal ranking needs
+# 300,000 pts; alliance total 20,000,000.
+#
+# Structure is stage -> activity -> points-per-unit, mirroring the source's per-stage
+# cards exactly (no stage-set inference). Read by
+# games/wos/core/alliance_showdown/showdown_points.py — a pure what-if scorer.
+#
+# Baldur bonus: the event's Baldur companion adds +5% points per level (1-6) to ALL
+# activities in a stage; the scorer applies it as a multiplier (see `baldur` below).
+#
+# NOTE on completeness (honest gaps, never fabricated):
+#  * Victory Points are explicit in the source only for Stages 1/5/6 (1/2/4 = 7 of 13);
+#    Stages 2-4 share the remaining 6 VP with no published split → encoded as `null`.
+#  * The Stage-4 troop-training panel is tier-dependent but the per-tier point table is
+#    not exposed in the source text → `troop_points` is empty; unknown tiers are
+#    reported by the scorer as "incomplete", never silently 0 (same as KoI).
+
+baldur:
+  bonus_per_level: 0.05   # +5% points per Baldur level
+  max_level: 6            # level range is 1-6 (and non-decreasing across stages in-game)
+
+stages:
+  1:
+    name: Rise of the City
+    victory_points: 1
+    milestone_cap: 125000
+    activities:
+      escort_truck: 10000                  # per truck escorted (Tundra Trade Route)
+      raid_truck: 10000                    # per truck raided
+      refined_fire_crystal_building: 18750 # per Refined Fire Crystal on a building upgrade
+      fire_crystal_building: 1250          # per Fire Crystal on a building upgrade
+      fc_shard_research: 625               # per Fire Crystal Shard used for research
+      expert_sigil: 3600                   # per Expert Sigil (excludes Common)
+      book_of_knowledge: 36
+      construction_speedup_min: 18         # per minute
+      research_speedup_min: 18
+      training_speedup_min: 18
+      expert_speedup_min: 18               # Expert Skills speedup
+      gem: 1
+      gather_meat_per_2000: 2              # per 2,000 meat gathered in the wilderness
+      gather_wood_per_2000: 2
+      gather_coal_per_400: 2
+      gather_iron_per_100: 2
+  2:
+    name: Hero Development
+    victory_points: null                   # source publishes no per-stage VP for 2-4
+    milestone_cap: 125000
+    activities:
+      escort_truck: 10000
+      raid_truck: 10000
+      refined_fire_crystal_building: 18750
+      fire_crystal_building: 1250
+      fc_shard_research: 625
+      expert_sigil: 3600
+      hero_shard_mythic: 1875              # per Mythic hero shard (ascension)
+      hero_shard_epic: 750
+      hero_shard_rare: 210
+      book_of_knowledge: 36
+      construction_speedup_min: 18
+      research_speedup_min: 18
+      training_speedup_min: 18
+      expert_speedup_min: 18
+      gem: 1
+  3:
+    name: Pet Training
+    victory_points: null
+    milestone_cap: 125000
+    activities:
+      escort_truck: 10000
+      raid_truck: 10000
+      wild_mark_advanced: 9370             # per Advanced Wild Mark (pet refinement)
+      wild_mark_common: 680                # per Common Wild Mark
+      chief_charm_score: 45                # per +1 Chief Charm max score
+      pet_advancement_score: 30            # per +1 pet advancement score
+      gem: 1
+      gather_meat_per_2000: 2
+      gather_wood_per_2000: 2
+      gather_coal_per_400: 2
+      gather_iron_per_100: 2
+  4:
+    name: Gear Enhancement
+    victory_points: null
+    milestone_cap: 125000
+    activities:
+      mithril: 67500                       # per Mithril — highest single-item value
+      escort_truck: 10000
+      raid_truck: 10000
+      hero_widget: 3750                    # per Widget of any Hero Exclusive Gear
+      hero_gear_essence_stone: 1875        # per Hero Gear Essence Stone
+      chief_charm_score: 45
+      training_speedup_min: 18
+      gem: 1
+      # Troop training/promotion that FINISHES this stage also scores — see troop_points.
+  5:
+    name: Trade Dominion
+    victory_points: 2
+    milestone_cap: 187500
+    activities:
+      refined_fire_crystal_building: 18750
+      escort_truck: 10000
+      raid_truck: 10000
+      fire_crystal_building: 1250
+      fc_shard_research: 625
+      chief_gear_score: 22                 # per +1 Chief Gear score (Trade Dominion)
+      expert_sigil: 3600
+      book_of_knowledge: 36
+      construction_speedup_min: 18
+      research_speedup_min: 18
+      training_speedup_min: 18
+      expert_speedup_min: 18
+      gem: 1
+  6:
+    name: Full-Scale Competition
+    victory_points: 4
+    milestone_cap: 187500
+    activities:                            # 36h finale — every prior activity scores
+      mithril: 67500
+      refined_fire_crystal_building: 18750
+      escort_truck: 10000
+      raid_truck: 10000
+      wild_mark_advanced: 9370
+      hero_widget: 3750
+      hero_shard_mythic: 1875
+      hero_gear_essence_stone: 1875
+      fire_crystal_building: 1250
+      fc_shard_research: 625
+      hero_shard_epic: 750
+      wild_mark_common: 680
+      hero_shard_rare: 210
+      chief_charm_score: 45
+      expert_sigil: 3600
+      book_of_knowledge: 36
+      pet_advancement_score: 30
+      chief_gear_score: 22
+      construction_speedup_min: 18
+      research_speedup_min: 18
+      training_speedup_min: 18
+      expert_speedup_min: 18
+      gem: 1
+
+# Stage-4/6 troop points (per troop trained). Promotion T_from -> T_to is worth the
+# DIFFERENCE pts[to] - pts[from]. EMPTY: the source's interactive troop panel does not
+# expose the per-tier table. Unknown tiers are reported as "incomplete", never 0.
+troop_points: {}

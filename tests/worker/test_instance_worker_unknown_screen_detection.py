@@ -45,6 +45,25 @@ def _worker(detector: _FakeDetector, redis_async: object) -> InstanceWorker:
     return worker
 
 
+def _distinct_frame(index: int) -> np.ndarray:
+    """A frame whose perceptual hash differs from its neighbours by index.
+
+    ``_detect_current_screen_on_frame`` skips the detector when a frame is
+    visually identical to the last *detected* frame (phash within a few bits)
+    — a real screen change moves a large region and clears that threshold. The
+    fake detector returns its scripted verdict regardless of pixels, so a test
+    that walks the detector through MAIL → UNKNOWN transitions must feed
+    genuinely different frames, exactly as a live screen change would. Reusing
+    one ``np.zeros`` frame (every uniform image hashes identically) lets the
+    skip reuse the first verdict forever and the streak logic never runs.
+    """
+    img = np.zeros((64, 64, 3), dtype=np.uint8)
+    r = (index * 13) % 56
+    c = (index * 23) % 56
+    img[r : r + 8, c : c + 8] = 255
+    return img
+
+
 @pytest.mark.asyncio
 async def test_overlay_tick_writes_detected_screen(redis_async: object) -> None:
     detector = _FakeDetector(ScreenName.MAIL)
@@ -174,10 +193,8 @@ async def test_overlay_tick_clears_after_repeated_unknown_frames(redis_async: ob
     )
     worker = _worker(detector, redis_async)
 
-    for _ in range(4):
-        current = await worker._detect_current_screen_on_frame(
-            np.zeros((10, 10, 3), dtype=np.uint8),
-        )
+    for i in range(4):
+        current = await worker._detect_current_screen_on_frame(_distinct_frame(i))
 
     assert current is None
     cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
@@ -201,28 +218,20 @@ async def test_unknown_since_set_on_hard_clear_and_reset_on_known(
     worker = _worker(detector, redis_async)
 
     # Known frame — timer stays at 0.
-    await worker._detect_current_screen_on_frame(
-        np.zeros((10, 10, 3), dtype=np.uint8),
-    )
+    await worker._detect_current_screen_on_frame(_distinct_frame(0))
     assert worker._unknown_since == 0.0
 
     # Soft-unknown ticks: still 0 (current_screen is sticky).
-    for _ in range(2):
-        await worker._detect_current_screen_on_frame(
-            np.zeros((10, 10, 3), dtype=np.uint8),
-        )
+    for i in (1, 2):
+        await worker._detect_current_screen_on_frame(_distinct_frame(i))
         assert worker._unknown_since == 0.0
 
     # Third UNKNOWN trips the streak threshold → hard-clear sets the timer.
-    await worker._detect_current_screen_on_frame(
-        np.zeros((10, 10, 3), dtype=np.uint8),
-    )
+    await worker._detect_current_screen_on_frame(_distinct_frame(3))
     assert worker._unknown_since > 0.0
 
     # A known detection resets the timer.
-    await worker._detect_current_screen_on_frame(
-        np.zeros((10, 10, 3), dtype=np.uint8),
-    )
+    await worker._detect_current_screen_on_frame(_distinct_frame(4))
     assert worker._unknown_since == 0.0
 
 
@@ -245,9 +254,11 @@ async def test_dismiss_unknown_popup_enqueues_when_unknown_for_10s_and_no_matche
 
     worker._queue = _FakeQueue()
     worker._unknown_since = _t.monotonic() - 11.0
-    # Past onboarding (furnace >= 5) — the dismisser is armed.
+    # Past onboarding (Sawmill recorded) — the dismisser is armed. See
+    # ``worker.onboarding_phase.onboarding_active``: the exit signal is the
+    # recorded Sawmill build (or a resolved ``active_player``), not furnace level.
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
-        "wos:instance:bs1:state", mapping={"buildings.furnace.level": "12"}
+        "wos:instance:bs1:state", mapping={"buildings.levels.sawmill": "1"}
     )
 
     await worker._maybe_dismiss_unknown_popup({}, current_screen=None)

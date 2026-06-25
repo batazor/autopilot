@@ -1,0 +1,31 @@
+# VIP level XP ladder — the single linear progression VIP 1 → 12.
+#
+# Source: wostools.net/vip-calculator (re-encoded game facts only — per the
+# project's no-fabrication rule). The real-money pack comparison ($5/$10/$20/
+# $50/$100) and the gem→XP conversion the site also shows are region/promo-
+# dependent STORE data, NOT stable game facts → deliberately omitted.
+#
+# Model:
+#   cumulative_xp  — total VIP XP to BE at this level (VIP 1 is the 0-XP base).
+#   xp_to_next     — VIP XP to go from this level to the next (null at the cap).
+# VIP Points items apply 1:1 as VIP XP (community total ≈4.8M ≈ cumulative
+# VIP 12 = 4,810,000 confirms the 1:1 rate), so the planner costs steps in
+# `vip_points` and decomposes a target into the four item denominations below.
+
+unlock_furnace_level: 0          # VIP has no Furnace gate (available from the start)
+max_level: 12
+point_items: [10, 100, 1000, 10000]   # VIP Points item denominations (db/items/vip_points.yaml)
+
+levels:
+  - {level: 1,  cumulative_xp: 0,       xp_to_next: 2500}
+  - {level: 2,  cumulative_xp: 2500,    xp_to_next: 5000}
+  - {level: 3,  cumulative_xp: 7500,    xp_to_next: 12500}
+  - {level: 4,  cumulative_xp: 20000,   xp_to_next: 30000}
+  - {level: 5,  cumulative_xp: 50000,   xp_to_next: 40000}
+  - {level: 6,  cumulative_xp: 90000,   xp_to_next: 70000}
+  - {level: 7,  cumulative_xp: 160000,  xp_to_next: 100000}
+  - {level: 8,  cumulative_xp: 260000,  xp_to_next: 350000}
+  - {level: 9,  cumulative_xp: 610000,  xp_to_next: 600000}
+  - {level: 10, cumulative_xp: 1210000, xp_to_next: 1200000}
+  - {level: 11, cumulative_xp: 2410000, xp_to_next: 2400000}
+  - {level: 12, cumulative_xp: 4810000, xp_to_next: null}

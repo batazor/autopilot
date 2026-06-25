@@ -21,6 +21,7 @@ from .model import (
     PET,
     RESEARCH,
     TRAINING,
+    VIP,
 )
 
 
@@ -51,6 +52,7 @@ DOMAINS: tuple[DomainSpec, ...] = (
     DomainSpec("gear", 555.0, "growth", GEAR, "gear_1"),
     DomainSpec("charms", 550.0, "growth", CHARM, "charm_1"),
     DomainSpec("hero_gear", 545.0, "growth", HERO_GEAR, "hero_gear_1"),
+    DomainSpec("vip", 543.0, "growth", VIP, "vip_1"),
     DomainSpec("troops", 540.0, "battle", TRAINING, "training_1"),
     DomainSpec("building_economy", 520.0, "economy", CONSTRUCTION),
     DomainSpec("gather", 450.0, "economy", MARCH),

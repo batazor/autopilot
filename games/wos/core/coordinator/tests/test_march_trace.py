@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from games.wos.core.coordinator import dispatch as d
 
 NOW = 1_700_000_000.0

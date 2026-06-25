@@ -44,6 +44,7 @@ from .adapters import (
     from_pet_plan,
     from_research_plan,
     from_training_plan,
+    from_vip_plan,
 )
 from .allocate import coordinate_optimal
 from .coordinator import coordinate
@@ -63,6 +64,7 @@ if TYPE_CHECKING:
     from games.wos.core.pets.planner import PetPlan
     from games.wos.core.research.planner import ResearchGraph, ResearchPlan
     from games.wos.core.roles import RoleProfile
+    from games.wos.core.vip.planner import VipPlan
     from games.wos.heroes.heroes.planner import HeroPlan
     from games.wos.troops.planner import TrainingPlan
 
@@ -109,8 +111,10 @@ def plan_cycle(
     charms_plan: CharmPlan | None = None,
     gear_plan: GearPlan | None = None,
     hero_gear_plan: HeroGearPlan | None = None,
+    vip_plan: VipPlan | None = None,
     role: RoleProfile | None = None,
     event_windows: Sequence[EventWindow] = (),
+    event_domain_boosts: Mapping[str, float] = {},
     daily_tasks: Sequence[DailyTask] = (),
     seconds_to_reset: float | None = None,
     threat: ThreatState | None = None,
@@ -131,9 +135,12 @@ def plan_cycle(
     the shared ``balances``. See the module docstring for the factor order.
     """
     # 1-2. Schedule + quest boosts, combined (max per domain) for the adapters.
+    # ``event_domain_boosts`` carries a per-stage event tilt the calendar layer can't
+    # express as a reward category — e.g. Alliance Showdown lifting hero_gear during its
+    # Mithril stage (games/wos/core/alliance_showdown.stage_domain_tilt). Absent → no-op.
     calendar = calendar_bias(event_windows)
     daily = daily_bias(daily_tasks, seconds_to_reset=seconds_to_reset)
-    boosts = merge_boosts(calendar.domain_boost, daily.domain_boost)
+    boosts = merge_boosts(calendar.domain_boost, daily.domain_boost, event_domain_boosts)
 
     # 3. Economy: a short resource lifts its producer's construction candidate.
     economy = economy_bias(
@@ -163,6 +170,8 @@ def plan_cycle(
         candidates.extend(from_gear_plan(gear_plan, boosts=boosts))
     if hero_gear_plan is not None:
         candidates.extend(from_hero_gear_plan(hero_gear_plan, boosts=boosts))
+    if vip_plan is not None:
+        candidates.extend(from_vip_plan(vip_plan, boosts=boosts))
     candidates.extend(extra_candidates)
 
     # 4. Safety gates (drops troop-exposing domains in danger) before allocation.

@@ -38,3 +38,7 @@ events:
     construction: { weight: 1.0 }
     research:     { weight: 1.0 }
     training:     { weight: 1.0 }
+  alliance_showdown:           # Refined/Fire Crystal builds, FC-shard research, troops
+    construction: { weight: 1.0 }
+    research:     { weight: 1.0 }
+    training:     { weight: 1.0 }

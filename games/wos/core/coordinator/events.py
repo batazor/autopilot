@@ -71,6 +71,12 @@ EVENT_CATALOG: dict[str, EventSpec] = {
     "svs": EventSpec((CONSTRUCTION, RESEARCH, TRAINING, COMBAT), phased=True),
     "tundra_arms_league": EventSpec((TRAINING, COMBAT), phased=True),
     "alliance_championship": EventSpec((COMBAT,)),
+    # Alliance Showdown: 6 themed stages, each rewards a different spend (Mithril, Wild
+    # Marks, hero shards, …). The precise per-stage domain tilt is supplied directly to
+    # plan_cycle via stage_domain_tilt (games/wos/core/alliance_showdown) since it lifts
+    # investment domains the reward categories don't cover; this catalog entry is the
+    # construction/research/training/combat FLOOR + slug recognition (holds, hoard).
+    "alliance_showdown": EventSpec((CONSTRUCTION, RESEARCH, TRAINING, COMBAT), phased=True),
     # Icefire Warhymn League: fixed mission tracks (all live at once, no themed
     # days) reward gathering + hunting Polar Terrors for Warhymn Testament, so it
     # is non-phased — the reward mix is already known, nothing to read live. The

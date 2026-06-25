@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     from games.wos.core.roles import RoleProfile
 
-    from .model import PetSpec
+    from .model import PetAdvancement, PetSpec
 
 # Investment kinds
 REFINE = "refine"               # spends pet_shard:<id>
@@ -123,3 +123,104 @@ def plan_next(
     else:
         reason = NONE
     return PetPlan(step=best, reason=reason, candidates=tuple(candidates[:8]))
+
+
+# --- Roadmap (honest, real-data totals — no material costs) ------------------
+# A pet advances every 10 levels; each advance = +1 advancement score (SvS/KoI Day-3/5
+# points) AND consumes Taming Manuals / Energizing Potions / Strengthening Serums per
+# the real per-max-level-tier table in db/pets/advancement_costs.yaml (whiteoutsurvival.wiki).
+# The roadmap totals those real materials + advancement score, plus the at-max Troop
+# ATK/DEF % and refinement % for pets taken to their max level (the only stat the data
+# carries — no per-level curve). Pet Food per level and Wild-Mark refinement are out of scope.
+
+ADVANCEMENT_EVERY = 10   # a pet hits an advancement threshold every 10 levels
+
+
+@dataclass(frozen=True, slots=True)
+class PetRoadmap:
+    """Totals to raise a set of pets current → target (advancement materials + score)."""
+
+    advancements: int          # advancement thresholds crossed across all pets
+    advancement_score: int     # == advancements (each advance = +1 score)
+    svs_points: int            # advancement_score × per-score SvS value (Day 3/5)
+    materials: Mapping[str, int]   # taming_manual / energizing_potion / strengthening_serum totals
+    troop_attack_pct: float    # Σ at-max ATK% for pets taken to their max level
+    troop_defense_pct: float   # Σ at-max DEF% for pets taken to their max level
+    refinement_pct: float      # Σ at-max refinement% for pets taken to their max level
+    per_pet: tuple[Mapping[str, object], ...]
+    missing: tuple[str, ...]   # target pet ids absent from the catalog
+
+
+def _advancements(from_level: int, to_level: int) -> int:
+    """Advancement thresholds crossed raising ``from_level`` → ``to_level``."""
+    return max(0, to_level // ADVANCEMENT_EVERY - from_level // ADVANCEMENT_EVERY)
+
+
+def pet_roadmap(
+    catalog: Mapping[str, PetSpec],
+    current: Mapping[str, int],
+    target: Mapping[str, int],
+    *,
+    advancement: PetAdvancement | None = None,
+) -> PetRoadmap:
+    """Total advancement materials + score (→ SvS pts) + at-max stats, current→target.
+
+    ``current``/``target`` are ``{pet_id: level}``. For each targeted pet the level is
+    clamped to its ``max_level``; for every advancement milestone crossed (the real
+    per-max-level-tier table from ``advancement_costs.yaml``) we sum the Taming Manuals /
+    Energizing Potions / Strengthening Serums and count +1 advancement score. At-max Troop
+    ATK/DEF % and refinement % are summed **only** for pets taken to their max level (the
+    data has no per-level stat curve). A target id absent from the catalog → ``missing``."""
+    from .model import load_pet_advancement
+
+    adv_data = advancement if advancement is not None else load_pet_advancement()
+    advancements = 0
+    materials: dict[str, int] = {}
+    atk = dfn = refine = 0.0
+    per_pet: list[Mapping[str, object]] = []
+    missing: list[str] = []
+
+    for pet_id, tgt in (target or {}).items():
+        spec = catalog.get(str(pet_id))
+        if spec is None:
+            missing.append(str(pet_id))
+            continue
+        cur = int((current or {}).get(pet_id, 0) or 0)
+        top = min(int(tgt), spec.max_level)
+        table = adv_data.table_for(spec.max_level)
+        crossed = [lvl for lvl in sorted(table) if cur < lvl <= top]
+        if table:
+            pet_adv = len(crossed)
+            for lvl in crossed:
+                for mat, qty in table[lvl].items():
+                    materials[mat] = materials.get(mat, 0) + int(qty)
+        else:                                    # no material table for this tier
+            pet_adv = _advancements(cur, top)
+        at_max = top >= spec.max_level and top > cur
+        if at_max:
+            atk += spec.troop_attack_pct
+            dfn += spec.troop_defense_pct
+            refine += spec.max_refinement_pct
+        advancements += pet_adv
+        per_pet.append({
+            "pet_id": spec.id, "from_level": cur, "to_level": top,
+            "advancements": pet_adv, "at_max": at_max,
+        })
+
+    try:
+        from games.wos.core.svs.prep_points import points_for as _svs_points_for
+        per_score = _svs_points_for("pet_advancement_score", 3) or 50
+    except Exception:
+        per_score = 50
+
+    return PetRoadmap(
+        advancements=advancements,
+        advancement_score=advancements,
+        svs_points=advancements * int(per_score),
+        materials=dict(sorted(materials.items())),
+        troop_attack_pct=round(atk, 2),
+        troop_defense_pct=round(dfn, 2),
+        refinement_pct=round(refine, 2),
+        per_pet=tuple(per_pet),
+        missing=tuple(missing),
+    )

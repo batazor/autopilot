@@ -1,0 +1,81 @@
+# Pet advancement material costs — per 10-level milestone.
+#
+# Source: whiteoutsurvival.wiki/pets/<pet> (the per-pet "Advancement" requirement
+# tables), extracted 2026-06-25. Facts re-encoded only.
+#
+# KEY FINDING: the advancement table is a function of the pet's MAX LEVEL, not its
+# identity. Pets that share a max level share an identical table — verified by
+# fetching multiple pets per tier:
+#   tier 60  musk_ox == artic_wolf
+#   tier 70  titan_roc == giant_tapir
+#   tier 80  giant_elk == snow_leopard
+#   tier 100 cave_lion == snow_ape == iron_rhino   (all SSR; the wiki also serves
+#            these three materials as icon refs item 600043/600044/600045)
+# So we store ONE table per max-level tier + a per-pet max_level map.
+#
+# Materials: taming_manual (from Lv.10), energizing_potion (from Lv.30),
+# strengthening_serum (from Lv.50). Pet Food per level and Wild-Mark refinement
+# costs are intentionally out of scope (see pet-development-planner memory).
+
+materials: [taming_manual, energizing_potion, strengthening_serum]
+
+# tier (= pet max level) -> milestone level -> {material: qty}
+tiers:
+  50:
+    10: {taming_manual: 15}
+    20: {taming_manual: 30}
+    30: {taming_manual: 45, energizing_potion: 10}
+    40: {taming_manual: 60, energizing_potion: 20}
+    50: {taming_manual: 90, energizing_potion: 30, strengthening_serum: 10}
+  60:
+    10: {taming_manual: 20}
+    20: {taming_manual: 40}
+    30: {taming_manual: 60, energizing_potion: 10}
+    40: {taming_manual: 90, energizing_potion: 20}
+    50: {taming_manual: 130, energizing_potion: 30, strengthening_serum: 10}
+    60: {taming_manual: 175, energizing_potion: 50, strengthening_serum: 20}
+  70:
+    10: {taming_manual: 25}
+    20: {taming_manual: 50}
+    30: {taming_manual: 75, energizing_potion: 10}
+    40: {taming_manual: 100, energizing_potion: 20}
+    50: {taming_manual: 155, energizing_potion: 30, strengthening_serum: 10}
+    60: {taming_manual: 200, energizing_potion: 50, strengthening_serum: 20}
+    70: {taming_manual: 255, energizing_potion: 80, strengthening_serum: 40}
+  80:
+    10: {taming_manual: 30}
+    20: {taming_manual: 60}
+    30: {taming_manual: 95, energizing_potion: 10}
+    40: {taming_manual: 125, energizing_potion: 20}
+    50: {taming_manual: 190, energizing_potion: 30, strengthening_serum: 10}
+    60: {taming_manual: 250, energizing_potion: 50, strengthening_serum: 20}
+    70: {taming_manual: 310, energizing_potion: 80, strengthening_serum: 40}
+    80: {taming_manual: 380, energizing_potion: 100, strengthening_serum: 60}
+  100:   # all SSR pets
+    10: {taming_manual: 35}
+    20: {taming_manual: 70}
+    30: {taming_manual: 110, energizing_potion: 15}
+    40: {taming_manual: 145, energizing_potion: 35}
+    50: {taming_manual: 220, energizing_potion: 50, strengthening_serum: 10}
+    60: {taming_manual: 290, energizing_potion: 65, strengthening_serum: 20}
+    70: {taming_manual: 365, energizing_potion: 85, strengthening_serum: 40}
+    80: {taming_manual: 440, energizing_potion: 100, strengthening_serum: 60}
+    90: {taming_manual: 585, energizing_potion: 115, strengthening_serum: 80}
+    100: {taming_manual: 730, energizing_potion: 135, strengthening_serum: 100}
+
+# Per-pet max level (the wiki value; corrects the old rarity-only 50/100 assumption —
+# e.g. musk_ox/artic_wolf cap at 60, titan_roc/giant_tapir 70, giant_elk/snow_leopard 80).
+max_level:
+  cave_hyena: 50
+  musk_ox: 60
+  artic_wolf: 60
+  titan_roc: 70
+  giant_tapir: 70
+  giant_elk: 80
+  snow_leopard: 80
+  cave_lion: 100
+  snow_ape: 100
+  iron_rhino: 100
+  mammoth: 100
+  saber_tooth_tiger: 100
+  frostscale_chameleon: 100

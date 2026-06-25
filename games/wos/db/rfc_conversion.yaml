@@ -1,0 +1,24 @@
+# Fire Crystal → Refined Fire Crystal weekly conversion mechanic.
+#
+# Source: wostools.net/rfc-simulator (extracted 2026-06-25), facts re-encoded.
+#
+# 100 conversions per week, split across 5 tiers of 20 conversions each (by weekly
+# conversion index 0-99). Each tier costs a fixed number of Fire Crystals and returns
+# a RANDOM amount of RFC per the outcome distribution. Once per DAY, one conversion
+# gets a 50% FC discount. Resets weekly.
+#
+# NOTE on expected_rfc: it is the source's authoritative expected value. For tiers 4-5
+# the displayed top outcome is "6+" (6 or more, lumped) — encoded here as key 6 — so a
+# naive sum over `outcomes` is slightly below `expected_rfc`. Use `expected_rfc` for EV
+# math (the loader does). Read by games/wos/core/rfc/conversion.py.
+
+weekly_cap: 100         # max conversions per week
+tier_size: 20           # conversions per tier
+daily_discount: 0.5     # one conversion per day at half the tier FC cost
+
+tiers:
+  - {tier: 1, lo: 0,  hi: 19, fc_cost: 20,  expected_rfc: 1.45, outcomes: {1: 0.65, 2: 0.25, 3: 0.10}}
+  - {tier: 2, lo: 20, hi: 39, fc_cost: 50,  expected_rfc: 2.15, outcomes: {2: 0.85, 3: 0.15}}
+  - {tier: 3, lo: 40, hi: 59, fc_cost: 100, expected_rfc: 3.18, outcomes: {3: 0.85, 4: 0.125, 5: 0.02, 6: 0.005}}
+  - {tier: 4, lo: 60, hi: 79, fc_cost: 130, expected_rfc: 3.44, outcomes: {3: 0.75, 4: 0.15, 5: 0.05, 6: 0.05}}
+  - {tier: 5, lo: 80, hi: 99, fc_cost: 160, expected_rfc: 3.71, outcomes: {3: 0.70, 4: 0.12, 5: 0.09, 6: 0.09}}
