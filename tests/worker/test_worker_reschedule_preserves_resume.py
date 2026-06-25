@@ -144,6 +144,71 @@ async def test_reschedule_skips_when_no_next_run_at() -> None:
 
 
 @pytest.mark.asyncio
+async def test_reschedule_forwards_full_payload() -> None:
+    """A rescheduled item must carry its WHOLE payload, not just the ranking
+    subset. The generic ``task_type="dsl_scenario"`` envelope is meaningless
+    without ``dsl_scenario``, and a planner task loses its reservation/quota
+    markers + hero/troop assignment if ``args`` is dropped — so after a
+    preemption/deferral it would come back as a scenario-less or
+    reservation-less husk.
+    """
+    queue = _CaptureQueue()
+    mixin = _make_mixin(queue)
+    item = _qitem(
+        task_type="dsl_scenario",
+        dsl_scenario="intel_run",
+        args={
+            "resource_reservation": "intel:170",
+            "resource_action_id": "intel",
+            "resource_period": "20260626",
+            "assign_heroes": ["molly"],
+            "stamina_delta": -10,
+        },
+        region="board.intel",
+        tap_x_pct=12.5,
+        tap_y_pct=33.0,
+        set_node="intel",
+        threshold=0.9,
+        score=0.97,
+        match_top_left_x=4,
+        match_top_left_y=5,
+        template_w=20,
+        template_h=10,
+        tap_match_x_pct=13.0,
+        tap_match_y_pct=34.0,
+    )
+    result = TaskResult(
+        success=False,
+        next_run_at=datetime.now(tz=UTC),
+        metadata={"reason": "preempted_by_higher_priority", "resume_from_step_index": 3},
+    )
+
+    await mixin._reschedule_if_needed(item, result)  # type: ignore[attr-defined]
+
+    assert len(queue.calls) == 1
+    call = queue.calls[0]
+    # The two fields whose loss is dangerous (the user's emphasis):
+    assert call["dsl_scenario"] == "intel_run"
+    assert call["args"] == {
+        "resource_reservation": "intel:170",
+        "resource_action_id": "intel",
+        "resource_period": "20260626",
+        "assign_heroes": ["molly"],
+        "stamina_delta": -10,
+    }
+    # ...and the rest of the payload that used to be silently dropped.
+    assert call["set_node"] == "intel"
+    assert call["region"] == "board.intel"
+    assert (call["tap_x_pct"], call["tap_y_pct"]) == (12.5, 33.0)
+    assert (call["threshold"], call["score"]) == (0.9, 0.97)
+    assert (call["match_top_left_x"], call["match_top_left_y"]) == (4, 5)
+    assert (call["template_w"], call["template_h"]) == (20, 10)
+    assert (call["tap_match_x_pct"], call["tap_match_y_pct"]) == (13.0, 34.0)
+    # Resume index still forwarded alongside the payload.
+    assert call["start_step_index"] == 3
+
+
+@pytest.mark.asyncio
 async def test_reschedule_uses_skip_if_duplicate() -> None:
     """Reschedule must dedupe against any same-signature item already queued.
 

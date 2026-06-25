@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import redis as _redis_sync
 import redis.asyncio as aioredis
+from croniter import croniter
 from redis.exceptions import RedisError
 
 from config.devices import player_ids_for_device_candidates
@@ -29,7 +30,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SCHEDULER_UI_QUEUE = WAKE_CHANNEL
-_CRON_KEY = "wos:scheduler:cron:last_run"
 
 # Gift codes — global poller, see SchedulerRunner._run_gift_codes_polling.
 # (game_id, module path with poll_once + run_gift_code_redeemer, redeem-coordination
@@ -80,6 +80,9 @@ class SchedulerRunner:
         self._stamina_last_sig: dict[str, str] = {}
         # Same, for the resource-world (march slots / troops / heroes) planner.
         self._resource_last_sig: dict[str, str] = {}
+        # Cron expressions we've already warned about as unsupported/invalid, so a
+        # bad spec is logged once per process instead of every scheduler tick.
+        self._warned_bad_crons: set[str] = set()
 
     async def _connect(self) -> None:
         from config.redis_metrics import instrument_redis_client
@@ -175,45 +178,44 @@ class SchedulerRunner:
         return bool((raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip())
 
     @staticmethod
-    def _cron_due(expr: str, now: float) -> bool:
-        """Minimal cron matcher supporting:
+    def _cron_next_run_at(expr: str, *, after: float) -> float | None:
+        """Next fire time (epoch seconds) strictly after ``after`` for any standard
+        5-field cron expression, or ``None`` if croniter can't parse it.
 
-        - "*/N * * * *"  (every N minutes)
-        - "M */H * * *"  (minute M, every H hours)
+        Used for cron shapes outside the two interval fast-paths
+        (:meth:`_cron_interval_seconds`) — e.g. ``0 * * * *`` (hourly on the
+        hour) and ``0 4 * * *`` (daily at 04:00), which the old hand-rolled
+        matcher silently never fired. croniter handles the full cron grammar
+        (fixed fields, lists, ranges, day-of-week), so any valid spec now
+        schedules instead of being dropped.
+
+        Fields are interpreted in the host's local timezone, matching the
+        legacy matcher's ``time.localtime`` semantics — a daily ``0 4 * * *``
+        fires at 04:00 local, and DST shifts are handled by croniter's
+        timezone-aware arithmetic.
         """
+        from datetime import UTC, datetime
+
         expr = (expr or "").strip().strip('"').strip("'")
-        parts = expr.split()
-        if len(parts) != 5:
-            return False
-        minute, hour, _dom, _mon, _dow = parts
-        lt = time.localtime(now)
-        m = lt.tm_min
-        h = lt.tm_hour
-
-        if minute.startswith("*/") and hour == "*":
-            try:
-                n = int(minute[2:])
-            except ValueError:
-                return False
-            return n > 0 and (m % n == 0)
-
-        if hour.startswith("*/"):
-            try:
-                hh = int(hour[2:])
-                mm = int(minute)
-            except ValueError:
-                return False
-            return hh > 0 and (m == mm) and (h % hh == 0)
-
-        return False
+        if not croniter.is_valid(expr):
+            return None
+        # `after` is an absolute instant (UTC); convert to a local-aware datetime
+        # so croniter applies the cron fields in local wall-clock terms.
+        base = datetime.fromtimestamp(after, tz=UTC).astimezone()
+        try:
+            return float(croniter(expr, base).get_next(float))
+        except (ValueError, KeyError, OverflowError):
+            return None
 
     @staticmethod
     def _cron_interval_seconds(expr: str) -> int | None:
-        """Return the interval for cron shapes supported by this scheduler.
+        """Return the interval for the two fixed-cadence cron fast-paths.
 
-        The scheduler intentionally supports only the two shapes used by our
-        maintenance specs. For those, we can keep a concrete future queue item
-        instead of relying on hitting the exact cron minute.
+        ``*/N * * * *`` and ``M */H * * *`` are scheduled as a fixed interval
+        from the last run (restart-aware, throttle-keyed) rather than via
+        croniter, preserving their long-standing behavior. Every other valid
+        shape goes through :meth:`_cron_next_run_at` (wall-clock anchored).
+        ``None`` here means "not a fast-path interval" — not "unsupported".
         """
         expr = (expr or "").strip().strip('"').strip("'")
         parts = expr.split()
@@ -298,6 +300,104 @@ class SchedulerRunner:
         + ``_task_already_running`` cover the inverse: don't enqueue while one
         is already pending or in flight.
         """
+        assert self._queue is not None
+        last_run = await self._queue.last_run_at(
+            instance_id=instance_id,
+            task_type=task_type,
+            player_id=player_id,
+        )
+        run_at = now if last_run is None else max(now, last_run + float(interval_s))
+        await self._publish_cron_item(
+            name=name,
+            spec_slug=spec_slug,
+            expr=expr,
+            task_type=task_type,
+            priority=priority,
+            instance_id=instance_id,
+            player_id=player_id,
+            run_at=run_at,
+            throttle_ttl_s=int(interval_s),
+            last_run=last_run,
+            now=now,
+        )
+
+    async def _ensure_cron_item_at(
+        self,
+        *,
+        name: str,
+        spec_slug: str,
+        expr: str,
+        task_type: str,
+        priority: int,
+        instance_id: str,
+        player_id: str,
+        now: float,
+    ) -> None:
+        """Schedule the next wall-clock occurrence of a general cron ``expr``.
+
+        Covers the shapes the interval fast-path doesn't (``0 * * * *``,
+        ``0 4 * * *``, …). The next fire is computed via croniter anchored to
+        the last run — so a restart doesn't immediately re-fire — with overdue
+        and cold-start cases clamped to ``now`` (catch up / debut now). Dedup +
+        throttle mirror :meth:`_ensure_interval_cron_item`.
+        """
+        assert self._queue is not None
+        last_run = await self._queue.last_run_at(
+            instance_id=instance_id,
+            task_type=task_type,
+            player_id=player_id,
+        )
+        if last_run is None:
+            run_at = now  # cold start: debut immediately
+        else:
+            nxt = self._cron_next_run_at(expr, after=last_run)
+            if nxt is None:
+                # Unparseable — already warned once in `_run_cron_specs`; skip.
+                return
+            run_at = max(now, nxt)
+        # Throttle until a little past the scheduled fire so 30s ticks don't
+        # re-pile the same occurrence. Bounded to [120s, 1h]: pending-dedup and
+        # the running-key guard cover the long pre-fire and in-flight windows,
+        # so this only needs to close the brief pop→running-key and
+        # complete→last_run-update gaps — not hold a full daily period.
+        throttle_ttl_s = max(120, min(int(run_at - now), 3600))
+        await self._publish_cron_item(
+            name=name,
+            spec_slug=spec_slug,
+            expr=expr,
+            task_type=task_type,
+            priority=priority,
+            instance_id=instance_id,
+            player_id=player_id,
+            run_at=run_at,
+            throttle_ttl_s=throttle_ttl_s,
+            last_run=last_run,
+            now=now,
+        )
+
+    async def _publish_cron_item(
+        self,
+        *,
+        name: str,
+        spec_slug: str,
+        expr: str,
+        task_type: str,
+        priority: int,
+        instance_id: str,
+        player_id: str,
+        run_at: float,
+        throttle_ttl_s: int,
+        last_run: float | None,
+        now: float,
+    ) -> None:
+        """Shared enqueue tail for both cron paths: dedup guards, throttle,
+        schedule, log.
+
+        The interval and croniter paths differ only in how ``run_at`` is
+        computed (fixed cadence vs wall-clock anchor); the enqueue-time dedup
+        (running-key + pending-set) and the throttle that keeps fast scheduler
+        ticks from re-piling the same logical task are identical.
+        """
         assert self._queue is not None and self._redis is not None
         if await self._task_already_running(
             instance_id=instance_id,
@@ -314,18 +414,11 @@ class SchedulerRunner:
         ):
             return
 
-        last_run = await self._queue.last_run_at(
-            instance_id=instance_id,
-            task_type=task_type,
-            player_id=player_id,
-        )
-        run_at = now if last_run is None else max(now, last_run + float(interval_s))
-
         throttle_key = (
             f"wos:scheduler:cron_throttle:{spec_slug}:{instance_id}:{player_id}"
         )
         acquired = bool(
-            await self._redis.set(throttle_key, "1", nx=True, ex=int(interval_s))
+            await self._redis.set(throttle_key, "1", nx=True, ex=max(1, int(throttle_ttl_s)))
         )
         if not acquired:
             return
@@ -443,6 +536,21 @@ class SchedulerRunner:
             # Use `name` as the human identifier; normalize to a slug for keys.
             spec_slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", name).strip("._-") or yml.stem
             interval_s = self._cron_interval_seconds(expr)
+            # Anything that isn't an interval fast-path is scheduled via croniter
+            # (general cron). Validate once per spec: an unparseable expr is logged
+            # once per process and skipped, instead of silently never firing — the
+            # bug the old two-shape matcher had for `0 4 * * *`, `0 * * * *`, etc.
+            if interval_s is None and not croniter.is_valid(expr):
+                if expr not in self._warned_bad_crons:
+                    self._warned_bad_crons.add(expr)
+                    logger.warning(
+                        "Cron spec %r (%s) has an unsupported/invalid cron expression "
+                        "%r; skipping. Use a standard 5-field cron, e.g. '0 4 * * *'.",
+                        name,
+                        yml.name,
+                        expr,
+                    )
+                continue
             for inst in self._settings.instances:
                 if inst.instance_id in focused_instances:
                     continue
@@ -486,35 +594,17 @@ class SchedulerRunner:
                             interval_s=interval_s,
                             now=now,
                         )
-                        continue
-
-                    if not self._cron_due(expr, now):
-                        continue
-                    # Once-per-minute guard (scheduler ticks faster than cron granularity).
-                    guard = f"{spec_slug}:{inst.instance_id}:{player_id}:{int(now // 60)}"
-                    if await self._redis.hget(_CRON_KEY, guard):  # type: ignore[arg-type]
-                        continue
-                    await self._redis.hset(_CRON_KEY, guard, "1")
-                    await self._redis.expire(_CRON_KEY, 120)
-
-                    await self._queue.schedule(
-                        task_id=f"cron:{spec_slug}:{player_id}:{int(now)}",
-                        player_id=player_id,
-                        task_type=task_type,
-                        priority=prio,
-                        run_at=now,
-                        instance_id=inst.instance_id,
-                        skip_if_duplicate=True,
-                        dedup_ignore_region=True,
-                    )
-                    logger.info(
-                        "Cron enqueued: %s (%s) %s for %s/%s",
-                        name,
-                        expr,
-                        task_type,
-                        inst.instance_id,
-                        player_id,
-                    )
+                    else:
+                        await self._ensure_cron_item_at(
+                            name=name,
+                            spec_slug=spec_slug,
+                            expr=expr,
+                            task_type=task_type,
+                            priority=prio,
+                            instance_id=inst.instance_id,
+                            player_id=player_id,
+                            now=now,
+                        )
 
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
         # ``_connect`` runs before any tick, so ``_redis`` is always populated here.
@@ -928,8 +1018,15 @@ class SchedulerRunner:
                     task_type=dec.task_type or "",
                 ):
                     continue
+                # The reservation must exist before enqueue (its id rides in the
+                # task args so the worker can confirm/release it). But enqueue can
+                # still be deduped — ``skip_if_duplicate`` drops it when an
+                # identical action is already pending/in-flight, and that one
+                # already holds its own reservation. Roll ours back on a dropped
+                # enqueue so it doesn't sit as a phantom hold (subtracting slots/
+                # troops/heroes from the world view) until its confirm_by TTL.
                 reservation = await resources.reserve(self._redis, player_id, dec, now)
-                await resources.enqueue_decision(
+                enqueued = await resources.enqueue_decision(
                     self._queue,
                     instance_id=instance_id,
                     player_id=player_id,
@@ -938,6 +1035,8 @@ class SchedulerRunner:
                     reservation=reservation,
                     now=now,
                 )
+                if not enqueued and reservation is not None:
+                    await resources.release(self._redis, player_id, reservation)
             except Exception:
                 logger.warning(
                     "resource planner failed for player=%s", player_id, exc_info=True

@@ -223,10 +223,13 @@ class InstanceWorkerOverlayMixin(_Base):
             rule-level ``ttl:`` to prevent tight loops — the engine skips
             re-evaluating the rule for ``ttl_seconds`` after a match.
 
-        ``pushScenario`` tasks are always **device-level** (``player_id=""``): they do not require
-        a configured player; the worker resolves an active player only when the task needs one.
-        ``active_player`` (if known at push time) scopes the push-level ``ttl`` self-throttle
-        per-player, so an in-flight scenario for player A doesn't block pushes for player B.
+        Player scoping is per-scenario: a scenario declaring ``device_level: true`` is
+        enqueued with ``player_id=""`` (the worker resolves an active player at pop time
+        only when the task needs one); a player-bound scenario is enqueued under
+        ``active_player`` so the queue's dedup + recent-run ranking treat it per-player
+        instead of collapsing every account's push into one device-level signature.
+        ``active_player`` also scopes the push-level ``ttl`` self-throttle per-player, so an
+        in-flight scenario for player A doesn't block pushes for player B.
         """
         if self._queue is None:
             return
@@ -254,7 +257,7 @@ class InstanceWorkerOverlayMixin(_Base):
         ):
             try:
                 await self._enqueue_push_scenarios_from_overlay(
-                    payload, player_id="", run_at=now, active_player=active_player
+                    payload, run_at=now, active_player=active_player
                 )
             except Exception:
                 logger.debug("Failed to enqueue pushScenario task(s) from overlay", exc_info=True)
@@ -265,7 +268,7 @@ class InstanceWorkerOverlayMixin(_Base):
                 continue
             try:
                 await self._enqueue_push_scenarios_from_overlay(
-                    payload, player_id="", run_at=now, active_player=active_player
+                    payload, run_at=now, active_player=active_player
                 )
             except Exception:
                 logger.debug("Failed to process non-push overlay payload", exc_info=True)
@@ -501,10 +504,11 @@ class InstanceWorkerOverlayMixin(_Base):
         self,
         payload: dict[str, Any],
         *,
-        player_id: str,
         run_at: float,
         active_player: str | None = None,
     ) -> bool:
+        # Player scoping is derived per-scenario below (device-level → "",
+        # player-bound → ``active_player``); callers no longer pass a player_id.
         if self._queue is None:
             return False
 
@@ -813,12 +817,25 @@ class InstanceWorkerOverlayMixin(_Base):
                 with suppress(TypeError, ValueError):
                     th_i = int(template_h) if template_h is not None else None
 
+                # Player scoping for the queued push:
+                #   device-level → player_id="" (worker resolves an active
+                #     player at pop time; the scenario runs player-agnostic).
+                #   player-bound → the active player, so the queue's dedup and
+                #     recent-run ranking treat it per-player. Enqueuing every
+                #     account's player-bound push with "" collapses them into a
+                #     single device-level signature — on a multi-account device
+                #     one account's push would dedup away another's, and the
+                #     recent-run debuff would be shared. active_player is
+                #     guaranteed non-empty for the player-bound branch (the
+                #     not-device-level + missing-active_player case is skipped
+                #     above).
+                push_player_id = "" if is_device_level else str(active_player or "").strip()
                 ovl_task_id = (
                     f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}"
                 )
                 enqueued = await self._queue.schedule(
                     task_id=ovl_task_id,
-                    player_id=player_id,
+                    player_id=push_player_id,
                     task_type=t,
                     priority=pr,
                     run_at=run_at,
@@ -845,7 +862,7 @@ class InstanceWorkerOverlayMixin(_Base):
                     self._cfg.instance_id,
                     current_screen_snap,
                     t,
-                    player_id,
+                    push_player_id,
                     active_player or "",
                     reg_nm,
                     pr,

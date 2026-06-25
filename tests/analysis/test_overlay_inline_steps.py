@@ -132,11 +132,17 @@ def _make_worker_with_steps(
     actions.screen_resolution.return_value = (720, 1280)
     actions.tap.return_value = True
 
+    async def _no_focus() -> str:
+        # Collaborator the overlay mixin expects from the full worker host
+        # (instance_worker_redis). "" = focus mode off, so inline steps run.
+        return ""
+
     # Plain instance with the mixin's attrs stubbed — we only call one method.
     obj = types.SimpleNamespace(
         _cfg=types.SimpleNamespace(instance_id="inst-1"),
         _redis=_FakeRedis(),
         _bot_actions=actions,
+        _focus_scenario=_no_focus,
     )
     # Bind the method we want to exercise to the namespace.
     obj._execute_inline_overlay_steps = (

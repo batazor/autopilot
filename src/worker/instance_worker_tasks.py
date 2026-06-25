@@ -343,30 +343,12 @@ class InstanceWorkerTasksMixin(_Base):
                     )
                 except Exception:
                     logger.debug("wake_scheduler_async failed", exc_info=True)
-                # Stamina budget accounting: a planner-enqueued consumer/supply
+                # Planner budget accounting: a planner-enqueued consumer/supply
                 # carries its quota id + game-day period in ``args``. On success
-                # bump the matching daily counter in the player state hash — the
-                # same ``quota:<period>:<id>`` field the allocator reads back.
+                # bump the daily counter the allocator reads back and apply the
+                # stamina estimate delta (see _apply_planner_post_consume).
                 if _success and item.args:
-                    try:
-                        _q_id = item.args.get("stamina_quota_id")
-                        _q_period = item.args.get("stamina_period")
-                        _state_key = f"wos:player:{item.player_id}:state"
-                        if _q_id and _q_period:
-                            from games.wos.core.stamina.model import quota_field
-
-                            await self._redis.hincrby(
-                                _state_key, quota_field(str(_q_period), str(_q_id)), 1
-                            )
-                        # Keep the stamina estimate honest between OCR reads:
-                        # apply the spent/gained delta now (next read re-anchors).
-                        _delta = int(item.args.get("stamina_delta") or 0)
-                        if _delta:
-                            _new = await self._redis.hincrby(_state_key, "stamina", _delta)
-                            if _new < 0:
-                                await self._redis.hset(_state_key, "stamina", 0)
-                    except Exception:
-                        logger.debug("stamina post-consume update failed", exc_info=True)
+                    await self._apply_planner_post_consume(item)
                 await self._record_task_history(
                     item=item,
                     task=task,
@@ -547,6 +529,16 @@ class InstanceWorkerTasksMixin(_Base):
         # (``top_is_device_level`` in ``_preempted_by_higher_priority``), so
         # each yields to the other and neither makes progress — the symptom is
         # an exploding ``yield_count:*`` set under a single instance.
+        # Forward the WHOLE payload, not just the ranking/region subset. A
+        # rescheduled item (yield-to-higher-priority, hand-pointer interrupt,
+        # device-level preemption) must come back with everything that defines
+        # WHAT it runs — most critically ``dsl_scenario`` (the generic
+        # ``task_type="dsl_scenario"`` envelope is meaningless without it) and
+        # ``args`` (planner reservation/quota markers, assigned heroes/troops,
+        # stamina delta). Dropping those re-enqueued a scenario-less or
+        # reservation-less husk; the worker then ran the wrong thing or leaked
+        # the planner's hold. ``set_node`` / tap coords / match box round-trip
+        # too so an overlay-derived tap still knows where to tap on resume.
         await self._queue.schedule(
             task_id=item.task_id,
             player_id=item.player_id,
@@ -555,8 +547,59 @@ class InstanceWorkerTasksMixin(_Base):
             run_at=run_at,
             instance_id=self._cfg.instance_id,
             region=item.region,
+            tap_x_pct=item.tap_x_pct,
+            tap_y_pct=item.tap_y_pct,
             threshold=item.threshold,
             score=item.score,
+            set_node=item.set_node,
+            dsl_scenario=item.dsl_scenario,
+            args=item.args,
+            match_top_left_x=item.match_top_left_x,
+            match_top_left_y=item.match_top_left_y,
+            template_w=item.template_w,
+            template_h=item.template_h,
+            tap_match_x_pct=item.tap_match_x_pct,
+            tap_match_y_pct=item.tap_match_y_pct,
             start_step_index=resume_step,
             skip_if_duplicate=True,
         )
+
+    async def _apply_planner_post_consume(self, item: QueueItem) -> None:
+        """Bump planner daily-quota counters + apply the stamina estimate delta
+        after a planner-enqueued consumer/supply task succeeds.
+
+        Both the stamina and resource planners read their per-(period, action)
+        usage back from player state via the same ``quota_field(period, id)``
+        (see ``games/wos/core/stamina`` and ``games/wos/core/resources``), so the
+        worker bumps whichever marker pair the task carried. Without the resource
+        pair, a capped ``daily_quota`` action's ``quota_used`` would stay 0 and it
+        would re-dispatch without bound once the resource planner runs as a
+        dispatcher. The stamina delta keeps the ``stamina`` estimate honest
+        between OCR reads (the next read re-anchors it).
+
+        Best-effort — a Redis flap must not fail an otherwise-successful task.
+        """
+        if self._redis is None or not item.args:
+            return
+        try:
+            from games.wos.core.stamina.model import quota_field
+
+            state_key = f"wos:player:{item.player_id}:state"
+            for id_key, period_key in (
+                ("stamina_quota_id", "stamina_period"),
+                ("resource_action_id", "resource_period"),
+            ):
+                qid = item.args.get(id_key)
+                qperiod = item.args.get(period_key)
+                if qid and qperiod:
+                    await self._redis.hincrby(
+                        state_key, quota_field(str(qperiod), str(qid)), 1
+                    )
+            # Apply the spent/gained stamina delta now (next OCR read re-anchors).
+            delta = int(item.args.get("stamina_delta") or 0)
+            if delta:
+                new = await self._redis.hincrby(state_key, "stamina", delta)
+                if new < 0:
+                    await self._redis.hset(state_key, "stamina", 0)
+        except Exception:
+            logger.debug("planner post-consume update failed", exc_info=True)

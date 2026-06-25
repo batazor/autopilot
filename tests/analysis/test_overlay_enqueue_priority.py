@@ -31,6 +31,11 @@ class _Worker(InstanceWorkerOverlayMixin):
         self._redis = None
         self._queue = _FakeQueue()
 
+    async def _focus_scenario(self) -> str:
+        # Collaborator the overlay mixin expects from the full worker host
+        # (instance_worker_redis). "" = focus mode off, so pushes proceed.
+        return ""
+
 
 class _FakeCounter:
     def __init__(self) -> None:
@@ -399,3 +404,48 @@ async def test_device_level_push_proceeds_when_different_scenario_running() -> N
 
     assert [c["task_type"] for c in worker._queue.calls] == [_DEVICE_LEVEL_SCENARIO]
     assert len(cancelled) == 1
+
+
+@pytest.mark.asyncio
+async def test_player_bound_push_enqueues_under_active_player() -> None:
+    """A player-bound scenario is enqueued with the active player (not ""), so the
+    queue's dedup + recent-run ranking treat it per-player. With "" every
+    account's push collapses into one device-level signature — wrong for a
+    multi-account device."""
+    worker = _Worker()
+
+    await worker._schedule_overlay_matches(
+        {
+            "page.worker.add.visible": {
+                "matched": True,
+                "region": "page.worker.add",
+                "pushScenario": [{"name": "assign_worker", "priority": 80_000}],
+            },
+        },
+        active_player="p1",
+    )
+
+    assert [c["task_type"] for c in worker._queue.calls] == ["assign_worker"]
+    assert worker._queue.calls[0]["player_id"] == "p1"
+
+
+@pytest.mark.asyncio
+async def test_device_level_push_enqueues_with_empty_player_even_when_active_known() -> None:
+    """A ``device_level: true`` scenario stays player-agnostic (``player_id=""``)
+    even when an active player is known — the worker resolves a player at pop
+    time only if the task needs one."""
+    worker = _Worker()
+
+    await worker._schedule_overlay_matches(
+        {
+            "skip_button.visible": {
+                "matched": True,
+                "region": "skip_button",
+                "pushScenario": [{"name": _DEVICE_LEVEL_SCENARIO, "priority": 100_000}],
+            },
+        },
+        active_player="p1",
+    )
+
+    assert [c["task_type"] for c in worker._queue.calls] == [_DEVICE_LEVEL_SCENARIO]
+    assert worker._queue.calls[0]["player_id"] == ""
