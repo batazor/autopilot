@@ -68,8 +68,12 @@ variables:
     # Register QEMU handlers so the amd64 runner can build arm64 images.
     - docker run --privileged --rm tonistiigi/binfmt --install all
     # A docker-container builder is required for multi-platform + registry cache.
+    # buildx can't load the dind TLS config straight from env vars, so wrap the
+    # endpoint in an explicit docker context first (known buildx limitation with
+    # DOCKER_HOST + TLS).
+    - docker context create tls-env --docker "host=$DOCKER_HOST,ca=$DOCKER_CERT_PATH/ca.pem,cert=$DOCKER_CERT_PATH/cert.pem,key=$DOCKER_CERT_PATH/key.pem"
     - docker buildx create --use --name xbuilder --driver docker-container
-        --driver-opt "image=$BUILDKIT_IMAGE"
+        --driver-opt "image=$BUILDKIT_IMAGE" tls-env
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     # Optional second registry. Logging in here (same shell as ``script``) so the
     # one buildx run below can push to both. No GHCR_TOKEN → skipped.
