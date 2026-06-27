@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - Use `uv run ...` for all Python commands from the repo root, including `python`, `pytest`, `ruff`, scripts, and module entrypoints.
 - For GitHub operations that need the API, use `gh api` with REST endpoints. Do not use GraphQL for repository automation unless explicitly requested.
-- Do not use `gh run watch` or polling loops for GitHub Actions status; make one-shot API requests instead.
+- **Do not monitor CI status.** Never poll, watch, or repeatedly query CI / pipeline / job status — GitHub Actions (`gh run watch`) or GitLab CI — and never wait for a build to finish. It wastes the user's tokens. Configure/push, hand off the pipeline URL, and let the user watch. Only if the user explicitly asks for status, make a single one-shot request and stop.
 - **Always clean up after yourself.** Any process or server you start during a task — `uv run api`, `uv run bot`/`worker.supervisor`, preview dev servers (Next on `:3100`, Astro/landing on `:4321`), `docker compose` services, etc. — must be stopped before you finish, unless the user asked you to leave it running. Leftovers hog ports/memory and silently break later checks (a dead `uv run api` shows "API offline" in the dashboard). Before wrapping up, `ps`/`lsof` for anything you spawned and stop it; never kill processes the user started themselves.
 
 ### Development Setup
