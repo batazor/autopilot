@@ -1,0 +1,134 @@
+# GitLab CI — multi-arch (x86_64 + arm64) container builds.
+#
+# GitLab mirror of ``.github/workflows/docker.yml``. The two runnable services
+# are built for both architectures and pushed to the **GitLab Container
+# Registry** so external users can ``docker compose up`` without a local
+# toolchain:
+#   * bot — worker + scheduler + FastAPI entrypoint + local Tesseract OCR
+#   * web — Next.js operator dashboard
+#
+# Why this exists alongside the GitHub workflow: the project source is mirrored
+# to https://gitlab.com/batazor/autopilot, and GitLab's pipeline gives a second,
+# independent place that publishes the same multi-arch images. The prod compose
+# (landing/public/docker-compose.prod.yml) already honours ``WOS_REGISTRY``, so
+# pointing an install at this mirror is a one-liner:
+#
+#     WOS_REGISTRY=registry.gitlab.com/batazor/autopilot \
+#       docker compose -f docker-compose.prod.yml up -d --pull always
+#
+# Pushed image refs (CI_REGISTRY_IMAGE is registry.gitlab.com/batazor/autopilot):
+#   * $CI_REGISTRY_IMAGE/bot:latest   (+ :<tag> on tag pipelines)
+#   * $CI_REGISTRY_IMAGE/web:latest   (+ :<tag> on tag pipelines)
+#
+# Optional GHCR mirror: set the GHCR_TOKEN CI/CD variable (a GitHub PAT with
+# write:packages) to ALSO push the same tags to ghcr.io/batazor/autopilot/* in
+# the same buildx run — handy while the GitHub Actions publish is billing-
+# blocked. Override GHCR_USER (default: batazor) / GHCR_REPO (default:
+# batazor/autopilot) if needed. Unset → GitLab-registry-only, no-op.
+#
+# Builds run on:
+#   * git tags          → publishes :latest AND :<tag>      (cut a release)
+#   * manual "Run pipeline" from the UI / API (web, api triggers) → :latest
+#   * pipeline schedules → :latest                          (e.g. nightly)
+# Plain branch pushes do NOT build images (the heavy emulated arm64 build is
+# wasteful per-commit). Add `- if: $CI_COMMIT_BRANCH == "main"` to the rules if
+# you want a :latest rebuild on every main commit.
+
+stages:
+  - build
+
+variables:
+  # docker-in-docker over TLS — the layout the gitlab.com SaaS runners ship.
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_TLS_VERIFY: "1"
+  DOCKER_CERT_PATH: "/certs/client"
+  # Target platforms. arm64 is covered for Apple-Silicon dev machines and ARM
+  # servers; on amd64 runners it is produced via QEMU emulation (see binfmt
+  # below). NOTE: emulated arm64 builds — especially the Next.js ``web`` build —
+  # are slow. The registry layer cache makes warm rebuilds fast; a cold build
+  # can approach the runner job timeout. To build natively instead, run the job
+  # on a GitLab SaaS arm64 runner (tags: [saas-linux-medium-arm64]) and drop the
+  # arm64 entry from PLATFORMS here.
+  PLATFORMS: "linux/amd64,linux/arm64"
+  # Pin BuildKit so the builder boot is reproducible (mirrors the GHA pin).
+  BUILDKIT_IMAGE: "moby/buildkit:v0.30.0"
+
+# Shared multi-arch build job. ``parallel:matrix`` fans this out into one job per
+# service (bot, web); each is told which Dockerfile to use.
+.docker-build:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  before_script:
+    # Wait for the dind daemon, then sanity-check buildx is present.
+    - for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+    - docker buildx version
+    # Register QEMU handlers so the amd64 runner can build arm64 images.
+    - docker run --privileged --rm tonistiigi/binfmt --install all
+    # A docker-container builder is required for multi-platform + registry cache.
+    - docker buildx create --use --name xbuilder --driver docker-container
+        --driver-opt "image=$BUILDKIT_IMAGE"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    # Optional second registry. Logging in here (same shell as ``script``) so the
+    # one buildx run below can push to both. No GHCR_TOKEN → skipped.
+    - |
+      if [ -n "$GHCR_TOKEN" ]; then
+        echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-batazor}" --password-stdin
+      fi
+  script:
+    - IMAGE="$CI_REGISTRY_IMAGE/$SERVICE"
+    # Always tag :latest; add :<tag> on tag pipelines.
+    - TAG_ARGS="--tag $IMAGE:latest"
+    - if [ -n "$CI_COMMIT_TAG" ]; then TAG_ARGS="$TAG_ARGS --tag $IMAGE:$CI_COMMIT_TAG"; fi
+    # Mirror the same tags to GHCR in the same build when GHCR_TOKEN is set.
+    - |
+      if [ -n "$GHCR_TOKEN" ]; then
+        GHCR_IMAGE="ghcr.io/${GHCR_REPO:-batazor/autopilot}/$SERVICE"
+        TAG_ARGS="$TAG_ARGS --tag $GHCR_IMAGE:latest"
+        [ -n "$CI_COMMIT_TAG" ] && TAG_ARGS="$TAG_ARGS --tag $GHCR_IMAGE:$CI_COMMIT_TAG"
+      fi
+    # Build identity baked into the image → surfaced by /api/version so the
+    # dashboard can compare against the registry's :latest manifest.
+    - BUILD_VERSION="${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+    # Bake Grafana Cloud OTLP creds into the bot image *only* when provided as
+    # CI/CD variables (Settings → CI/CD → Variables). Absent → telemetry-free
+    # build, exactly like a fork (runtime bootstrap no-ops without the file).
+    - |
+      if [ "$SERVICE" = "bot" ] && [ -n "$TELEMETRY_OTLP_ENDPOINT" ]; then
+        printf 'ENDPOINT = "%s"\nAUTH_HEADER = "%s"\n' \
+          "$TELEMETRY_OTLP_ENDPOINT" "$TELEMETRY_OTLP_AUTH_HEADER" \
+          > src/config/_telemetry_secrets.py
+        echo "Baked telemetry secrets into the bot image."
+      fi
+    - |
+      docker buildx build \
+        --platform "$PLATFORMS" \
+        --file "$DOCKERFILE" \
+        $TAG_ARGS \
+        --build-arg "BUILD_VERSION=$BUILD_VERSION" \
+        --build-arg "BUILD_REVISION=$CI_COMMIT_SHA" \
+        --label "org.opencontainers.image.title=autopilot/$SERVICE" \
+        --label "org.opencontainers.image.source=$CI_PROJECT_URL" \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+        --label "org.opencontainers.image.licenses=MIT" \
+        --cache-from "type=registry,ref=$IMAGE:buildcache" \
+        --cache-to "type=registry,ref=$IMAGE:buildcache,mode=max,image-manifest=true,oci-mediatypes=true" \
+        --provenance=false \
+        --push \
+        .
+
+build:
+  extends: .docker-build
+  parallel:
+    matrix:
+      - SERVICE: bot
+        DOCKERFILE: Dockerfile.bot
+      - SERVICE: web
+        DOCKERFILE: Dockerfile.web
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "api"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
