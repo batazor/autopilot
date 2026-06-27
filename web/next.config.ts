@@ -11,6 +11,13 @@ const cappedCpus =
   Number.isFinite(buildCpus) && buildCpus >= 1 ? Math.floor(buildCpus) : undefined;
 
 const nextConfig: NextConfig = {
+  // Instant Navigations (Next 16.3): dynamic-by-default + Stream/Cache/Block.
+  // Every server-side `await` must Stream (<Suspense>), Cache ('use cache'),
+  // or Block (`export const instant = false`); `useSearchParams` must sit in a
+  // Suspense boundary. partialPrefetching prefetches one reusable shell per
+  // route instead of one request per <Link> (kills the sidebar prefetch flurry).
+  cacheComponents: true,
+  partialPrefetching: true,
   // Limit build workers under memory pressure (set by the play launcher).
   ...(cappedCpus ? { experimental: { cpus: cappedCpus } } : {}),
   // Two Next servers sharing web/.next clobber each other (CSS chunk 404s),

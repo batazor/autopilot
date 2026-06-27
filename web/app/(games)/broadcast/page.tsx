@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useFleetOptional } from "@/components/FleetContextProvider";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import {
+  FleetContextProvider,
+  useFleetOptional,
+} from "@/components/FleetContextProvider";
 import { PageHeader } from "@/components/PageHeader";
 import { MessageEditor } from "@/components/broadcast/MessageEditor";
-import { Button, Pill, Spinner, Toggle } from "@/components/ui";
+import { Button, PageLoading, Pill, Spinner, Toggle } from "@/components/ui";
 import {
   type BroadcastMessage,
   type EventFlag,
@@ -88,7 +91,7 @@ function MessageRow({
   );
 }
 
-export default function BroadcastPage() {
+function BroadcastPageContent() {
   const [messages, setMessages] = useState<BroadcastMessage[] | null>(null);
   const [eventFlags, setEventFlags] = useState<EventFlag[]>([]);
   const [history, setHistory] = useState<SendRecord[]>([]);
@@ -260,5 +263,15 @@ export default function BroadcastPage() {
         </section>
       )}
     </div>
+  );
+}
+
+export default function BroadcastPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <FleetContextProvider>
+        <BroadcastPageContent />
+      </FleetContextProvider>
+    </Suspense>
   );
 }
