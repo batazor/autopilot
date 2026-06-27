@@ -58,9 +58,9 @@ variables:
 # service (bot, web); each is told which Dockerfile to use.
 .docker-build:
   stage: build
-  image: docker:27
+  image: docker:29
   services:
-    - docker:27-dind
+    - docker:29-dind
   before_script:
     # Wait for the dind daemon, then sanity-check buildx is present.
     - for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
