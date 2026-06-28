@@ -9,42 +9,53 @@ writes ``buildings.levels.<slug>`` to:
 - the Redis instance-state hash (cheap hot-path mirror).
 
 This is the building-level reader the value-greedy build planner needs as input.
-The parse core (:func:`_parse_level`) is pure so it can be unit-tested.
+The parse core (:func:`_parse_level`) resolves the localized title to its
+canonical registry id (EN + RU «Белая мгла»), and stays unit-testable.
 """
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# "Furnace Lv. 1", "Hunters' Hut Lv. 3", "Sawmill Lv 2" → (name, level)
-_LEVEL_RE = re.compile(r"([A-Za-z'’][A-Za-z'’.\- ]*?)\s*lv\.?\s*(\d+)", re.IGNORECASE)
-_NONWORD_RE = re.compile(r"[^a-z0-9]+")
+def _parse_level(title: str, buildings: Any = None) -> tuple[str, int] | None:
+    """``"Furnace Lv. 1"`` / RU ``"Топка Ур. 3"`` → ``("furnace", N)``.
 
+    Resolves the building NAME to its canonical registry id via the shared
+    RU-aware parser (:mod:`config.building_name_parser`), so localized plates
+    like «Топка»/«Барак» map to ``furnace``/``shelter`` — the ids the build
+    planner actually reads — instead of a raw transliterated slug. ``None`` when
+    there's no parseable level or the name doesn't resolve to a known building.
+    ``buildings`` is the registry building list; fetched (cached) when omitted.
+    """
+    from config.building_name_parser import parse_building_name_level_instance
 
-def _parse_level(title: str) -> tuple[str, int] | None:
-    """``"Furnace Lv. 1"`` → ``("furnace", 1)``; ``None`` when no level is found."""
-    m = _LEVEL_RE.search(title or "")
-    if not m:
+    if buildings is None:
+        from config.buildings import get_building_registry
+
+        buildings = get_building_registry().buildings
+    parsed = parse_building_name_level_instance(title or "", buildings)
+    if parsed is None:
         return None
-    slug = _NONWORD_RE.sub("_", m.group(1).lower()).strip("_")
-    if not slug:
-        return None
-    return slug, int(m.group(2))
+    building, level, _instance_id = parsed
+    return building.id, level
 
 
 def _levels_from_plate_texts(texts: Any) -> dict[str, int]:
-    """Pure: OCR'd ``"<Name> Lv. N"`` title plates → ``{slug: level}``.
+    """OCR'd ``"<Name> Lv. N"`` title plates → ``{building_id: level}``.
 
-    Keeps the highest level seen per slug (a re-sighting never lowers a reading)
-    and drops plates with no parseable level. The on-device sweep collects the
-    plate texts; this is the testable aggregation seam.
+    Keeps the highest level seen per building (a re-sighting never lowers a
+    reading) and drops plates with no parseable level or an unrecognised name.
+    The on-device sweep collects the plate texts; this is the testable
+    aggregation seam. Resolves the registry once and reuses it across plates.
     """
+    from config.buildings import get_building_registry
+
+    buildings = get_building_registry().buildings
     out: dict[str, int] = {}
     for text in texts or ():
-        parsed = _parse_level(text if isinstance(text, str) else "")
+        parsed = _parse_level(text if isinstance(text, str) else "", buildings)
         if not parsed:
             continue
         slug, level = parsed
@@ -252,9 +263,12 @@ async def _exec_navigate_to_building(ctx: Any) -> None:
     import asyncio
 
     from config.loader import load_settings
-    from modules.radar.config import runs_root
+    from modules.radar.config import account_runs_root
     from modules.radar.navigator import Navigator, latest_city_run
-    from tasks.dsl_exec.context import _decode_redis_raw
+    from tasks.dsl_exec.context import (
+        _decode_redis_raw,
+        _resolve_player_id_for_device_level_exec,
+    )
 
     r = ctx.redis_client
     inst_key = f"wos:instance:{ctx.instance_id}:state"
@@ -270,9 +284,12 @@ async def _exec_navigate_to_building(ctx: Any) -> None:
         ctx.result.update({"reason": "no_building"})
         return
 
-    run = latest_city_run(runs_root())
+    # The city map is per-account: route against THIS account's scan, never a
+    # different Chief's city (which would tap the wrong tiles / report not_in_map).
+    account = (await _resolve_player_id_for_device_level_exec(ctx)) or ""
+    run = latest_city_run(account_runs_root(account))
     if run is None:
-        ctx.result.update({"reason": "no_city_map"})
+        ctx.result.update({"reason": "no_city_map", "account": account})
         return
 
     settings = load_settings()
@@ -371,17 +388,20 @@ async def _exec_sweep_building_levels(ctx: Any) -> None:
 
     from config.loader import load_settings
     from layout.types import Region
-    from modules.radar.config import runs_root
+    from modules.radar.config import account_runs_root
     from modules.radar.navigator import Navigator, latest_city_run, open_tap_point
     from tasks import dsl_runtime
+    from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
 
     r = ctx.redis_client
     if r is None:
         ctx.result.update({"reason": "no_redis_client"})
         return
-    run = latest_city_run(runs_root())
+    # Read levels off THIS account's scanned city (see navigate_to_building).
+    account = (await _resolve_player_id_for_device_level_exec(ctx)) or ""
+    run = latest_city_run(account_runs_root(account))
     if run is None:
-        ctx.result.update({"reason": "no_city_map"})
+        ctx.result.update({"reason": "no_city_map", "account": account})
         return
 
     settings = load_settings()

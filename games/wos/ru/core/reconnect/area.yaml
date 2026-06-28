@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay: the «Соединение прервано» reconnect dialog is the same layout as EN, but the retry button is «Еще раз» (RU text), so the EN icon.reconnect crop (retry_page_icon.reconnect.png) doesn't match. Same bbox, RU crop. Re-enables the base reconnect.visible rule (findIcon icon.reconnect -> click) on RU. references/retry_page.png is the live RU dialog captured on bs5.",
+  "screens": [
+    {
+      "screen_id": "reconnect",
+      "screen_region": "icon.reconnect",
+      "ocr": "references/retry_page.png",
+      "regions": [
+        {
+          "name": "icon.reconnect",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.422779922779924,
+            "y": 59.15652173913043,
+            "width": 44.04247104247104,
+            "height": 7.001086956521739,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

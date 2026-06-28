@@ -1,0 +1,13 @@
+id: building-common-ru-overlay
+title: Building · Common (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the building/common module. Provides ONLY
+  an area.yaml region override — the «Улучшить» (Upgrade) button sits lower on the
+  RU city building panel (y≈54%) than the EN full-screen layout (y≈40%), so the
+  base anchor missed it and the blue-CTA search matched a different element.
+  Loaded only for the wos_ru catalog; overlay regions replace the same-named base
+  region by name (overlay-first merge in layout.area_manifest). The base
+  games/wos/core/building/common module owns scenarios/analyze.
+enabled: true
+area: area.yaml
+wiki: false

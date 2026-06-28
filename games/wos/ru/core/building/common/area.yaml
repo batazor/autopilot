@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay: repositions the «Улучшить» (Upgrade) button. On the RU city building panel the blue Upgrade pill sits at y≈54% (vs the EN full-screen layout's y≈40%); the base anchor missed it so the blue-CTA search locked onto a different blue element top-right. building.upgrade uses `action: cta_button color: blue`, which anchors find_blue_buttons on this bbox. Matched by colour+position, no Latin template crop. Verified live on bs5 (find_blue_buttons score 3.3, center ~(592,696)=82%x54%).",
+  "screens": [
+    {
+      "screen_id": "building",
+      "regions": [
+        {
+          "name": "upgrade_button",
+          "_comment": "RU «Улучшить» blue pill on the city building panel.",
+          "action": "color_check",
+          "type": "blue",
+          "threshold": 0.45,
+          "bbox": {
+            "x": 74.47876447876448,
+            "y": 53.5,
+            "width": 20.0,
+            "height": 4.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

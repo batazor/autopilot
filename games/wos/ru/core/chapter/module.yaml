@@ -1,0 +1,13 @@
+id: chapter-ru-overlay
+title: Chapter (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the chapter module. Provides ONLY an
+  area.yaml region override + a reference crop: the chapter banner scroll icon
+  («свиток») sits lower on the RU build (y≈85%) than the EN bbox (y79–84%), and
+  the EN crop doesn't match it (score 0.63 — position + badge/text differ). So
+  chapter.new is re-positioned with a RU scroll-banner crop, which re-enables the
+  chapter.badge.visible red-dot rule on RU. Base games/wos/core/chapter owns
+  scenarios/analyze.
+enabled: true
+area: area.yaml
+wiki: false

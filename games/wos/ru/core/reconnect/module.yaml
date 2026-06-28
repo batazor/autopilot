@@ -1,0 +1,12 @@
+id: reconnect-ru-overlay
+title: Reconnect (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the reconnect module. The connection-lost
+  dialog «Соединение прервано» has the same layout as the EN one, but the retry
+  button reads «Еще раз» (not "Reconnect"), so the EN icon.reconnect crop doesn't
+  match. Ships a RU «Еще раз» crop at the same bbox + the dialog reference, which
+  re-enables the base reconnect.visible rule (findIcon icon.reconnect → click) on
+  RU. Base games/wos/core/reconnect owns the rule.
+enabled: true
+area: area.yaml
+wiki: false

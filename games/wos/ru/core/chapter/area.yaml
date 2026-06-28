@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay: re-positions chapter.new (the chapter banner scroll icon) to its RU location (y≈85%, lower than the EN y79–84%) and ships a RU scroll-banner crop (references/crop/main_chapter.new.png). The EN crop scored 0.63 on RU (position + badge/text differ), so the chapter.badge.visible red-dot rule never fired. The bbox matches the crop 1:1; the rule's red_dot_bbox then probes the badge relative to the match. Verified live on bs5.",
+  "screens": [
+    {
+      "screen_id": "main_city",
+      "ocr": "references/main.png",
+      "regions": [
+        {
+          "name": "chapter.new",
+          "_comment": "0.80 (vs EN 0.9): the RU scroll banner scores 0.84-1.0 frame-to-frame (quill/badge animation), so 0.9 misses live frames. The red-dot gate (has_red_dot + red_dot_bbox) is the real claimable signal, so a looser template threshold is safe.",
+          "action": "exist",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 1.25,
+            "y": 84.6875,
+            "width": 10.0,
+            "height": 4.921875,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    }
+  ]
+}
