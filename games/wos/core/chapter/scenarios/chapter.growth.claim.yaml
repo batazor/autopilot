@@ -10,8 +10,12 @@ priority: 80_000
 node: chapter.growth_missions
 
 steps:
-  # Claim All first when it is lit (green template only matches the lit state).
+  # Claim All first when it's lit. Detect it as a GREEN CTA (not a template/crop)
+  # so it works on any locale — RU «Получить всё» etc.; green == claimable.
   - while_match: chapter.button.claim_all
+    action: cta_button
+    color: green
+    threshold: 0.5
     max: 1
     steps:
       - click: chapter.button.claim_all
