@@ -1,0 +1,13 @@
+id: survivors-ru-overlay
+title: Survivors (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the survivors module. The new-survivors
+  welcome screen «Прибыли выжившие!» uses «Впустить» (Let in) instead of "Welcome
+  in", so the EN button.welcome_in crop doesn't match — the isNewPeople screen is
+  unrecognized (screen_verify `match: button.welcome_in`) and welcome_new_survivors
+  loops on failed navigation. Ships a RU «Впустить» crop at the same bbox, which
+  re-enables both the screen detection and the click. Base games/wos/core/survivors
+  owns the rule + scenario.
+enabled: true
+area: area.yaml
+wiki: false

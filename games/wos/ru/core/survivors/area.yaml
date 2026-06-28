@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay: the new-survivors welcome screen «Прибыли выжившие!» button is «Впустить» (Let in), not «Welcome in», so the EN button.welcome_in crop misses it — the isNewPeople screen is not recognized (screen_verify match: button.welcome_in) and welcome_new_survivors can't navigate/click. Same bbox, RU «Впустить» crop (references/crop/isNewPeople.welcome_in_button.welcome_in.png cut from the live bs5 frame).",
+  "screens": [
+    {
+      "screen_id": "",
+      "ocr": "references/isNewPeople.welcome_in.png",
+      "regions": [
+        {
+          "name": "button.welcome_in",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.552123552123554,
+            "y": 81.52173913043478,
+            "width": 31.7992277992278,
+            "height": 4.4,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    }
+  ]
+}
