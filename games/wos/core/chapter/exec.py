@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from contextlib import suppress
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -211,6 +212,269 @@ async def _exec_route_daily_missions(ctx: DslExecContext) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Idle Chapter-objective router
+#
+# When the instance is otherwise idle, ``advance_chapter_objective`` OCRs the
+# bottom-left Chapter objective tracker (``chapter.task`` on main_city) into
+# player state and calls ``route_chapter_objective``. Building objectives
+# ("Upgrade/Build <X>") are resolved by name and gated by the build planner
+# before handing off to ``building.upgrade``; everything else routes through the
+# ``chapter_objectives.yaml`` registry, mirroring the daily-mission router.
+# ---------------------------------------------------------------------------
+_OBJECTIVES_PATH = Path(__file__).resolve().parent / "chapter_objectives.yaml"
+_CHAPTER_TASK_FIELD = "chapter.task"
+# Idle-tier: above the trigger cron (25k) so the routed work runs before the
+# next idle tick, but below every real cron/overlay push (68k+).
+_OBJECTIVE_PUSH_PRIORITY = 40_000
+
+
+@lru_cache(maxsize=4)
+def _load_objectives_cached(path_str: str, _mtime_ns: int) -> tuple[_MissionRule, ...]:
+    try:
+        doc = yaml.safe_load(Path(path_str).read_text(encoding="utf-8")) or {}
+    except OSError:
+        logger.warning("chapter_objectives: registry unreadable at %s", path_str)
+        return ()
+    out: list[_MissionRule] = []
+    for entry in doc.get("objectives") or []:
+        if not isinstance(entry, dict):
+            continue
+        raw_pat = str(entry.get("pattern") or "").strip()
+        if not raw_pat:
+            continue
+        try:
+            compiled = re.compile(raw_pat, re.IGNORECASE)
+        except re.error:
+            logger.exception("chapter_objectives: bad regex %r — skipping", raw_pat)
+            continue
+        raw_scenario = entry.get("scenario")
+        scenario = str(raw_scenario).strip() if raw_scenario else None
+        raw_args = entry.get("args")
+        args = dict(raw_args) if isinstance(raw_args, dict) else {}
+        out.append((compiled, scenario, args))
+    return tuple(out)
+
+
+def _load_objectives() -> tuple[_MissionRule, ...]:
+    try:
+        st = _OBJECTIVES_PATH.stat()
+    except OSError:
+        logger.warning("chapter_objectives: registry not found at %s", _OBJECTIVES_PATH)
+        return ()
+    return _load_objectives_cached(str(_OBJECTIVES_PATH), st.st_mtime_ns)
+
+
+def _read_levels(state: Any) -> dict[str, int]:
+    """Pull ``buildings.levels.<slug>`` ints out of an instance-state hash.
+
+    Mirrors ``building/common/exec.py::_read_levels`` (kept local — the build
+    exec module is auto-discovered, not import-stable as a package path).
+    """
+    prefix = "buildings.levels."
+    out: dict[str, int] = {}
+    for raw_k, raw_v in (state or {}).items():
+        k = raw_k.decode() if isinstance(raw_k, bytes) else str(raw_k)
+        if not k.startswith(prefix):
+            continue
+        v = raw_v.decode() if isinstance(raw_v, bytes) else str(raw_v)
+        try:
+            out[k[len(prefix):]] = int(v)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _match_building_in_text(text: str, buildings: Any) -> Any | None:
+    """Resolve the building named *inside* an objective line (e.g. "Upgrade Coal
+    Mine to Lv. 5" → the Coal Mine ``BuildingDef``).
+
+    The objective text wraps the building name in verbs/levels, so the exact
+    ``building_by_ocr_name`` match won't fire — we look for any registry name (EN
+    or its RU localisation) as a normalised substring, longest match wins (so
+    "Coal Mine" beats a stray short token). RU-aware via ``ru_aliases_for_building``.
+    """
+    from config.building_name_parser import (
+        normalise_building_lookup_text,
+        ru_aliases_for_building,
+    )
+
+    hay = normalise_building_lookup_text(text)
+    if not hay:
+        return None
+    best = None
+    best_len = 0
+    for b in buildings:
+        for nm in (b.name, *ru_aliases_for_building(b.name)):
+            norm = normalise_building_lookup_text(nm)
+            if norm and norm in hay and len(norm) > best_len:
+                best, best_len = b, len(norm)
+    return best
+
+
+def _route_chapter_objective(
+    text: str,
+    *,
+    levels: Any,
+    graph: Any,
+    buildings: Any,
+    objectives: tuple[_MissionRule, ...],
+) -> dict[str, Any]:
+    """Pure router for the single Chapter objective → a decision dict.
+
+    Building objectives are gated by the build planner; when no anchor level has
+    been read yet (``furnace`` absent), the planner can't judge feasibility, so
+    we defer to the in-game Upgrade/Build button inside ``building.upgrade``
+    rather than skip. Non-building objectives match the registry. Pure (no I/O),
+    unit-tested.
+    """
+    out: dict[str, Any] = {
+        "kind": "none", "building": None, "scenario": None, "args": {},
+        "feasible": False, "reason": "", "matched": "", "text": (text or "").strip(),
+    }
+    if not out["text"]:
+        out["reason"] = "empty"
+        return out
+
+    bdef = _match_building_in_text(out["text"], buildings)
+    if bdef is not None:
+        from games.wos.core.building.planner import GOAL_UNKNOWN, plan_next
+
+        plan = plan_next(graph, levels, goal_id=bdef.id)
+        step = plan.step
+        # The planner can't judge feasibility when no anchor level has been read
+        # (an unread furnace reads as level 0, blocking everything) OR the building
+        # isn't modelled in the graph — in both cases defer to the in-game
+        # Upgrade/Build button inside building.upgrade rather than skip.
+        blind = "furnace" not in (levels or {})
+        out.update({"kind": "building", "building": bdef.id})
+        if step is not None and step.building_id == bdef.id:
+            # The objective building itself is the ready next step.
+            if plan.affordable:
+                out.update({"scenario": "building.upgrade", "feasible": True, "reason": plan.reason})
+            else:
+                out.update({"scenario": None, "feasible": False, "reason": "insufficient_resources"})
+        elif blind or plan.reason == GOAL_UNKNOWN:
+            out.update(
+                {"scenario": "building.upgrade", "feasible": True,
+                 "reason": "planner_blind_fallback" if blind else "planner_unknown_fallback"}
+            )
+        elif step is not None:
+            # The planner would advance a prerequisite first → the objective
+            # building isn't directly upgradeable; tapping chapter.task lands on
+            # it and the upgrade loop would no-op, so skip.
+            out.update({"scenario": None, "feasible": False, "reason": "prereq_pending"})
+        else:
+            out.update({"scenario": None, "feasible": False, "reason": plan.reason or "not_upgradeable"})
+        return out
+
+    for pattern, scenario, arg_spec in objectives:
+        m = pattern.search(out["text"])
+        if not m:
+            continue
+        out["matched"] = m.group(0).strip()
+        if scenario is None:
+            out.update({"kind": "scenario", "reason": "unautomated"})
+            return out
+        out.update(
+            {"kind": "scenario", "scenario": scenario, "args": _resolve_args(arg_spec, m),
+             "feasible": True, "reason": "routed"}
+        )
+        return out
+
+    out["reason"] = "unrecognised"
+    return out
+
+
+async def _exec_route_chapter_objective(ctx: DslExecContext) -> None:
+    if ctx.redis_client is None:
+        logger.warning("dsl exec route_chapter_objective: no redis client")
+        ctx.result.update({"reason": "no_redis_client"})
+        return
+
+    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    if not player_id:
+        logger.warning("dsl exec route_chapter_objective: empty player_id")
+        ctx.result.update({"reason": "empty_player_id"})
+        return
+
+    text = _decode_redis_raw(
+        await ctx.redis_client.hget(f"wos:player:{player_id}:state", _CHAPTER_TASK_FIELD)
+    )
+    inst_key = f"wos:instance:{ctx.instance_id}:state"
+    try:
+        state = await ctx.redis_client.hgetall(inst_key)
+    except Exception:
+        state = {}
+    levels = _read_levels(state)
+
+    from games.wos.core.building.planner import load_graph
+
+    from config.buildings import get_building_registry
+
+    decision = _route_chapter_objective(
+        text,
+        levels=levels,
+        graph=load_graph(),
+        buildings=get_building_registry().buildings,
+        objectives=_load_objectives(),
+    )
+
+    # Observability flags (botctl state / why).
+    flags = {
+        "chapter.objective.text": str(decision.get("text") or ""),
+        "chapter.objective.kind": str(decision.get("kind") or ""),
+        "chapter.objective.building": str(decision.get("building") or ""),
+        "chapter.objective.scenario": str(decision.get("scenario") or ""),
+        "chapter.objective.feasible": "1" if decision.get("feasible") else "0",
+        "chapter.objective.reason": str(decision.get("reason") or ""),
+    }
+    with suppress(Exception):
+        await ctx.redis_client.hset(inst_key, mapping=flags)
+
+    scenario = decision.get("scenario")
+    pushed = False
+    if scenario:
+        # Lazy import (scheduler/queue) — same reason as route_daily_missions.
+        from tasks.dsl_scenario_helpers import _enqueue_scenario
+
+        pushed = await _enqueue_scenario(
+            redis_async=ctx.redis_client,
+            instance_id=ctx.instance_id,
+            player_id=player_id,
+            scenario=scenario,
+            priority=_OBJECTIVE_PUSH_PRIORITY,
+            run_at=time.time(),
+            skip_if_duplicate=True,
+            args=decision.get("args") or None,
+        )
+
+    ctx.result.update(
+        {
+            "action": "routed",
+            "kind": decision.get("kind"),
+            "building": decision.get("building"),
+            "scenario": scenario or "",
+            "feasible": bool(decision.get("feasible")),
+            "reason": decision.get("reason"),
+            "pushed": pushed,
+        }
+    )
+    logger.info(
+        "route_chapter_objective: player=%s kind=%s building=%s scenario=%s feasible=%s "
+        "reason=%s pushed=%s text=%r",
+        player_id,
+        decision.get("kind"),
+        decision.get("building"),
+        scenario,
+        decision.get("feasible"),
+        decision.get("reason"),
+        pushed,
+        decision.get("text"),
+    )
+
+
 DSL_EXEC_HANDLERS = {
     "route_daily_missions": _exec_route_daily_missions,
+    "route_chapter_objective": _exec_route_chapter_objective,
 }

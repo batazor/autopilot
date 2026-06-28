@@ -1,0 +1,49 @@
+# Chapter-objective router registry (idle fallback).
+#
+# Routes the single bottom-left Chapter objective (the `chapter.task` tracker on
+# main_city — e.g. "Upgrade Coal Mine", "Research a technology") to the
+# automation that advances it, when the instance is otherwise idle. Read by
+# games/wos/core/chapter/exec.py :: route_chapter_objective, pushed by the idle
+# cron games/wos/core/main_city/scenarios/by_cron/advance_chapter_objective.yaml.
+#
+# IMPORTANT: building objectives ("Upgrade/Build <X>") are NOT matched here —
+# they're resolved by name (config.building_name_parser, EN + RU) and gated by
+# the build planner before handing off to building.upgrade. This registry only
+# covers the NON-building objective types.
+#
+# Entry fields (same shape/semantics as daily_missions.yaml):
+#   pattern   Python regex applied to the objective text with re.search
+#             (IGNORECASE). Named groups (?P<name>…) feed `args`.
+#   scenario  target scenario key, or null = recognised, no automation yet
+#             (logged, never pushed — documented + easy to wire later).
+#   args      optional; string values may reference a group as ${name}.
+#   category  classification only (the router ignores it).
+#
+# Matched first-to-last; first hit wins (one objective at a time).
+objectives:
+  # Research a technology → the self-navigating idle-research starter
+  # (node: research_center, so it drives there itself — safe to push from idle).
+  - pattern: 'Research|Technolog'
+    scenario: start_idle_research
+    category: research
+
+  # --- Recognised, not wired yet (logged, not pushed) -------------------------
+  # These target scenarios are node/cond-gated for other contexts (e.g.
+  # start_idle_troop_training requires currentNode == main_menu) and would
+  # silently no-op if pushed from the idle main_city tick — so they stay `null`
+  # until a push-safe entry point is verified. Wire by editing this file only.
+  - pattern: 'Train\b|Recruit\s+\d+\s+(?:Infantry|Lancer|Marksm)'
+    scenario: null
+    category: train
+  - pattern: 'Gather'
+    scenario: null
+    category: gather
+  - pattern: 'Hunt|Beast|Defeat'
+    scenario: null
+    category: combat
+  - pattern: 'Power|Might|Strength'
+    scenario: null
+    category: power
+  - pattern: 'Recruit\s+.*Hero|Hero'
+    scenario: null
+    category: hero

@@ -61,7 +61,10 @@ _RU_NAME_TO_CANON = {
     "Лагерь стрелков": "Marksman Camp",
     # — resource production —
     "Лесопилка": "Sawmill",
-    "Угольная шахта": "Coal Mine",
+    # Live «Белая мгла» plates render Coal Mine as "Угольный рудник" (mirrors
+    # "Железный рудник" for Iron Mine); the earlier "Угольная шахта" guess never
+    # matched in-game. Keep both — extra aliases for one building are harmless.
+    "Угольный рудник": "Coal Mine", "Угольная шахта": "Coal Mine",
     "Железный рудник": "Iron Mine",
     "Хижина охотника": "Hunter's Hut",
     "Кухня": "Cookhouse", "Столовая": "Cookhouse",
