@@ -737,6 +737,44 @@ class InstanceWorker(
                 path.name,
             )
 
+    def _sweep_stale_temporal_artifacts(self, *, max_age_days: float = 7.0) -> None:
+        """Prune accumulated debug scratch from ``temporal/`` (gitignored).
+
+        Beyond the live previews (handled above), the dir collects one-off
+        captures from dev/debug sessions (``botctl drive``, OCR / radar
+        debugging) that are never cleaned and grow unbounded. Sweep only
+        ``.png`` / ``.json`` older than ``max_age_days`` — never other
+        extensions (e.g. a minted ``.licence.jwt``), pending labeling captures
+        (``*_shot_*``), or anything recent (live previews are rewritten far
+        more often than the threshold). Best-effort, idempotent across workers.
+        """
+        temporal_dir = temporal_png_abs_path(repo_root(), "x").parent
+        if not temporal_dir.is_dir():
+            return
+        cutoff = time.time() - max_age_days * 86400.0
+        removed = 0
+        freed = 0
+        for path in temporal_dir.iterdir():
+            try:
+                if not path.is_file() or path.suffix.lower() not in (".png", ".json"):
+                    continue
+                if "_shot_" in path.name:  # pending operator labeling work
+                    continue
+                st = path.stat()
+                if st.st_mtime >= cutoff:
+                    continue
+                size = st.st_size
+                path.unlink()
+            except OSError:
+                continue  # raced with another worker / vanished — fine
+            removed += 1
+            freed += size
+        if removed:
+            logger.info(
+                "Temporal sweep: removed %d stale artifact(s) (~%.0f MB, >%.0fd old)",
+                removed, freed / 1_048_576, max_age_days,
+            )
+
     async def _read_orphan_from_state_hash(
         self, state_key: str
     ) -> dict[str, Any] | None:
@@ -911,6 +949,7 @@ class InstanceWorker(
         # analyzer tick can't match against a stale frame while the new
         # capture is still warming up.
         self._remove_stale_temporal_screenshots_on_boot()
+        self._sweep_stale_temporal_artifacts()
         logger.info(
             "Capture config for %s: backend=%s serial=%s adb_executable=%s",
             self._cfg.instance_id,
