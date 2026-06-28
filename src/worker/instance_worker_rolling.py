@@ -28,6 +28,15 @@ logger = logging.getLogger(__name__)
 _PREVIEW_SKIP_MAX_BITS = 4
 _PREVIEW_FORCE_WRITE_S = 5.0
 
+# Adaptive idle cadence: when no task is running and a *known* screen has been
+# stable for ``_IDLE_BACKOFF_AFTER_S``, stretch the rolling tick to
+# ``_IDLE_MAX_INTERVAL_S`` instead of the (faster) base interval — there's
+# nothing to re-grab/decode/analyse on an unchanging screen. Task pickup is a
+# separate loop, so this only relaxes overlay/preview reactivity; a task start,
+# an unknown screen (possible popup), or any screen change snaps back to base.
+_IDLE_BACKOFF_AFTER_S = 5.0
+_IDLE_MAX_INTERVAL_S = 2.5
+
 
 def _runtime_error_is_adb_signal_exit(exc: BaseException) -> bool:
     """True when ADB died on a signal (Python reports ``exit -N``); common during Ctrl+C shutdown."""
@@ -621,7 +630,22 @@ class InstanceWorkerRollingMixin(_Base):
                 if override:
                     interval, floor = override, MIN_CAPTURE_INTERVAL_S
                 else:
-                    interval, floor = _rolling_snapshot_interval(cfg_now), 0.3
+                    base = _rolling_snapshot_interval(cfg_now)
+                    interval, floor = base, 0.3
+                    # Adaptive idle backoff (see constants above).
+                    now_m = time.monotonic()
+                    cur_screen = getattr(self, "_last_detected_screen", None)
+                    if (
+                        self._task_busy.is_set()
+                        or not cur_screen
+                        or cur_screen != getattr(self, "_rolling_prev_screen_seen", None)
+                    ):
+                        self._rolling_prev_screen_seen = cur_screen
+                        self._rolling_stable_since_m = now_m
+                    elif (
+                        now_m - getattr(self, "_rolling_stable_since_m", now_m)
+                    ) >= _IDLE_BACKOFF_AFTER_S:
+                        interval = max(base, _IDLE_MAX_INTERVAL_S)
                 await asyncio.sleep(max(floor, interval))
                 if self._stopping:
                     return
