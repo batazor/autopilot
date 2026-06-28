@@ -129,6 +129,24 @@ async def _exec_plan_next_war_academy(ctx: Any) -> None:
     levels = _read_research_levels(state)
     wa_fc = _state_get_int(state, "war_academy.fc", 0)
 
+    # Self-heal: the instance hash is only a hot mirror, cold after a Redis flush.
+    # Fall back to the durable SQLite profile (shared ``researches.levels`` + the WA
+    # FC tier) before deciding coverage is empty — mirrors plan_next_research.
+    if not levels or wa_fc <= 0:
+        from config.state_store import get_state_store
+        from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
+
+        player_id = await _resolve_player_id_for_device_level_exec(ctx)
+        if player_id:
+            try:
+                snap = get_state_store().get_or_create(str(player_id)).snapshot()
+                if not levels:
+                    levels = {str(k): int(v) for k, v in (snap.researches.levels or {}).items()}
+                if wa_fc <= 0:
+                    wa_fc = int(getattr(snap.researches, "war_academy_fc", 0) or 0)
+            except Exception:
+                logger.debug("plan_next_war_academy: durable SQLite read failed", exc_info=True)
+
     wa_graph = war_academy_subgraph(load_research_graph())
     # rc_level is unused for WA nodes (all carry war_academy_fc>0 → gated on wa_fc);
     # pass 0. ``war_academy_fc`` activates the WA gate fold in the planner.
@@ -190,16 +208,27 @@ async def _exec_sync_war_academy_levels(ctx: Any) -> None:
         return
 
     player_id = await _resolve_player_id_for_device_level_exec(ctx)
-    keys = [f"wos:instance:{ctx.instance_id}:state"]
+    # Durable per-account home: the SQLite GamerState. WA tech levels are shared with
+    # the RC tree (same node ids → ``researches.levels.<id>``); the FC tier gates
+    # T11/T12 (``researches.war_academy_fc``). The Redis *instance* hash is the hot
+    # mirror plan_next reads within a tick — NOT a durable home (mirrors
+    # research_center's ``sync_research_levels``).
     if player_id:
-        keys.append(f"wos:player:{player_id}:state")
+        try:
+            from config.state_store import get_state_store
+
+            durable: dict[str, Any] = {f"researches.levels.{nid}": lvl for nid, lvl in levels.items()}
+            if wa_fc > 0:
+                durable["researches.war_academy_fc"] = wa_fc
+            get_state_store().get_or_create(str(player_id)).update_from_flat(durable)
+        except Exception:
+            logger.exception(
+                "sync_war_academy_levels: durable SQLite write failed player=%s", player_id
+            )
     try:
-        for key in keys:
-            await r.hset(key, mapping=mapping)
+        await r.hset(f"wos:instance:{ctx.instance_id}:state", mapping=mapping)
     except Exception:
-        logger.debug("sync_war_academy_levels: state write failed", exc_info=True)
-        ctx.result.update({"reason": "state_persist_failed"})
-        return
+        logger.debug("sync_war_academy_levels: redis mirror failed", exc_info=True)
 
     ctx.result.update({"action": "stored", "levels": levels, "war_academy_fc": wa_fc,
                        "player_id": player_id})

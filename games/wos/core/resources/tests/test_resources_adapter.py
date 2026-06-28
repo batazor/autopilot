@@ -335,3 +335,54 @@ def test_load_table_caches_by_mtime(tmp_path):
     t3 = adapter.load_table(p)
     assert t3 is not t1
     assert t3.enabled is True
+
+
+# --- overlay_durable_troops (SQLite self-heal for a cold Redis mirror) --------
+
+
+def test_overlay_durable_troops_fills_from_sqlite_when_mirror_cold():
+    """A Redis flush leaves the player hash with no ``troops.*`` keys; the durable
+    SQLite counts (written by sync_troop_pool) are filled back in as strings so the
+    allocator's typed pool isn't blinded until the next on-device sweep."""
+    from config.state_store import get_state_store
+
+    pid = "920001"
+    get_state_store().get_or_create(pid).update_from_flat({
+        "troops.infantry.available": 73_443,
+        "troops.lancer.available": 67_290,
+        "troops.marksman.available": 34_449,
+    })
+
+    state: dict[str, object] = {"player_id": pid}  # cold mirror — no troop keys
+    adapter.overlay_durable_troops(pid, state)
+
+    assert state["troops.infantry.available"] == "73443"
+    assert state["troops.lancer.available"] == "67290"
+    assert state["troops.marksman.available"] == "34449"
+    # The pure allocator then reads the overlaid counts off the same dict.
+    world = adapter.build_world(OBS_TABLE, state, NOW)
+    assert world.troops_for("infantry") == 73_443
+
+
+def test_overlay_durable_troops_is_fill_only_never_overwrites_live():
+    """A live (warm) Redis reading always wins — the overlay only fills gaps."""
+    from config.state_store import get_state_store
+
+    pid = "920002"
+    get_state_store().get_or_create(pid).update_from_flat(
+        {"troops.infantry.available": 100}
+    )
+    state: dict[str, object] = {"troops.infantry.available": "55"}
+    adapter.overlay_durable_troops(pid, state)
+    assert state["troops.infantry.available"] == "55"  # preserved, not clobbered
+
+
+def test_overlay_durable_troops_noop_when_mirror_warm():
+    """All keys present → the guard short-circuits before any SQLite read, so even
+    an unknown player id can't raise or mutate the dict."""
+    types = ("infantry", "lancer", "marksman")
+    suffixes = ("available", "total", "wilderness")
+    state: dict[str, object] = {f"troops.{t}.{s}": "5" for t in types for s in suffixes}
+    before = dict(state)
+    adapter.overlay_durable_troops("999999", state)
+    assert state == before

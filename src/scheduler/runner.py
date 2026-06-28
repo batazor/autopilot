@@ -609,6 +609,8 @@ class SchedulerRunner:
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
         # ``_connect`` runs before any tick, so ``_redis`` is always populated here.
         assert self._redis is not None
+        from games.wos.core.resources.adapter import overlay_durable_troops
+
         states: dict[str, dict[str, object]] = {}
         for inst in self._settings.instances:
             for player_id in player_ids_for_device_candidates(
@@ -624,6 +626,11 @@ class SchedulerRunner:
                     for k, v in raw.items()
                 }
                 state["player_id"] = player_id
+                # Self-heal durable per-account facts whose hot Redis mirror is cold
+                # after a flush/restart (otherwise the resource/march allocators read
+                # the typed troop pool as 0 and silently block troop actions). Cheap:
+                # a no-op when the mirror is warm. See ``sync_troop_pool``.
+                overlay_durable_troops(player_id, state)
                 states[player_id] = state
         return states
 

@@ -58,6 +58,31 @@ def test_state_store_sets_alliance_money(sqlite_state: Path) -> None:
     assert db.gamers[0].alliance.money == 313_416
 
 
+def test_state_store_persists_troop_counts_and_war_academy_fc(sqlite_state: Path) -> None:
+    """The durable homes added for ``sync_troop_pool`` / ``sync_war_academy_levels``:
+    ``troops.<type>.<suffix>`` and ``researches.war_academy_fc`` must persist through
+    the same flat dot-key path the readers use, and survive a reload."""
+    from config.state_store import StateStore
+
+    store = StateStore(sqlite_state)
+    gamer = store.get_or_create("77", nickname="Bravo")
+    gamer.update_from_flat({
+        "troops.infantry.available": 73_443,
+        "troops.lancer.wilderness": 1_200,
+        "troops.marksman.total": 34_449,
+        "researches.war_academy_fc": 7,
+    })
+
+    db, err, _ = load_state_db_raw()
+    assert err is None
+    assert db is not None
+    g = db.gamers[0]
+    assert g.troops.infantry.available == 73_443
+    assert g.troops.lancer.wilderness == 1_200
+    assert g.troops.marksman.total == 34_449
+    assert g.researches.war_academy_fc == 7
+
+
 def test_record_alliance_members_snapshot_is_alliance_scoped(sqlite_state: Path) -> None:
     row = record_alliance_members_snapshot(
         alliance_name="Crimson",

@@ -153,6 +153,49 @@ def _parse_hero_roster(state: dict[str, Any]) -> dict[str, list[str]]:
     return by_role
 
 
+# Troop types for the durable-state self-heal (mirrors chief_profile.sync_troop_pool
+# TROOP_TYPES). A local copy keeps the adapter free of a chief_profile import.
+_TROOP_TYPES: tuple[str, ...] = ("infantry", "lancer", "marksman")
+_TROOP_SUFFIXES: tuple[str, ...] = ("available", "total", "wilderness")
+
+
+def overlay_durable_troops(player_id: str, state: dict[str, Any]) -> None:
+    """Self-heal the typed troop pool from the durable SQLite profile.
+
+    The allocator reads ``troops.<type>.available`` off the decoded Redis player
+    hash — the hot mirror ``sync_troop_pool`` writes. After a Redis flush/restart
+    that mirror is cold, so the pool reads 0 and silently blocks every troop action
+    until the next on-device sweep (potentially hours). ``sync_troop_pool`` also
+    persists the counts to SQLite; fill any missing key from there. Fill-only — a
+    live Redis reading always wins, so this can never staleness-overwrite.
+    """
+    if all(f"troops.{t}.{s}" in state for t in _TROOP_TYPES for s in _TROOP_SUFFIXES):
+        return  # warm mirror — skip the SQLite read entirely
+    try:
+        from config.state_store import get_state_store
+
+        store = get_state_store().get(str(player_id))
+        if store is None:
+            return
+        troops = store.snapshot().troops
+    except Exception:
+        logger.debug(
+            "overlay_durable_troops: snapshot read failed player=%s", player_id, exc_info=True
+        )
+        return
+    for t in _TROOP_TYPES:
+        entry = getattr(troops, t, None)
+        if entry is None:
+            continue
+        for s in _TROOP_SUFFIXES:
+            key = f"troops.{t}.{s}"
+            if key in state:
+                continue
+            val = int(getattr(entry, s, 0) or 0)
+            if val:
+                state[key] = str(val)
+
+
 def build_world(
     table: ActionTable,
     state: dict[str, Any],

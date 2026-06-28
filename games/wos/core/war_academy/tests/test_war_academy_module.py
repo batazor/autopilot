@@ -147,6 +147,27 @@ async def test_plan_next_war_academy_gates_on_fc(redis_async: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_plan_next_war_academy_self_heals_fc_from_sqlite(redis_async: Any) -> None:
+    """Instance hash is cold (post-restart / Redis flush), but the durable SQLite
+    profile still holds the WA FC tier → the planner self-heals from it and picks a
+    WA tech instead of falsely reporting everything gated."""
+    bind_active_game("wos")
+    from config.state_store import get_state_store
+
+    mod = _load_exec_module()
+    inst_key = "wos:instance:bs1:state"
+    await redis_async.delete(inst_key)  # cold mirror — no war_academy.fc
+
+    pid = "930777"
+    get_state_store().get_or_create(pid).update_from_flat({"researches.war_academy_fc": 10})
+    ctx = DslExecContext(redis_client=redis_async, player_id=pid,
+                         instance_id="bs1", args={}, result={})
+    await mod.DSL_EXEC_HANDLERS["plan_next_war_academy"](ctx)
+    assert ctx.result["action"] == "planned"
+    assert ctx.result["next"], "self-healed FC should let the planner pick a WA tech"
+
+
+@pytest.mark.asyncio
 async def test_sync_war_academy_levels_noops_without_device(
     redis_async: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:

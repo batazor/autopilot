@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 import cv2
 
+from config.state_store import get_state_store
 from layout.types import Region
 from ocr.fuzzy import match as fuzzy_match
 from tasks import dsl_runtime
@@ -143,6 +144,18 @@ async def _exec_sync_troop_pool(ctx: DslExecContext) -> None:
 
     counts = parse_troop_cells(texts)
     # On Troops Preview, write even all-zero (a genuinely empty Wilderness tab).
+    # Durable per-account home first: the SQLite GamerState (``troops.<type>.<suffix>``
+    # is reader-authoritative). The Redis hashes below are only the allocator's hot
+    # mirror — cold after a flush/restart, which blinds the typed pool until the next
+    # on-device sweep; ``scheduler.runner._load_player_states`` self-heals from here.
+    try:
+        get_state_store().get_or_create(player_id).update_from_flat(
+            {f"troops.{t}.{suffix}": counts[t] for t in TROOP_TYPES}
+        )
+    except Exception:
+        logger.exception(
+            "dsl exec sync_troop_pool: durable SQLite write failed player=%s", player_id
+        )
     mapping = {f"troops.{t}.{suffix}": str(counts[t]) for t in TROOP_TYPES}
     mapping["troops.synced_at"] = str(time.time())
     if ctx.redis_client is not None:

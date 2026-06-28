@@ -168,6 +168,10 @@ class Researches(BaseModel):
     # Per-tech researched level keyed by tech id from games/<game>/db/research.yaml
     # (e.g. "weapons_prep_v": 4). Mirrors Buildings.levels; enriched incrementally.
     levels: dict[str, int] = Field(default_factory=dict)
+    # War Academy fire-crystal tier (gates T11/T12 troop unlocks), read by
+    # ``sync_war_academy_levels``. WA tech levels share ``levels`` (same node ids as
+    # the Research Center tree); only the FC gate is WA-specific.
+    war_academy_fc: int = 0
 
 
 class TundraAdventureState(BaseModel):
@@ -219,6 +223,13 @@ class TroopState(BaseModel):
 
 class TroopEntry(BaseModel):
     state: TroopState = Field(default_factory=TroopState)
+    # Live pool counts read off the Troops Preview grid by ``sync_troop_pool``
+    # (the durable home for the resource allocator's typed pool). ``available`` =
+    # troops at home (City tab), ``total`` = All tab, ``wilderness`` = deployed in
+    # the field. The Redis player hash is only the allocator's hot mirror.
+    available: int = 0
+    total: int = 0
+    wilderness: int = 0
 
 
 class Troops(BaseModel):
