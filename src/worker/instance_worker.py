@@ -163,6 +163,16 @@ class InstanceWorker(
         self._last_detect_phash: int | None = None
         self._last_full_detect_at: float = 0.0
         self._last_detect_path: str = ""
+        # Frame-unchanged overlay skip: reuse the last overlay results when the
+        # frame is visually identical (same correctness boundary as the
+        # screen-detect skip above), bounded by _FORCE_FULL_DETECT_S. Avoids
+        # re-running the per-rule template-match + phash + OCR sweep (and the
+        # area_doc load) on a static screen — the worker's hottest path.
+        self._last_overlay_results: dict[str, object] | None = None
+        self._last_overlay_phash: int | None = None
+        self._last_overlay_at: float = 0.0
+        self._last_overlay_sig: tuple[str | None, str | None, bool] | None = None
+        self._last_overlay_path: str = ""
         self._ocr_client = ocr_client
         self._screen_detector = ScreenDetector(ocr_client)
         # Template-free pop-up detector, with screen analysis to avoid treating

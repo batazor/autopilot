@@ -58,6 +58,13 @@ class InstanceWorkerScreenMixin(_Base):
     _last_detect_phash: int | None
     _last_full_detect_at: float
     _last_detect_path: str
+    # Frame-unchanged overlay skip (mirrors the screen-detect skip): the last
+    # overlay results, the phash + signature they were computed on, and when.
+    _last_overlay_results: dict[str, object] | None
+    _last_overlay_phash: int | None
+    _last_overlay_at: float
+    _last_overlay_sig: tuple[str | None, str | None, bool] | None
+    _last_overlay_path: str
     _popup_detector: Any
     _last_popup_tap_mono: float
     _settings: Any
@@ -131,65 +138,94 @@ class InstanceWorkerScreenMixin(_Base):
                 node=current_screen or "",
             )
 
-            # Resolve regions against the active player's state so screen-version `cond`
-            # picks the right `_vN` override per account (otherwise the worker would always
-            # match v1 boxes regardless of player progression).
-            state_flat: dict[str, Any] | None = None
-            if active_player:
-                try:
-                    from config.state_store import get_state_store
+            # Frame-unchanged overlay skip: identical pixels ⇒ identical overlay
+            # verdict, so reuse the last frame's results instead of re-running
+            # the full rule sweep (per-region template match + phash + OCR, plus
+            # the area_doc load) — the worker's hottest path. Same correctness
+            # boundary as the screen-detect skip above; bounded by
+            # _FORCE_FULL_DETECT_S so a sub-threshold change self-heals within
+            # ~4s. Downstream scheduling still runs with the reused results, so
+            # behaviour matches a recompute (which on a static screen, called
+            # every tick today, already yields the same dict).
+            overlay_sig = (current_screen, active_player, bool(device_level_only))
+            frame_phash = _phash64(image_bgr)
+            now = time.monotonic()
+            if (
+                self._last_overlay_results is not None
+                and self._last_overlay_sig == overlay_sig
+                and self._last_overlay_phash is not None
+                and (now - self._last_overlay_at) < _FORCE_FULL_DETECT_S
+                and _hamming64(frame_phash, self._last_overlay_phash)
+                <= _PHASH_SKIP_MAX_BITS
+            ):
+                results = self._last_overlay_results
+                self._last_overlay_path = "skipped_phash"
+            else:
+                # Resolve regions against the active player's state so screen-version `cond`
+                # picks the right `_vN` override per account (otherwise the worker would always
+                # match v1 boxes regardless of player progression).
+                state_flat: dict[str, Any] | None = None
+                if active_player:
+                    try:
+                        from config.state_store import get_state_store
 
-                    state_flat = (
-                        get_state_store().get_or_create(active_player).to_flat_dict()
-                    )
-                except Exception:
-                    logger.debug(
-                        "overlay analyze: state_flat lookup failed for player=%s",
-                        active_player,
-                        exc_info=True,
-                    )
+                        state_flat = (
+                            get_state_store().get_or_create(active_player).to_flat_dict()
+                        )
+                    except Exception:
+                        logger.debug(
+                            "overlay analyze: state_flat lookup failed for player=%s",
+                            active_player,
+                            exc_info=True,
+                        )
 
-            # Per-player TTL state: pick (or create) the sub-dict for the
-            # current ``active_player``. Empty string keys "no active player"
-            # — pre-identity / device-level ticks land there.
-            tt_key = (active_player or "").strip()
-            player_state = self._overlay_rule_eval_state_by_player.setdefault(
-                tt_key, {}
-            )
-            if self._redis is not None:
-                cached_rev = self._overlay_ttl_rev_by_player.get(tt_key, "0")
-                last_sync = self._overlay_ttl_last_sync_mono_by_player.get(tt_key, 0.0)
-                rev, last_sync = await sync_overlay_ttl_state_if_needed(
-                    self._redis,
-                    instance_id=self._cfg.instance_id,
-                    player_id=tt_key,
-                    rule_eval_state=player_state,
-                    cached_rev=cached_rev,
-                    last_sync_mono=last_sync,
+                # Per-player TTL state: pick (or create) the sub-dict for the
+                # current ``active_player``. Empty string keys "no active player"
+                # — pre-identity / device-level ticks land there.
+                tt_key = (active_player or "").strip()
+                player_state = self._overlay_rule_eval_state_by_player.setdefault(
+                    tt_key, {}
                 )
-                self._overlay_ttl_rev_by_player[tt_key] = rev
-                self._overlay_ttl_last_sync_mono_by_player[tt_key] = last_sync
-            results = await run_overlay_analysis(
-                image_bgr,
-                repo_root=root,
-                current_screen=current_screen,
-                rule_eval_state=player_state,
-                state_flat=state_flat,
-                ocr_client=self._ocr_client,
-                device_level_only=device_level_only,
-                module_scope=test_module,
-                instance_id=self._cfg.instance_id,
-                redis_async=self._redis,
-            )
+                if self._redis is not None:
+                    cached_rev = self._overlay_ttl_rev_by_player.get(tt_key, "0")
+                    last_sync = self._overlay_ttl_last_sync_mono_by_player.get(tt_key, 0.0)
+                    rev, last_sync = await sync_overlay_ttl_state_if_needed(
+                        self._redis,
+                        instance_id=self._cfg.instance_id,
+                        player_id=tt_key,
+                        rule_eval_state=player_state,
+                        cached_rev=cached_rev,
+                        last_sync_mono=last_sync,
+                    )
+                    self._overlay_ttl_rev_by_player[tt_key] = rev
+                    self._overlay_ttl_last_sync_mono_by_player[tt_key] = last_sync
+                results = await run_overlay_analysis(
+                    image_bgr,
+                    repo_root=root,
+                    current_screen=current_screen,
+                    rule_eval_state=player_state,
+                    state_flat=state_flat,
+                    ocr_client=self._ocr_client,
+                    device_level_only=device_level_only,
+                    module_scope=test_module,
+                    instance_id=self._cfg.instance_id,
+                    redis_async=self._redis,
+                )
+                # Mirror the in-memory TTL snapshot to Redis (wall-clock seconds)
+                # so the wiki/analyze UI can render "last evaluated" / "next eval
+                # in" per-rule, per-player. ``rule_eval_state`` holds
+                # ``time.monotonic()`` values — converted to ``time.time()`` so
+                # cross-process readers can compute "X seconds ago" without
+                # sharing the worker clock.
+                await self._persist_overlay_ttl_snapshot(tt_key, player_state)
+                self._last_overlay_results = results
+                self._last_overlay_phash = frame_phash
+                self._last_overlay_at = now
+                self._last_overlay_sig = overlay_sig
+                self._last_overlay_path = "full"
         except Exception:
             logger.exception("overlay analyze failed on %s", self._cfg.instance_id)
             return
-        # Mirror the in-memory TTL snapshot to Redis (wall-clock seconds) so
-        # the wiki/analyze UI can render "last evaluated" / "next eval in"
-        # per-rule, per-player. ``rule_eval_state`` holds ``time.monotonic()``
-        # values — convert to ``time.time()`` so cross-process readers can
-        # compute absolute "X seconds ago" without sharing the worker clock.
-        await self._persist_overlay_ttl_snapshot(tt_key, player_state)
         await self._schedule_overlay_matches(results, active_player=active_player)
         await self._maybe_dismiss_unknown_popup(
             results, current_screen=current_screen
