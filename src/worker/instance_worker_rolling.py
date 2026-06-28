@@ -16,8 +16,17 @@ from config.capture_rate import (
 from config.paths import repo_root
 from config.reference_naming import rolling_preview_basename, temporal_png_abs_path
 from config.tracing import screenshot_analysis_duration_histogram
+from layout.template_match import _hamming64, _phash64
 
 logger = logging.getLogger(__name__)
+
+# Preview-PNG write skip: when the grabbed frame is visually unchanged since the
+# last write, the on-disk preview already shows it — skip the (CPU-heavy) PNG
+# encode+write. ``_PREVIEW_FORCE_WRITE_S`` bounds staleness so the file's mtime
+# stays fresh for liveness heuristics and self-heals if it was removed. The live
+# stream (frame_bus) is fed inside the grab, so it is unaffected.
+_PREVIEW_SKIP_MAX_BITS = 4
+_PREVIEW_FORCE_WRITE_S = 5.0
 
 
 def _runtime_error_is_adb_signal_exit(exc: BaseException) -> bool:
@@ -214,9 +223,27 @@ class InstanceWorkerRollingMixin(_Base):
         trip on the main loop.
         """
         image_bgr = self._grab_layout_bgr()
+        # Skip the PNG encode+write when the frame is visually unchanged since
+        # the last write (the on-disk preview already shows it); the periodic
+        # force keeps mtime fresh and self-heals a removed file. The grab above
+        # already fed the live frame_bus stream, so skipping the disk write is
+        # invisible to the operator's preview.
+        now = time.monotonic()
+        phash = _phash64(image_bgr)
+        last = getattr(self, "_last_preview_phash", None)
+        if (
+            last is not None
+            and _hamming64(phash, last) <= _PREVIEW_SKIP_MAX_BITS
+            and (now - getattr(self, "_last_preview_write_at", 0.0))
+            < _PREVIEW_FORCE_WRITE_S
+            and path.exists()
+        ):
+            return image_bgr
         if not _write_png_atomic(path, image_bgr):
             logger.warning("[rolling] %s: PNG write failed %s", self._cfg.instance_id, path)
             return None
+        self._last_preview_phash = phash
+        self._last_preview_write_at = now
         return image_bgr
 
     async def _detect_current_screen_on_frame(self, image_bgr: np.ndarray) -> str | None:
