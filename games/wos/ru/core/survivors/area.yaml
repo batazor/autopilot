@@ -22,6 +22,31 @@
           "isSearch": true
         }
       ]
+    },
+    {
+      "_comment": "survivor_status «Статус выжившего» (worker-assign): RU title + tabs so screen_verify (match: survivor_status.title / ocr contains) recognizes it and assign_worker can navigate. Crops cut from the live bs5 frame.",
+      "screen_id": "survivor_status",
+      "ocr": "references/page.worker.png",
+      "regions": [
+        {
+          "name": "survivor_status.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": { "x": 2.0849420849420848, "y": 26.08695652173913, "width": 31.2007722007722, "height": 3.6, "rotation": 0, "original_width": 720, "original_height": 1280 }
+        },
+        {
+          "name": "survivor_status.status",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": { "x": 16.94980694980695, "y": 91.52173913043478, "width": 20.0, "height": 6.5, "rotation": 0, "original_width": 720, "original_height": 1280 }
+        },
+        {
+          "name": "survivor_status.details",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": { "x": 52.857142857142854, "y": 93.15217391304348, "width": 40.2007722007722, "height": 3.7, "rotation": 0, "original_width": 720, "original_height": 1280 }
+        }
+      ]
     }
   ]
 }

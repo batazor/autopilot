@@ -1,0 +1,11 @@
+# RU «Белая мгла»: the survivor-status «Статус выжившего» screen. Detect by the RU
+# title template (match) instead of the EN "Survivor Status" OCR — the stylized
+# Cyrillic header OCRs unreliably (same class as the welcome-back title). The
+# base survivor_status.status / .details rules (match: survivor_status.title +
+# tab_active) keep working — they pick up the RU title crop from area.yaml.
+screens:
+  survivor_status:
+    priority: 9
+    rules:
+    - match: survivor_status.title
+      threshold: 0.9
