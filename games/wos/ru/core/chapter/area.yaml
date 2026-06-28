@@ -23,6 +23,19 @@
           "has_red_dot": true
         }
       ]
+    },
+    {
+      "_comment": "chapter «Глава» panel — RU title crop so screen_verify (match: chapter.title, priority 30) recognizes the chapter panel; un-blocks the generic chapter-claim rule (chapter.claim.visible.generic, node=chapter) and stops the nav-fail/wander seen on RU. Crop cut from the live bs5 panel.",
+      "screen_id": "",
+      "ocr": "references/chapter.png",
+      "regions": [
+        {
+          "name": "chapter.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": { "x": 39.320923684570694, "y": 7.639569980637961, "width": 22.91457286432163, "height": 4.613856147673493, "rotation": 0, "original_width": 720, "original_height": 1280 }
+        }
+      ]
     }
   ]
 }
