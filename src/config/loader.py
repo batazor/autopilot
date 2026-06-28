@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path  # noqa: TC003 — kept for the legacy ``path`` argument signature
 
 from config._settings_data import SETTINGS as _BAKED_SETTINGS
@@ -36,6 +36,10 @@ class OcrConfig:
     tesseract_cmd: str = "tesseract"
     tessdata_dir: str = ""
     timeout_seconds: int = 10
+    # Per-module-catalog Tesseract language override, applied at OCR time based
+    # on the build active in this worker. The Russian "Белая мгла" build binds
+    # catalog ``wos_ru`` → reads ``rus`` (never ``rus+eng``); else ``lang``.
+    catalog_lang: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

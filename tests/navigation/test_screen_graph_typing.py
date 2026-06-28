@@ -24,23 +24,48 @@ def test_route_taps_type_hints_are_resolvable() -> None:
 def test_concrete_building_routes_and_verify_rules() -> None:
     assert route_taps("main_city", "cookhouse") == [["chapter.task"]]
     assert route_taps("cookhouse", "main_city") == [["from.building.to.main_city"]]
+    # RU «Белая мгла» localisations added to contains (case-insensitive OR).
     assert {
         "ocr": "building.name",
-        "contains": "Cookhouse",
+        "contains": ["Cookhouse", "Кухня", "Столовая"],
         "threshold": 0.8,
     } in screen_verify_rules("cookhouse")
+    # embassy is generator-produced (no per-file screen_verify) — RU appended
+    # centrally from the building-name dictionary.
     assert {
         "ocr": "building.title",
-        "contains": "Embassy",
+        "contains": ["Embassy", "Посольство"],
         "threshold": 0.8,
     } in screen_verify_rules("embassy")
     assert route_taps("main_city", "shelter") == [["chapter.task"]]
     assert route_taps("shelter", "main_city") == [["from.building.to.main_city"]]
     assert {
         "ocr": "shelter.title",
-        "contains": "Shelter",
+        "contains": ["Shelter", "Барак"],
         "threshold": 0.8,
     } in screen_verify_rules("shelter")
+
+
+def test_generator_building_screens_get_ru_contains() -> None:
+    # Buildings WITHOUT a per-file screen_verify (furnace, infantry_camp, embassy…)
+    # get their detection rule from the central generator; RU localisations must be
+    # appended there from the building-name dictionary so they detect on RU.
+    for screen, ru in (
+        ("furnace", "Печь"),
+        ("infantry_camp", "Лагерь пехоты"),
+        ("embassy", "Посольство"),
+    ):
+        contains = [
+            c
+            for rule in screen_verify_rules(screen)
+            if "contains" in rule
+            for c in (
+                rule["contains"]
+                if isinstance(rule["contains"], list)
+                else [rule["contains"]]
+            )
+        ]
+        assert ru in contains, (screen, contains)
 
 
 def _write_reload_edge_module(tmp_path: Path, edge_taps: str) -> None:

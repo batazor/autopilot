@@ -52,6 +52,7 @@ _W, _H = 720, 1280
 
 Phase = Literal["dodge", "collect"]
 LevelTrend = Literal["up", "down", "flat"]
+HookSource = Literal["ring", "green_node", "line", "fallback", "default"]
 
 # --- altitude trend ----------------------------------------------------------
 _LEVEL_TREND_WINDOW = 3       # readings compared to decide up/down/flat
@@ -78,6 +79,7 @@ _SWIPE_MAX_PX = 500          # cap a single swipe so it stays on-screen
 # push the field is balanced → fall back to fleeing toward the larger gap.
 _DODGE_VERT_BAND_PX = 360
 _DODGE_PUSH_MIN = 0.15
+_DODGE_HORIZONS_S = (0.0, 0.25, 0.5, 0.75)
 
 # --- interception (predictive aim) -------------------------------------------
 # The hook moves by a *throw*, so it needs time both to react (latency) and to
@@ -88,6 +90,20 @@ _HOOK_STEER_SPEED_PX_S = 1400.0
 # Collect bias: aim this fraction of the fish's width PAST the intercept toward
 # its heading, so the hook lands on the body/head, not the trailing tail.
 _COLLECT_LEAD_WIDTH_FRAC = 0.35
+# Collect target scoring: do not blindly chase the nearest blob. Prefer fish the
+# hook can actually reach, with cleaner detections and bigger catch bodies.
+_COLLECT_VERTICAL_WEIGHT = 0.45
+_COLLECT_CONF_REWARD = 50.0
+_COLLECT_WIDTH_REWARD = 0.35
+_COLLECT_WIDTH_REWARD_CAP = 80
+_COLLECT_TRACKED_REWARD = 18.0
+_COLLECT_MOVING_TOWARD_REWARD = 12.0
+_COLLECT_MOVING_AWAY_PENALTY = 16.0
+_COLLECT_EDGE_MARGIN_PX = 45
+_COLLECT_EDGE_WEIGHT = 1.2
+# A line-only hook read is weak: without the green/ring anchor it may be a dark
+# fish, HUD edge, or blank frame. Trust it only near the driver's carried hook.
+_LINE_FALLBACK_MAX_DX_PX = 140
 
 
 class TrackedFish(TypedDict):
@@ -130,7 +146,8 @@ class ActionPlan(TypedDict):
     level_total: int | None
     hook_x: int | None
     hook_y: int | None
-    hook_detected: bool       # was the cyan ring actually found (vs. fallback/estimate)
+    hook_detected: bool       # was a hook feature found (vs. fallback/estimate)
+    hook_source: HookSource   # which signal supplied the hook point
     protected: bool | None    # blue shield ring present around the hook (None: unknown)
     hook_direction: str | None  # "down" | "up" | None — travel dir from hook y-zone
     target_index: int         # index into ``tracked``, or -1
@@ -241,22 +258,49 @@ def _detect_hook_state(frame: np.ndarray | None) -> HookDetection | None:
     return detect_hook(frame)
 
 
-def _hook_center(det: HookDetection | None) -> tuple[int, int] | None:
-    """Best hook centre from a detection: blue shield ring → green node, else None.
+def _hook_center_with_source(
+    det: HookDetection | None,
+) -> tuple[tuple[int, int], HookSource] | None:
+    """Best reliable hook centre: blue shield ring → green node, else None.
 
     The ring is the bait/catch point; when the shield is spent the ring vanishes,
     so we fall back to the green node at the top of the hook (same column — what
-    horizontal steering needs). The fishing line alone is too weak to anchor on,
-    so a line-only detection yields ``None`` and the caller uses its top-centre
-    fallback (matching the old behaviour when no ring was found).
+    horizontal steering needs). The fishing line alone is handled separately as a
+    weak, fallback-anchored signal.
     """
     if det is None:
         return None
     if det.ring is not None:
-        return int(round(det.ring.x)), int(round(det.ring.y))
+        return (int(round(det.ring.x)), int(round(det.ring.y))), "ring"
     if det.green_node is not None:
-        return int(round(det.green_node[0])), int(round(det.green_node[1]))
+        return (
+            int(round(det.green_node[0])),
+            int(round(det.green_node[1])),
+        ), "green_node"
     return None
+
+
+def _hook_center(det: HookDetection | None) -> tuple[int, int] | None:
+    """Best reliable hook centre from a detection, or ``None``."""
+    found = _hook_center_with_source(det)
+    return found[0] if found is not None else None
+
+
+def _line_hook_from_fallback(
+    det: HookDetection | None,
+    fallback_hook: tuple[int, int] | None,
+    *,
+    max_dx: int = _LINE_FALLBACK_MAX_DX_PX,
+) -> tuple[int, int] | None:
+    """Use a line-only read as x-only correction near the carried hook estimate."""
+    if det is None or det.line is None or fallback_hook is None:
+        return None
+    line_x = int(round(det.line.x))
+    if abs(line_x - fallback_hook[0]) > max_dx:
+        return None
+    # The line bottom is a weak vertical anchor; keep the trusted carried y and
+    # use the line only for horizontal steering, which is all swipes control.
+    return line_x, fallback_hook[1]
 
 
 def find_hook(frame: np.ndarray) -> tuple[int, int] | None:
@@ -375,6 +419,102 @@ def _intercept_x(
     return int(round(min(frame_w - 1, max(0, aim))))
 
 
+def _collect_aim_x(
+    hook_x: int,
+    fish: TrackedFish,
+    *,
+    base_latency_s: float,
+    hook_speed_px_s: float,
+    frame_w: int = _W,
+) -> int:
+    """Aim x for a collect target, including intercept and body/head bias."""
+    if base_latency_s > 0 or hook_speed_px_s > 0:
+        aim_x = _intercept_x(
+            hook_x, fish["center_x"], fish["vx"],
+            base_latency_s=base_latency_s,
+            hook_speed_px_s=hook_speed_px_s,
+            frame_w=frame_w,
+        )
+        if fish["vx"]:
+            bias = (
+                (1 if fish["vx"] > 0 else -1)
+                * _COLLECT_LEAD_WIDTH_FRAC
+                * fish["width"]
+            )
+            aim_x = int(round(min(frame_w - 1, max(0, aim_x + bias))))
+        return aim_x
+    return int(fish["lead_x"])
+
+
+def _edge_penalty(x: int, *, frame_w: int = _W, margin: int = _COLLECT_EDGE_MARGIN_PX) -> float:
+    """Penalty for targets whose catch point is too close to the screen edge."""
+    if x < margin:
+        return float(margin - x)
+    right = frame_w - 1 - margin
+    if x > right:
+        return float(x - right)
+    return 0.0
+
+
+def _collect_target_score(
+    hook: tuple[int, int],
+    fish: TrackedFish,
+    aim_x: int,
+    *,
+    frame_w: int = _W,
+) -> float:
+    """Lower-is-better collect score for one candidate fish."""
+    hx, hy = hook
+    horizontal_cost = abs(aim_x - hx)
+    vertical_cost = abs(int(fish["lead_y"]) - hy) * _COLLECT_VERTICAL_WEIGHT
+    confidence_reward = _COLLECT_CONF_REWARD * max(0.0, min(1.0, fish["confidence"]))
+    width_reward = _COLLECT_WIDTH_REWARD * min(_COLLECT_WIDTH_REWARD_CAP, fish["width"])
+    tracked_reward = _COLLECT_TRACKED_REWARD if fish["tracked"] else 0.0
+    edge_cost = _COLLECT_EDGE_WEIGHT * _edge_penalty(aim_x, frame_w=frame_w)
+
+    # Fish moving toward the hook are easier catches; fast fish moving away need
+    # a bit more skepticism unless their intercept is still cheap.
+    dx_to_hook = hx - int(fish["center_x"])
+    moving_toward = dx_to_hook * fish["vx"] > 0
+    moving_away = dx_to_hook * fish["vx"] < 0
+    motion_bonus = _COLLECT_MOVING_TOWARD_REWARD if moving_toward else 0.0
+    motion_penalty = _COLLECT_MOVING_AWAY_PENALTY if moving_away else 0.0
+
+    return (
+        horizontal_cost
+        + vertical_cost
+        + edge_cost
+        + motion_penalty
+        - confidence_reward
+        - width_reward
+        - tracked_reward
+        - motion_bonus
+    )
+
+
+def _best_collect_target(
+    hook: tuple[int, int],
+    tracked: Sequence[TrackedFish],
+    *,
+    base_latency_s: float,
+    hook_speed_px_s: float,
+    frame_w: int = _W,
+) -> tuple[int, int, float] | None:
+    """Pick the fish with the best expected collect value, not nearest distance."""
+    best: tuple[int, int, float] | None = None
+    for i, fish in enumerate(tracked):
+        aim_x = _collect_aim_x(
+            hook[0], fish,
+            base_latency_s=base_latency_s,
+            hook_speed_px_s=hook_speed_px_s,
+            frame_w=frame_w,
+        )
+        score = _collect_target_score(hook, fish, aim_x, frame_w=frame_w)
+        if best is None or score < best[2]:
+            best = (i, aim_x, score)
+    return best
+
+
 def _nearest_index(points: Sequence[tuple[int, int]], hook: tuple[int, int]) -> int:
     """Index of the point nearest the hook (Euclidean), or ``-1`` when empty."""
     hx, hy = hook
@@ -407,7 +547,7 @@ def plan_swipe(
         if abs(offset) <= _COLLECT_DEADZONE_PX:
             return None  # ring already over the fish — let it grab
         sign = 1 if offset > 0 else -1
-        reason = "chase nearest fish"
+        reason = "chase target fish"
     else:  # dodge
         if abs(offset) >= _DODGE_TRIGGER_PX:
             return None  # nearest fish is far enough — hold position
@@ -446,31 +586,40 @@ def plan_dodge(
     vert_band: int = _DODGE_VERT_BAND_PX,
     radius: int = _DODGE_TRIGGER_PX,
 ) -> SwipePlan | None:
-    """Steer the hook away from the NET threat of all nearby fish (potential
-    field), not just the closest one — so a dodge never flees into another fish.
+    """Steer the hook away from the NET predicted threat of all nearby fish.
 
-    Each fish within ``radius`` horizontally and ``vert_band`` vertically (near
-    the hook's depth, using its lead position so motion is accounted for) pushes
-    the hook away, weighted by how close it is. The net push picks the emptier
-    side; ``None`` when nothing is close. If the push is near-balanced (sandwiched
-    between fish on both sides) we flee toward the side with the larger gap.
+    Each fish is evaluated at its current and short future positions. The first
+    predicted entry into the hook lane pushes the hook away from that approach
+    side. The net push picks the emptier side; ``None`` when nothing is close. If
+    the push is near-balanced (sandwiched between fish on both sides) we flee
+    toward the side with the larger gap.
     """
     hx, hy = hook
     push = 0.0
     threats: list[int] = []  # threatening fish x (near the hook's depth)
     for t in tracked:
-        fx, fy = t["lead_x"], t["lead_y"]
-        if abs(fy - hy) > vert_band:
+        threat_fx: int | None = None
+        threat_strength = 0.0
+        for horizon_s in _DODGE_HORIZONS_S:
+            fx = int(round(min(frame_w - 1, max(0, t["center_x"] + t["vx"] * horizon_s))))
+            fy = int(round(t["center_y"] + t["vy"] * horizon_s))
+            if abs(fy - hy) > vert_band:
+                continue
+            dx = hx - fx
+            if abs(dx) >= radius:
+                continue
+            time_weight = 1.0 / (1.0 + horizon_s)
+            threat_fx = fx
+            threat_strength = ((radius - abs(dx)) / radius) * time_weight
+            break
+        if threat_fx is None:
             continue
-        dx = hx - fx
-        if abs(dx) >= radius:
-            continue
-        threats.append(fx)
-        strength = (radius - abs(dx)) / radius
+        threats.append(threat_fx)
+        dx = hx - threat_fx
         if dx == 0:
-            push += (1.0 if hx < frame_w / 2 else -1.0) * strength
+            push += (1.0 if hx < frame_w / 2 else -1.0) * threat_strength
         else:
-            push += (1.0 if dx > 0 else -1.0) * strength
+            push += (1.0 if dx > 0 else -1.0) * threat_strength
 
     if not threats:
         return None  # open water — hold position
@@ -528,11 +677,24 @@ def plan_action(
     body instead of clipping the trailing tail.
     """
     det = _detect_hook_state(frame)
-    real_hook = _hook_center(det)
+    reliable_hook = _hook_center_with_source(det)
+    if reliable_hook is not None:
+        real_hook, hook_source = reliable_hook
+    else:
+        line_hook = _line_hook_from_fallback(det, fallback_hook)
+        if line_hook is not None:
+            real_hook = line_hook
+            hook_source: HookSource = "line"
+        else:
+            real_hook = None
+            hook_source = "fallback" if fallback_hook is not None else "default"
     protected = det.protected if det is not None else None
     frame_h = frame.shape[0] if frame is not None else _H
     # Direction only from a real detection — never infer it from the fallback.
-    hook_direction = hook_zone_direction(real_hook[1] if real_hook else None, frame_h)
+    hook_direction = hook_zone_direction(
+        real_hook[1] if hook_source in ("ring", "green_node") else None,
+        frame_h,
+    )
     hook = real_hook if real_hook is not None else (fallback_hook or (_W // 2, int(0.15 * _H)))
 
     trend = level_trend(levels, min_delta=min_delta)
@@ -566,22 +728,22 @@ def plan_action(
             # Multi-fish: steer away from the NET threat of all nearby fish, not
             # just the closest one — so the hook doesn't flee into another fish.
             swipe = plan_dodge(hook, tracked)
-        elif target_index >= 0:
-            # Collect: chase the nearest fish, aiming at the interception point
-            # (when the caller supplies latency/speed) biased toward its heading.
-            tf = tracked[target_index]
-            if base_latency_s > 0 or hook_speed_px_s > 0:
-                aim_x = _intercept_x(
-                    hook[0], tf["center_x"], tf["vx"],
-                    base_latency_s=base_latency_s, hook_speed_px_s=hook_speed_px_s,
-                )
-                if tf["vx"]:
-                    bias = (1 if tf["vx"] > 0 else -1) * _COLLECT_LEAD_WIDTH_FRAC * tf["width"]
-                    aim_x = int(round(min(_W - 1, max(0, aim_x + bias))))
+        else:
+            # Collect: score candidates by reachability + detection quality +
+            # catch body size, then aim at the selected fish's intercept point.
+            best = _best_collect_target(
+                hook, tracked,
+                base_latency_s=base_latency_s,
+                hook_speed_px_s=hook_speed_px_s,
+            )
+            if best is None:
+                target_index = -1
+                target_lead = None
             else:
-                aim_x = target_lead[0] if target_lead else hook[0]
-            target_lead = (aim_x, target_lead[1] if target_lead else hook[1])
-            swipe = plan_swipe(hook, aim_x, "collect", target_index=target_index)
+                target_index, aim_x, _score = best
+                tf = tracked[target_index]
+                target_lead = (aim_x, tf["lead_y"])
+                swipe = plan_swipe(hook, aim_x, "collect", target_index=target_index)
 
     return ActionPlan(
         phase=phase,
@@ -590,7 +752,8 @@ def plan_action(
         level_total=None,
         hook_x=hook[0],
         hook_y=hook[1],
-        hook_detected=real_hook is not None,
+        hook_detected=hook_source in ("ring", "green_node", "line"),
+        hook_source=hook_source,
         protected=protected,
         hook_direction=hook_direction,
         target_index=target_index,

@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import cv2
 
@@ -114,6 +114,18 @@ _VEL_EMA_ALPHA = 0.5
 # Debug telemetry — only written when the exec step passes `debug: true`.
 _TEMPORAL_DIR = Path(__file__).resolve().parents[4] / "temporal"
 _DEBUG_FRAME_EVERY = 4      # save every Nth annotated gameplay frame for review
+
+
+class _SwipeExecution(TypedDict):
+    """What the executor actually sent to the device for one planned swipe."""
+
+    ok: bool
+    raw_dx: int
+    executed_dx: int
+    start_x: int
+    end_x: int
+    y: int
+    duration_ms: int
 
 
 def _crop(frame: Any, win: tuple[float, float, float, float]) -> Any:
@@ -261,7 +273,26 @@ async def _tap(actions: Any, instance_id: str, frac: tuple[float, float], label:
         logger.debug("fishing FSM: tap %s failed", label, exc_info=True)
 
 
-async def _swipe(actions: Any, instance_id: str, swipe: dict[str, Any]) -> bool:
+def _swipe_motion(swipe: dict[str, Any]) -> dict[str, int]:
+    """Translate a planned hook dx into the real centre-screen flick geometry."""
+    raw_dx = int(swipe["to_x"]) - int(swipe["from_x"])
+    sign = 1 if raw_dx >= 0 else -1
+    mag = max(_SWIPE_MIN_PX, abs(raw_dx) * _SWIPE_GAIN)
+    half = int(mag / 2)
+    cx, cy = _W // 2, int(_H * _SWIPE_Y_FRAC)
+    start_x = min(_W - 1, max(0, cx - sign * half))
+    end_x = min(_W - 1, max(0, cx + sign * half))
+    return {
+        "raw_dx": raw_dx,
+        "executed_dx": end_x - start_x,
+        "start_x": start_x,
+        "end_x": end_x,
+        "y": cy,
+        "duration_ms": _SWIPE_MS,
+    }
+
+
+async def _swipe(actions: Any, instance_id: str, swipe: dict[str, Any]) -> _SwipeExecution:
     import asyncio
 
     from layout.types import Point
@@ -269,18 +300,15 @@ async def _swipe(actions: Any, instance_id: str, swipe: dict[str, Any]) -> bool:
     # Direction + magnitude come from the plan; execute it as a horizontal flick
     # centred on the screen (zone-agnostic, away from the top HUD). Amplify and
     # floor the travel, centre it around the mid-x so it stays on-frame.
-    raw_dx = int(swipe["to_x"]) - int(swipe["from_x"])
-    sign = 1 if raw_dx >= 0 else -1
-    mag = max(_SWIPE_MIN_PX, abs(raw_dx) * _SWIPE_GAIN)
-    half = int(mag / 2)
-    cx, cy = _W // 2, int(_H * _SWIPE_Y_FRAC)
-    start = Point(min(_W - 1, max(0, cx - sign * half)), cy)
-    end = Point(min(_W - 1, max(0, cx + sign * half)), cy)
+    motion = _swipe_motion(swipe)
+    start = Point(motion["start_x"], motion["y"])
+    end = Point(motion["end_x"], motion["y"])
+    ok = False
     try:
         # min_duration_ms bypasses the controller's ~900 ms human-scroll floor —
         # the minigame needs a fast flick, not a slow drag (else the hook barely
         # moves). Return the real result so we count swipes that ACTUALLY ran.
-        return bool(await asyncio.to_thread(
+        ok = bool(await asyncio.to_thread(
             lambda: actions.swipe(
                 instance_id, start, end,
                 duration_ms=_SWIPE_MS, min_duration_ms=_SWIPE_MS, settle_ms=0,
@@ -288,7 +316,7 @@ async def _swipe(actions: Any, instance_id: str, swipe: dict[str, Any]) -> bool:
         ))
     except Exception:
         logger.debug("fishing FSM: swipe failed", exc_info=True)
-        return False
+    return _SwipeExecution(ok=ok, **motion)
 
 
 async def _back(actions: Any, instance_id: str) -> None:
@@ -435,6 +463,7 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
                 game_stuck = 0
             prev_sig = sig
 
+            detect_t0 = time.monotonic()
             try:
                 dets = await fish_detector.detect(frame, threshold=conf)
             except InferenceUnavailableError:
@@ -443,18 +472,24 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             except Exception:
                 logger.debug("fishing FSM: detection failed", exc_info=True)
                 dets = []
+            detect_ms = (time.monotonic() - detect_t0) * 1000.0
             rows = detections_to_rows(dets)
 
             # Altitude moves slowly → OCR it (slow Tesseract) only every Nth tick;
             # reuse the last reading between to keep the loop fast.
             gp_tick += 1
+            ocr_ms: float | None = None
+            level_fresh = False
             if gp_tick % _LEVEL_OCR_EVERY == 1:
+                ocr_t0 = time.monotonic()
                 fresh = await _read_level(ocr, frame)
+                ocr_ms = (time.monotonic() - ocr_t0) * 1000.0
                 if fresh is not None:
                     last_level = fresh
                     levels.append(fresh)
                     if len(levels) > _LEVEL_HISTORY:
                         del levels[0]
+                    level_fresh = True
             level = last_level
 
             now = time.monotonic()
@@ -465,6 +500,7 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             # inference) + the flick duration. This is what makes the hook meet
             # the fish on its body instead of clipping the trailing tail.
             base_latency_s = min(_LEAD_CAP_S, (now - t_cap) + _SWIPE_MS / 1000.0)
+            plan_t0 = time.monotonic()
             plan = plan_action(
                 frame, rows, levels,
                 prev_detections=prev_rows, dt_s=dt_s,
@@ -475,14 +511,20 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
                 vel_ema_alpha=_VEL_EMA_ALPHA,
                 fallback_hook=est_hook,  # better steer origin when the ring is lost
             )
+            plan_ms = (time.monotonic() - plan_t0) * 1000.0
             prev_rows = rows
             prev_tracked = plan["tracked"]
             prev_cap = t_cap
 
             swipe = plan["swipe"]
             swiped = False
+            swipe_exec: _SwipeExecution | None = None
+            swipe_ms: float | None = None
             if swipe is not None:
-                swiped = await _swipe(actions, inst, swipe)
+                swipe_t0 = time.monotonic()
+                swipe_exec = await _swipe(actions, inst, swipe)
+                swipe_ms = (time.monotonic() - swipe_t0) * 1000.0
+                swiped = swipe_exec["ok"]
                 if swiped:
                     swipes += 1
 
@@ -491,25 +533,38 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             # tick steers from where the hook actually is, not a fixed point).
             if plan["hook_detected"] and plan["hook_x"] is not None:
                 est_hook = (plan["hook_x"], plan["hook_y"])
-            elif est_hook is not None and swiped and swipe is not None:
-                est_hook = (int(min(_W - 1, max(0, est_hook[0] + swipe["dx"]))),
-                            est_hook[1])
+            elif est_hook is not None and swiped and swipe_exec is not None:
+                est_hook = (
+                    int(min(_W - 1, max(0, est_hook[0] + swipe_exec["executed_dx"]))),
+                    est_hook[1],
+                )
 
             # Per-tick telemetry — the tuning signal (phase correctness, swipe
             # steering, whether the swipe ACTUALLY ran, altitude/level progress).
             ticks.append({
                 "t": round(now - t0, 2),
                 "level": level,
+                "level_fresh": level_fresh,
                 "trend": plan["level_trend"],
                 "phase": plan["phase"],
                 "hook_y_frac": (round(plan["hook_y"] / _H, 3)
                                 if plan["hook_y"] is not None else None),
                 "hook_dir": plan["hook_direction"],
                 "hook_det": plan["hook_detected"],
+                "hook_source": plan["hook_source"],
                 "protected": plan["protected"],
                 "n_dets": plan["detections"],
+                "dt_s": round(dt_s, 3) if dt_s is not None else None,
+                "base_latency_s": round(base_latency_s, 3),
+                "detect_ms": round(detect_ms, 1),
+                "ocr_ms": round(ocr_ms, 1) if ocr_ms is not None else None,
+                "plan_ms": round(plan_ms, 1),
+                "swipe_ms": round(swipe_ms, 1) if swipe_ms is not None else None,
                 "swipe_dir": (swipe["direction"] if swipe else None),
                 "swipe_dx": (swipe["dx"] if swipe else None),
+                "executed_dx": (
+                    swipe_exec["executed_dx"] if swipe_exec is not None else None
+                ),
                 "swiped": swiped,
             })
             if debug and len(ticks) % _DEBUG_FRAME_EVERY == 1:
@@ -543,6 +598,19 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
         await asyncio.sleep(1.5)
 
     seen_levels = [t["level"] for t in ticks if t["level"] is not None]
+
+    def _avg_tick(key: str) -> float | None:
+        vals = [t[key] for t in ticks if isinstance(t.get(key), (int, float))]
+        return round(sum(vals) / len(vals), 1) if vals else None
+
+    def _avg_base_latency_ms() -> float | None:
+        vals = [
+            t["base_latency_s"]
+            for t in ticks
+            if isinstance(t.get("base_latency_s"), (int, float))
+        ]
+        return round(1000.0 * sum(vals) / len(vals), 1) if vals else None
+
     ctx.result.update(
         {
             "action": "drive_fishing",
@@ -560,6 +628,19 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             # how often the ring was found, where it read, and shield-up rate.
             "hook_detected_pct": (round(100 * sum(1 for t in ticks if t["hook_det"])
                                         / len(ticks)) if ticks else None),
+            "hook_source_ring": sum(1 for t in ticks if t["hook_source"] == "ring"),
+            "hook_source_green": sum(
+                1 for t in ticks if t["hook_source"] == "green_node"
+            ),
+            "hook_source_line": sum(
+                1 for t in ticks if t["hook_source"] == "line"
+            ),
+            "hook_source_fallback": sum(
+                1 for t in ticks if t["hook_source"] == "fallback"
+            ),
+            "hook_source_default": sum(
+                1 for t in ticks if t["hook_source"] == "default"
+            ),
             "hook_dir_down": sum(1 for t in ticks if t["hook_dir"] == "down"),
             "hook_dir_up": sum(1 for t in ticks if t["hook_dir"] == "up"),
             "hook_dir_none": sum(1 for t in ticks if t["hook_dir"] is None),
@@ -570,6 +651,11 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
             "level_max": max(seen_levels) if seen_levels else None,
             "mean_dets": (round(sum(t["n_dets"] for t in ticks) / len(ticks), 1)
                           if ticks else 0),
+            "avg_detect_ms": _avg_tick("detect_ms"),
+            "avg_ocr_ms": _avg_tick("ocr_ms"),
+            "avg_plan_ms": _avg_tick("plan_ms"),
+            "avg_swipe_ms": _avg_tick("swipe_ms"),
+            "avg_base_latency_ms": _avg_base_latency_ms(),
             # Effective gameplay frame rate (ticks/s) — the responsiveness metric.
             "fps": (round((len(ticks) - 1) / (ticks[-1]["t"] - ticks[0]["t"]), 1)
                     if len(ticks) > 1 and ticks[-1]["t"] > ticks[0]["t"] else None),

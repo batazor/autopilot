@@ -46,12 +46,13 @@ _GAME_ID = "wos"
 
 
 def _is_beta_package(package: str) -> bool:
-    """True if ``package`` is a known beta/alias build of ``_GAME_ID``.
+    """True if ``package`` is a non-canonical alias build of ``_GAME_ID``.
 
-    Beta-build accounts don't exist in the Century gift-code API (it answers
-    ``40001`` for them), so they're excluded from redemption. The canonical
-    store package is the first entry of ``packages_for_game``; any other accepted
-    alias is a beta build.
+    Alias-build accounts (the beta package, or the Russian "Белая мгла" re-skin
+    on Century's RU shard) don't exist in the global Century gift-code API (it
+    answers ``40001`` for them), so they're excluded from redemption. The
+    canonical store package is the first entry of ``packages_for_game``; any
+    other accepted alias is one of these non-canonical builds.
     """
     pkg = (package or "").strip()
     if not pkg:

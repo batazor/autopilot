@@ -60,8 +60,17 @@ screens:
     rules:
       - from_screen: alliance
   alliance.members:
-    priority: 65
+    # Priority < alliance (30): both titles start with "Alliance", and the
+    # detector's screen-identity match is a case-insensitive *substring*, so the
+    # bare-"Alliance" overview rule would otherwise claim the "Alliance Members"
+    # frame first (lower number = scanned first). The fuller-phrase rule below
+    # only matches this screen, so scanning it ahead of the overview is safe and
+    # stops sync_alliance_stats from OCR'ing the member-search box as the name.
+    priority: 28
     rules:
+      - ocr: page.common.title
+        contains: "Alliance Members"
+        threshold: 0.8
       - from_screen:
           - alliance
           - alliance.triumph

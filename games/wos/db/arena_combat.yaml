@@ -1,0 +1,158 @@
+# Arena of Glory combat model — tunable constants for the lineup optimizer.
+#
+# Mechanics are taken from the community guides (BlueStacks, OneChilledGamer,
+# A Jack Of, theriagames, the WoS Wiki), cross-checked 2026-06:
+#   - 5 slots. Front = slots 1 & 5 (hit first, want tanks / crowd control).
+#     Back = slots 2, 3, 4 (damage / support).
+#   - Slot 4 is the safest seat and the ONLY slot that can reach all 5 enemies
+#     -> the best seat for a Marksman / AoE carry.
+#   - Targeting: "the hero in slot 1 faces enemies in slots 2, 5, 4, 3" (documented);
+#     the other rows mirror the front-first / slot-4-reaches-all logic (inferred).
+#   - Only EXPLORATION skills are active in arena (expedition skills do nothing).
+#   - The class counter triangle DOES apply: Infantry > Lancer > Marksman > Infantry,
+#     +10% damage. (One source disputes this for arena, so `counter.coeff` is a single
+#     knob and the API/UI expose a toggle — set coeff: 0.0 to disable.)
+#
+# The optimizer scores a placement as a transparent weighted sum of these terms; it
+# is a heuristic calibrated to the documented mechanics, not the game's exact (and
+# unpublished) damage formula. Every weight here is meant to be tuned.
+
+# --- Class counter triangle ------------------------------------------------- #
+# attacker class -> the class it beats, plus the flat damage bonus when it does.
+counter:
+  coeff: 0.10
+  beats:
+    infantry: lancer
+    lancer: marksman
+    marksman: infantry
+
+# --- Slot layout (1-based, as the game numbers the seats) ------------------- #
+slots:
+  count: 5
+  front: [1, 5]          # frontline — engaged first, reward tanks / CC
+  back: [2, 3, 4]        # backline — reward damage / support
+  all_target: 4          # only seat that can hit all 5 enemies (best marksman seat)
+  # Per-slot enemy targeting order. Slot 1 is the documented "2,5,4,3"; the rest are
+  # inferred (front seats focused first, slot 4 reaches everyone). Used to weight the
+  # counter term toward the enemies a seat actually engages.
+  targeting:
+    "1": [2, 5, 4, 3]
+    "2": [1, 5, 4, 3]
+    "3": [1, 5, 2, 4]
+    "4": [1, 2, 3, 4, 5]
+    "5": [4, 1, 2, 3]
+
+# --- How the per-slot terms combine into a placement score ------------------ #
+# Positional terms MODULATE strength (multiplicative), so they shift the ordering
+# instead of being drowned out by the raw strength magnitude:
+#     effective_i = strength_i * (1 + slot_fit*fit_i + counter*counter_frac_i)
+#     score       = sum(effective_i) * (1 + synergy*synergy_units)
+weights:
+  strength: 1.0          # raw hero combat strength (the multiplied base)
+  slot_fit: 0.18         # right role in the right seat -> up to ~+18% effective
+  counter: 1.0           # counter_frac already carries the +10% magnitude (0..coeff)
+  synergy: 0.10          # board-level composition bonuses -> up to ~+15%
+
+# --- Hero strength model ---------------------------------------------------- #
+# A hero's combat rating is resolved on a single unitless scale, in this order:
+#   1. explicit in-game Power  -> power * power_to_rating   (the real signal; best)
+#   2. exploration stats        -> stat rating (Attack x effective-HP), star/level
+#      discounted and calibrated to the Power scale via stat_to_power  (used for
+#      heroes loaded from the account, which carry level+star but no Power)
+#   3. rarity x generation x star/level/skill growth  (last-resort fallback)
+# `power_to_rating` keeps 100k Power ~= 100 rating so the tiers stay comparable.
+strength:
+  rarity: {Legendary: 100.0, Epic: 60.0, Rare: 35.0}  # mirrors heroes-planner RARITY_WEIGHT
+  star_step: 0.12        # +12% per star above 1
+  level_step: 0.010      # +1.0% per hero level above 1
+  skill_step: 0.03       # +3% per exploration-skill level above 1
+  power_to_rating: 0.001 # rating = power * this  (100k power -> ~100 rating)
+  # Stat-based estimate (tier 2). The wiki `stats.exploration` is the hero's
+  # high-investment ceiling, so we discount it for the player's actual star/level.
+  stat_def_k: 4000.0     # defense mitigation: effective-HP = HP * (1 + DEF/def_k)
+  stat_to_power: 0.0009  # maps (Attack x effHP) ceiling -> an equivalent Power
+  stat_star_floor: 0.45  # star discount at 1★ (climbs linearly to 1.0 at 6★)
+  stat_level_floor: 0.40 # level discount at L1 (climbs linearly to 1.0 at level_cap)
+  stat_level_cap: 60     # hero level treated as "max" for the discount
+  # Gear + exploration-skill investment — read off the hero Details screen, they are
+  # a big chunk of real Power, so they lift the stat estimate when no explicit Power.
+  stat_gear_step: 0.012  # +1.2% per average gear level above 1 (gear ~doubles power by L100)
+  stat_skill_step: 0.06  # +6% per exploration-skill level above 1 (maxed = 5)
+
+# --- Victory prediction ----------------------------------------------------- #
+# Arena has no published damage formula, so the outcome is modelled as a power-ratio
+# contest (Lanchester's square law): P(win) = me^n / (me^n + enemy^n), where each
+# side's effective power already folds in class counters + positioning. n=2 is the
+# square law (decisive); lower n softens the curve. Tunable, and only as good as the
+# inputs — feed real Power on both sides for a trustworthy number.
+win:
+  exponent: 2.0
+
+# --- Slot-fit matrix: arena role -> contribution per seat kind -------------- #
+# Seat kinds: front (slots 1,5), slot4 (the all-target seat), back (slots 2,3).
+slot_fit:
+  tank:     {front: 1.0,  slot4: 0.1, back: 0.2}
+  cc:       {front: 0.9,  slot4: 0.3, back: 0.5}
+  marksman: {front: -0.4, slot4: 1.0, back: 0.7}
+  dps:      {front: 0.1,  slot4: 0.7, back: 0.8}
+  healer:   {front: 0.0,  slot4: 0.4, back: 0.8}
+  support:  {front: 0.2,  slot4: 0.5, back: 0.8}
+
+# --- Skill-text keyword -> arena tag ---------------------------------------- #
+# Lowercased substring match over a hero's joined exploration-skill descriptions.
+# Kept SPECIFIC on purpose — generic words ("all", "increase", "shield") tag nearly
+# every hero and make the tags meaningless. Class is the reliable role signal; these
+# tags only refine flexible (Lancer) roles and drive the composition synergies, so a
+# few false positives are harmless. Curate exceptions in `hero_overrides`.
+tag_keywords:
+  cc:   ["stun", freeze, frozen, knockback, silence, immobiliz, "unable to move", taunt]
+  aoe:  ["all enemies", "all targets", "all friendly", splash, surrounding]
+  tank: ["damage taken", invulnerable, "damage reduction", "reduces damage", "reducing damage"]
+  heal: ["heal", recover, restore, regenerat]
+  buff: ["increasing their damage", "increasing his", "increasing friendly", "damage dealt by", "attack by"]
+  burst: ["dealing attack", "deals attack", "massive damage"]
+
+# --- Composition synergies (flat board-level bonuses, added once when met) --- #
+synergy:
+  tank_in_front: 0.5         # >=1 tank or CC hero in a front seat (1 or 5)
+  marksman_in_slot4: 0.5     # a marksman / DPS holds the all-target seat
+  has_cc: 0.3                # lineup brings crowd control
+  has_healer: 0.2            # lineup brings sustain
+  duplicate_class_penalty: -0.15  # per hero beyond 2 sharing a class (rewards diversity)
+
+# --- Curated per-hero overrides (optional) ---------------------------------- #
+# arena_role + tags here WIN over the keyword-derived values (class/counters still
+# come from the hero yaml). Curated from community tier lists / formation guides
+# (allclash, gamsgo, BlueStacks, One Chilled Gamer; cross-checked 2026-06) where the
+# class-default role misreads a hero's real arena job. Scoped to heroes the player
+# accounts own + the marquee meta; extend as the meta shifts.
+hero_overrides:
+  # -- owned by the player accounts (prioritised) --
+  molly:     {arena_role: dps,     tags: [aoe, cc, buff]}   # AoE damage carry, not a healer
+  bahiti:    {arena_role: marksman, tags: [aoe, buff]}      # backline AoE marksman
+  gina:      {arena_role: marksman, tags: [burst]}          # early backline carry
+  sergey:    {arena_role: tank,     tags: [tank, buff]}     # front defense/buff bruiser
+  jessie:    {arena_role: tank,     tags: [tank, cc]}       # front tank w/ stun
+  flint:     {arena_role: tank,     tags: [tank, heal]}     # self-healing front tank
+  natalia:   {arena_role: tank,     tags: [tank, buff]}     # frontline anchor
+  wu_ming:   {arena_role: tank,     tags: [tank, aoe, buff]} # front tank, AoE invuln
+  eugene:    {arena_role: tank,     tags: [tank]}           # Rare front body
+  patrick:   {arena_role: tank,     tags: [tank, heal]}     # defensive front
+  seo_yoon:  {arena_role: healer,   tags: [heal, buff]}     # infirmary healer, not a carry
+  zinman:    {arena_role: support,  tags: [buff]}           # growth/support, keep off carry seat
+  charlie:   {arena_role: dps,      tags: [aoe, burst]}     # Rare grenadier AoE
+  # -- marquee meta (place correctly once acquired) --
+  eleonora:  {arena_role: tank,     tags: [tank, buff]}     # damage-reflect shield + team buffs
+  freya:     {arena_role: dps,      tags: [aoe, buff, burst]} # Chain Sunder AoE carry (back)
+  vulcanus:  {arena_role: marksman, tags: [aoe, burst]}     # all-AoE marksman carry
+  alonso:    {arena_role: marksman, tags: [aoe, cc, burst]} # Trapnet AoE + immobilise
+  philly:    {arena_role: healer,   tags: [heal, cc]}       # best early healer
+  magnus:    {arena_role: tank,     tags: [cc, tank, buff]} # front tank + stun
+  hector:    {arena_role: tank,     tags: [tank, buff]}     # F2P rally-lead anchor
+  gatot:     {arena_role: tank,     tags: [tank]}           # extreme survivability
+  edith:     {arena_role: tank,     tags: [tank, buff]}     # shield/damage-reduction
+  xura:      {arena_role: marksman, tags: [burst]}          # single-target burst
+  reina:     {arena_role: dps,      tags: [burst]}          # assassin burst (back)
+  gordon:    {arena_role: dps,      tags: [aoe, burst]}     # poison DoT AoE
+  norah:     {arena_role: support,  tags: [cc, buff]}       # stun + buffs
+  gwen:      {arena_role: marksman, tags: [aoe]}            # backline AoE pressure

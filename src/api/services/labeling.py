@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -29,6 +30,9 @@ from dashboard.area_doc import (
     export_all_region_crops_for_area_doc,
     find_stale_crops,
 )
+from dashboard.area_doc import (
+    export_region_crops as _crop_regions_from_image,
+)
 from dashboard.labeling_helpers import build_reference_leaf_meta_index, format_reference_leaf_title
 from dashboard.overlay_yaml_sync import (
     apply_region_rename,
@@ -36,7 +40,10 @@ from dashboard.overlay_yaml_sync import (
     detect_region_renames,
 )
 from dashboard.reference_area_sync import sync_area_json_ocr_after_reference_rename
-from dashboard.reference_ocr_paths import reference_basename_stem
+from dashboard.reference_ocr_paths import (
+    reference_basename_stem,
+    resolve_ocr_path_in_reference_context,
+)
 from dashboard.reference_preview import (
     capture_preview_to,
     list_reference_pngs,
@@ -511,6 +518,247 @@ def _export_module_crops(doc: dict[str, Any], env: ls.LabelingScopeEnv) -> dict[
     return {
         "crops_written_count": len(rels),
         "crop_warnings": warnings[:50],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Live-label commit — the headless engine behind the lightweight ``/label`` page
+# and ``botctl label``. Capture a fresh device frame, pin it, then upsert
+# region(s) into area.yaml and crop them from the *pinned* frame (so the crop is
+# exactly what the operator drew on, even for animated UI). Surgical mode never
+# touches sibling regions or the screen's reference PNG.
+# --------------------------------------------------------------------------- #
+_PIN_MAX_AGE_S = 600.0
+
+
+def _label_pin_path(instance_id: str) -> Path:
+    """Stable per-instance pin frame (``temporal/label_pin_<inst>.png``)."""
+    from dashboard.reference_preview import rolling_live_preview_path
+
+    return rolling_live_preview_path(instance_id).with_name(f"label_pin_{instance_id}.png")
+
+
+def _adb_target(instance_id: str) -> tuple[str, str | None]:
+    """(adb binary, serial) for an instance — mirrors ``agentctl.core``."""
+    from config.devices import load_devices
+    from config.loader import load_settings
+
+    settings = load_settings()
+    adb_bin = (getattr(settings.worker, "adb_executable", "") or "adb").strip() or "adb"
+    serial: str | None = None
+    for d in load_devices().devices:
+        if str(d.name) == instance_id:
+            serial = d.effective_serial or None
+            break
+    return adb_bin, serial
+
+
+def capture_and_pin_frame(instance_id: str) -> bytes:
+    """Capture one fresh normalized 720×1280 ADB frame and pin it for commit."""
+    from adb.screencap import adb_screencap_png
+
+    iid = (instance_id or "").strip()
+    if not iid:
+        msg = "instance_id is required"
+        raise ValueError(msg)
+    adb_bin, serial = _adb_target(iid)
+    png, err = adb_screencap_png(adb_bin, serial)
+    if png is None:
+        raise RuntimeError(err or "adb screencap returned no data")
+    pin = _label_pin_path(iid)
+    pin.parent.mkdir(parents=True, exist_ok=True)
+    pin.write_bytes(png)
+    return png
+
+
+def read_pinned_frame(instance_id: str) -> bytes | None:
+    """Return the pinned frame bytes (any age) or ``None`` if absent."""
+    pin = _label_pin_path((instance_id or "").strip())
+    return pin.read_bytes() if pin.is_file() else None
+
+
+def _normalize_region_for_save(reg: dict[str, Any]) -> dict[str, Any]:
+    """Coerce a page/CLI region dict to the area.yaml region shape."""
+    bbox_in = dict(reg.get("bbox") or {})
+    bbox = {
+        "x": float(bbox_in.get("x", 0.0) or 0.0),
+        "y": float(bbox_in.get("y", 0.0) or 0.0),
+        "width": float(bbox_in.get("width", 0.0) or 0.0),
+        "height": float(bbox_in.get("height", 0.0) or 0.0),
+        "rotation": float(bbox_in.get("rotation", 0.0) or 0.0),
+        "original_width": int(bbox_in.get("original_width", 720) or 720),
+        "original_height": int(bbox_in.get("original_height", 1280) or 1280),
+    }
+    if bbox["width"] <= 0 or bbox["height"] <= 0:
+        msg = f"region {reg.get('name')!r} has an empty bbox"
+        raise ValueError(msg)
+    out: dict[str, Any] = {
+        "name": str(reg.get("name") or "").strip(),
+        "action": str(reg.get("action") or "exist").strip() or "exist",
+        "threshold": float(reg.get("threshold", 0.9) or 0.9),
+        "bbox": bbox,
+    }
+    rtype = reg.get("type")
+    if rtype:
+        out["type"] = str(rtype).strip()
+    if reg.get("has_red_dot"):
+        out["has_red_dot"] = True
+    if reg.get("isSearch"):
+        out["isSearch"] = True
+    if reg.get("tap_hold_ms"):
+        out["tap_hold_ms"] = int(reg["tap_hold_ms"])
+    aliases = reg.get("aliases")
+    if isinstance(aliases, list) and aliases:
+        out["aliases"] = [str(a) for a in aliases if str(a).strip()]
+    return out
+
+
+def commit_region_from_frame(
+    *,
+    instance_id: str,
+    regions: list[dict[str, Any]],
+    ref: str | None = None,
+    screen_id: str = "",
+    scope: str = CORE_MODULE_KEY,
+    mode: str = "surgical",
+    version: str | None = None,
+) -> dict[str, Any]:
+    """Upsert labeled region(s) into ``area.yaml`` + crop from the pinned frame.
+
+    ``mode="surgical"`` (default) replaces/adds only the named regions and crops
+    only those from the pinned device frame — sibling regions and the screen's
+    reference PNG are left untouched. ``mode="recapture_reference"`` overwrites the
+    screen reference PNG with the fresh frame and re-exports every crop.
+    """
+    import io
+
+    from PIL import Image
+
+    iid = (instance_id or "").strip()
+    if not iid:
+        msg = "instance_id is required"
+        raise ValueError(msg)
+    region_list = [
+        _normalize_region_for_save(r)
+        for r in (regions or [])
+        if isinstance(r, dict) and str(r.get("name") or "").strip()
+    ]
+    if not region_list:
+        msg = "at least one region with a name and bbox is required"
+        raise ValueError(msg)
+
+    # 0. Frame: prefer the pinned frame the page showed, else capture fresh.
+    warnings: list[str] = []
+    frame_source = "pinned"
+    png = read_pinned_frame(iid)
+    if png is not None:
+        age = time.time() - _label_pin_path(iid).stat().st_mtime
+        if age > _PIN_MAX_AGE_S:
+            png = None
+            warnings.append(f"pinned frame was stale ({age:.0f}s) — recaptured")
+    if png is None:
+        png = capture_and_pin_frame(iid)
+        frame_source = "fresh"
+    pil = Image.open(io.BytesIO(png)).convert("RGB")
+
+    # 1. Resolve writable env + the target screen entry.
+    env = ls.scope_env(scope)
+    if ref:
+        ref = ref.replace("\\", "/").strip().lstrip("/")
+        env = _write_env_for_reference(env, ref)
+    doc = ls.load_area_doc(env)
+    screens = doc.setdefault("screens", [])
+    if not isinstance(screens, list):
+        screens = []
+        doc["screens"] = screens
+
+    idx, entry = -1, None
+    if ref:
+        found = ls.entry_for_ref(doc, ref, env)
+        if found is not None:
+            idx, entry = found
+    if entry is None and screen_id.strip():
+        for i, e in enumerate(screens):
+            if isinstance(e, dict) and str(e.get("screen_id") or "").strip() == screen_id.strip():
+                idx, entry = i, e
+                break
+    if entry is None:
+        msg = (
+            "could not resolve a screen entry — pass an existing ref= or a screen_id "
+            "that already exists in the area manifest (promote a new reference in "
+            "the labeling UI first)"
+        )
+        raise ValueError(msg)
+
+    ocr_raw = str(entry.get("ocr") or "").strip()
+    if not ocr_raw:
+        msg = "screen entry has no reference (ocr) yet"
+        raise ValueError(msg)
+    ocr_abs = resolve_ocr_path_in_reference_context(
+        ocr_raw, env.references_prefix, repo_root_path=env.repo_root
+    ).resolve()
+    repo_rel_ocr = ocr_abs.relative_to(env.repo_root).as_posix()
+    active_version = _resolve_edit_version(entry, version)
+
+    # 2. Upsert region(s) by name, preserving siblings byte-for-byte.
+    existing = _regions_for_edit(entry, active_version)
+    by_name = {str(r.get("name") or ""): i for i, r in enumerate(existing)}
+    merged = list(existing)
+    changed: list[dict[str, Any]] = []
+    for reg in region_list:
+        name = reg["name"]
+        if name in by_name:
+            merged[by_name[name]] = reg
+        else:
+            by_name[name] = len(merged)
+            merged.append(reg)
+        changed.append(reg)
+
+    if mode == "recapture_reference":
+        if _is_rolling_preview_png(ocr_abs, env.ref_root):
+            msg = "cannot recapture a rolling preview reference"
+            raise ValueError(msg)
+        ocr_abs.parent.mkdir(parents=True, exist_ok=True)
+        ocr_abs.write_bytes(png)
+        result = save_labeling_regions(
+            repo_rel_ocr,
+            merged,
+            version=version,
+            screen_id=(screen_id.strip() or None),
+            scope=scope,
+        )
+        return {
+            "ok": True,
+            "mode": "recapture_reference",
+            "ref": repo_rel_ocr,
+            "screen_id": result.get("screen_id", ""),
+            "region_count": len(changed),
+            "frame_source": "fresh",
+            "crops_written_count": result.get("crops_written_count", 0),
+            "crop_warnings": result.get("crop_warnings", []),
+            "frame_warnings": warnings,
+        }
+
+    # surgical
+    _set_regions_for_edit(entry, active_version, merged)
+    if screen_id.strip():
+        entry["screen_id"] = screen_id.strip()
+    screens[idx] = entry
+    _atomic_write_json(_require_writable_area_path(env), doc)
+    written = _crop_regions_from_image(
+        pil, repo_rel_ocr, cast("list[Any]", changed), repo_root=env.repo_root
+    )
+    _publish_area_manifest_changed()
+    return {
+        "ok": True,
+        "mode": "surgical",
+        "ref": repo_rel_ocr,
+        "screen_id": str(entry.get("screen_id") or ""),
+        "region_count": len(changed),
+        "frame_source": frame_source,
+        "crops_written": [p.relative_to(env.repo_root).as_posix() for p in written],
+        "crops_written_count": len(written),
+        "frame_warnings": warnings,
     }
 
 

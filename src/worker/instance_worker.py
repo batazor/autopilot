@@ -87,16 +87,16 @@ def _is_adb_offline_error(exc: BaseException) -> bool:
 # by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`).
 #
 # ``who_i_am`` is enqueued separately by
-# ``_maybe_enqueue_who_i_am_when_active_player_missing`` (and only when
-# ``active_player`` is missing). ``check_main_city`` is seeded at low priority
-# so an *already identified* account always has a navigation goal after restart
-# — when ``active_player`` is already set in Redis from the prior session,
-# ``who_i_am`` is skipped and nothing else would route us out of an
-# intermediate popup-bearing screen until the 5-min cron tick. The seed is
+# ``_maybe_enqueue_who_i_am_when_active_player_missing``. At boot it is forced
+# (``force=True``) so identity is re-verified first on every start, even for an
+# already-identified account. ``check_main_city`` is seeded at low priority as a
+# navigation fallback: ``who_i_am`` re-pushes it once identity resolves, but the
+# seed guarantees a route home if the probe can't read the id. The seed is
 # skipped while ``active_player`` is "" (in-game onboarding/login phase) so it
-# can't fight the tutorial — see the gate in ``_seed_startup_tasks``. The seed
-# is device_level (see ``check_main_city.yaml``) so it works without re-resolving
-# ``active_player``; priority 10 keeps it below ads / overlays / identity.
+# can't fight the tutorial — see the gate in ``_seed_startup_tasks`` (which still
+# sees the durable id restored by ``_connect``, before the forced probe clears
+# it). The seed is device_level (see ``check_main_city.yaml``) so it works
+# without re-resolving ``active_player``; priority 10 keeps it below identity.
 _STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = (
     ("check_main_city", 10),
 )
@@ -962,7 +962,14 @@ class InstanceWorker(
                 await self._startup_overlay_tick()
             await self._seed_startup_tasks()
             if game_ready:
-                await self._maybe_enqueue_who_i_am_when_active_player_missing()
+                # ``who_i_am`` is the mandatory first action on every boot:
+                # ``force=True`` re-verifies identity even when a durable
+                # ``active_player`` was restored, so a stale/switched account can't
+                # drive account-bound work. Runs after ``_seed_startup_tasks`` so
+                # the seed's onboarding gate still sees the restored id, then the
+                # probe (priority 101_000) executes ahead of the seeded
+                # ``check_main_city`` and re-pushes it once identity resolves.
+                await self._maybe_enqueue_who_i_am_when_active_player_missing(force=True)
             # Keep publishing after the primed first frame. The loop owns ongoing
             # screen/overlay analysis; the startup overlay above is a one-shot.
             self._rolling_snapshot_task = asyncio.create_task(

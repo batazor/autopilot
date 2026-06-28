@@ -199,6 +199,94 @@ async def _exec_arena_pick_and_open(ctx: DslExecContext) -> None:
     ctx.result.update({"action": "stop", "reason": "refreshes_exhausted"})
 
 
+# --- City → Arena navigation -------------------------------------------------
+#
+# The Arena building has no reliable radar localization on every account, so we
+# reach it by a fixed, OCR-anchored gesture route that an operator dictated and
+# that verified end-to-end on bs3 (720×1280):
+#
+#   open the City-list panel → OCR-find the *Marksman* training row (the list is
+#   DYNAMIC — its y shifts with whatever else is active — so we locate it each
+#   run) → tap the row to jump the camera to the Marksman camp → the Arena sits
+#   one half-screen to the right, so swipe left and tap centre to open the Arena
+#   of Glory screen.
+#
+# Only the Marksman-row lookup needs vision; the rest are calibrated gestures.
+
+_PANEL_TOGGLE = Point(19, 550)         # main_city City-list toggle (main_city.to.main_menu)
+_MARKSMAN_NAV_X_FRAC = 0.40            # tap the row card body → navigate to the camp
+_ARENA_SWIPE_FROM = Point(540, 640)    # half-screen flick left …
+_ARENA_SWIPE_TO = Point(180, 640)      # … brings the Arena building to centre
+_ARENA_CENTER = Point(360, 640)        # tap centre to open the Arena
+_PANEL_RESET_SWIPES = 3
+_PANEL_FIND_SWEEPS = 6
+
+
+async def _find_marksman_cy(actions, ocr, instance_id: str) -> tuple[int, int] | None:  # noqa: ANN001
+    """Reset the City panel to the top, then sweep-scan for the Marksman training
+    row. Returns its ``(centre_y, frame_width)`` or ``None`` if never found."""
+    from games.wos.core.main_menu.exec import _capture_panel_frame, _scan_panel_rows
+
+    for _ in range(_PANEL_RESET_SWIPES):
+        await asyncio.to_thread(
+            actions.swipe_direction, instance_id, direction="down", delta=500, duration_ms=350
+        )
+        await asyncio.sleep(0.4)
+    for _ in range(_PANEL_FIND_SWEEPS):
+        frame = await _capture_panel_frame(actions, instance_id)
+        if frame is None:
+            return None
+        rows = await _scan_panel_rows(frame, ocr=ocr, with_status=False)
+        row = next((r for r in rows if r.get("row") == "marksman"), None)
+        if row is not None:
+            return int(row["cy"]), int(frame.shape[1])
+        await asyncio.to_thread(
+            actions.swipe_direction, instance_id, direction="up", delta=400, duration_ms=350
+        )
+        await asyncio.sleep(0.5)
+    return None
+
+
+async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
+    """Navigate main_city → Arena of Glory via the Marksman-camp gesture route."""
+    actions = dsl_runtime.bot_actions()
+    ocr = dsl_runtime.ocr_client()
+    inst = ctx.instance_id
+
+    # 1. Open the City-list panel.
+    if not await asyncio.to_thread(
+        actions.tap, inst, _PANEL_TOGGLE, approval_source="open_arena_via_city:panel"
+    ):
+        ctx.result.update({"action": "panel_not_opened"})
+        return
+    await asyncio.sleep(1.3)
+
+    # 2. Locate the (dynamic) Marksman row by OCR.
+    found = await _find_marksman_cy(actions, ocr, inst)
+    if found is None:
+        ctx.result.update({"action": "marksman_row_not_found"})
+        return
+    cy, frame_w = found
+
+    # 3. Tap the row → jump the camera to the Marksman camp.
+    nav_x = int(_MARKSMAN_NAV_X_FRAC * frame_w)
+    await asyncio.to_thread(
+        actions.tap, inst, Point(nav_x, cy), approval_source="open_arena_via_city:marksman"
+    )
+    await asyncio.sleep(1.9)
+
+    # 4. Arena is one half-screen right: flick left, then tap centre to open it.
+    await asyncio.to_thread(actions.swipe, inst, _ARENA_SWIPE_FROM, _ARENA_SWIPE_TO, 350)
+    await asyncio.sleep(1.3)
+    await asyncio.to_thread(
+        actions.tap, inst, _ARENA_CENTER, approval_source="open_arena_via_city:open"
+    )
+    await asyncio.sleep(2.0)
+
+    ctx.result.update({"action": "opened_arena", "marksman_cy": cy})
+
+
 DSL_EXEC_HANDLERS = {
     "arena_pick_and_open": _exec_arena_pick_and_open,
+    "open_arena_via_city": _exec_open_arena_via_city,
 }

@@ -177,8 +177,25 @@ def _load_edge_taps(
         static.setdefault((src_card, dst_wiki), ["page.heroes.unit.wiki"])
         static.setdefault((dst_wiki, src_card), ["icon.page.back"])
     root = repo_root()
+    # Every ``main_menu -> X`` destination (static taps OR dynamic resolver dicts).
+    menu_targets = {d for (s, d) in static if s == "main_menu"} | {
+        d for (s, d) in dynamic if s == "main_menu"
+    }
     for building_id, _building_name in _building_screen_defs(root, game=game):
-        static.setdefault(("main_city", building_id), ["chapter.task"])
+        # The generic ``main_city -> building [chapter.task]`` hop only lands when
+        # the CURRENT chapter task happens to target that building, yet as a 1-hop
+        # edge it out-competes any reliable multi-hop route in BFS. So skip it for
+        # buildings reached through the City menu — either directly
+        # (``main_menu -> building``) or via the building's selection popup
+        # (``main_menu -> <building>.building``, where the menu Go button lands and
+        # the popup's Research/etc. button then opens the screen). Otherwise the
+        # chapter.task short-circuit would silently out-compete the menu teleport.
+        # building.upgrade taps chapter.task itself, so it is unaffected.
+        if (
+            building_id not in menu_targets
+            and f"{building_id}.building" not in menu_targets
+        ):
+            static.setdefault(("main_city", building_id), ["chapter.task"])
         static.setdefault((building_id, "main_city"), ["from.building.to.main_city"])
     return static, dynamic
 
@@ -668,6 +685,8 @@ def _load_screen_verify_config_cached(
     # `building` shell node — and the `parent: building` it promoted from — was
     # legacy/unused and has been removed; the detector resolves the open building
     # straight to its concrete node.
+    from config.building_name_parser import ru_aliases_for_building
+
     building_defs = _building_screen_defs(root, game=_resolve_active_game())
     for building_id, building_name in building_defs:
         if building_id == "furnace":
@@ -678,13 +697,17 @@ def _load_screen_verify_config_cached(
             ocr_region = "shelter.title"
         else:
             ocr_region = "building.title"
+        # RU «Белая мгла» localisations appended so building screens detect on the
+        # Russian build too (contains is a case-insensitive OR + fuzzy). Stays a
+        # plain English string when the building has no RU mapping (no regression).
+        ru = ru_aliases_for_building(building_name)
         out_screens.setdefault(
             building_id,
             {
                 "rules": [
                     {
                         "ocr": ocr_region,
-                        "contains": building_name,
+                        "contains": [building_name, *ru] if ru else building_name,
                         "threshold": 0.8,
                     }
                 ],

@@ -60,9 +60,16 @@ def test_area_declares_intel_screen_and_fight_region() -> None:
     assert attack_regions["intel.attack"]["action"] == "exist"
 
 
-def test_analyze_has_no_overlay_rules() -> None:
+def test_analyze_red_dot_pushes_intel_run() -> None:
+    # Red dot on the world-map Intel button (rewards pending) ⇒ push intel_run.
     analyze = _load_yaml("analyze/analyze.yaml")
-    assert analyze.get("overlay") == []
+    rules = analyze.get("overlay")
+    assert isinstance(rules, list) and len(rules) == 1
+    rule = rules[0]
+    assert rule["region"] == "main_world.to.intel"
+    assert rule["isRedDot"] is True
+    assert rule["screens"] == ["main_world"]
+    assert rule["steps"][0]["push_scenario"]["name"] == "intel_run"
 
 
 def test_lighthouse_scenario_taps_fight_marker() -> None:

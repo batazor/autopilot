@@ -2,6 +2,7 @@ screens:
   sawmill:
     priority: 31
     rules:
+    # RU «Белая мгла»: Sawmill → «Лесопилка».
     - ocr: building.title
-      contains: Sawmill
+      contains: [Sawmill, Лесопилка]
       threshold: 0.8

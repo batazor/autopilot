@@ -32,6 +32,36 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "arena.scout.opponent",
+          "action": "exist",
+          "threshold": 0.9,
+          "_note": "tap the rank-1 podium player → opens their Defensive Lineup popup (scouting)",
+          "bbox": {
+            "x": 44.4,
+            "y": 14.5,
+            "width": 11.1,
+            "height": 4.7,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "arena.scout.details",
+          "action": "exist",
+          "threshold": 0.9,
+          "_note": "magnifier (bottom-right of the lower 'Defensive Lineup' bar) → opens the per-hero Details popup. Center (618,682) on bs3 720×1280.",
+          "bbox": {
+            "x": 81.7,
+            "y": 50.9,
+            "width": 8.3,
+            "height": 4.7,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },

@@ -54,6 +54,7 @@ import type {
   PlayerPersistedView,
   PlayerStatsView,
   AllianceStatsView,
+  AllianceMembersAnalysis,
   CenturySyncResult,
   AvatarReferenceResult,
   BuildingLevelRow,
@@ -652,6 +653,35 @@ export async function fetchAllianceStats(
   return apiFetch<AllianceStatsView>(
     `/api/alliances/${encodeURIComponent(allianceName)}/stats`,
   );
+}
+
+export async function fetchAllianceMembersAnalysis(
+  allianceName: string,
+  inactiveDays = 3,
+): Promise<AllianceMembersAnalysis> {
+  const qs = new URLSearchParams({ inactive_days: String(inactiveDays) }).toString();
+  return apiFetch<AllianceMembersAnalysis>(
+    `/api/alliances/${encodeURIComponent(allianceName)}/members/analysis?${qs}`,
+  );
+}
+
+/**
+ * Queue a roster scan on the given instance/account. Reuses the generic queue
+ * enqueue endpoint; the worker runs `scan_alliance_members` (nav → OCR → persist
+ * snapshot + history). `replace_existing` avoids piling up if pressed twice.
+ */
+export async function scanAllianceMembers(
+  instanceId: string,
+  playerId: string,
+): Promise<{ task_id: string }> {
+  return createQueueTask({
+    scenario_key: "scan_alliance_members",
+    instance_id: instanceId,
+    player_id: playerId || undefined,
+    scheduled_at: Date.now() / 1000,
+    priority: 60_000,
+    replace_existing: true,
+  });
 }
 
 export async function syncPlayerFromCentury(
@@ -2021,6 +2051,131 @@ export async function computePlanner(
   body: unknown,
 ): Promise<PlannerResult> {
   return apiFetch<PlannerResult>(`/api/planner/${domain}`, jsonInit("POST", body));
+}
+
+// --- Arena lineup optimizer ------------------------------------------------ //
+export type ArenaHeroInfo = {
+  id: string;
+  name: string;
+  hero_class: string; // infantry | lancer | marksman
+  rarity: string;
+  role: string; // tank | cc | marksman | dps | healer | support
+  tags: string[];
+};
+
+export type ArenaSlotLayout = {
+  count: number;
+  front: number[]; // seats 1 & 5
+  back: number[]; // seats 2, 3, 4
+  all_target: number; // seat 4 — the only one that hits all 5 enemies
+};
+
+export type ArenaHeroesView = {
+  heroes: ArenaHeroInfo[];
+  classes: string[];
+  layout: ArenaSlotLayout;
+  counter_coeff: number;
+};
+
+export type ArenaHeroInput = {
+  id: string;
+  star?: number;
+  level?: number;
+  skill?: number;
+  power?: number | null;
+  gear?: number[]; // per-piece gear levels (from the Details screen)
+};
+
+export type ArenaEnemyInput = {
+  slot: number;
+  id?: string | null;
+  hero_class?: string | null;
+  power?: number | null;
+};
+
+export type ArenaLineupRequest = {
+  my_heroes: ArenaHeroInput[];
+  enemy: ArenaEnemyInput[];
+  locked?: Record<string, string>;
+  counter_enabled?: boolean;
+  server_age_days?: number | null;
+  top_k?: number;
+};
+
+export type ArenaSlotAssignment = {
+  slot: number;
+  seat: string; // front | slot4 | back
+  hero_id: string;
+  hero_name: string;
+  hero_class: string;
+  role: string;
+  strength: number;
+  slot_fit: number;
+  counter: number;
+  effective: number;
+  engaged: number[];
+  note: string;
+};
+
+export type ArenaPlacement = {
+  slots: ArenaSlotAssignment[];
+  score: number;
+  strength_total: number;
+  win_prob: number | null;
+  synergy_units: number;
+  power_ratio: number | null; // my effective power / enemy power
+  warnings: string[];
+};
+
+export type ArenaLineupResult = {
+  best: ArenaPlacement | null;
+  alternatives: ArenaPlacement[];
+  reason: string;
+  enemy_strength: number;
+  counter_enabled: boolean;
+  confidence: string; // high (all Power) | medium (stats) | low (rarity/mixed)
+  bench: string[];
+  notes: string[];
+};
+
+export type ArenaRosterHero = {
+  id: string;
+  name: string;
+  hero_class: string;
+  rarity: string;
+  role: string;
+  level: number | null;
+  star: number | null;
+  skill: number | null;
+  gear: number[] | null;
+};
+
+export type ArenaRosterView = {
+  player_id: string;
+  nickname: string;
+  heroes: ArenaRosterHero[];
+};
+
+/** Hero catalog + slot layout for the arena lineup pickers. */
+export async function fetchArenaHeroes(): Promise<ArenaHeroesView> {
+  return apiFetch<ArenaHeroesView>("/api/planner/arena/heroes");
+}
+
+/** Best arrangement of my heroes into the 5 arena seats vs the enemy lineup. */
+export async function optimizeArenaLineup(
+  body: ArenaLineupRequest,
+): Promise<ArenaLineupResult> {
+  return apiFetch<ArenaLineupResult>(
+    "/api/planner/arena/lineup",
+    jsonInit("POST", body),
+  );
+}
+
+/** The player's owned heroes (read roster state) to pre-fill the board. */
+export async function fetchArenaRoster(playerId: string): Promise<ArenaRosterView> {
+  return apiFetch<ArenaRosterView>(
+    `/api/planner/arena/roster/${encodeURIComponent(playerId)}`,
+  );
 }
 
 export type FullPlanResult = {

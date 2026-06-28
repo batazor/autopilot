@@ -1,25 +1,23 @@
 enabled: true
 # On-device tech-level reader: keeps research.levels.* + research.center.level
 # fresh so the research planner (research.plan_tick.cron → plan_next) sees real
-# tech levels instead of running blind. Sibling of sync_furnace_level, but the
-# Research Center tech-tree is radar-gated (a building screen, not a simple edge),
-# so it drives the camera there like building.smart_upgrade.
+# tech levels instead of running blind. Sibling of sync_furnace_level.
 #
-# The tech-tree regions are labeled (area.yaml: research_center.tab.*, .tile.name,
-# .tile.level, .center.level) and _sweep_research_tiles (exec.py) OCRs each tab's
-# tiles + the RC level off the building-popup name-plate. Validate with
-# `botctl drive sync_research_levels --inst <id> --player <fid> --no-approval`.
+# Reaches the Research Center through the city building list (main_city ->
+# main_menu -> research_center.building edge taps) — no radar city scan, so it
+# works on any account the moment it logs in.
+#
+# IMPORTANT: this stops on the building POPUP (research_center.building), not the
+# tech tree — _sweep_research_tiles reads the RC level off the popup name-plate
+# FIRST (it's gone once the tree opens), then taps the popup's Research button to
+# open the tree and OCR each tab's tiles. Routing straight to `research_center`
+# (the tree) would skip the RC-level read and leave the planner rc_gated. Validate
+# with `botctl drive sync_research_levels --inst <id> --player <fid> --no-approval`.
 name: "🔬 Sync research levels (reader)"
 device_level: true
 priority: 40_000
 cron: "23 */6 * * *"            # every 6h, offset off the hour to avoid pileups
-cond: currentNode == main_city
+node: research_center.building   # main_city -> main_menu -> research_center.building (the popup)
 steps:
-  # A modal over the map breaks the radar navigator's ORB localization.
   - exec: dismiss_popup
-  - exec: navigate_to_building
-    building: research_center
-    open: true
-  - cond: nav.ok ~= "1"
-    steps:
-      - exec: sync_research_levels
+  - exec: sync_research_levels

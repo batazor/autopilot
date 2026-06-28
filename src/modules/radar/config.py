@@ -119,6 +119,29 @@ def runs_root() -> Path:
     return repo_root() / "runs"
 
 
+# Subdirectory under the runs root that holds per-account scan trees.
+ACCOUNTS_DIRNAME = "accounts"
+
+
+def account_runs_root(account: str | None = None) -> Path:
+    """Per-account scan root: ``<runs>/accounts/<account>`` when ``account`` is set,
+    else the global :func:`runs_root`.
+
+    A city's building layout is per-account (every Chief's city differs), but the
+    runs tree was a single global directory — so a ``main_city`` scan taken on one
+    account got reused for another, and ``navigate_to_building`` either routed
+    against the wrong city or returned ``not_in_map``. Scoping the citymap by the
+    active account fixes that: each account keeps its own ``citymap`` + scan runs
+    under ``<runs>/accounts/<account>``. A blank/``None`` account falls back to the
+    global root, so untargeted callers (the operator's global-map scans, run-by-id
+    lookups, deletes) keep working exactly as before.
+    """
+    acc = str(account or "").strip()
+    if not acc:
+        return runs_root()
+    return runs_root() / ACCOUNTS_DIRNAME / acc
+
+
 class CornersConfig(BaseModel):
     """Diamond corners in absolute screen pixels."""
 

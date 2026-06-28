@@ -95,6 +95,51 @@ async def test_who_i_am_enqueue_when_past_onboarding(redis_async: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_who_i_am_not_re_enqueued_for_identified_account_without_force(
+    redis_async: Any,
+) -> None:
+    """Steady state (rolling tick, ``force=False``): an already-identified account
+    does not re-enqueue ``who_i_am`` and its ``active_player`` is left intact."""
+    worker = _identity_probe_worker(redis_async, current_screen="main_city")
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        "wos:instance:bs1:state", mapping={"active_player": "401227964"}
+    )
+
+    await worker._maybe_enqueue_who_i_am_when_active_player_missing()
+
+    assert worker._queue.calls == []
+    assert (
+        await redis_async.hget("wos:instance:bs1:state", "active_player") == "401227964"
+    )
+
+
+@pytest.mark.asyncio
+async def test_who_i_am_forced_first_at_boot_reverifies_identified_account(
+    redis_async: Any,
+) -> None:
+    """Boot (``force=True``): ``who_i_am`` is the mandatory first action even when a
+    durable ``active_player`` was restored — the stale id is cleared so the
+    scenario's ``cond: active_player == ""`` runs and the device re-confirms it.
+
+    Deliberately on a NON-``main_city`` screen with no Sawmill mirror: the only
+    onboarding-exit signal is the restored ``active_player``. This guards the
+    clear ordering — the id must be dropped only *after* the onboarding gate
+    (which keys off ``active_player``), else clearing first reads as onboarding
+    on a boot screen like ``main_menu`` and the probe is wrongly deferred."""
+    worker = _identity_probe_worker(redis_async, current_screen="main_menu")
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        "wos:instance:bs1:state", mapping={"active_player": "401227964"}
+    )
+
+    await worker._maybe_enqueue_who_i_am_when_active_player_missing(force=True)
+
+    assert [c["task_type"] for c in worker._queue.calls] == ["who_i_am"]
+    assert worker._queue.calls[0]["priority"] == 101_000
+    # Restored identity cleared so who_i_am actually runs (cond: active_player == "").
+    assert await redis_async.hget("wos:instance:bs1:state", "active_player") == ""
+
+
+@pytest.mark.asyncio
 async def test_device_level_dsl_item_is_not_resolved_to_first_configured_player() -> None:
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])

@@ -454,6 +454,78 @@ export type AllianceStatsView = {
   series: AllianceDay[];
 };
 
+export type AllianceMemberRow = {
+  member_key?: string;
+  name: string;
+  rank: number;
+  power: number;
+  level: number;
+  online: boolean;
+  last_online_text: string;
+  last_online_seconds: number | null;
+  captured_at?: number;
+};
+
+export type AllianceMemberBrief = {
+  name: string;
+  rank: number;
+  power: number;
+  level: number;
+};
+
+export type AllianceInactiveMember = {
+  name: string;
+  rank: number;
+  power: number;
+  last_online_text: string;
+  last_online_seconds: number;
+  days: number;
+};
+
+export type AllianceRankCount = { rank: number; label: string; count: number };
+
+export type AllianceChurn = {
+  available: boolean;
+  reason?: string;
+  joined: AllianceMemberBrief[];
+  left: AllianceMemberBrief[];
+  joined_count?: number;
+  left_count?: number;
+  captured_at?: number | null;
+  prev_captured_at?: number | null;
+  parsed?: number;
+  expected?: number;
+};
+
+export type AllianceMembersAnalysis = {
+  alliance_name: string;
+  captured_at: number | null;
+  member_count: number;
+  members: AllianceMemberRow[];
+  analytics: {
+    member_count: number;
+    power: {
+      total: number;
+      avg: number;
+      median: number;
+      min: number;
+      max: number;
+      counted: number;
+      top: AllianceMemberBrief[];
+      bottom: AllianceMemberBrief[];
+    };
+    activity: {
+      online_now: number;
+      inactive_count: number;
+      inactive: AllianceInactiveMember[];
+      unknown_count: number;
+      threshold_days: number;
+    };
+    ranks: AllianceRankCount[];
+    churn: AllianceChurn;
+  };
+};
+
 export type PlayerPersistedView = {
   state_path: string;
   storage?: string;

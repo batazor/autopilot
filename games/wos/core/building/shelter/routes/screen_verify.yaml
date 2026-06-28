@@ -2,6 +2,8 @@ screens:
   shelter:
     priority: 31
     rules:
+    # «Барак» = the «Белая мгла» (RU) localisation of Shelter; list-contains so
+    # one rule covers EN + RU (OCR lang resolves per active catalog).
     - ocr: shelter.title
-      contains: Shelter
+      contains: [Shelter, Барак]
       threshold: 0.8

@@ -49,6 +49,24 @@ _K_ACTIVE_GAME = "active_game"
 _K_ACTIVE_MODULE_CATALOG = "active_module_catalog"
 
 
+def _invalidate_catalog_dependent_caches() -> None:
+    """Drop the process caches that bake in the active module catalog.
+
+    The screen-verify config (and its derived per-screen ``area`` landmarks) is
+    catalog-specific but cached process-globally — if it was first built for the
+    base catalog (e.g. at import time, before the worker/drive binds ``wos_ru``),
+    a later catalog switch would otherwise keep serving base regions and the RU
+    overlay's overrides (deploy-flow buttons) would never take effect. The
+    ``area`` doc itself is already cache-keyed by catalog. Best-effort.
+    """
+    try:
+        from navigation.screen_graph import invalidate_screen_verify_config
+
+        invalidate_screen_verify_config()
+    except Exception:
+        pass
+
+
 def bind_active_game(game: str) -> None:
     """Set the game id this worker process serves.
 
@@ -58,13 +76,20 @@ def bind_active_game(game: str) -> None:
     :func:`get_active_game` so they walk only the active game's tree.
     """
     g = (game or "").strip()
+    changed = _state.get(_K_ACTIVE_MODULE_CATALOG) != g
     _state.set_(_K_ACTIVE_GAME, g)
     _state.set_(_K_ACTIVE_MODULE_CATALOG, g)
+    if changed:
+        _invalidate_catalog_dependent_caches()
 
 
 def bind_active_module_catalog(catalog: str) -> None:
     """Set the module catalog this process should discover."""
-    _state.set_(_K_ACTIVE_MODULE_CATALOG, (catalog or "").strip())
+    c = (catalog or "").strip()
+    changed = _state.get(_K_ACTIVE_MODULE_CATALOG) != c
+    _state.set_(_K_ACTIVE_MODULE_CATALOG, c)
+    if changed:
+        _invalidate_catalog_dependent_caches()
 
 
 def get_active_game() -> str:

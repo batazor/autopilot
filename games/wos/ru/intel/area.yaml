@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay: overrides intel deploy-flow regions that differ from EN. Loaded only for the wos_ru catalog; overlay regions REPLACE the same-named base region (overlay-first merge in layout.area_manifest).",
+  "screens": [
+    {
+      "screen_id": "intel.fight",
+      "ocr": "references/fight.png",
+      "_screen_region_note": "Detect the intel.fight SCREEN by the RU «Посмотреть» (View) pill TEMPLATE (panel-specific) — NOT a color_check blue, which false-fires on the blue RU world map and breaks ALL navigation. The same region is the View tap target (isSearch findIcon), so detection + tap share one landmark.",
+      "screen_region": "intel.fight.view",
+      "regions": [
+        {
+          "name": "intel.fight.view",
+          "_comment": "RU «Посмотреть» (View) blue pill, bottom-centre of the target card (~360,889 on «Охота на зверя»/beast + newbie-event panels). Template = screen landmark + tap target. Crop: references/crop/fight_intel.fight.view.png.",
+          "action": "exist",
+          "isSearch": true,
+          "threshold": 0.7,
+          "bbox": {
+            "x": 24.0,
+            "y": 63.0,
+            "width": 52.0,
+            "height": 11.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -63,7 +63,7 @@ def test_shelter_routes_and_verify_rule() -> None:
     assert route_taps("main_city", "shelter") == [["chapter.task"]]
     assert route_taps("shelter", "main_city") == [["from.building.to.main_city"]]
     assert screen_verify_rules("shelter") == [
-        {"ocr": "shelter.title", "contains": "Shelter", "threshold": 0.8}
+        {"ocr": "shelter.title", "contains": ["Shelter", "Барак"], "threshold": 0.8}
     ]
 
 
@@ -99,7 +99,8 @@ def test_shelter_upgrade_scenario_wires_title_sync_and_upgrade_loop() -> None:
     assert doc["node"] == "shelter"
     assert doc["device_level"] is True
     assert doc["steps"][:3] == [
-        {"ocr": "shelter.title", "store": "building.name"},
+        # threshold 0.4: RU «Барак … Ур. N» OCRs ~0.73; the 0.8 floor dropped it.
+        {"ocr": "shelter.title", "store": "building.name", "threshold": 0.4},
         {"exec": "sync_building_name"},
         {
             "while_match": "shelter.next",
@@ -115,6 +116,11 @@ def test_shelter_upgrade_scenario_wires_title_sync_and_upgrade_loop() -> None:
         assert step["action"] == "cta_button"
         assert step["color"] == "blue"
         assert step["threshold"] == 0.5
+    # Re-probes BOTH alternating «Улучшить» pills each iteration (building + furniture)
+    # so the blue button is re-searched between taps, plus the confirm-dialog button.
+    probed = [s.get("while_match") for s in loop]
+    assert "upgrade_button_top" in probed and "upgrade_button" in probed
+    assert all(s.get("max") == 1 for s in loop), "max:1 = one tap per re-probe"
 
 
 @pytest.mark.asyncio

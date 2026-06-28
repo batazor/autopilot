@@ -152,7 +152,8 @@ def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"ocr": "chief_profile.title", "contains": "Chief Profile"}]
+    # Locale-tolerant: EN "Chief Profile" / RU «Профиль» (the «Белая мгла» build).
+    expected = [{"ocr": "chief_profile.title", "contains": ["Chief Profile", "Профиль"]}]
     assert expected[0] in landmarks
     assert rules == expected
 
@@ -248,17 +249,20 @@ buildings:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
+    # The generator keeps the per-building ocr region (furnace.name / building.name
+    # / shelter.title / building.title) and appends RU «Белая мгла» localisations
+    # to contains from the building-name dictionary (case-insensitive OR).
     assert screens["furnace"]["rules"] == [
-        {"ocr": "furnace.name", "contains": "Furnace", "threshold": 0.8}
+        {"ocr": "furnace.name", "contains": ["Furnace", "Печь", "Топка"], "threshold": 0.8}
     ]
     assert screens["cookhouse"]["rules"] == [
-        {"ocr": "building.name", "contains": "Cookhouse", "threshold": 0.8}
+        {"ocr": "building.name", "contains": ["Cookhouse", "Кухня", "Столовая"], "threshold": 0.8}
     ]
     assert screens["shelter"]["rules"] == [
-        {"ocr": "shelter.title", "contains": "Shelter", "threshold": 0.8}
+        {"ocr": "shelter.title", "contains": ["Shelter", "Барак"], "threshold": 0.8}
     ]
     assert screens["sawmill"]["rules"] == [
-        {"ocr": "building.title", "contains": "Sawmill", "threshold": 0.8}
+        {"ocr": "building.title", "contains": ["Sawmill", "Лесопилка"], "threshold": 0.8}
     ]
 
 

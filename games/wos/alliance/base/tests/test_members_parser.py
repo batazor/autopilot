@@ -293,3 +293,15 @@ def test_parse_expanded_r3_timeout_statuses_without_headers() -> None:
     assert visible_r3[1].last_online_seconds == 7 * 60
     assert visible_r3[4].last_online_seconds == 60
     assert visible_r3[9].last_online_seconds == 42 * 60
+
+
+def test_parse_last_online_tolerates_ocr_noise() -> None:
+    parse = members_parser._parse_last_online
+    # trailing "ago" garbled by right-edge artifacts → clean canonical + seconds
+    assert parse("27 minute(s) aga}") == (False, "27 minute(s) ago", 27 * 60)
+    assert parse("5 hour(s) ago| £") == (False, "5 hour(s) ago", 5 * 60 * 60)
+    assert parse("1 day(s) ago") == (False, "1 day(s) ago", 24 * 60 * 60)
+    assert parse("Online") == (True, "Online", 0)
+    # no digit recovered → no seconds (UI shows "—"), never a fabricated number
+    assert parse("hour(s) aga")[2] is None
+    assert parse("| minute(s) ago")[2] is None

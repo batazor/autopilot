@@ -52,7 +52,7 @@ _ROMAN_TIERS = {
 
 # --- on-device geometry (percent of the 720×1280 game frame) ----------------
 # Building-popup ring (after navigate_to_building open:true):
-_RC_LEVEL_BBOX = (28.05, 40.6, 8.9, 3.1)   # "<lvl> Research Center" name-plate badge
+_RC_LEVEL_BBOX = (28.5, 40.0, 7.5, 5.0)    # blue "<lvl>" badge left of "Research Center"
 _OPEN_BTN_XY = (65.0, 67.0)                # microscope button → opens the tech tree
 # Tech-tree screen:
 _TITLE_BBOX = (10.0, 1.6, 34.0, 3.2)       # "Tech Research" (screen discriminator)
@@ -63,9 +63,18 @@ _TAB_XY = {                                # branch tab centres (Growth/Economy/
 }
 _COL_X_PCT = (19.0, 49.7, 80.8)            # left / centre / right tile columns
 # Name-row centres span the visible height; combined with scrolling they catch a
-# tile wherever it lands. Tiles snap to ~20.6%-pitch tiers; sampling the tiers and
-# their midpoints (~10.3% pitch) tolerates imperfect scroll offsets.
-_NAME_ROW_Y_PCT = (16.6, 26.9, 37.2, 47.4, 57.8, 68.1, 78.5, 88.8)
+# tile wherever it lands. Decisive calibration (bs3 growth frame): a tile name OCRs
+# cleanly only within a ~±1% band of its true centre, and tiles snap to a ~20.7%
+# tier pitch at a scroll-dependent phase — so a sparse grid (the old 8 rows at
+# ~10.3% pitch) lands in the dead zones for *most* tiles on any given frame (caught
+# 0/6 on one real growth frame; the tab read empty). A 3% pitch (~±1.5%) keeps a row
+# inside every tile's narrow band regardless of phase (caught 5/6 on that same frame
+# vs 0/6; the rest fall to the next scroll step + maxed-predecessor backfill). The
+# @13 phase deliberately includes y≈28 so the clipped top-tier tile is read too.
+# Costlier per frame, but the sweep is a 6-hourly reader and denser frames hit the
+# dry-stop sooner, so it largely self-compensates. Mirrors the dispatcher's dense
+# locate grid (_LOCATE_ROW_Y_PCT), which solved the identical garble for tap-targeting.
+_NAME_ROW_Y_PCT = tuple(round(13.0 + 3.0 * i, 1) for i in range(27))  # 13.0 … 91.0
 _NAME_W_PCT, _NAME_H_PCT = 26.0, 6.0       # tile-name OCR cell (title_line)
 # The dispatcher's tile-LOCATE samples a DENSE 2%-pitch grid. Decisive finding: a
 # tile name OCRs cleanly only within a ~±1% band of its true centre (2% off → garble),
@@ -88,7 +97,6 @@ _LOCATE_SCROLL_STEPS = 12                   # dispatcher: gentler/longer scan fo
 _DRY_STOP = 3                               # consecutive no-new-tile frames → next tab
 _PILL_THRESHOLD = 170                       # white pill text/border vs dark interior
 _PILL_UPSCALE = 5
-_PILL_PRESENT_WHITE_RATIO = 0.12            # bright-pixel ratio that means "a pill is here"
 
 
 # --- instance-state hash helpers (bytes- or str-keyed, like building's) ------
@@ -219,6 +227,33 @@ def _infer_maxed_predecessors(levels: dict[str, int], graph: Any) -> dict[str, i
     return out
 
 
+def _drop_unconfirmed_max(levels: dict[str, int], graph: Any) -> dict[str, int]:
+    """Drop a tile claimed at MAX when its tier-successor was never seen.
+
+    MAX means the whole tile is researched — and the game only unlocks (shows) the
+    next tier on a line once the current tier is maxed. So a tile read at its max
+    level is only *confirmed* MAX when a tier-successor was also read. A frontier
+    tile whose current-level digit misread **up** to max (the tiny ``X/Y`` pill is
+    unreliable) has no read successor and would otherwise look done — drop it so the
+    planner still treats it as researchable. Run this **before**
+    :func:`_infer_maxed_predecessors`: any genuinely-maxed tile that is a predecessor
+    of a read successor is restored there, so this only strips unconfirmed max claims
+    at the research frontier (where the pill misread actually hurts the planner).
+    """
+    has_successor = {graph.tier_predecessor(n) for n in graph.nodes}
+    has_successor.discard(None)
+    confirmed_pred = {graph.tier_predecessor(n) for n in levels}
+    confirmed_pred.discard(None)
+    out = dict(levels)
+    for node_id, level in levels.items():
+        spec = graph.spec(node_id)
+        if spec is None or level < spec.max_level:
+            continue
+        if node_id in has_successor and node_id not in confirmed_pred:
+            del out[node_id]
+    return out
+
+
 def branch_to_tab(branch: str) -> str:
     """Map a planner branch id to the on-screen tab key.
 
@@ -257,9 +292,26 @@ async def _title_is_tree(oc: Any, frame: Any, w: int, h: int) -> bool:
 
 
 async def _read_rc_level(oc: Any, frame: Any, w: int, h: int) -> int:
-    txt = await _ocr_text(oc, frame, _RC_LEVEL_BBOX, w, h,
-                          preprocess="fast_digits", region_id="rc_center_level")
-    m = re.search(r"\d+", txt)
+    """RC level off the popup name-plate's blue ``<lvl>`` badge.
+
+    The level is white digits on a saturated blue circle: plain ``fast_digits`` on
+    the raw crop reads it empty (Tesseract's binariser loses white-on-blue, and the
+    badge's exact y drifts a few % with how the menu-teleport centres the camera).
+    So threshold the bright glyphs out, upscale and read — the same trick the tile
+    level pills use. Verified on bs3 (reads "19" across camera-position variance).
+    """
+    bx, by, bw_pct, bh_pct = _RC_LEVEL_BBOX
+    x0, y0 = int(bx / 100 * w), int(by / 100 * h)
+    crop = frame[y0:y0 + int(bh_pct / 100 * h), x0:x0 + int(bw_pct / 100 * w)]
+    if crop.size == 0:
+        return 0
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    _, badge = cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY)
+    up = cv2.resize(badge, None, fx=5, fy=5, interpolation=cv2.INTER_CUBIC)
+    tile = cv2.cvtColor(cv2.bitwise_not(up), cv2.COLOR_GRAY2BGR)
+    res = await oc.ocr_region(tile, Region(0, 0, tile.shape[1], tile.shape[0]),
+                              region_id="rc_center_level", preprocess="fast_digits")
+    m = re.search(r"\d+", res.text or "")
     return int(m.group()) if m else 0
 
 
@@ -285,38 +337,59 @@ async def _read_pill_level(oc: Any, frame: Any, w: int, h: int,
         return None, ""
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     _, bw = cv2.threshold(gray, _PILL_THRESHOLD, 255, cv2.THRESH_BINARY)
-    # A real pill (MAX or X/Y) is a white-outlined badge → high bright-pixel ratio;
-    # an empty/misaligned cell is near-black. Used as the MAX fallback below.
-    white_ratio = float((bw > 0).mean())
     inv = cv2.bitwise_not(bw)
     up = cv2.resize(inv, None, fx=_PILL_UPSCALE, fy=_PILL_UPSCALE, interpolation=cv2.INTER_CUBIC)
     up = cv2.cvtColor(up, cv2.COLOR_GRAY2BGR)
     res = await oc.ocr_region(up, Region(0, 0, up.shape[1], up.shape[0]),
                               region_id="rc_tile_level", preprocess="fast_line")
     txt = res.text or ""
-    digits = re.findall(r"\d", txt)
-    if digits:
-        return int(digits[0]), txt
-    if re.search(r"[A-Za-z]", txt):
+    # The pill reads "current/max" (X/Y); the leading number is the current level.
+    # Sanity-check it against the node's known max: a current ABOVE max is a digit
+    # misread (e.g. "2/3" → "4"), not a real level, and must not be stored — it would
+    # tell the planner a tech is further along than it is. Reject it so the
+    # multi-frame sweep retries this tile on a better-aligned frame.
+    nums = re.findall(r"\d+", txt)
+    if nums:
+        cur = int(nums[0])
+        return (cur, txt) if cur <= node.max_level else (None, txt)
+    if re.search(r"[A-Za-z]", txt):        # "MAX" (or a partial letter read) → maxed
         return node.max_level, txt
-    # Pill present (white border) but text illegible — under scrcpy the small "MAX"
-    # glyphs often OCR to nothing while the high-contrast X/Y digits read fine, so a
-    # present-but-illegible pill above a matched tile is almost always MAX.
-    if white_ratio >= _PILL_PRESENT_WHITE_RATIO:
-        return node.max_level, txt or "<pill>"
+    # Illegible pill: do NOT assume MAX. The old "present-but-illegible → MAX"
+    # fallback mis-stored partially-researched frontier tiles (e.g. a "1/3" whose
+    # digits OCR'd to nothing) as done, which made the planner skip a real upgrade.
+    # Leave it unread instead — _infer_maxed_predecessors backfills genuinely maxed
+    # tiles from any researched successor (the game's tier rule), and the sweep
+    # retries this one on a later frame.
     return None, txt
+
+
+def _is_frontier_band(frame_levels: list[int]) -> bool:
+    """True when a freshly-read tile band is entirely unresearched (the frontier).
+
+    Research trees only get deeper — and more locked — as you scroll, so a band
+    where every freshly-read tile shows level 0 (``0/Y``) marks the research
+    frontier: nothing below it is researched either, so there is no point
+    scrolling further down this tab. The ``>= 2`` floor keeps a single misread
+    ``0/Y`` pill from cutting a tab short — two independent high-contrast ``0/Y``
+    reads agreeing is a reliable "this whole band is unresearched" signal.
+    """
+    zeros = [lv for lv in frame_levels if lv == 0]
+    return len(zeros) >= 2 and max(frame_levels, default=-1) == 0
 
 
 async def _read_visible_tiles(oc: Any, frame: Any, w: int, h: int, graph: ResearchGraph,
                               rows: list[tuple[str, int]], seen: set[str],
-                              diag: dict | None = None) -> int:
+                              diag: dict | None = None) -> tuple[int, list[int]]:
     """OCR every candidate tile cell in ``frame``; append newly-seen (name, level).
 
-    Returns the count of *new* nodes added this frame (drives the scroll's
-    early-stop). Cells that don't resolve to a node, or whose pill is illegible,
-    are skipped — the fuzzy matcher's threshold filters icon/tree-line garble.
+    Returns ``(new_count, frame_levels)`` — the number of *new* nodes added this
+    frame (drives the scroll's dry early-stop) and the levels of those new tiles
+    (drives the ``0/Y`` frontier early-stop, see :func:`_is_frontier_band`). Cells
+    that don't resolve to a node, or whose pill is illegible, are skipped — the
+    fuzzy matcher's threshold filters icon/tree-line garble.
     """
     new = 0
+    frame_levels: list[int] = []
     for col_x in _COL_X_PCT:
         cx_px = int(col_x / 100 * w)
         for name_y in _NAME_ROW_Y_PCT:
@@ -344,8 +417,9 @@ async def _read_visible_tiles(oc: Any, frame: Any, w: int, h: int, graph: Resear
                 continue
             rows.append((name, level))
             seen.add(node_id)
+            frame_levels.append(level)
             new += 1
-    return new
+    return new, frame_levels
 
 
 def _scroll_tree_down(actions: Any, iid: str, w: int, h: int) -> None:
@@ -463,9 +537,15 @@ async def _sweep_research_tiles(ctx: Any, graph: ResearchGraph) -> tuple[list[tu
             if frame is None:
                 break
             h, w = frame.shape[:2]
-            new = await _read_visible_tiles(oc, frame, w, h, graph, rows, seen, tab_diag)
+            new, frame_levels = await _read_visible_tiles(
+                oc, frame, w, h, graph, rows, seen, tab_diag)
             dry = dry + 1 if new == 0 else 0
             if dry >= _DRY_STOP:
+                break
+            # 0/Y frontier short-circuit: once a freshly-revealed band reads all
+            # level 0, nothing below it is researched — stop sweeping this tab.
+            if _is_frontier_band(frame_levels):
+                tab_diag["frontier_stop"] = _step
                 break
             _scroll_tree_down(actions, iid, w, h)
             await asyncio.sleep(1.2)
@@ -481,13 +561,14 @@ async def _sweep_research_tiles(ctx: Any, graph: ResearchGraph) -> tuple[list[tu
 
 
 async def _exec_sync_research_levels(ctx: Any) -> None:
-    """Read tech levels on-device → mirror ``research.levels.*`` + rc level.
+    """Read tech levels on-device → persist to the durable SQLite profile.
 
-    Writes to the **player** hash (research is per-account; this is the canonical
-    home and what un-blinds the planner) *and* the instance hash (where the
-    plan_next cron reads it). Levels accumulate across runs — ``hset`` updates the
-    keys it read without clearing others, so coverage builds over successive
-    sweeps.
+    Research is per-account, so the canonical home is the **SQLite** GamerState
+    (tech levels under ``researches.levels.<id>``, the building level under
+    ``buildings.levels.research_center``) — not a Redis player hash. A Redis
+    *instance*-state mirror (``research.levels.*``) is kept only as the hot path
+    the plan_next cron reads within a tick. Levels accumulate across runs:
+    ``update_from_flat`` / ``hset`` update the keys read without clearing others.
     """
     from games.wos.core.research.planner import load_research_graph
 
@@ -504,7 +585,8 @@ async def _exec_sync_research_levels(ctx: Any) -> None:
         ctx.result.update({"reason": "no_tiles_read"})
         return
 
-    levels = _infer_maxed_predecessors(_research_levels_from_ocr_rows(rows, graph), graph)
+    levels = _infer_maxed_predecessors(
+        _drop_unconfirmed_max(_research_levels_from_ocr_rows(rows, graph), graph), graph)
     mapping: dict[str, str] = {f"research.levels.{nid}": str(lvl) for nid, lvl in levels.items()}
     if rc_level > 0:
         mapping["research.center.level"] = str(rc_level)
@@ -513,16 +595,29 @@ async def _exec_sync_research_levels(ctx: Any) -> None:
         return
 
     player_id = await _resolve_player_id_for_device_level_exec(ctx)
-    keys = [f"wos:instance:{ctx.instance_id}:state"]
+    # Durable per-account home: the SQLite GamerState. Tech levels live under
+    # ``researches.levels.<id>`` (a dict on the model); the Research Center building
+    # level goes with the other building levels.
     if player_id:
-        keys.append(f"wos:player:{player_id}:state")
+        try:
+            from config.state_store import get_state_store
+
+            durable: dict[str, Any] = {
+                f"researches.levels.{nid}": lvl for nid, lvl in levels.items()
+            }
+            if rc_level > 0:
+                durable["buildings.levels.research_center"] = rc_level
+            get_state_store().get_or_create(str(player_id)).update_from_flat(durable)
+        except Exception:
+            logger.exception(
+                "sync_research_levels: durable SQLite write failed player=%s", player_id
+            )
+    # Redis instance-state mirror — hot path only (plan_next cron / overlay reads
+    # it within a tick); NOT the durable home.
     try:
-        for key in keys:
-            await r.hset(key, mapping=mapping)
+        await r.hset(f"wos:instance:{ctx.instance_id}:state", mapping=mapping)
     except Exception:
-        logger.debug("sync_research_levels: state write failed", exc_info=True)
-        ctx.result.update({"reason": "state_persist_failed"})
-        return
+        logger.debug("sync_research_levels: redis mirror failed", exc_info=True)
 
     ctx.result.update({"action": "stored", "levels": levels, "rc_level": rc_level,
                        "player_id": player_id})
@@ -738,27 +833,29 @@ async def _exec_plan_next_research(ctx: Any) -> None:
     levels = _read_research_levels(state)
     rc_level = _state_get_int(state, "research.center.level", 0)
 
-    # Self-heal blindness: if the player's research history isn't recorded yet,
-    # push the on-device reader to sweep all 3 branches and store what's been
-    # researched (to what level) — the planner can't pick anything until then.
-    # sync_research_levels' canonical home is the player hash (research is
-    # per-account), so re-check there before deciding the history is empty;
-    # skip_if_duplicate dedups with its 6h cron.
+    # Self-heal blindness: the instance hash is only a hot mirror, so when it has
+    # no research history yet, re-check the durable SQLite profile (the canonical
+    # per-account home that sync_research_levels writes) before deciding it's empty
+    # — then push the on-device reader to sweep all 3 branches. skip_if_duplicate
+    # dedups with its 6h cron.
     if not levels:
         import time
 
+        from config.state_store import get_state_store
         from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
         from tasks.dsl_scenario_helpers import _enqueue_scenario
 
         player_id = await _resolve_player_id_for_device_level_exec(ctx)
         if player_id:
             try:
-                pstate = await r.hgetall(f"wos:player:{player_id}:state")
+                snap = get_state_store().get_or_create(str(player_id)).snapshot()
+                levels = {
+                    str(k): int(v) for k, v in (snap.researches.levels or {}).items()
+                }
+                if not rc_level:
+                    rc_level = int((snap.buildings.levels or {}).get("research_center", 0) or 0)
             except Exception:
-                pstate = {}
-            levels = _read_research_levels(pstate)
-            if not rc_level:
-                rc_level = _state_get_int(pstate, "research.center.level", 0)
+                logger.debug("plan_next_research: durable SQLite read failed", exc_info=True)
         if not levels:
             pushed = await _enqueue_scenario(
                 redis_async=r,

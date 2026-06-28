@@ -8,11 +8,15 @@ import { MetricCard, MetricGrid } from "@/components/ui";
 import { MetricLineChart } from "@/components/player-stats/MetricLineChart";
 import { fetchAlliances, fetchAllianceStats } from "@/lib/api";
 import { PageLoading } from "@/components/ui/Spinner";
+import { MembersTab } from "@/components/alliance-members/MembersTab";
 import type { AllianceStatsView } from "@/lib/types";
+
+type AllianceView = "stats" | "members";
 
 export default function AllianceStatsPage() {
   const [alliances, setAlliances] = useState<string[]>([]);
   const [selected, setSelected] = useState("");
+  const [view, setView] = useState<AllianceView>("stats");
   const [stats, setStats] = useState<AllianceStatsView | null>(null);
   const [loadingList, setLoadingList] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -71,14 +75,14 @@ export default function AllianceStatsPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader title="Alliance statistics" fleet>
+      <PageHeader title="Alliance" fleet>
         <p>
-          Daily alliance power, rank, level, and member count captured from the
-          Alliance overview screen.
+          Alliance statistics over time and a deep analysis of the member roster
+          (power distribution, activity, rank composition, and churn).
         </p>
       </PageHeader>
 
-      <div className="toolbar">
+      <div className="toolbar items-center justify-between">
         <AppListbox
           label="Alliance"
           options={alliances.map((a) => ({ value: a, label: a }))}
@@ -88,10 +92,25 @@ export default function AllianceStatsPage() {
           loading={loadingList}
           inline
         />
+        <div className="inline-flex rounded-lg border border-wos-border-subtle bg-wos-panel p-0.5 text-sm">
+          {(["stats", "members"] as AllianceView[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setView(t)}
+              aria-pressed={view === t}
+              className={[
+                "rounded-md px-3 py-1.5 font-medium transition-colors",
+                view === t
+                  ? "bg-wos-surface text-wos-text"
+                  : "text-wos-text-muted hover:text-wos-text",
+              ].join(" ")}
+            >
+              {t === "stats" ? "Statistics" : "Members"}
+            </button>
+          ))}
+        </div>
       </div>
-
-      {error ? <ErrorBanner message={error} /> : null}
-      {loadingStats ? <PageLoading message="Loading alliance statistics…" /> : null}
 
       {!loadingList && alliances.length === 0 ? (
         <p className="meta">
@@ -101,7 +120,14 @@ export default function AllianceStatsPage() {
         </p>
       ) : null}
 
-      {!loadingStats && stats ? (
+      {view === "members" ? <MembersTab allianceName={selected} /> : null}
+
+      {view === "stats" && error ? <ErrorBanner message={error} /> : null}
+      {view === "stats" && loadingStats ? (
+        <PageLoading message="Loading alliance statistics…" />
+      ) : null}
+
+      {view === "stats" && !loadingStats && stats ? (
         <>
           <MetricGrid className="mb-4">
             <MetricCard label="Alliance" value={stats.alliance_name} />

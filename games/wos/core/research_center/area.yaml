@@ -140,6 +140,48 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "research_center.building.details",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.0,
+            "y": 63.2,
+            "width": 13.6,
+            "height": 7.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "research_center.building.upgrade",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.2,
+            "y": 63.2,
+            "width": 14.0,
+            "height": 7.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "research_center.building.research",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 60.4,
+            "y": 63.2,
+            "width": 13.6,
+            "height": 7.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import cv2  # type: ignore[import-untyped]
+import numpy as np
 
 if TYPE_CHECKING:
-    import numpy as np
-
     from layout.types import Region
 
 # Upscale factor for CLAHE + Otsu pipelines
@@ -62,6 +61,55 @@ def digits_for_ocr(image: np.ndarray) -> np.ndarray:
 # inside the busy bar gradient and mangles glyph edges ("4d" → "Ad"), so a
 # fixed cut works better here.
 _BAR_TIMER_WHITE_THRESHOLD = 160
+
+
+# Colored badge digits (hero Details popup): the "Lv. N" labels are white-on-orange
+# (level) or yellow-on-red (gear) — Otsu on grayscale picks a split inside the busy
+# colored badge and mangles the glyphs. Isolate the bright glyph colors (white OR
+# yellow) by HSV, render black-on-white, and upscale hard (the badges are ~14 px).
+_BADGE_UPSCALE = 6.0
+# White text only — tight saturation cap so the light-pink gear badge fill (moderate
+# saturation) is NOT swallowed, only the near-white glyphs.
+_BADGE_WHITE_LO = (0, 0, 195)
+_BADGE_WHITE_HI = (180, 45, 255)
+# Yellow/gold gear text.
+_BADGE_YELLOW_LO = (16, 110, 160)
+_BADGE_YELLOW_HI = (42, 255, 255)
+
+
+def _badge_mask_ocr(image: np.ndarray, *, white: bool, yellow: bool) -> np.ndarray:
+    """Isolate the requested glyph colors → black-on-white, upscaled hard.
+
+    Split white (level/skill text) from yellow (gear text): a combined mask
+    cross-contaminates — the yellow component catches a hero portrait's fire glow in
+    the level band, the white component catches the gear badge's light border — so the
+    reader picks the colour matching each field.
+    """
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    masks = []
+    if white:
+        masks.append(cv2.inRange(hsv, np.array(_BADGE_WHITE_LO), np.array(_BADGE_WHITE_HI)))
+    if yellow:
+        masks.append(cv2.inRange(hsv, np.array(_BADGE_YELLOW_LO), np.array(_BADGE_YELLOW_HI)))
+    mask = masks[0] if len(masks) == 1 else cv2.bitwise_or(masks[0], masks[1])
+    return cv2.resize(
+        255 - mask, None, fx=_BADGE_UPSCALE, fy=_BADGE_UPSCALE, interpolation=cv2.INTER_CUBIC
+    )
+
+
+def badge_white_for_ocr(image: np.ndarray) -> np.ndarray:
+    """White glyphs (level / skill "Lv. N") on a colored badge → black-on-white."""
+    return _badge_mask_ocr(image, white=True, yellow=False)
+
+
+def badge_yellow_for_ocr(image: np.ndarray) -> np.ndarray:
+    """Yellow/gold glyphs (gear "Lv. N") on a red badge → black-on-white."""
+    return _badge_mask_ocr(image, white=False, yellow=True)
+
+
+def badge_digits_for_ocr(image: np.ndarray) -> np.ndarray:
+    """White+yellow combined (generic) — prefer the split modes per field."""
+    return _badge_mask_ocr(image, white=True, yellow=True)
 
 
 def bar_timer_for_ocr(image: np.ndarray) -> np.ndarray:

@@ -1,0 +1,14 @@
+id: welcome-back-ru-overlay
+title: Welcome Back (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the welcome_back module. The offline-income
+  dialog «С возвращением!» blocks startup on RU: the EN templates (text.welcome_back
+  title + button.confirm.green) don't match the Cyrillic dialog, so the screen is
+  unrecognized and the green «Подтвердить» button is never pressed — the bot stays
+  blind (no identity, current_screen=''). This overlay detects the screen by RU OCR
+  («возвращением») and presses «Подтвердить» by green-button colour (same layout as
+  EN — the button bbox was confirmed by a live tap on bs5). Base
+  games/wos/core/welcome_back owns the EN rule + region bboxes.
+enabled: true
+analyze: analyze/analyze.yaml
+wiki: false

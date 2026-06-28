@@ -6,6 +6,7 @@ node: shelter
 steps:
   - ocr: shelter.title
     store: building.name
+    threshold: 0.4  # RU «Барак 2 Ур. 2» reads ~0.73 in rus; the 0.8 floor dropped it (parser is the real gate)
   - exec: sync_building_name
   - while_match: shelter.next
     action: cta_button
@@ -15,44 +16,40 @@ steps:
     steps:
       - click: shelter.next
       - wait: 2s
+  # The Shelter panel stacks TWO «Улучшить» pills that alternate blue↔grey as you
+  # upgrade: the building pill (upper) and the selected-furniture pill (lower).
+  # Re-probe BOTH fresh on every loop iteration (max:1 = one tap per probe) so the
+  # blue button is RE-SEARCHED between taps — we always long-tap whichever is
+  # currently blue, and the blue-CTA detector skips grey pills automatically, so
+  # the loop follows the button as it moves. Tight per-row anchors (RU overlay)
+  # keep the search off the furniture thumbnail strip. Each iteration drops the
+  # overlay cache and re-captures, so a freshly-greyed pill stops being tapped.
   - loop:
       max: 10
       steps:
+        - while_match: upgrade_button_top
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 1
+          steps:
+            - long_click: upgrade_button_top
+              wait: 5s
         - while_match: upgrade_button
           action: cta_button
           color: blue
           threshold: 0.5
-          max: 5
+          max: 1
           steps:
-            - wait: 2s
             - long_click: upgrade_button
               wait: 5s
-            - wait: 1s
-        - while_match: button.next
-          action: cta_button
-          color: blue
-          threshold: 0.5
-          max: 1
-          steps:
-            - wait: 2s
-            - click: button.next
-            - wait: 2s
-        - while_match: build_building_item
-          action: cta_button
-          color: blue
-          threshold: 0.5
-          max: 1
-          steps:
-            - wait: 2s
-            - click: build_building_item
-            - wait: 2s
+        # A building upgrade may open a confirm dialog (cost + big Upgrade button).
         - while_match: upgrade_big_button
           action: cta_button
           color: blue
           threshold: 0.5
           max: 1
           steps:
-            - wait: 2s
             - click: upgrade_big_button
             - wait: 2s
   - ocr: building.upgrading.time

@@ -23,6 +23,14 @@ SETTINGS: dict[str, Any] = {
         "tesseract_cmd": "tesseract",
         "tessdata_dir": "",
         "timeout_seconds": 10,
+        # The Russian "Белая мгла" build (module catalog ``wos_ru``) reads
+        # Cyrillic with ``rus`` ONLY — never the mixed ``rus+eng``: a combined
+        # dictionary makes Tesseract pick Latin homoglyphs for Cyrillic glyphs
+        # (e.g. "Барак Ур." → "Bapak Yp." or dropped entirely), wrecking the
+        # building-title reader. Digits read fine under ``rus`` alone. Only takes
+        # effect once that build is active on a worker; English installs use
+        # ``lang`` (``eng``). Falls back to ``lang`` if ``rus`` is not installed.
+        "catalog_lang": {"wos_ru": "rus"},
     },
     "scheduler": {
         "interval_seconds": 30,

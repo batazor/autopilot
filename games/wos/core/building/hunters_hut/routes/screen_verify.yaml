@@ -2,6 +2,7 @@ screens:
   hunters_hut:
     priority: 31
     rules:
+    # RU «Белая мгла»: Hunter's Hut → «Хижина охотника».
     - ocr: building.title
-      contains: Hunters
+      contains: [Hunters, Хижина охотника]
       threshold: 0.8

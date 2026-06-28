@@ -12,13 +12,30 @@ from games.wos.alliance.base.members_parser import (
     merge_members_by_name,
 )
 
-from config.state_sqlite import record_alliance_members_snapshot, record_alliance_stats
+from config.state_sqlite import (
+    record_alliance_members_history,
+    record_alliance_members_snapshot,
+    record_alliance_stats,
+)
 from config.state_store import get_state_store
 from layout.types import Point
 from tasks import dsl_runtime
 from tasks.dsl_exec.context import DslExecContext, _decode_redis_raw
 
 logger = logging.getLogger(__name__)
+
+
+# The Alliance Members screen carries a "Search by Chief ID or name" search box
+# right where the overview's alliance-name sits. When screen detection confuses
+# the two (both titles start with "Alliance"), the alliance.name OCR lands on
+# that placeholder. Its "ID or name" wording can never be a real alliance name,
+# so reject it rather than store/resolve garbage (observed reads: "2F ID or
+# name", "Chief ID or name").
+_SEARCH_PLACEHOLDER_RE = re.compile(r"id\s*or\s*name", re.IGNORECASE)
+
+
+def _looks_like_search_placeholder(name: object) -> bool:
+    return bool(_SEARCH_PLACEHOLDER_RE.search(str(name or "")))
 
 
 def _parse_int(raw: object) -> int:
@@ -58,6 +75,16 @@ async def _exec_sync_alliance_stats(ctx: DslExecContext) -> None:
         logger.warning("dsl exec sync_alliance_stats: missing alliance.name OCR")
         ctx.result.update({"reason": "missing_alliance_name"})
         return
+    if _looks_like_search_placeholder(name):
+        # We OCR'd the member-search box, not the overview — screen detection
+        # put us on alliance.members. Don't persist a bogus alliance.
+        logger.warning(
+            "dsl exec sync_alliance_stats: alliance.name=%r is the member-search "
+            "placeholder (wrong screen) — skipping persist",
+            name,
+        )
+        ctx.result.update({"reason": "search_placeholder", "value": name})
+        return
 
     power = _parse_int(await _read_hash(ctx.redis_client, key, "alliance.power"))
     rank = _parse_int(await _read_hash(ctx.redis_client, key, "alliance.rank"))
@@ -74,6 +101,25 @@ async def _exec_sync_alliance_stats(ctx: DslExecContext) -> None:
         members_count=members_count,
         members_max=members_max,
     )
+
+    # Mirror the alliance name onto the active player's durable profile state.
+    # scan_alliance_members navigates straight to alliance.members (the daily
+    # cron never guarantees a fresh overview visit first) and the instance hash
+    # is volatile, so _resolve_alliance_name prefers this player-scoped value as
+    # its primary source. It carries the exact overview name, so roster
+    # snapshots key identically to this stats row. Only the name is mirrored —
+    # power/rank/level OCR is unreliable today and would clobber good values.
+    player_id = (ctx.player_id or "").strip()
+    if player_id:
+        try:
+            store = get_state_store().get_or_create(player_id)
+            await asyncio.to_thread(store.update_from_flat, {"alliance.name": name})
+        except Exception:
+            logger.exception(
+                "dsl exec sync_alliance_stats: player alliance.name persist failed player=%s",
+                player_id,
+            )
+
     ctx.result.update({"action": "stored", **row})
     logger.info(
         "dsl exec sync_alliance_stats: alliance=%s power=%d rank=%d level=%d members=%d/%d",
@@ -176,6 +222,18 @@ async def _swipe_members_down(actions: Any, instance_id: str) -> bool:
 
 
 async def _resolve_alliance_name(ctx: DslExecContext, player_store: Any) -> str:
+    """Resolve the alliance name for the roster scan.
+
+    Resolution order (first non-empty wins):
+
+    1. ``alliance_name`` scenario arg (explicit operator override).
+    2. The active player's durable profile state — ``sync_alliance_stats``
+       mirrors the overview OCR here, so it survives restarts and is fresh even
+       when the scan navigates straight to alliance.members without a fresh
+       overview visit (the daily cron path).
+    3. The volatile instance hash (the most recent overview OCR), as a last
+       resort when the player has never had a successful overview sync.
+    """
     raw_arg = ctx.args.get("alliance_name")
     if raw_arg:
         return str(raw_arg).strip()
@@ -183,13 +241,16 @@ async def _resolve_alliance_name(ctx: DslExecContext, player_store: Any) -> str:
         alliance_name = str(player_store.snapshot().alliance.name or "").strip()
     except Exception:
         alliance_name = ""
+    if _looks_like_search_placeholder(alliance_name):
+        alliance_name = ""
     if alliance_name or ctx.redis_client is None:
         return alliance_name
-    return await _read_hash(
+    hashed = await _read_hash(
         ctx.redis_client,
         f"wos:instance:{ctx.instance_id}:state",
         "alliance.name",
     )
+    return "" if _looks_like_search_placeholder(hashed) else hashed
 
 
 async def _exec_scan_alliance_members_frame(ctx: DslExecContext) -> None:
@@ -243,11 +304,18 @@ async def _exec_scan_alliance_members(ctx: DslExecContext) -> None:
         return
 
     ranks = dict(snapshot.ranks)
-    collected: list[MemberEntry] = list(snapshot.members)
     scanned_ranks: list[int] = []
     incomplete: dict[str, dict[str, int]] = {}
+    # Seed with R5 only — the pinned special leader card (rank 5), not part of a
+    # rank group. (Seeding with the whole first frame, as before, tagged still
+    # collapsed members rank 0 and let those survive the merge.)
+    collected: dict[str, MemberEntry] = dict(
+        merge_members_by_name([m for m in snapshot.members if m.rank == 5 and m.name])
+    )
 
-    for rank in (4, 3, 2, 1, 0):
+    # Walk member ranks top to bottom. R0 is the join "Application List"
+    # (applicants, not members), so it is excluded.
+    for rank in (4, 3, 2, 1):
         group = ranks.get(rank)
         expected_total = _rank_expected_total(group) if group else 0
         if expected_total <= 0:
@@ -294,12 +362,14 @@ async def _exec_scan_alliance_members(ctx: DslExecContext) -> None:
             current = next_snapshot
             snapshot = next_snapshot
 
-        rank_members = [m for m in collected if m.rank == rank and m.name]
+        # Collect only cards the parser tags as THIS rank (its rank_hint during
+        # scroll); a boundary card from an adjacent group keeps its own rank and
+        # is excluded, so there is no cross-rank contamination.
+        rank_members: list[MemberEntry] = []
         no_new_swipes = 0
         for _swipe_index in range(max_swipes_per_rank + 1):
             before = len(merge_members_by_name(rank_members))
             rank_members.extend(m for m in current.members if m.rank == rank and m.name)
-            collected.extend(m for m in current.members if m.rank == rank and m.name)
             after = len(merge_members_by_name(rank_members))
             if after >= expected_total:
                 break
@@ -326,17 +396,16 @@ async def _exec_scan_alliance_members(ctx: DslExecContext) -> None:
             current = next_snapshot
             snapshot = next_snapshot
 
-        unique_rank_members = merge_members_by_name(rank_members)
-        if len(unique_rank_members) < expected_total:
-            incomplete[str(rank)] = {
-                "parsed": len(unique_rank_members),
-                "expected": expected_total,
-            }
+        merged = merge_members_by_name(rank_members)
+        # First-seen (top-down) wins, so a member can't be re-tagged by a lower
+        # group whose frames briefly showed them.
+        collected.update({k: v for k, v in merged.items() if k not in collected})
+        if len(merged) < expected_total:
+            incomplete[str(rank)] = {"parsed": len(merged), "expected": expected_total}
         scanned_ranks.append(rank)
-
         ranks.update(current.ranks)
 
-    unique_members = merge_members_by_name(collected)
+    unique_members = collected
     rank_state = {
         str(rank): {
             "online": group.count,
@@ -377,6 +446,15 @@ async def _exec_scan_alliance_members(ctx: DslExecContext) -> None:
             record_alliance_members_snapshot,
             alliance_name=alliance_name,
             members=entries_state.values(),
+        )
+        # Append an immutable per-scan snapshot so churn / history can be
+        # derived by diffing consecutive scans (the snapshot above only keeps
+        # the latest roster). total_count guards churn against partial scans.
+        await asyncio.to_thread(
+            record_alliance_members_history,
+            alliance_name=alliance_name,
+            members=entries_state.values(),
+            total_count=snapshot.total_count,
         )
     except Exception:
         logger.exception("dsl exec scan_alliance_members: alliance roster persist failed player=%s", player_id)

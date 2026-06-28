@@ -1,1 +1,17 @@
-overlay: []
+overlay:
+  # Red dot on the world-map Intel («Разведка») button ⇒ there are rewards to
+  # claim (and usually targets to engage). When the bot is on the world map and
+  # the badge is lit, push intel_run — it claims via `while_match: intel.claim_all`
+  # first, then engages any available pins. ttl throttles re-pushes to 1/min; the
+  # worker self-preempt guard + scenario stamina-budgeting prevent runaway loops.
+  - name: main_world.to.intel.has_reward
+    region: main_world.to.intel
+    action: findIcon
+    threshold: 0.7
+    isRedDot: true
+    screens:
+      - main_world
+    steps:
+      - push_scenario:
+          name: intel_run
+          ttl: 1m

@@ -1,0 +1,10 @@
+# War Academy is a building sub-panel reached by tapping the building. Its only
+# non-committal exit is the top-left back arrow (`icon.page.back`, defined
+# globally in chief_profile/area.yaml) — the same chrome shop/intel/arena panels
+# use. Without this edge the navigator can detect `war_academy` (screen_verify)
+# but cannot route away from it, so every `node:`-targeted scenario dumps
+# `navigation_failed` once it lands here and startup validation refuses to boot
+# the worker.
+edges:
+  war_academy:
+    main_city: [icon.page.back]

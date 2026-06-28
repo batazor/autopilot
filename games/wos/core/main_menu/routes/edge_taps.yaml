@@ -2,8 +2,39 @@ edges:
   main_city:
     main_menu: [main_city.to.main_menu]
 
+  # The building-list menu button sits at the same screen spot on the world map,
+  # so the menu (and from it research_center, the troop camps, ...) is reachable
+  # straight from main_world too — main_world -> main_menu -> research_center works
+  # exactly like the main_city route, and BFS now prefers this 2-hop path over
+  # bouncing through main_city first.
+  main_world:
+    main_menu: [main_city.to.main_menu]
+
   main_menu:
     main_city: [icon.page.back]
     infantry: [main_menu.to.infantry]
     lancer: [main_menu.to.lancer]
     marksman: [main_menu.to.marksman]
+    # The city building list is the radar-free way into the main buildings, but it
+    # is a variable-length scroll list — a fixed tap coord misses (the row's Y
+    # shifts with how many sections sit above it). Route into a building by
+    # scroll-finding its row and tapping its blue "Go" arrow, via the
+    # main_menu_panel_row dynamic resolver (the same mechanism the labyrinth /
+    # seasonal-event rows use). The Go button lands on the building's action popup
+    # (research_center.building), NOT the tech tree directly — research_center's
+    # edge_taps then routes research_center.building -> research_center via the
+    # popup's Research button. So `node: research_center` teleports through the
+    # menu with no fixed coord and no radar city scan.
+    research_center.building:
+      resolver: main_menu_panel_row
+      section: tech_research
+      row: center
+      approval_region: main_menu.panel.tech_research.center
+    # War Academy shares the Tech Research section. Dormant until the building is
+    # built: its row shows "Not yet built" with no Go button, so the hop degrades
+    # to tap_failed (never a wrong tap) — ready the moment it exists.
+    war_academy.building:
+      resolver: main_menu_panel_row
+      section: tech_research
+      row: war_academy
+      approval_region: main_menu.panel.tech_research.war_academy

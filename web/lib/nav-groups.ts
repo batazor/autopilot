@@ -77,6 +77,12 @@ export const NAV_GROUPS: NavGroup[] = [
           "What-if calculators over the building / research / hero / pet / intel / coordinator planners",
       },
       {
+        href: "/arena",
+        label: "Arena",
+        description:
+          "Drag-and-drop hero lineup optimizer — place your 5 against the enemy lineup",
+      },
+      {
         href: "/farm",
         label: "Farm",
         description: "Generate beta farm accounts & confirm registration",

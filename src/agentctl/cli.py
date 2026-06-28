@@ -227,6 +227,34 @@ def _render_screenshot(d: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_label_hints(d: dict[str, Any]) -> str:
+    head = f"{d.get('count', 0)} label hint(s)" + ("  (cleared)" if d.get("cleared") else "")
+    rows = []
+    for h in d.get("hints", []):
+        regs = h.get("regions") or []
+        rows.append(
+            {
+                "ts": _ts(h.get("ts")),
+                "inst": h.get("instance_id") or "—",
+                "screen": h.get("screen_id") or "—",
+                "regions": ", ".join(str(r.get("name") or "?") for r in regs) or "—",
+                "committed": h.get("committed"),
+            }
+        )
+    if not rows:
+        return head + "\n(none — draw a box on /label and press Send hint)"
+    return head + "\n" + _table(
+        rows,
+        [
+            ("ts", "TS"),
+            ("inst", "INST"),
+            ("screen", "SCREEN"),
+            ("regions", "REGIONS"),
+            ("committed", "DONE"),
+        ],
+    )
+
+
 def _render_player(d: dict[str, Any]) -> str:
     flat = d.get("state", {})
     if not flat:
@@ -426,6 +454,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--inst", dest="instance", help="filter lines for this instance")
     p.add_argument("-n", "--limit", type=int, default=200)
 
+    p = sub.add_parser(
+        "label-hints", parents=[common],
+        help="pending UI label hints from the /label page (operator → agent)",
+    )
+    p.add_argument("--clear", action="store_true", help="drain the queue after reading")
+
     # control
     p = sub.add_parser("run", parents=[common], help="enqueue a scenario now")
     p.add_argument("scenario", help="scenario key")
@@ -453,6 +487,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="bypass click-approval for this run (taps fire without operator)",
     )
     p.add_argument("--timeout", type=float, default=180.0, help="abort after N seconds")
+
+    p = sub.add_parser(
+        "label", parents=[common],
+        help="commit labeled region(s) from a fresh frame into area.yaml + crop",
+    )
+    p.add_argument("--inst", dest="instance", help="instance id")
+    p.add_argument(
+        "--region-json", dest="region_json", required=True,
+        help='JSON region or array, e.g. [{"name":"mail.claim","action":"exist","bbox":{...}}]',
+    )
+    p.add_argument("--ref", help="existing reference repo-rel path to attach to")
+    p.add_argument("--screen", dest="screen", default="", help="existing screen_id to attach to")
+    p.add_argument(
+        "--mode", default="surgical", choices=["surgical", "recapture_reference"],
+        help="surgical (default) upserts only these regions; recapture_reference rewrites the screen ref",
+    )
+    p.add_argument("--scope", default="core", help="module scope (default: core)")
+    p.add_argument("--version", default=None, help="screen version id (default: base)")
+    p.add_argument("--game", default=None, help="game id (default: configured default)")
 
     p = sub.add_parser("focus", parents=[common], help="pin/clear focus mode for an instance")
     _add_inst(p)
@@ -515,6 +568,8 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
         return core.devices(), _render_devices
     if cmd == "logs":
         return core.logs(instance=args.instance, limit=args.limit), _render_logs
+    if cmd == "label-hints":
+        return core.label_hints(clear=args.clear), _render_label_hints
     if cmd == "run":
         return (
             core.run_scenario(
@@ -536,6 +591,27 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
                 player_id=args.player, approval=args.approval, timeout=args.timeout,
             ),
             _render_drive,
+        )
+    if cmd == "label":
+        try:
+            regions = json.loads(args.region_json)
+        except ValueError as exc:
+            msg = f"--region-json is not valid JSON: {exc}"
+            raise AgentctlError(msg) from exc
+        if isinstance(regions, dict):
+            regions = [regions]
+        return (
+            core.label(
+                instance=args.instance,
+                regions=regions,
+                ref=args.ref,
+                screen_id=args.screen,
+                scope=args.scope,
+                mode=args.mode,
+                version=args.version,
+                game=args.game,
+            ),
+            _render_ok,
         )
     if cmd == "focus":
         if args.clear:

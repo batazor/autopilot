@@ -1,6 +1,8 @@
-enabled: false
+enabled: true
 name: Alliance · Invite · New
-node: main_city
+# No node: dismiss the banner in place — the close X sits at the same screen spot
+# on both main_city and main_world, so tapping it where the overlay rule saw it is
+# faster and avoids a needless hop home.
 priority: 100000
 steps:
 - click: main_city.new_alliance.mail.close

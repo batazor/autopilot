@@ -5,17 +5,37 @@
       "id": 1,
       "screen_id": "main_world",
       "ocr": "references/main_world_intel_entry.png",
-      "screen_region": "main_world.to.intel",
+      "screen_region": "main_world.to.main_city",
       "regions": [
         {
           "name": "main_world.to.intel",
+          "_comment": "Intel (Разведка) entry — blue ≡ button, top of the right-side stack just above Mail (button centre 664,958). CROP = the ≡ ICON BODY only (NOT the red dot): isRedDot detects the badge as EXTRA red beyond the template, so baking the dot into the crop hides it. bbox spans button + the red-dot area (dot ≈684-700,916-932, overhangs ~10px above/right) so has_red_dot's dynamic search reaches it → new-rewards signal that intel/analyze.yaml uses to push intel_run. Was wrongly at y63% (hit an empty map tile / «Ледяное поле» popup).",
           "action": "exist",
-          "threshold": 0.75,
+          "threshold": 0.6,
+          "isSearch": true,
+          "has_red_dot": true,
           "bbox": {
-            "x": 88.13064316298932,
-            "y": 64.38310038284392,
-            "width": 8.814577984356703,
-            "height": 5.414717288196705,
+            "x": 87.22,
+            "y": 71.41,
+            "width": 10.56,
+            "height": 6.09,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_world.to.mail",
+          "_comment": "Mail entry — blue envelope button directly below Intel on the right (button centre 664,1051). CROP = envelope BODY only (badge excluded, like intel). bbox spans button + the red unread-count badge (≈676-708,1008-1028; count varies 20/22/…). NOTE: the count-PILL is borderline for isRedDot (white digits split the red blob + it overhangs above the button), unlike intel's solid dot — mail nav doesn't depend on red-dot, so this is best-effort. has_red_dot left on for when a plain dot shows.",
+          "action": "exist",
+          "threshold": 0.6,
+          "isSearch": true,
+          "has_red_dot": true,
+          "bbox": {
+            "x": 87.22,
+            "y": 78.59,
+            "width": 11.67,
+            "height": 6.25,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -29,7 +49,7 @@
             "x": 84.8,
             "y": 91.0,
             "width": 13.4,
-            "height": 8.5,
+            "height": 6.171875,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

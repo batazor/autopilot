@@ -15,13 +15,19 @@ screens:
     - ocr: hero.recruitment.title
       contains: "Recruitment"
 
-  # Per-hero detail page (reached from the grid). Anchored on the wiki
-  # button, which is always present on a hero card regardless of level.
+  # Per-hero detail page (reached from the grid). Anchored on the bottom-left
+  # "Stats" tab via OCR: the wiki-button template (top-right) degrades under
+  # scrcpy H.264 and left the navigator calling this page UNKNOWN — so it could
+  # not route away (the page.heroes.unit -> heroes back edge never fired) and
+  # stranded any scenario that ended on a hero card. "Stats" is present on every
+  # hero detail card (owned heroes AND the recruit variant), so OCR'ing it is the
+  # stable anchor. Verified live on bs3 (conf 0.96).
   page.heroes.unit:
     priority: 35
     rules:
-    - match: page.heroes.unit.wiki
-      threshold: 0.9
+    - ocr: page.heroes.unit.stats
+      contains: "Stats"
+      threshold: 0.8
 
   heroes.sr.new:
     priority: 25

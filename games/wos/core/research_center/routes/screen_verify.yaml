@@ -8,6 +8,20 @@ screens:
   research_center:
     priority: 31
     rules:
+      # RU «Белая мгла»: Research Center → «Исследовательский/Научный центр» (both
+      # listed; verify exact wording on a live RU plate).
       - ocr: research_center.title
-        contains: Research
+        contains: [Research, Исследовательский центр, Научный центр]
         threshold: 0.8
+
+  # The Research Center building's action popup (Details / Upgrade / Research),
+  # where the City-menu "Center Research" Go button lands. It has no stable title
+  # plate, but it is ONLY ever reached straight from main_menu (the menu teleport),
+  # so verify it image-less by its predecessor. from_screen rules don't compile to
+  # detector landmarks, so this never causes a spurious detect_screen hit — it only
+  # confirms the menu->research_center.building hop, after which the navigator taps
+  # the Research button and re-verifies on research_center (the tech tree).
+  research_center.building:
+    priority: 31
+    rules:
+      - from_screen: main_menu

@@ -29,6 +29,7 @@ steps:
     steps:
       - ocr: building.title
         store: building.name
+        threshold: 0.4  # RU titles read ~0.5 conf; parser gates correctness
       - exec: sync_building_name
   - loop:
       max: 10

@@ -350,6 +350,23 @@ screens:
       original_width: 720
       original_height: 1280
     has_red_dot: true
+  - name: page.heroes.unit.stats
+    action: text
+    type: string
+    threshold: 0.8
+    # Bottom-left "Stats" tab — present on every hero detail card (owned heroes AND
+    # the recruit variant), so it anchors the screen far more reliably than the
+    # top-right wiki button template, which degrades under scrcpy H.264 and made the
+    # navigator call the hero page UNKNOWN (so it could not route away from it).
+    # Verified live on bs3: plain OCR reads "Stats" at conf 0.96.
+    bbox:
+      x: 14.0
+      y: 95.3
+      width: 28.0
+      height: 3.6
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
   - name: page.heroes.unit.previously_unit
     action: exist
     threshold: 0.9

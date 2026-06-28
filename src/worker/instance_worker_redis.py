@@ -63,12 +63,14 @@ class InstanceWorkerRedisMixin(_Base):
         # (see ``Supervisor.run``); leaving it alone here means a crash +
         # auto-restart of this subprocess preserves the original session's
         # uptime instead of resetting to "0s" every time we reconnect.
-        # Restore the last-identified player from the durable device registry so
-        # a worker restart skips the ``who_i_am`` probe (gated on
-        # ``active_player == ""``). Falls back to "" when nothing was ever
-        # identified — the probe then runs as before. A game relaunch clears
-        # ``active_player`` again (see ``_restart_instance`` /
-        # ``game_health_watchdog``) so an account switch is re-verified lazily.
+        # Restore the last-identified player from the durable device registry as a
+        # boot-time hint: it gives ``_seed_startup_tasks`` a non-empty
+        # ``active_player`` so it can seed ``check_main_city`` (its onboarding gate
+        # skips on ""). It does NOT skip ``who_i_am`` — the boot identity probe is
+        # forced (``force=True``) and clears this value to re-verify identity as
+        # the mandatory first action. Falls back to "" when nothing was ever
+        # identified. A game relaunch also clears ``active_player`` (see
+        # ``_restart_instance`` / ``game_health_watchdog``).
         restored_player = ""
         with suppress(Exception):
             from config.devices import get_last_active_player
@@ -312,12 +314,22 @@ class InstanceWorkerRedisMixin(_Base):
             return str(getattr(self, "_last_current_screen", None) or "").strip()
         return (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
 
-    async def _maybe_enqueue_who_i_am_when_active_player_missing(self) -> None:
+    async def _maybe_enqueue_who_i_am_when_active_player_missing(
+        self, *, force: bool = False
+    ) -> None:
         """Enqueue ``who_i_am`` whenever ``active_player`` is empty.
 
-        Called both at boot and from each rolling tick — the dedup gate
+        Called from each rolling tick with ``force=False`` — the dedup gate
         (``skip_if_duplicate=True`` plus the in-flight / queued checks below)
         keeps this idempotent.
+
+        At worker boot it is called with ``force=True`` so ``who_i_am`` is the
+        mandatory first action on every start: even when ``_connect`` restored a
+        durable ``active_player`` from the prior session, that value is cleared
+        here so the device — not a possibly-stale durable id — decides who is
+        logged in. The loading / focus / onboarding gates below still apply (we
+        genuinely can't read the chief profile then); only the
+        "already identified, skip" short-circuit is bypassed.
         """
         if getattr(self, "_stopping", False) or getattr(self, "_ui_paused", False):
             return
@@ -351,7 +363,7 @@ class InstanceWorkerRedisMixin(_Base):
             )
             return
         ap = (raw_ap.decode() if isinstance(raw_ap, bytes) else str(raw_ap or "")).strip()
-        if ap:
+        if ap and not force:
             return
 
         # Onboarding gate: the chief profile (and a readable player id) isn't
@@ -391,6 +403,34 @@ class InstanceWorkerRedisMixin(_Base):
             cs = ""
         if cs == "who_i_am":
             return
+
+        if ap and force:
+            # Mandatory boot re-verification: ``who_i_am`` runs first on every
+            # worker start. Drop the restored identity so the scenario's
+            # ``cond: active_player == ""`` actually runs and the probe re-reads
+            # the id off the device — guarding against a durable value left over
+            # from a different account/build (e.g. an account switch or the RU
+            # "Белая мгла" build). Cleared only HERE — after the onboarding gate,
+            # which keys off ``active_player``: clearing earlier would read as
+            # onboarding on a non-main_city boot screen (e.g. ``main_menu``) and
+            # defer the probe. Mirrors the game-relaunch clear in
+            # ``_restart_instance``; the durable ``last_active_player`` is kept and
+            # gets overwritten by the fresh OCR read.
+            try:
+                await r.hset(inst_key, "active_player", "")
+            except Exception:
+                logger.debug(
+                    "identity probe: clearing active_player for boot re-verify "
+                    "failed instance=%s",
+                    inst,
+                    exc_info=True,
+                )
+            logger.info(
+                "identity probe: boot re-verify — cleared restored active_player=%s, "
+                "forcing who_i_am instance=%s",
+                ap,
+                inst,
+            )
 
         root = repo_root()
         try:

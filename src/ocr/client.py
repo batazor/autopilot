@@ -21,6 +21,9 @@ from ocr.digit_markers import DigitMarker, detect_digit_markers
 from ocr.preprocess import (
     DIGITS_CHAR_WHITELIST,
     WORD_CHAR_WHITELIST,
+    badge_digits_for_ocr,
+    badge_white_for_ocr,
+    badge_yellow_for_ocr,
     bar_timer_for_ocr,
     digits_for_ocr,
     enhance_for_ocr,
@@ -66,6 +69,10 @@ class OcrClient:
     _OCR_CACHE_TTL_S: ClassVar[float] = 2.0
     _OCR_CACHE_MAX: ClassVar[int] = 256
     _cache: ClassVar[OrderedDict[bytes, tuple[float, str, float]]] = OrderedDict()
+    # Memoized ``tesseract --list-langs`` per executable — probed once so a
+    # missing ``rus.traineddata`` degrades to the default lang instead of a hard
+    # tesseract error on every RU-build OCR call.
+    _avail_langs: ClassVar[dict[str, frozenset[str]]] = {}
 
     @classmethod
     def _patch_hash(
@@ -76,6 +83,7 @@ class OcrClient:
         preprocess: str | None = None,
         digit_count: int | None = None,
         digit_x0: int = 0,
+        lang: str = "",
     ) -> bytes:
         hi, wi = int(image.shape[0]), int(image.shape[1])
         x1 = max(0, min(int(region.x), wi))
@@ -95,6 +103,12 @@ class OcrClient:
         if pre_tag:
             h.update(b"|preprocess=")
             h.update(pre_tag.encode("utf-8"))
+        # Fold the resolved language in too: the same pixels read under ``eng``
+        # vs ``rus`` produce different text, so they must not share a cache
+        # entry when a worker switches builds.
+        if lang:
+            h.update(b"|lang=")
+            h.update(lang.encode("utf-8"))
         del digit_count, digit_x0
         return h.digest()
 
@@ -124,6 +138,16 @@ class OcrClient:
 
     def __init__(self, settings: Settings) -> None:
         self._lang = str(getattr(settings.ocr, "lang", "eng") or "eng").strip() or "eng"
+        # Per-module-catalog language overrides (e.g. ``wos_ru`` → ``rus`` for
+        # the Russian "Белая мгла" build — never ``rus+eng``, which homoglyphs
+        # Cyrillic into Latin). Resolved per OCR call against the active catalog
+        # so a mixed fleet reads each build in its own script.
+        self._catalog_lang = {
+            str(k).strip(): str(v).strip()
+            for k, v in dict(getattr(settings.ocr, "catalog_lang", {}) or {}).items()
+            if str(k).strip() and str(v).strip()
+        }
+        self._lang_warned: set[str] = set()
         self._tesseract_cmd = (
             str(getattr(settings.ocr, "tesseract_cmd", "tesseract") or "tesseract").strip()
             or "tesseract"
@@ -133,6 +157,66 @@ class OcrClient:
 
     async def aclose(self) -> None:
         """Kept for the service container lifecycle; local OCR has no socket to close."""
+
+    @classmethod
+    def _available_langs(cls, tesseract_cmd: str) -> frozenset[str]:
+        """Installed Tesseract language codes (memoized per executable)."""
+        cached = cls._avail_langs.get(tesseract_cmd)
+        if cached is not None:
+            return cached
+        langs: frozenset[str] = frozenset()
+        try:
+            proc = subprocess.run(
+                [tesseract_cmd, "--list-langs"],
+                check=False,
+                capture_output=True,
+                timeout=10.0,
+            )
+            out = proc.stdout.decode("utf-8", errors="replace")
+            # First line is a header ("List of available languages ..."); the
+            # remaining lines are one language code each.
+            langs = frozenset(
+                line.strip() for line in out.splitlines()[1:] if line.strip()
+            )
+        except Exception:
+            logger.debug("tesseract --list-langs failed for %r", tesseract_cmd, exc_info=True)
+        cls._avail_langs[tesseract_cmd] = langs
+        return langs
+
+    def _resolve_lang(self) -> str:
+        """Tesseract ``-l`` value for the build active in this worker process.
+
+        Consults the per-process active module catalog (bound when the running
+        game package is detected). The Russian "Белая мгла" build binds
+        ``wos_ru`` → ``rus``. Falls back to the default ``lang`` when no
+        override applies or the mapped traineddata is not installed, so a missing
+        language pack degrades to English instead of erroring every OCR call.
+        """
+        if not self._catalog_lang:
+            return self._lang
+        try:
+            from services import get_active_module_catalog
+
+            catalog = get_active_module_catalog()
+        except Exception:
+            return self._lang
+        mapped = self._catalog_lang.get(catalog)
+        if not mapped or mapped == self._lang:
+            return self._lang
+        available = self._available_langs(self._tesseract_cmd)
+        if available and all(part in available for part in mapped.split("+")):
+            return mapped
+        if mapped not in self._lang_warned:
+            self._lang_warned.add(mapped)
+            logger.warning(
+                "OCR language %r for catalog %r unavailable (installed: %s) — "
+                "falling back to %r; install the traineddata to read this build.",
+                mapped,
+                catalog,
+                sorted(available),
+                self._lang,
+            )
+        return self._lang
 
     def detect_digit_markers(
         self,
@@ -176,6 +260,12 @@ class OcrClient:
             return enhance_for_ocr(crop)
         if pre_tag == "digits":
             return digits_for_ocr(crop)
+        if pre_tag == "badge_digits":
+            return badge_digits_for_ocr(crop)
+        if pre_tag == "badge_white":
+            return badge_white_for_ocr(crop)
+        if pre_tag == "badge_yellow":
+            return badge_yellow_for_ocr(crop)
         if pre_tag == "bar_timer":
             return bar_timer_for_ocr(crop)
         return crop
@@ -195,6 +285,10 @@ class OcrClient:
             return "7", WORD_CHAR_WHITELIST
         if pre_tag in ("enhance_line", "title_line", "bar_timer"):
             return "7", None
+        if pre_tag in ("badge_digits", "badge_white", "badge_yellow"):
+            # "Lv. N" is a short LINE (prefix + number), so PSM 7 (single line) reads
+            # it better than PSM 8 (single word); the digit whitelist drops "Lv.".
+            return "7", DIGITS_CHAR_WHITELIST
         if pre_tag in ("enhance", "digits"):
             return "8", DIGITS_CHAR_WHITELIST if pre_tag == "digits" else None
         return "6", None
@@ -202,8 +296,12 @@ class OcrClient:
     @staticmethod
     def _clean_title_line_text(raw: str) -> str:
         text = _TITLE_PROGRESS_RE.sub(" ", raw).replace("\n", " ")
-        text = re.sub(r"(?<=[A-Za-z0-9])[^A-Za-z0-9]+(?=[A-Za-z0-9])", " ", text)
-        text = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", text)
+        # ``[^\W_]`` matches any Unicode letter or digit (Latin + Cyrillic), so
+        # Russian titles/names survive — the old ``[A-Za-z0-9]`` class stripped
+        # Cyrillic wholesale (e.g. "Грядет буря" → ""). For ASCII text the two
+        # are equivalent, so the English path is unchanged.
+        text = re.sub(r"(?<=[^\W_])[\W_]+(?=[^\W_])", " ", text)
+        text = re.sub(r"^[\W_]+|[\W_]+$", "", text)
         return " ".join(text.split())
 
     @staticmethod
@@ -288,7 +386,7 @@ class OcrClient:
             "stdin",
             "stdout",
             "-l",
-            self._lang,
+            self._resolve_lang(),
             "--oem",
             "1",
             "--psm",
@@ -387,6 +485,9 @@ class OcrClient:
         results: list[OCRResult | None] = [None] * len(regions)
         miss_indices: list[int] = []
         miss_keys: list[bytes] = []
+        # Resolved once per call: the active build's catalog can't change mid-scan,
+        # and ``_run_tesseract`` resolves to the same value for the actual OCR.
+        resolved_lang = self._resolve_lang()
         def _digit_count(i: int) -> int | None:
             if region_digit_count is None or i >= len(region_digit_count):
                 return None
@@ -411,6 +512,7 @@ class OcrClient:
                 preprocess=_pre(i) or None,
                 digit_count=_digit_count(i),
                 digit_x0=_digit_x0(i),
+                lang=resolved_lang,
             )
             hit = self._cache_get(key)
             if hit is not None:
@@ -534,7 +636,7 @@ class OcrClient:
                 within_batch = len(miss_indices) - len(rep_indices)
                 cache_tag = f" cached={cached}" if cached else ""
                 dedup_tag = f" dedup={within_batch}" if within_batch else ""
-                mode_tag = f" mode=tesseract:{self._lang}"
+                mode_tag = f" mode=tesseract:{resolved_lang}"
                 omitted = len(raw_results) - len(parts)
                 tail = f" | +{omitted} more" if omitted > 0 else ""
                 logger.info(

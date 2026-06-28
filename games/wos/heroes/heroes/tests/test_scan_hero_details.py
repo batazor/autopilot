@@ -6,6 +6,8 @@ row-major sort of ``hero_grid_positions`` is the contract the routing rests on.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 from games.wos.heroes.heroes.scan_hero_details import (
     _SEG_PX,
@@ -13,8 +15,53 @@ from games.wos.heroes.heroes.scan_hero_details import (
     _STAR_HALF_W,
     _STAR_Y,
     _ordered_hids,
+    _resolve_hid,
     detect_star_segments,
 )
+
+
+@dataclass(frozen=True)
+class _FakeHero:
+    id: str
+    name: str
+
+
+class _FakeReg:
+    def __init__(self, heroes: tuple[_FakeHero, ...]) -> None:
+        self.heroes = heroes
+
+
+_REG = _FakeReg(
+    (
+        _FakeHero("sergey", "Sergey"),
+        _FakeHero("seo_yoon", "Seo-yoon"),
+        _FakeHero("molly", "Molly"),
+        _FakeHero("bahiti", "Bahiti"),
+        _FakeHero("philly", "Philly"),  # unowned, near "Molly" — must not be picked
+    )
+)
+_OWNED = {"sergey", "seo_yoon", "molly", "bahiti"}
+
+
+def test_resolve_hid_snaps_ocr_misread_to_known_hero():
+    # The bug: "Seraev" (a noisy read of Sergey) used to mint a phantom `seraev`.
+    assert _resolve_hid("Seraev", _REG, _OWNED) == "sergey"
+
+
+def test_resolve_hid_clean_reads_pass_through():
+    assert _resolve_hid("Sergey", _REG, _OWNED) == "sergey"
+    assert _resolve_hid("molly", _REG, _OWNED) == "molly"        # exact owned slug
+    assert _resolve_hid("Seo-yoon", _REG, _OWNED) == "seo_yoon"  # punctuation differs
+
+
+def test_resolve_hid_rejects_garbage_instead_of_minting_phantom():
+    assert _resolve_hid("Xqzzptv", _REG, _OWNED) == ""
+    assert _resolve_hid("", _REG, _OWNED) == ""
+
+
+def test_resolve_hid_prefers_owned_over_unowned_lookalike():
+    # "Mollyy" is close to both owned "Molly" and unowned "Philly"; owned wins.
+    assert _resolve_hid("Mollyy", _REG, _OWNED) == "molly"
 
 
 class _FakeRedis:

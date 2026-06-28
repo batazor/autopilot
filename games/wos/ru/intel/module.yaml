@@ -1,0 +1,11 @@
+id: intel-ru-overlay
+title: Intel (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the intel module. Provides ONLY area.yaml
+  region overrides — the deploy-flow text buttons that differ from EN in text and
+  position. Loaded only for the wos_ru catalog; overlay regions replace the
+  same-named base region by name (overlay-first merge in layout.area_manifest).
+  No scenarios/analyze of its own — the base games/wos/intel module owns those.
+enabled: true
+area: area.yaml
+wiki: false

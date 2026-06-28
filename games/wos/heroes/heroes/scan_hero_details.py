@@ -15,6 +15,7 @@ level from the authoritative detail card.
 from __future__ import annotations
 
 import asyncio
+import difflib
 import logging
 import re
 import time
@@ -37,6 +38,15 @@ logger = logging.getLogger(__name__)
 _HERO_GRID_POS_FMT = "wos:instance:{instance_id}:hero_grid_positions"
 _CELL_RE = re.compile(r"^r(\d+)c(\d+)$")
 _STEP_SETTLE_S = 0.9
+# Detail-card name OCR is noisy (white outlined header), so we snap each read to
+# the nearest KNOWN hero rather than slugifying it blindly — a misread like
+# "Seraev" must resolve to ``sergey``, not mint a phantom entry. 0.6 is loose
+# enough to absorb 1–2 wrong characters yet still separates the owned roster.
+_NAME_MATCH_CUTOFF = 0.6
+# One unreadable card used to abort the entire walk (8/12 heroes covered). Tolerate
+# a few transient misses — step past and retry — so a single bad frame no longer
+# strands the rest of the roster. The walk still ends on wrap (seen) or ``cap``.
+_MAX_CONSEC_MISSES = 3
 
 # Star-tier detection (segment-level, calibrated on-device at 720×1280). Each hero
 # shows a row of 5 stars; each star is 6 cyan segments. We count bright-cyan pixels
@@ -96,6 +106,52 @@ async def _ordered_hids(redis: Any, instance_id: str) -> list[str]:
     return [hid for _, _, hid in rows]
 
 
+def _resolve_hid(name: str, registry: Any, owned: set[str]) -> str:
+    """Snap an OCR'd detail-card name to a known hero id.
+
+    The walk visits a KNOWN roster (``owned`` — the grid-order hids, template-matched
+    off ``scan_heroes_grid``), so identifying a card is classification over that small
+    set, not open-vocabulary recognition. Match the (noisy) read against the owned
+    heroes first, then the whole registry; return ``""`` when nothing is close so the
+    caller treats it as an unreadable card instead of minting a phantom hero. A clean
+    read of an owned hero short-circuits.
+    """
+    raw = _norm(name)
+    if not raw:
+        return ""
+    if raw in owned:
+        return raw
+
+    def _match(pool: tuple[Any, ...] | list[Any]) -> str:
+        choices: dict[str, str] = {}
+        for h in pool:
+            choices[_norm(h.name)] = h.id
+            choices[_norm(h.id)] = h.id
+        hit = difflib.get_close_matches(raw, list(choices), n=1, cutoff=_NAME_MATCH_CUTOFF)
+        return choices[hit[0]] if hit else ""
+
+    heroes = tuple(getattr(registry, "heroes", ()) or ())
+    owned_pool = tuple(h for h in heroes if h.id in owned)
+    return _match(owned_pool) or _match(heroes)
+
+
+async def _step_next_chevron(
+    actions: Any, instance_id: str, next_box: tuple[int, int, int, int] | None
+) -> bool:
+    """Tap the next-unit chevron and let the card settle. False if it could not
+    (no region resolved, or the tap raised) so the caller stops the walk."""
+    if next_box is None:
+        return False
+    cx, cy = next_box[0] + next_box[2] // 2, next_box[1] + next_box[3] // 2
+    try:
+        await asyncio.to_thread(actions.tap, instance_id, Point(cx, cy))
+    except Exception:
+        logger.exception("dsl exec scan_hero_details: next-chevron tap failed")
+        return False
+    await asyncio.sleep(_STEP_SETTLE_S)
+    return True
+
+
 async def _exec_scan_hero_details(ctx: DslExecContext) -> None:
     player_id = (ctx.player_id or "").strip()
     if not player_id:
@@ -122,6 +178,8 @@ async def _exec_scan_hero_details(ctx: DslExecContext) -> None:
 
     visited: list[str] = []
     seen: set[str] = set()
+    owned = set(ordered)
+    misses = 0
     for _ in range(cap):
         try:
             frame = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
@@ -135,12 +193,25 @@ async def _exec_scan_hero_details(ctx: DslExecContext) -> None:
         name_box = _region_px(area, "page.heroes.unit.name", w, h)
         if name_box is None:
             break
+        next_box = _region_px(area, "page.heroes.unit.next_unit", w, h)
         name = ((await oc.ocr_region(
             frame, Region(*name_box), region_id="hero.name", preprocess="title_line"
         )).text or "").strip()
-        hid = _norm(name)
-        if not hid or hid in seen:
-            break  # wrapped back to a seen hero (or an unreadable card)
+        hid = _resolve_hid(name, registry, owned)
+        if not hid:
+            # Unreadable / unrecognised card: step past it and retry rather than
+            # abandoning the rest of the roster (a single empty read used to cut the
+            # walk short). Give up only after a few misses in a row, or if the
+            # chevron can't be tapped.
+            misses += 1
+            if misses >= _MAX_CONSEC_MISSES or not await _step_next_chevron(
+                actions, ctx.instance_id, next_box
+            ):
+                break
+            continue
+        if hid in seen:
+            break  # wrapped back to a seen hero → the roster is covered
+        misses = 0
 
         level: int | None = None
         lvl_box = _region_px(area, "page.heroes.unit.level", w, h)
@@ -171,17 +242,8 @@ async def _exec_scan_hero_details(ctx: DslExecContext) -> None:
         seen.add(hid)
         visited.append(hid)
 
-        # Step to the next hero via the chevron.
-        next_box = _region_px(area, "page.heroes.unit.next_unit", w, h)
-        if next_box is None:
+        if not await _step_next_chevron(actions, ctx.instance_id, next_box):
             break
-        cx, cy = next_box[0] + next_box[2] // 2, next_box[1] + next_box[3] // 2
-        try:
-            await asyncio.to_thread(actions.tap, ctx.instance_id, Point(cx, cy))
-        except Exception:
-            logger.exception("dsl exec scan_hero_details: next-chevron tap failed")
-            break
-        await asyncio.sleep(_STEP_SETTLE_S)
 
     ctx.result.update({"action": "walked", "visited": visited, "count": len(visited)})
     logger.info(

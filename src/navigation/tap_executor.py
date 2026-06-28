@@ -846,6 +846,14 @@ class TapExecutor:
             return False
 
         try:
+            # ``games`` is a repo-root namespace package, but installed entry
+            # points (botctl, ``uv run bot``) only put ``src/`` on sys.path — so the
+            # dotted import below raises ModuleNotFoundError until the repo root is
+            # added. The DSL exec loader does this; the navigator must too, since a
+            # ``node:`` building hop resolves the menu teleport through here.
+            from config.paths import ensure_repo_on_sys_path
+
+            ensure_repo_on_sys_path()
             main_menu_exec = __import__(
                 "games.wos.core.main_menu.exec",
                 fromlist=[
@@ -877,8 +885,20 @@ class TapExecutor:
                 return False
             await asyncio.sleep(0.5)
 
-        for sweep in range(8):
-            image: np.ndarray = await asyncio.to_thread(self._capture, instance_id)  # type: ignore[arg-type]
+        # Match the DSL exec's scroll-find budget + capture: 16 sweeps and adb
+        # lossless frames. scrcpy H.264 degrades the small City-panel row titles
+        # below the fuzzy section/row match, so scrcpy capture reports "row not
+        # found" even when it is plainly on screen (verified on bs3: "Center
+        # Research" missed under scrcpy, hit under adb).
+        for sweep in range(16):
+            image = await main_menu_exec._capture_panel_frame(  # type: ignore[attr-defined]
+                actions, instance_id
+            )
+            if image is None:
+                logger.warning(
+                    "Navigator: main_menu panel capture failed instance=%s", instance_id
+                )
+                return False
             _h, w = image.shape[:2]
             scan_rows = await main_menu_exec._scan_panel_rows(  # type: ignore[attr-defined]
                 image,

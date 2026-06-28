@@ -33,6 +33,7 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/queue": "queue",
   "/routes": "routes",
   "/gift-codes": "gift-codes",
+  "/arena": "optimizer",
   "/dreamscape-memory": "dreamscape-memory",
   "/notify-monitor": "notify-monitor",
   "/radar": "radar",

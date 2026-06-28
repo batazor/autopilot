@@ -69,10 +69,10 @@
           "type": "string",
           "threshold": 0.85,
           "bbox": {
-            "x": 38.6,
-            "y": 8.55,
-            "width": 25.0,
-            "height": 2.8,
+            "x": 34.72,
+            "y": 7.97,
+            "width": 50.0,
+            "height": 3.75,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

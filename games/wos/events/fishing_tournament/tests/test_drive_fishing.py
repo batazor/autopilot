@@ -141,6 +141,18 @@ def test_draw_decision_renders_without_crashing() -> None:
     assert out is not None and out.shape == frame.shape
 
 
+def test_swipe_motion_reports_actual_amplified_dx() -> None:
+    # Small planned corrections are executed as stronger flicks; the hook
+    # estimate must move by the real device gesture, not the raw plan dx.
+    right = fexec._swipe_motion({"from_x": 360, "to_x": 400})
+    assert right["raw_dx"] == 40
+    assert right["executed_dx"] == fexec._SWIPE_MIN_PX
+
+    left = fexec._swipe_motion({"from_x": 360, "to_x": 260})
+    assert left["raw_dx"] == -100
+    assert left["executed_dx"] == -int(abs(left["raw_dx"]) * fexec._SWIPE_GAIN)
+
+
 def test_find_entry_button_handles_both_hub_states() -> None:
     # Resume state → Go Fish; choose-mode → the free Ice Fishing button; the
     # gameplay screen has neither. Locates whichever the hub is showing so the

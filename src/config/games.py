@@ -28,6 +28,10 @@ if TYPE_CHECKING:
 GAMES_DIR_NAME = "games"
 DEFAULT_GAME = "wos"
 WOS_BETA_MODULE_CATALOG = "wos_beta"
+# "Белая мгла" — the Russian-segment re-skin of Whiteout Survival
+# (``com.gof.globalru``). Same gameplay as the global build, so it overlays the
+# base ``wos`` catalog; the overlay exists for Russian-localized reference crops.
+WOS_RU_MODULE_CATALOG = "wos_ru"
 
 
 @dataclass(frozen=True)
@@ -35,15 +39,18 @@ class GameSpec:
     """Static metadata for one supported game.
 
     ``package`` is the canonical Android application id. ``package_aliases``
-    are additional ids accepted as the same game, for example beta builds.
-    ``launcher_activity`` is reserved for games where the default LAUNCHER
-    intent doesn't open the right activity.
+    are additional ids accepted as the same game, for example a beta build or a
+    regional re-skin (the Russian "Белая мгла" build). ``package_catalogs`` maps
+    such an alias to the module catalog it should load; aliases left unmapped use
+    the base game catalog. ``launcher_activity`` is reserved for games where the
+    default LAUNCHER intent doesn't open the right activity.
     """
 
     id: str
     label: str
     package: str
     package_aliases: tuple[str, ...] = ()
+    package_catalogs: tuple[tuple[str, str], ...] = ()
     launcher_activity: str | None = None
 
     @property
@@ -57,7 +64,11 @@ GAMES: dict[str, GameSpec] = {
         id="wos",
         label="Whiteout Survival",
         package="com.gof.global",
-        package_aliases=("com.xyz.gof",),
+        package_aliases=("com.xyz.gof", "com.gof.globalru"),
+        package_catalogs=(
+            ("com.xyz.gof", WOS_BETA_MODULE_CATALOG),
+            ("com.gof.globalru", WOS_RU_MODULE_CATALOG),
+        ),
     ),
     "kingshot": GameSpec(
         id="kingshot",
@@ -67,11 +78,13 @@ GAMES: dict[str, GameSpec] = {
     ),
 }
 
-# Module catalogs are filesystem overlays, not gameplay identities. A beta
+# Module catalogs are filesystem overlays, not gameplay identities. An alias
 # package still resolves to game="wos" for Redis, devices, and package helpers,
-# but module discovery can read ``games/wos`` plus ``games/wos/beta``.
+# but module discovery can read ``games/wos`` plus an overlay: ``games/wos/beta``
+# for the beta build, ``games/wos/ru`` for the Russian "Белая мгла" build.
 MODULE_CATALOG_OVERLAYS: dict[str, tuple[str, ...]] = {
     WOS_BETA_MODULE_CATALOG: ("wos", "wos/beta"),
+    WOS_RU_MODULE_CATALOG: ("wos", "wos/ru"),
 }
 
 
@@ -166,11 +179,19 @@ def base_game_for_module_catalog(catalog: str | None) -> str:
 
 
 def module_catalog_for_package(game: str, package: str) -> str:
-    """Module catalog for a concrete Android package variant of ``game``."""
+    """Module catalog for a concrete Android package variant of ``game``.
+
+    Alias packages declared in :attr:`GameSpec.package_catalogs` (beta builds,
+    regional re-skins like the Russian "Белая мгла") load their own filesystem
+    overlay; the canonical package and any unmapped alias use the base catalog.
+    """
     game_id = (game or DEFAULT_GAME).strip()
     pkg = (package or "").strip()
-    if game_id == "wos" and pkg in packages_for_game(game_id)[1:]:
-        return WOS_BETA_MODULE_CATALOG
+    spec = GAMES.get(game_id)
+    if spec and pkg:
+        for alias_pkg, catalog in spec.package_catalogs:
+            if alias_pkg == pkg:
+                return catalog
     return game_id
 
 

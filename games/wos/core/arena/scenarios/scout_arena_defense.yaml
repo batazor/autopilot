@@ -1,0 +1,28 @@
+enabled: true
+name: "Arena: scout opponent defense → enemy lineup"
+priority: 60_000
+# Device-level: scouting writes the result to instance state (arena.enemy_lineup), not
+# per-player state, so it needs no player identity (who_i_am gate).
+device_level: true
+# Start from the city; the city → Arena route below is an OCR-anchored gesture path
+# (the radar can't localize the Arena building on every account).
+node: main_city
+
+steps:
+  # City → Arena of Glory: open the City panel, OCR-find the (dynamic) Marksman row,
+  # tap it to jump the camera to the Marksman camp, then swipe left + tap centre to
+  # open the Arena building. Verified end-to-end on bs3.
+  - exec: open_arena_via_city
+  - wait: 1s
+  # Confirm we reached the Arena of Glory screen.
+  - match: arena.title
+    threshold: 0.7
+    steps:
+      # Open the chosen opponent's Defensive Lineup popup (rank-1 podium by default).
+      - click: arena.scout.opponent
+      - wait: 1.5s
+      # Magnifier → the per-hero Details popup (let it settle before reading).
+      - click: arena.scout.details
+      - wait: 2.5s
+      # Portrait-id + gear/level (swiping for all 5) → arena.enemy_lineup.
+      - exec: scan_enemy_lineup

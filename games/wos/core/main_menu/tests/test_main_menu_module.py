@@ -158,8 +158,30 @@ def test_screen_graph_exposes_main_menu_node() -> None:
         ["main_menu.to.infantry"]
     ]
     assert screen_graph.screen_verify_rules("main_menu") == [
-        {"from_screen": ["main_city"]}
+        {"from_screen": ["main_city", "main_world"]}
     ]
+
+
+def test_research_center_is_a_dynamic_menu_teleport_not_chapter_task() -> None:
+    """The City menu's Go button teleports onto the Research Center building POPUP
+    (``main_menu -> research_center.building``, a dynamic ``main_menu_panel_row``
+    resolver); the popup's Research button then opens the tech tree
+    (``research_center.building -> research_center``). The generic
+    ``main_city -> research_center [chapter.task]`` 1-hop must NOT be synthesized —
+    it would out-compete the reliable menu teleport in BFS. Guards the
+    dynamic-aware, ``.building``-aware skip in ``_load_edge_taps``."""
+    bind_active_game("wos")
+    screen_graph.invalidate_edge_taps_cache()
+    static, dynamic, _graph = screen_graph.graph_for_game("wos")
+    spec = dynamic.get(("main_menu", "research_center.building"))
+    assert spec is not None and spec.get("resolver") == "main_menu_panel_row"
+    assert spec.get("section") == "tech_research" and spec.get("row") == "center"
+    # The popup opens the tech tree via its Research button.
+    assert static.get(("research_center.building", "research_center")) == [
+        "research_center.building.research"
+    ]
+    # The chapter.task fallback must be suppressed for the menu-backed building.
+    assert ("main_city", "research_center") not in static
 
 
 def _load_exec_module() -> Any:

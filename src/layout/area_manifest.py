@@ -140,10 +140,23 @@ def _load_area_doc_cached(
 ) -> dict[str, Any]:
     # fingerprint is part of the cache key; file edits invalidate automatically.
     _ = fingerprint
+    from config.games import module_roots_for
+
     repo_root = Path(repo_root_s)
     merged: dict[str, Any] = {"version": 2, "screens": []}
-    screens: list[Any] = merged["screens"]
 
+    # Overlay roots (e.g. ``games/wos/ru`` for the RU «Белая мгла» catalog) come
+    # after the base game root in ``module_roots_for``. The region index
+    # (``area_lookup._region_to_screen_index``) is FIRST-wins, so an overlay
+    # region that REDEFINES a base region name only wins if its screen is listed
+    # first. We therefore split base vs overlay screens and prepend the overlay
+    # ones — letting ``games/wos/ru`` override a base region's bbox/crop per build
+    # (the deploy-flow text buttons) while base fills every name it doesn't touch.
+    overlay_roots = [
+        r.resolve() for r in module_roots_for(game, repo_root=repo_root)[1:]
+    ]
+    base_screens: list[Any] = []
+    overlay_screens: list[Any] = []
     for module_area in iter_module_area_manifests(repo_root, game=game):
         # The discovery list is process-cached; a module deleted while the
         # process runs still appears here. Skip it like the fingerprint does.
@@ -157,8 +170,14 @@ def _load_area_doc_cached(
             module_root=module_root,
         )
         module_screens = module_doc.get("screens")
-        if isinstance(module_screens, list):
-            screens.extend(module_screens)
+        if not isinstance(module_screens, list):
+            continue
+        mp = module_area.resolve()
+        is_overlay = any(ov in mp.parents for ov in overlay_roots)
+        (overlay_screens if is_overlay else base_screens).extend(module_screens)
+
+    merged["screens"] = overlay_screens + base_screens
+    screens: list[Any] = merged["screens"]
 
     # Transitional legacy ``area.json`` at the repo root — see comment in
     # :func:`area_manifest_max_mtime`. Production deployments never have one;

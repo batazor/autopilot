@@ -128,7 +128,7 @@ GAMES: dict[str, Game] = {
     "wos": Game(
         id="wos",
         name="Whiteout Survival",
-        packages=("com.gof.global", "com.xyz.gof"),
+        packages=("com.gof.global", "com.xyz.gof", "com.gof.globalru"),
         seed_patterns=_COMMON_PATTERNS,
     ),
     "kingshot": Game(

@@ -11,6 +11,7 @@ from config.games import (
     GAMES_DIR_NAME,
     MODULE_CATALOG_OVERLAYS,
     WOS_BETA_MODULE_CATALOG,
+    WOS_RU_MODULE_CATALOG,
     GameSpec,
     base_game_for_module_catalog,
     default_game,
@@ -79,6 +80,21 @@ def test_wos_beta_module_catalog_overlays_wos(tmp_path: Path) -> None:
         tmp_path.resolve() / "games" / "wos" / "beta",
     )
     assert module_path_prefixes("wos_beta") == ("games/wos", "games/wos/beta")
+
+
+def test_wos_ru_module_catalog_overlays_wos(tmp_path: Path) -> None:
+    """The Russian "Белая мгла" build overlays ``games/wos`` with ``games/wos/ru``."""
+    assert WOS_RU_MODULE_CATALOG == "wos_ru"
+    assert MODULE_CATALOG_OVERLAYS["wos_ru"] == ("wos", "wos/ru")
+    assert resolve_module_catalog("wos_ru") == "wos_ru"
+    assert base_game_for_module_catalog("wos_ru") == "wos"
+    assert is_known_module_catalog("wos_ru")
+    assert not is_known_game("wos_ru")
+    assert module_roots_for("wos_ru", repo_root=tmp_path) == (
+        tmp_path.resolve() / "games" / "wos",
+        tmp_path.resolve() / "games" / "wos" / "ru",
+    )
+    assert module_path_prefixes("wos_ru") == ("games/wos", "games/wos/ru")
 
 
 def test_modules_root_for_default_repo_matches_repo_root() -> None:
@@ -176,7 +192,7 @@ def test_registry_includes_wos_and_kingshot() -> None:
     assert set(GAMES) == {"wos", "kingshot"}
     assert isinstance(GAMES["wos"], GameSpec)
     assert GAMES["wos"].package == "com.gof.global"
-    assert GAMES["wos"].package_aliases == ("com.xyz.gof",)
+    assert GAMES["wos"].package_aliases == ("com.xyz.gof", "com.gof.globalru")
     assert GAMES["kingshot"].package == "com.run.tower.defense"
     assert GAMES["kingshot"].package_aliases == ("com.abc.defense",)
 
@@ -184,7 +200,7 @@ def test_registry_includes_wos_and_kingshot() -> None:
 def test_spec_for_game_and_package_lookups() -> None:
     assert spec_for_game("wos").id == "wos"
     assert package_for_game("wos") == "com.gof.global"
-    assert packages_for_game("wos") == ("com.gof.global", "com.xyz.gof")
+    assert packages_for_game("wos") == ("com.gof.global", "com.xyz.gof", "com.gof.globalru")
     assert package_for_game("kingshot") == "com.run.tower.defense"
     assert packages_for_game("kingshot") == (
         "com.run.tower.defense",
@@ -207,6 +223,11 @@ def test_game_for_package_accepts_wos_beta_package() -> None:
     assert game_for_package("com.xyz.gof") == "wos"
 
 
+def test_game_for_package_accepts_wos_ru_package() -> None:
+    """The Russian "Белая мгла" build resolves to wos for state/launch/watchdog."""
+    assert game_for_package("com.gof.globalru") == "wos"
+
+
 def test_game_for_package_accepts_kingshot_beta_package() -> None:
     assert game_for_package("com.abc.defense") == "kingshot"
 
@@ -217,6 +238,14 @@ def test_package_set_helpers_accept_wos_beta_package() -> None:
     assert matching_packages_for_game("wos", installed) == ("com.xyz.gof",)
     assert module_catalog_for_package("wos", "com.xyz.gof") == "wos_beta"
     assert module_catalog_for_package("wos", "com.gof.global") == "wos"
+
+
+def test_package_set_helpers_accept_wos_ru_package() -> None:
+    installed = {"com.android.systemui", "com.gof.globalru"}
+    assert game_ids_for_packages(installed) == ["wos"]
+    assert matching_packages_for_game("wos", installed) == ("com.gof.globalru",)
+    # The RU build gets its OWN overlay, not the beta one.
+    assert module_catalog_for_package("wos", "com.gof.globalru") == "wos_ru"
 
 
 def test_package_set_helpers_accept_kingshot_beta_package() -> None:

@@ -9,8 +9,20 @@
 # so the verify survives event reskins (template titles would go stale).
 screens:
   intel:
-    priority: 30
+    # Checked before main_world (priority 10): the widened isSearch
+    # main_world.to.intel tap-region can match on the intel screen too, so intel
+    # must resolve first. Safe — intel.stamina is intel-specific (≈0.5 on the
+    # world map, ≈0.81 on intel), so this never false-fires off the intel screen.
+    priority: 9
     rules:
+      # Locale-tolerant title OCR: EN "Intel" / RU «Разведка» (the «Белая мгла»
+      # build). RU is white-outlined and often unreadable by default OCR, so
+      # detection also falls through to the language-independent stamina-icon
+      # landmark below.
       - ocr: intel.title
-        contains: Intel
+        contains:
+          - Intel
+          - Разведка
         threshold: 0.8
+      - match: intel.stamina
+        threshold: 0.75

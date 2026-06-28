@@ -141,6 +141,40 @@ class AllianceMemberRow(SQLModel, table=True):
     captured_at: float
 
 
+class AllianceMemberSnapshotRow(SQLModel, table=True):
+    """Append-only per-scan roster snapshot.
+
+    ``alliance_members`` upserts (latest roster only); this table keeps every
+    scan keyed by ``captured_at`` so churn (joined/left) and history can be
+    derived by diffing consecutive snapshots. ``snapshot_total`` denormalises
+    the expected member count from the scan so the analysis layer can skip
+    partial scans and avoid reporting false "left" events.
+    """
+
+    __tablename__ = "alliance_member_snapshots"
+    __table_args__ = (
+        Index(
+            "idx_alliance_member_snapshots_scan",
+            "game",
+            "alliance_name",
+            "captured_at",
+        ),
+    )
+
+    game: str = Field(default="wos", primary_key=True)
+    alliance_name: str = Field(primary_key=True)
+    captured_at: float = Field(primary_key=True)
+    member_key: str = Field(primary_key=True)
+    name: str = Field(default="")
+    rank: int = Field(default=0)
+    power: int = Field(default=0)
+    level: int = Field(default=0)
+    online: bool = Field(default=False)
+    last_online_text: str = Field(default="")
+    last_online_seconds: int | None = Field(default=None)
+    snapshot_total: int = Field(default=0)
+
+
 # ---------------------------------------------------------------------------
 # schema setup + legacy migrations
 # ---------------------------------------------------------------------------
@@ -306,6 +340,7 @@ def _ensure_schema(engine: Engine) -> None:
             PlayerLevelEvent.__table__,
             AllianceDaily.__table__,
             AllianceMemberRow.__table__,
+            AllianceMemberSnapshotRow.__table__,
         ],
     )
     orm.apply_migrations(engine, "state", [
@@ -647,6 +682,125 @@ def get_alliance_members(alliance_name: str, game: str | None = None) -> dict[st
     }
 
 
+def record_alliance_members_history(
+    *,
+    alliance_name: str,
+    members: Iterable[Mapping[str, Any]],
+    total_count: int = 0,
+    game: str | None = None,
+    captured_at: float | None = None,
+) -> dict[str, Any]:
+    """Append an immutable per-scan roster snapshot (powers churn + history)."""
+    name = str(alliance_name or "").strip()
+    if not name:
+        msg = "alliance_name is required"
+        raise ValueError(msg)
+    g = (game or _default_game()).strip()
+    now = float(captured_at or time.time())
+    rows: list[AllianceMemberSnapshotRow] = []
+    for member in members:
+        member_name = str(member.get("name") or "").strip()
+        key = _member_key(member_name)
+        if not key:
+            continue
+        raw_seconds = member.get("last_online_seconds")
+        rows.append(
+            AllianceMemberSnapshotRow(
+                game=g,
+                alliance_name=name,
+                captured_at=now,
+                member_key=key,
+                name=member_name,
+                rank=int(member.get("rank") or 0),
+                power=int(member.get("power") or 0),
+                level=int(member.get("level") or 0),
+                online=bool(member.get("online") or False),
+                last_online_text=str(member.get("last_online_text") or member.get("status") or ""),
+                last_online_seconds=None if raw_seconds is None else int(raw_seconds),
+                snapshot_total=int(total_count or 0),
+            )
+        )
+    with _conn_lock, Session(_engine()) as s:
+        for row in rows:
+            s.merge(row)
+        s.commit()
+    return {
+        "alliance_name": name,
+        "game": g,
+        "captured_at": now,
+        "members_count": len(rows),
+        "total_count": int(total_count or 0),
+    }
+
+
+def list_member_snapshot_times(
+    alliance_name: str,
+    *,
+    limit: int = 2,
+    game: str | None = None,
+) -> list[float]:
+    """Return the most recent distinct scan timestamps (newest first)."""
+    name = str(alliance_name or "").strip()
+    g = (game or _default_game()).strip()
+    with _conn_lock, Session(_engine()) as s:
+        rows = s.exec(
+            select(AllianceMemberSnapshotRow.captured_at)
+            .where(
+                AllianceMemberSnapshotRow.game == g,
+                AllianceMemberSnapshotRow.alliance_name == name,
+            )
+            .distinct()
+            .order_by(AllianceMemberSnapshotRow.captured_at.desc())
+            .limit(max(1, int(limit)))
+        ).all()
+    return [float(r) for r in rows]
+
+
+def get_member_snapshot(
+    alliance_name: str,
+    captured_at: float,
+    *,
+    game: str | None = None,
+) -> dict[str, Any]:
+    """Return one immutable scan snapshot's members (sorted rank desc, power desc)."""
+    name = str(alliance_name or "").strip()
+    g = (game or _default_game()).strip()
+    with _conn_lock, Session(_engine()) as s:
+        rows = s.exec(
+            select(AllianceMemberSnapshotRow)
+            .where(
+                AllianceMemberSnapshotRow.game == g,
+                AllianceMemberSnapshotRow.alliance_name == name,
+                AllianceMemberSnapshotRow.captured_at == float(captured_at),
+            )
+            .order_by(
+                AllianceMemberSnapshotRow.rank.desc(),
+                AllianceMemberSnapshotRow.power.desc(),
+                AllianceMemberSnapshotRow.name.asc(),
+            )
+        ).all()
+    snapshot_total = max((int(r.snapshot_total or 0) for r in rows), default=0)
+    return {
+        "alliance_name": name,
+        "game": g,
+        "captured_at": float(captured_at),
+        "snapshot_total": snapshot_total,
+        "members": [
+            {
+                "member_key": row.member_key,
+                "name": row.name,
+                "rank": int(row.rank or 0),
+                "power": int(row.power or 0),
+                "level": int(row.level or 0),
+                "online": bool(row.online),
+                "last_online_text": row.last_online_text,
+                "last_online_seconds": row.last_online_seconds,
+            }
+            for row in rows
+        ],
+    }
+
+
 def get_player_stats(player_id: str, game: str | None = None) -> dict[str, Any]:
     pid = int(str(player_id).strip())
     g = (game or _default_game()).strip()
@@ -694,15 +848,23 @@ def get_player_stats(player_id: str, game: str | None = None) -> dict[str, Any]:
 
 
 def list_alliance_names(game: str | None = None) -> list[str]:
+    """All known alliance names for ``game`` — union of daily stats and rosters.
+
+    An alliance may have a member roster (from the members scan) without a daily
+    stats row (no overview sync yet), so the Members view's selector must see
+    both sources.
+    """
     g = (game or _default_game()).strip()
     with _conn_lock, Session(_engine()) as s:
-        rows = s.exec(
-            select(AllianceDaily.alliance_name)
-            .where(AllianceDaily.game == g)
-            .distinct()
-            .order_by(AllianceDaily.alliance_name.asc())
+        daily = s.exec(
+            select(AllianceDaily.alliance_name).where(AllianceDaily.game == g).distinct()
         ).all()
-    return [name for name in rows if name]
+        members = s.exec(
+            select(AllianceMemberRow.alliance_name)
+            .where(AllianceMemberRow.game == g)
+            .distinct()
+        ).all()
+    return sorted({name for name in [*daily, *members] if name})
 
 
 def get_alliance_stats(alliance_name: str, game: str | None = None) -> dict[str, Any]:

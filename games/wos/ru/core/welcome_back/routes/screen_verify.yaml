@@ -1,0 +1,11 @@
+# RU «Белая мгла»: detect the welcome-back offline-income dialog by its Cyrillic
+# title «С возвращением!» (OCR), since the EN `text.welcome_back` template miss-es
+# it. Same priority as the base rule (3) so it probes before the rewards screens.
+# Regions (text.welcome_back bbox) come from the base welcome_back area.yaml.
+screens:
+  welcome_back:
+    priority: 3
+    rules:
+    - ocr: text.welcome_back
+      contains: [возвращением, Welcome]
+      threshold: 0.4

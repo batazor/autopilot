@@ -178,28 +178,35 @@ def _clean_name(text: object) -> str:
     return " ".join(value.split())
 
 
+_UNIT_SCALE = {
+    "second": 1,
+    "minute": 60,
+    "hour": 60 * 60,
+    "day": 24 * 60 * 60,
+    "week": 7 * 24 * 60 * 60,
+    "month": 30 * 24 * 60 * 60,
+}
+# Tolerant of OCR noise on the tiny status line: the trailing "ago" frequently
+# reads as "aga" / "ago}" / "agai" (right-edge artifacts), so anchor on "ag" +
+# any tail rather than a literal "ago".
+_LAST_ONLINE_RE = re.compile(
+    r"(?P<num>\d+)\s*(?P<unit>second|minute|hour|day|week|month)(?:\(s\)|s)?\s*ag\w*"
+)
+
+
 def _parse_last_online(status: object) -> tuple[bool, str, int | None]:
     text = _clean_name(status)
     lower = text.lower()
     if "online" in lower:
         return True, "Online", 0
-    match = re.search(
-        r"(?P<num>\d+)\s*(?P<unit>second|minute|hour|day|week|month)(?:\s*\(s\)|s)?\s*ago",
-        lower,
-    )
+    match = _LAST_ONLINE_RE.search(lower)
     if not match:
         return False, text, None
     amount = int(match.group("num"))
     unit = match.group("unit")
-    scale = {
-        "second": 1,
-        "minute": 60,
-        "hour": 60 * 60,
-        "day": 24 * 60 * 60,
-        "week": 7 * 24 * 60 * 60,
-        "month": 30 * 24 * 60 * 60,
-    }[unit]
-    return False, text, amount * scale
+    # Canonical, clean label regardless of trailing OCR noise ("aga" → "ago").
+    canonical = f"{amount} {unit}(s) ago"
+    return False, canonical, amount * _UNIT_SCALE[unit]
 
 
 class AllianceMembersParser:
@@ -221,7 +228,9 @@ class AllianceMembersParser:
                     OcrRegionSpec("r5.name", Region(275, 302, 270, 40), "word_line"),
                     OcrRegionSpec("r5.power", Region(280, 346, 130, 36), "fast_line"),
                     OcrRegionSpec("r5.level", Region(500, 346, 105, 36), "fast_line"),
-                    OcrRegionSpec("r5.status", Region(84, 386, 130, 34), "word_line"),
+                    # Last-online line ("5 hour(s) ago" / "Online"): fast_line keeps
+                    # the leading digit — word_line's letter-only whitelist drops it.
+                    OcrRegionSpec("r5.status", Region(84, 386, 150, 34), "fast_line"),
                 ]
             )
 
@@ -254,7 +263,11 @@ class AllianceMembersParser:
                     OcrRegionSpec(f"member.{card.index}.name", _subregion(card.bbox, 124, 14, 185, 35), "word_line"),
                     OcrRegionSpec(f"member.{card.index}.power", _subregion(card.bbox, 126, 51, 112, 32), "fast_line"),
                     OcrRegionSpec(f"member.{card.index}.level", _subregion(card.bbox, 160, 86, 100, 32), "fast_line"),
-                    OcrRegionSpec(f"member.{card.index}.status", _subregion(card.bbox, 28, 94, 105, 30), "word_line"),
+                    # Status line "5 hour(s) ago": start at x+13 to catch the leading
+                    # digit (x+28 sliced it off) and stop at width 120 before the level's
+                    # castle icon (~x+135). fast_line keeps digits — word_line's
+                    # letter-only whitelist dropped them.
+                    OcrRegionSpec(f"member.{card.index}.status", _subregion(card.bbox, 13, 90, 120, 34), "fast_line"),
                 ]
             )
         return specs

@@ -38,6 +38,8 @@ __all__ = [
     "drive",
     "history",
     "instance_state",
+    "label",
+    "label_hints",
     "list_instances",
     "logs",
     "pause",
@@ -283,6 +285,69 @@ def _serial_for_instance(instance_id: str) -> str | None:
         if str(d.name) == instance_id:
             return d.effective_serial or None
     return None
+
+
+def label_hints(*, clear: bool = False) -> dict[str, Any]:
+    """Pending UI label hints (operator → agent) from the lightweight ``/label`` page.
+
+    Each hint is ``{ts, instance_id, screen_id, ref, scope, regions:[{name,action,
+    bbox,…}], note, committed}`` pushed by the page's *Send hint* / *Commit*
+    buttons. ``clear=True`` drains the queue after reading. Returns
+    ``{count, cleared, hints}`` (newest first).
+    """
+    client = _redis()
+    raw = client.lrange("wos:label:hints", 0, -1)
+    hints: list[Any] = []
+    for item in raw:
+        try:
+            hints.append(json.loads(item))
+        except (TypeError, ValueError):
+            continue
+    if clear and raw:
+        client.delete("wos:label:hints")
+    return {"count": len(hints), "cleared": bool(clear and raw), "hints": hints}
+
+
+def label(
+    *,
+    instance: str | None = None,
+    regions: list[dict[str, Any]] | None = None,
+    ref: str | None = None,
+    screen_id: str = "",
+    scope: str = "core",
+    mode: str = "surgical",
+    version: str | None = None,
+    game: str | None = None,
+) -> dict[str, Any]:
+    """Commit labeled region(s) from a fresh device frame into ``area.yaml`` + crop.
+
+    Same engine as the ``/label`` page. ``mode="surgical"`` (default) upserts only
+    the given regions and leaves sibling regions / the screen's reference PNG
+    untouched; ``mode="recapture_reference"`` overwrites the screen reference and
+    re-exports all crops. Pass an existing ``ref`` or a ``screen_id`` that already
+    exists in the manifest. Each region needs ``name`` + percent ``bbox``.
+    """
+    iid = resolve_instance(instance)
+    if not regions:
+        msg = "no regions given (each needs a name + percent bbox)"
+        raise AgentctlError(msg)
+    from api.services.game_resolver import set_current_request_game
+    from api.services.labeling import commit_region_from_frame
+    from config.games import default_game
+
+    set_current_request_game(game or default_game())
+    try:
+        return commit_region_from_frame(
+            instance_id=iid,
+            regions=regions,
+            ref=ref,
+            screen_id=screen_id,
+            scope=scope,
+            mode=mode,
+            version=version,
+        )
+    except (ValueError, FileNotFoundError, RuntimeError) as exc:
+        raise AgentctlError(str(exc)) from exc
 
 
 def player(fid: str, key: str | None = None) -> dict[str, Any]:
@@ -780,6 +845,39 @@ def _state_diff(before: dict[str, str], after: dict[str, str]) -> dict[str, Any]
     return out
 
 
+def _bind_running_build_catalog(instance_id: str, serial: str | None) -> None:
+    """Bind active game + module catalog to the build running on the device.
+
+    Mirrors the worker's boot-time ``set_active_game`` + package-detection bind
+    (``controller_process._remember_game_package``) so a headless drive localizes
+    OCR language and overlay templates to the live build — e.g. the Russian
+    «Белая мгла» build (``com.gof.globalru`` → catalog ``wos_ru`` → ``rus``
+    OCR + RU overlay crops). Best-effort: a probe failure leaves the default
+    catalog, exactly as before.
+    """
+    if not serial:
+        return
+    try:
+        from adb.controller import AdbController
+        from config.games import (
+            default_game,
+            game_for_package,
+            module_catalog_for_package,
+        )
+        from services import bind_active_game, bind_active_module_catalog
+
+        activity = AdbController(
+            instance_id, serial, input_backend="adb"
+        ).current_foreground_activity()
+        pkg = activity.split("/", 1)[0].strip() if activity else ""
+        game = game_for_package(pkg) or default_game()
+        bind_active_game(game)
+        if pkg:
+            bind_active_module_catalog(module_catalog_for_package(game, pkg))
+    except Exception:
+        pass
+
+
 async def _drive_async(instance_id: str, scenario: str, fid: str, timeout: float) -> Any:
     """Bootstrap a headless runtime, run the scenario task, return its TaskResult."""
     import asyncio
@@ -799,6 +897,10 @@ async def _drive_async(instance_id: str, scenario: str, fid: str, timeout: float
     # decode_responses) so the DSL task's hget/hset behave identically.
     ar = aioredis.from_url(settings.redis.url, socket_connect_timeout=5.0)
     serial = _serial_for_instance(instance_id)
+    # Localize OCR language + overlay templates to the build actually running on
+    # the device before the scenario reads any text (e.g. wos_ru → rus for
+    # «Белая мгла»). Without this a headless drive stays on the default lang.
+    _bind_running_build_catalog(instance_id, serial)
     try:
         from tasks.dsl_scenario import DslScenarioTask
 

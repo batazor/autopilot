@@ -23,7 +23,11 @@ from config.paths import repo_root as default_repo_root
 CORE_MODULES_DIR = "core"
 MODULE_MANIFEST = "module.yaml"
 IGNORED_MODULE_DIR_NAMES = frozenset({"draft", "drafts"})
-CATALOG_OVERLAY_DIR_NAMES = frozenset({"beta"})
+# Overlay subtree names under a base game root (``games/wos/<name>``). Excluded
+# from base-game discovery so they only load for their own catalog: ``beta`` for
+# ``wos_beta``, ``ru`` for ``wos_ru`` («Белая мгла»). Keep in sync with the
+# overlay leaves in ``config.games.MODULE_CATALOG_OVERLAYS``.
+CATALOG_OVERLAY_DIR_NAMES = frozenset({"beta", "ru"})
 
 
 def _resolve_game(game: str | None) -> str:

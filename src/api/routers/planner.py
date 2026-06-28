@@ -56,6 +56,20 @@ def _hero_catalog() -> Any:
 
 
 @lru_cache(maxsize=1)
+def _arena_config() -> Any:
+    from games.wos.core.arena.optimizer import load_arena_config
+
+    return load_arena_config()
+
+
+@lru_cache(maxsize=1)
+def _arena_catalog() -> Any:
+    from games.wos.core.arena.optimizer import load_arena_catalog
+
+    return load_arena_catalog()
+
+
+@lru_cache(maxsize=1)
 def _pet_catalog() -> Any:
     from games.wos.core.pets.planner import load_pet_catalog
 
@@ -357,6 +371,171 @@ def post_heroes(body: HeroesBody) -> dict[str, Any]:
                 rm = hero_upgrade_roadmap(spec, body.roadmap.current, body.roadmap.target)
                 out["roadmap"] = _asdict(rm)
         return out
+
+    return _guard(run)
+
+
+# --------------------------------------------------------------------------- #
+# Arena — lineup optimizer (place 5 heroes vs a known enemy lineup)
+# --------------------------------------------------------------------------- #
+class ArenaHeroBody(BaseModel):
+    id: str
+    star: int = 1
+    level: int = 1
+    skill: int = 1
+    power: float | None = None        # in-game Power — the preferred strength signal
+    gear: list[float] | None = None   # per-piece gear levels (from the Details screen)
+    hero_class: str | None = None     # override / supply when not in the catalog
+    rarity: str | None = None
+    role: str | None = None
+    tags: list[str] | None = None
+
+
+class ArenaEnemyBody(BaseModel):
+    slot: int                          # 1..5
+    id: str | None = None
+    hero_class: str | None = None      # required when id is not in the catalog
+    power: float | None = None
+    rarity: str | None = None
+    star: int = 1
+    level: int = 1
+    skill: int = 1
+    gear: list[float] | None = None
+
+
+class ArenaLineupBody(BaseModel):
+    my_heroes: list[ArenaHeroBody] = Field(default_factory=list)
+    enemy: list[ArenaEnemyBody] = Field(default_factory=list)
+    locked: dict[str, str] = Field(default_factory=dict)   # {slot: hero_id} manual pins
+    counter_enabled: bool = True
+    current_generation: int | None = None
+    server_age_days: int | None = None
+    server_profile: str = "beta"
+    top_k: int = 3
+
+
+@router.get("/arena/heroes")
+def get_arena_heroes() -> dict[str, Any]:
+    """Hero catalog + slot layout that power the arena lineup pickers."""
+    def run() -> dict[str, Any]:
+        from games.wos.core.arena.optimizer import CLASSES
+
+        cfg = _arena_config()
+        cat = _arena_catalog()
+        heroes = [
+            {"id": h.id, "name": h.name, "hero_class": h.hero_class,
+             "rarity": h.rarity, "role": h.role, "tags": list(h.tags)}
+            for h in sorted(cat.values(), key=lambda x: x.name)
+        ]
+        return {
+            "heroes": heroes,
+            "classes": list(CLASSES),
+            "layout": {"count": cfg.slot_count, "front": list(cfg.front),
+                       "back": list(cfg.back), "all_target": cfg.all_target},
+            "counter_coeff": cfg.counter_coeff,
+        }
+
+    return _guard(run)
+
+
+@router.post("/arena/lineup")
+def post_arena_lineup(body: ArenaLineupBody) -> dict[str, Any]:
+    """Best arrangement of my heroes into the 5 arena seats vs the enemy lineup."""
+    def run() -> dict[str, Any]:
+        from dataclasses import replace
+
+        from games.wos.core.arena.optimizer import (
+            ArenaHero,
+            EnemyHero,
+            normalize_class,
+            optimize_lineup,
+        )
+
+        cfg = _arena_config()
+        if not body.counter_enabled:
+            cfg = replace(cfg, counter_coeff=0.0)
+        cat = _arena_catalog()
+
+        def _cls(raw: str | None, tmpl: Any) -> str:
+            return normalize_class(raw) if raw else (tmpl.hero_class if tmpl else "")
+
+        def _stat(tmpl: Any, attr: str) -> float | None:
+            return getattr(tmpl, attr, None) if tmpl else None
+
+        def _median(xs: list[float] | None) -> float | None:
+            # Median, not mean — robust to the odd OCR misread (a dropped digit, 20→2)
+            # in a hero's gear levels.
+            if not xs:
+                return None
+            s = sorted(xs)
+            return float(s[len(s) // 2])
+
+        my: list[Any] = []
+        for b in body.my_heroes:
+            t = cat.get(b.id)
+            my.append(ArenaHero(
+                id=b.id, name=(t.name if t else b.id), hero_class=_cls(b.hero_class, t),
+                rarity=b.rarity if b.rarity is not None else (t.rarity if t else ""),
+                role=b.role if b.role is not None else (t.role if t else ""),
+                tags=tuple(b.tags) if b.tags is not None else (t.tags if t else ()),
+                star=b.star, level=b.level, skill=b.skill, power=b.power, gear_avg=_median(b.gear),
+                base_attack=_stat(t, "base_attack"), base_def=_stat(t, "base_def"),
+                base_health=_stat(t, "base_health"),
+            ))
+        enemy: list[Any] = []
+        for b in body.enemy:
+            t = cat.get(b.id or "")
+            enemy.append(EnemyHero(
+                slot=b.slot, hero_class=_cls(b.hero_class, t), id=b.id or "",
+                name=(t.name if (b.id and t) else (b.id or "")),
+                rarity=b.rarity or (t.rarity if t else ""),
+                star=b.star, level=b.level, skill=b.skill, power=b.power, gear_avg=_median(b.gear),
+                base_attack=_stat(t, "base_attack"), base_def=_stat(t, "base_def"),
+                base_health=_stat(t, "base_health"),
+            ))
+
+        gen = body.current_generation
+        if gen is None and body.server_age_days is not None:
+            gen = _unlock_schedule(body.server_profile).hero_generation_at(body.server_age_days)
+
+        plan = optimize_lineup(
+            my, enemy, cfg=cfg, locked=body.locked,
+            current_generation=gen, top_k=max(1, body.top_k),
+        )
+        return _asdict(plan)
+
+    return _guard(run)
+
+
+@router.get("/arena/roster/{player_id}")
+def get_arena_roster(player_id: str) -> dict[str, Any]:
+    """The player's owned heroes (from the read roster state) to pre-fill the board.
+
+    State stores level + star per hero, but NOT Power — so the win prediction starts
+    at medium confidence; the operator can enter Power per hero to sharpen it.
+    """
+    def run() -> dict[str, Any]:
+        snap = _player_store(player_id).snapshot()
+        cat = _arena_catalog()
+        entries = dict(getattr(snap.heroes, "entries", {}) or {})
+        heroes = []
+        for hid, e in entries.items():
+            if not isinstance(e, dict) or not (e.get("available") or e.get("level")):
+                continue
+            t = cat.get(hid)
+            heroes.append({
+                "id": hid,
+                "name": e.get("name") or (t.name if t else hid),
+                "hero_class": t.hero_class if t else "",
+                "rarity": t.rarity if t else "",
+                "role": t.role if t else "",
+                "level": int(e["level"]) if e.get("level") else None,
+                "star": int(e["star"]) if e.get("star") is not None else None,
+                "skill": int(e["skill"]) if e.get("skill") is not None else None,
+                "gear": list(e["gear"]) if isinstance(e.get("gear"), list) else None,
+            })
+        heroes.sort(key=lambda h: (-(h["level"] or 0), h["name"]))
+        return {"player_id": str(player_id), "nickname": snap.nickname, "heroes": heroes}
 
     return _guard(run)
 

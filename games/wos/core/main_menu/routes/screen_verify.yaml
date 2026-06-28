@@ -2,6 +2,8 @@ screens:
   main_menu:
     priority: 30
     rules:
-      # Temporary image-less verify until the child menu gets its own labeled
-      # title/landmark region.
-      - from_screen: main_city
+      # Image-less verify (the menu has no labeled landmark yet). The building-list
+      # menu button is on BOTH the city and the world map, so the menu can open from
+      # either — accept both as the immediate predecessor, otherwise the
+      # main_world -> main_menu -> research_center hop fails to verify main_menu.
+      - from_screen: [main_city, main_world]

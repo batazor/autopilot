@@ -98,6 +98,11 @@ def bot_logs(instance: str | None = None, limit: int = 200) -> dict[str, Any]:
     return _run(core.logs, instance=instance, limit=limit)
 
 
+def bot_label_hints(clear: bool = False) -> dict[str, Any]:
+    """Pending UI label hints from the /label page (operator → agent): bbox + region name/action/screen per hint. clear=True drains the queue after reading."""  # noqa: E501
+    return _run(core.label_hints, clear=clear)
+
+
 # --------------------------------------------------------------------------- #
 # Tools — control. These enqueue work / send commands; device taps still pass
 # through the worker's click-approval gate.
@@ -136,6 +141,30 @@ def bot_drive(
     """Run ONE scenario on a device SYNCHRONOUSLY in-process (no worker/scheduler) and return its step trace + state diff. approval=False bypasses click-approval (taps fire without operator). Needs no worker running on the instance."""  # noqa: E501
     return _run(
         core.drive, scenario, instance, player_id=player_id, approval=approval, timeout=timeout,
+    )
+
+
+def bot_label(
+    instance: str | None = None,
+    regions: list[dict[str, Any]] | None = None,
+    ref: str | None = None,
+    screen_id: str = "",
+    scope: str = "core",
+    mode: str = "surgical",
+    version: str | None = None,
+    game: str | None = None,
+) -> dict[str, Any]:
+    """Commit labeled region(s) from a FRESH device frame into area.yaml + crop. Each region needs name + percent bbox {x,y,width,height}. mode=surgical (default) upserts only these regions (sibling regions + the screen reference PNG untouched); mode=recapture_reference overwrites the screen reference and re-exports all crops. Pass an existing ref or a screen_id already in the area manifest."""  # noqa: E501
+    return _run(
+        core.label,
+        instance=instance,
+        regions=regions,
+        ref=ref,
+        screen_id=screen_id,
+        scope=scope,
+        mode=mode,
+        version=version,
+        game=game,
     )
 
 
@@ -201,8 +230,10 @@ TOOLS = [
     bot_scenarios,
     bot_devices,
     bot_logs,
+    bot_label_hints,
     bot_run,
     bot_drive,
+    bot_label,
     bot_focus,
     bot_pause,
     bot_resume,

@@ -9,10 +9,13 @@ from config.state_sqlite import (
     delete_player_state,
     get_alliance_members,
     get_alliance_stats,
+    get_member_snapshot,
     get_player_stats,
     list_alliance_names,
     list_gamers_by_power,
+    list_member_snapshot_times,
     load_state_db_raw,
+    record_alliance_members_history,
     record_alliance_members_snapshot,
     record_alliance_stats,
     record_player_stats,
@@ -118,6 +121,54 @@ def test_record_alliance_members_snapshot_is_alliance_scoped(sqlite_state: Path)
     assert members[1]["online"] is False
     assert members[1]["last_online_text"] == "7 minute(s) ago"
     assert members[1]["last_online_seconds"] == 420
+
+
+def test_alliance_members_history_round_trip(sqlite_state: Path) -> None:
+    record_alliance_members_history(
+        alliance_name="Crimson",
+        members=[{"name": "Stay", "rank": 4, "power": 100}],
+        total_count=2,
+        captured_at=100.0,
+    )
+    record_alliance_members_history(
+        alliance_name="Crimson",
+        members=[
+            {"name": "Stay", "rank": 4, "power": 110},
+            {"name": "New", "rank": 1, "power": 50},
+        ],
+        total_count=2,
+        captured_at=200.0,
+    )
+
+    times = list_member_snapshot_times("Crimson")
+    assert times == [200.0, 100.0]  # newest first
+
+    latest = get_member_snapshot("Crimson", 200.0)
+    assert latest["snapshot_total"] == 2
+    assert {m["name"] for m in latest["members"]} == {"Stay", "New"}
+
+    oldest = get_member_snapshot("Crimson", 100.0)
+    assert [m["name"] for m in oldest["members"]] == ["Stay"]
+
+
+def test_alliance_members_history_is_alliance_scoped(sqlite_state: Path) -> None:
+    record_alliance_members_history(
+        alliance_name="Crimson",
+        members=[{"name": "A", "rank": 1, "power": 1}],
+        total_count=1,
+        captured_at=10.0,
+    )
+    assert list_member_snapshot_times("Other") == []
+
+
+def test_list_alliance_names_includes_roster_only_alliances(sqlite_state: Path) -> None:
+    # An alliance scanned for members but never synced for daily stats must still
+    # appear so the Members view can select it.
+    record_alliance_members_snapshot(
+        alliance_name="RosterOnly",
+        members=[{"name": "Solo", "rank": 5, "power": 100}],
+    )
+    assert "RosterOnly" in list_alliance_names()
 
 
 def test_list_gamers_by_power_filters_on_generated_column(sqlite_state: Path) -> None:

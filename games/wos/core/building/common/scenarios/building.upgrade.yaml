@@ -47,10 +47,16 @@ steps:
   steps:
   - ocr: furnace.name
     store: building.name
+    # RU «Белая мгла» titles OCR at ~0.5 confidence (rus script, stylised font);
+    # the default 0.9 region floor would drop them and the reader would never
+    # record a level. sync_building_name's parser is the real correctness gate
+    # (rejects unparseable text, levels are monotonic), so a low floor is safe.
+    threshold: 0.4
 - cond: currentNode != furnace
   steps:
   - ocr: building.title
     store: building.name
+    threshold: 0.4  # RU titles read ~0.5 conf; parser gates correctness (see above)
 - exec: sync_building_name
 - loop:
     max: 10

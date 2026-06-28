@@ -1,7 +1,10 @@
 enabled: true
-# Vertical slice: idle research slot → plan → navigate → start the tech.
+# Vertical slice: idle research slot → plan → teleport → start the tech.
 #   1. plan_next_research     — value-greedy pick → planner.next_research (+ branch)
-#   2. navigate_to_building   — radar navigator centres + opens the Research Center
+#   2. node: research_center  — the navigator teleports in via the City menu's
+#      "Center Research" Go button (main_city|main_world → main_menu →
+#      research_center, the main_menu_panel_row resolver). No radar city scan, no
+#      fixed coord; `node:` guarantees arrival on the RC screen before the steps.
 #   3. start_planned_research — opens the tech tree, switches to the planned tech's
 #      branch tab, scroll-locates its tile by name, taps it, then taps the in-tree
 #      Research button (never the gem-spending Finish). All the dynamic logic
@@ -11,22 +14,14 @@ enabled: true
 # Pushed by main_menu's panel scan when the Tech Research row reads Idle (that
 # push is self-gated on THIS scenario's `enabled`, so this flag is the single
 # switch that activates the whole research loop).
-#
-# The tech-tree regions are labeled (area.yaml) and the reader/dispatcher are
-# implemented (exec.py). On-device navigation still leans on the radar navigator,
-# which needs a saved main_city scan per account.
-name: 🔬▶️ Start idle research · plan → navigate → research
+name: 🔬▶️ Start idle research · plan → teleport → research
 device_level: true
 priority: 56_000
+node: research_center
 cond: research.center.state.isAvailable ~= "1"
 steps:
   - exec: dismiss_popup
   - exec: plan_next_research
   - cond: planner.next_research != ""
     steps:
-      - exec: navigate_to_building
-        building: research_center
-        open: true
-      - cond: nav.ok ~= "1"
-        steps:
-          - exec: start_planned_research
+      - exec: start_planned_research

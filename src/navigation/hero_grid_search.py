@@ -201,6 +201,59 @@ def _all_hero_ids() -> tuple[str, ...]:
     )
 
 
+@lru_cache(maxsize=8)
+def _all_hero_templates(scale_px: int = _TEMPLATE_PX) -> tuple[tuple[str, np.ndarray], ...]:
+    """Every hero's grayscale wiki portrait at ``scale_px`` (cached per scale)."""
+    out: list[tuple[str, np.ndarray]] = []
+    for hid in _all_hero_ids():
+        try:
+            out.append((hid, _load_hero_template_gray(hid, scale_px)))
+        except (FileNotFoundError, RuntimeError):
+            continue
+    return tuple(out)
+
+
+def match_hero_portrait(
+    patch_bgr: np.ndarray,
+    *,
+    hero_ids: tuple[str, ...] | None = None,
+    threshold: float = _DEFAULT_THRESHOLD,
+    scale_px: int = _TEMPLATE_PX,
+) -> tuple[str, float] | None:
+    """Identify the hero in a single portrait patch (NCC vs the wiki portrait library).
+
+    The SAME templates + grayscale ``TM_CCOEFF_NORMED`` matching the heroes-grid scan
+    uses (``db/assets/wiki/heroes/<id>/``), exposed for screens where the same hero
+    portraits appear in a *different* layout than the 4-col grid — e.g. the hero
+    **Details** popup (one larger portrait per row). The caller crops the portrait
+    region and passes it; templates are resized to ``scale_px`` (size the crop to the
+    on-screen portrait so the scales line up). Returns ``(hero_id, score)`` for the
+    best match, or ``None`` when nothing clears ``threshold``.
+    """
+    if patch_bgr.ndim != 3:
+        msg = "patch_bgr must be HxWx3 BGR"
+        raise ValueError(msg)
+    gray = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
+    templates = (
+        tuple((h, _load_hero_template_gray(h, scale_px)) for h in hero_ids)
+        if hero_ids is not None
+        else _all_hero_templates(scale_px)
+    )
+    best_hid: str | None = None
+    best_score = -1.0
+    for hid, tpl in templates:
+        if gray.shape[0] < tpl.shape[0] or gray.shape[1] < tpl.shape[1]:
+            continue  # patch smaller than the template — size the crop ≥ scale_px
+        heat = cv2.matchTemplate(gray, tpl, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, _ = cv2.minMaxLoc(heat)
+        if max_val > best_score:
+            best_score = float(max_val)
+            best_hid = hid
+    if best_hid is None or best_score < threshold:
+        return None
+    return best_hid, best_score
+
+
 def _cell_upgrade_green_ratio(
     frame_bgr: np.ndarray, x: int, y: int, w: int, h: int
 ) -> float:

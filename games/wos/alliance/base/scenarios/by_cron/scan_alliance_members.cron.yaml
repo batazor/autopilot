@@ -1,0 +1,20 @@
+enabled: true
+name: "Alliance: scan members (cron)"
+priority: 35_000
+
+# Daily roster scan so the Alliance → Members analysis (power distribution,
+# inactivity, rank composition, churn) stays fresh and the snapshot-history
+# table accumulates the consecutive scans churn diffs against. Delegates to the
+# on-demand scan_alliance_members scenario (which owns nav to alliance.members
+# plus the OCR / scroll logic); skip_if_duplicate avoids piling onto a scan
+# already queued by the dashboard "Scan" button. Low priority + once-a-day: the
+# scan navigates off main_city and rosters change slowly, so it must never
+# preempt real work (check_main_city brings the bot home afterwards).
+cron: "0 4 * * *"
+cond: "active_player != null"
+
+steps:
+  - push_scenario:
+      name: scan_alliance_members
+      priority: 35_000
+      skip_if_duplicate: true

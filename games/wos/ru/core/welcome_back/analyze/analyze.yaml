@@ -1,0 +1,19 @@
+overlay:
+  # RU «Белая мгла»: the EN base rule (welcome_back.confirm.visible, findIcon on
+  # the "Confirm" button crop) misses the RU «Подтвердить» button. Gate this on the
+  # welcome_back screen (detected by the RU title OCR in routes/screen_verify.yaml)
+  # and press the green button by colour (cta_button green) instead of a template.
+  # Same priority (120k) so it confirms before anything else; clears the startup
+  # blocker so identity + main_city resolve.
+  - name: welcome_back.confirm.visible.ru
+    region: button.confirm.green
+    action: cta_button
+    color: green
+    threshold: 0.5
+    device_level: true
+    priority: 120_000
+    ttl: 5s
+    screens:
+      - welcome_back
+    steps:
+      - click: button.confirm.green

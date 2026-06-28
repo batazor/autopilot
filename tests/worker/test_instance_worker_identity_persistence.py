@@ -2,7 +2,9 @@
 
 Covers:
 - ``InstanceWorkerRedisMixin._connect`` restoring ``active_player`` from the
-  durable device registry (so ``who_i_am`` is skipped on a worker restart).
+  durable device registry (a boot hint for the ``check_main_city`` seed gate; the
+  forced boot ``who_i_am`` probe still re-verifies identity — see
+  ``tests/worker/test_worker_identity_probe.py``).
 - ``InstanceWorkerHealthMixin._restart_instance`` clearing ``active_player`` on a
   game relaunch (so identity is re-verified lazily after a possible account switch).
 """

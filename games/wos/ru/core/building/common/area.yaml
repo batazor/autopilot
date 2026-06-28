@@ -1,21 +1,37 @@
 {
   "version": 2,
-  "_comment": "RU «Белая мгла» overlay: repositions the «Улучшить» (Upgrade) button. On the RU city building panel the blue Upgrade pill sits at y≈54% (vs the EN full-screen layout's y≈40%); the base anchor missed it so the blue-CTA search locked onto a different blue element top-right. building.upgrade uses `action: cta_button color: blue`, which anchors find_blue_buttons on this bbox. Matched by colour+position, no Latin template crop. Verified live on bs5 (find_blue_buttons score 3.3, center ~(592,696)=82%x54%).",
+  "_comment": "RU «Белая мгла» overlay for the Shelter (Барак) interior, which stacks TWO blue «Улучшить» pills that alternate blue↔grey as you upgrade: the building pill (upper, y≈42%) and the selected-furniture pill (lower, y≈51%). The blue-CTA detector (`action: cta_button color: blue` in shelter.upgrade) skips grey pills automatically, so each is given a TIGHT anchor at its own row — a single wide anchor merges the pill with the blue panel background (lands in the gap between them) and a y≈53% anchor reaches down into the furniture thumbnail row (y≈60%) and mis-taps. shelter.upgrade re-probes both each loop iteration and long-taps whichever is blue. Matched by colour+position, no Latin template crop. Verified live on bs4 (find_blue_buttons: upper score 1.0 @ (619,531); lower 0 hits while grey).",
   "screens": [
     {
       "screen_id": "building",
       "regions": [
         {
-          "name": "upgrade_button",
-          "_comment": "RU «Улучшить» blue pill on the city building panel.",
+          "name": "upgrade_button_top",
+          "_comment": "RU building «Улучшить» pill — upper row, beside «Барак N Ур. M».",
           "action": "color_check",
           "type": "blue",
           "threshold": 0.45,
           "bbox": {
-            "x": 74.47876447876448,
-            "y": 53.5,
+            "x": 76.0,
+            "y": 39.0,
             "width": 20.0,
-            "height": 4.0,
+            "height": 5.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "upgrade_button",
+          "_comment": "RU selected-furniture «Улучшить» pill — lower row. Tight on the pill row so the blue-CTA search never drifts into the furniture thumbnail strip below (y≈60%).",
+          "action": "color_check",
+          "type": "blue",
+          "threshold": 0.45,
+          "bbox": {
+            "x": 74.0,
+            "y": 48.0,
+            "width": 22.0,
+            "height": 7.0,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

@@ -2,6 +2,8 @@ screens:
   cookhouse:
     priority: 31
     rules:
+    # RU «Белая мгла»: Cookhouse → «Кухня»/«Столовая» (both listed; contains is a
+    # case-insensitive OR with fuzzy fallback, so an unused candidate is harmless).
     - ocr: building.name
-      contains: Cookhouse
+      contains: [Cookhouse, Кухня, Столовая]
       threshold: 0.8

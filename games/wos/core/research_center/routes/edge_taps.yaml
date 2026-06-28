@@ -1,0 +1,26 @@
+# Routing for the Research Center, reached the radar-free way: the City menu's
+# "Center Research" Go button (main_menu -> research_center.building, a dynamic
+# main_menu_panel_row teleport declared in main_menu/routes/edge_taps.yaml)
+# teleports the camera onto the Research Center building on main_city and opens
+# its action popup. That popup has THREE buttons (Details / Upgrade / Research),
+# each a labelled click region in area.yaml (research_center.building.*) — so the
+# popup is its own node with three outgoing routes:
+edges:
+  research_center.building:
+    # Research / Technologies → the tech-tree screen (the `research_center` node),
+    # where sync_research_levels reads tech levels and start_idle_research starts a
+    # tech. This is the ACTIVE route the readers use (node: research_center routes
+    # main_city -> main_menu -> research_center.building -> research_center).
+    research_center: [research_center.building.research]
+    # Details → the building info/stats popup. (Target screen not modelled yet —
+    # the button is labelled and the route is reserved for when it is.)
+    research_center.details: [research_center.building.details]
+    # Upgrade → the building upgrade panel. Absent once the building is max level
+    # 30 (only Details + Research show there), so the row degrades to two buttons.
+    research_center.upgrade: [research_center.building.upgrade]
+    # Non-committal exit back to the city (top-left back arrow).
+    main_city: [icon.page.back]
+
+  # The tech-tree screen exits to the city via the top-left back arrow.
+  research_center:
+    main_city: [icon.page.back]

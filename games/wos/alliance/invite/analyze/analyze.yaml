@@ -1,4 +1,9 @@
 overlay:
+# Auto-dismisses the alliance invite / recruit banner (e.g. "[XXX] is growing
+# fast, View") by its red close X. The same close crop matches both the
+# new-alliance-mail popup and the recruit banner (score 1.0), and the X sits at
+# the same spot on the city and the world map — so fire on both screens, where it
+# otherwise covers the bottom UI and blocks navigation.
 - name: alliance.invite.new.visible
   region: main_city.new_alliance.mail.close
   action: findIcon
@@ -7,6 +12,7 @@ overlay:
   threshold: 0.9
   screens:
   - main_city
+  - main_world
   ttl: 2s
   steps:
   - push_scenario: invite.new

@@ -7,6 +7,7 @@ screens:
   war_academy:
     priority: 31
     rules:
+      # RU «Белая мгла»: War Academy → «Военная академия».
       - ocr: war_academy.title
-        contains: War Academy
+        contains: [War Academy, Военная академия]
         threshold: 0.8

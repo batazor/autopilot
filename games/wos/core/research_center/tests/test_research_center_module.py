@@ -53,11 +53,13 @@ def test_planner_cron_reader_and_dispatch_all_enabled() -> None:
 
 
 def test_start_idle_research_calls_dispatcher_exec() -> None:
-    """The dispatcher scenario wires plan → navigate → start_planned_research."""
+    """The dispatcher plans, teleports into the RC via ``node:`` (the City-menu
+    Go-button route, not the radar), then starts the planned tech."""
     dispatch = _load_yaml("scenarios/start_idle_research.yaml")
+    assert dispatch.get("node") == "research_center"  # menu teleport, not radar
     execs = _collect_execs(dispatch.get("steps") or [])
     assert "plan_next_research" in execs
-    assert "navigate_to_building" in execs
+    assert "navigate_to_building" not in execs  # migrated off the per-account radar
     assert "start_planned_research" in execs
 
 
@@ -165,6 +167,22 @@ def test_research_levels_from_ocr_rows_maps_and_drops_unknown() -> None:
     rows = [("Bandaging I", 2), ("Camp Expansion I", 1), ("garbage xyz", 5)]
     got = mod._research_levels_from_ocr_rows(rows, graph)
     assert got == {"bandaging_i": 2, "camp_expansion_i": 1}
+
+
+def test_is_frontier_band_stops_only_on_all_unresearched() -> None:
+    """0/Y frontier short-circuit: a band of ≥2 all-zero tiles ends the tab sweep,
+    but any researched tile in view (or a lone zero) keeps it scrolling."""
+    mod = _load_exec_module()
+    # whole visible band unresearched → frontier reached, stop scrolling deeper.
+    assert mod._is_frontier_band([0, 0]) is True
+    assert mod._is_frontier_band([0, 0, 0]) is True
+    # a researched tile alongside zeros → still inside the tree, keep going.
+    assert mod._is_frontier_band([5, 0]) is False
+    assert mod._is_frontier_band([0, 3, 0]) is False
+    # a single zero is too weak a signal (could be one misread pill) → keep going.
+    assert mod._is_frontier_band([0]) is False
+    # no confidently-read tiles this frame → no signal (the dry counter handles it).
+    assert mod._is_frontier_band([]) is False
 
 
 # --- planner wiring (state → plan_next → state) ------------------------------

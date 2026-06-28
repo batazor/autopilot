@@ -22,10 +22,17 @@ from api.services.fish_engine import (
 )
 
 
-def _row(cx: int, cy: int, *, w: int = 40, h: int = 30) -> FishDetectionRow:
+def _row(
+    cx: int,
+    cy: int,
+    *,
+    w: int = 40,
+    h: int = 30,
+    confidence: float = 0.9,
+) -> FishDetectionRow:
     return FishDetectionRow(
         x=cx - w // 2, y=cy - h // 2, width=w, height=h,
-        center_x=cx, center_y=cy, confidence=0.9, class_name="fish",
+        center_x=cx, center_y=cy, confidence=confidence, class_name="fish",
     )
 
 
@@ -289,6 +296,20 @@ def test_plan_action_interception_aims_further_than_no_latency() -> None:
     assert intercept["target_lead_x"] > 460
 
 
+def test_plan_action_collect_scores_bigger_cleaner_target_over_nearest() -> None:
+    # The nearest blob is tiny/low-confidence; the smarter collect policy should
+    # chase the nearby valuable fish instead of blindly picking Euclidean nearest.
+    dets = [
+        _row(390, 195, w=10, h=10, confidence=0.1),
+        _row(450, 195, w=80, h=30, confidence=0.98),
+    ]
+    plan = plan_action(None, dets, [14, 16], fallback_hook=(360, 195))
+    assert plan["phase"] == "collect"
+    assert plan["target_index"] == 1
+    assert plan["swipe"] is not None
+    assert plan["swipe"]["direction"] == "right"
+
+
 def test_plan_dodge_flees_to_emptier_side() -> None:
     # Hook between two fish at its depth: one close on the right, one far on the
     # left → the field flees LEFT (toward the bigger gap), not into the right fish.
@@ -299,6 +320,17 @@ def test_plan_dodge_flees_to_emptier_side() -> None:
     swipe = plan_dodge(hook, tracked)
     assert swipe is not None
     assert swipe["direction"] == "left"  # away from the nearer (right) fish
+
+
+def test_plan_dodge_anticipates_fish_entering_hook_lane() -> None:
+    # Current x is still outside the dodge radius, but velocity puts the fish in
+    # the hook lane within the short prediction horizon → start dodging now.
+    hook = (360, 200)
+    tracked = track_fish([_row(710, 200)], [_row(560, 200)], dt_s=0.5)
+    assert tracked[0]["vx"] == pytest.approx(-300.0)
+    swipe = plan_dodge(hook, tracked)
+    assert swipe is not None
+    assert swipe["direction"] == "left"
 
 
 def test_plan_dodge_holds_in_open_water() -> None:
@@ -315,6 +347,40 @@ def test_plan_action_reports_hook_not_detected_and_uses_fallback() -> None:
     plan = plan_action(None, [_row(360, 220)], [16, 14], fallback_hook=(420, 300))
     assert plan["hook_detected"] is False
     assert (plan["hook_x"], plan["hook_y"]) == (420, 300)
+
+
+def test_plan_action_uses_line_only_near_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A line-only read is weak but useful when it agrees with the driver's
+    # carried hook estimate: use the line for x, keep the trusted carried y.
+    from games.wos.events.fishing_tournament.hook_detect import HookDetection, Line
+
+    monkeypatch.setattr(
+        "api.services.fish_engine._detect_hook_state",
+        lambda _frame: HookDetection(line=Line(412, 10, 320)),
+    )
+    frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+    plan = plan_action(frame, [], [16, 14], fallback_hook=(380, 260))
+    assert plan["hook_detected"] is True
+    assert plan["hook_source"] == "line"
+    assert (plan["hook_x"], plan["hook_y"]) == (412, 260)
+    assert plan["hook_direction"] is None
+
+
+def test_plan_action_rejects_line_only_far_from_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Without a nearby carried estimate, the dark line can be a false positive.
+    from games.wos.events.fishing_tournament.hook_detect import HookDetection, Line
+
+    monkeypatch.setattr(
+        "api.services.fish_engine._detect_hook_state",
+        lambda _frame: HookDetection(line=Line(20, 10, 320)),
+    )
+    frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+    plan = plan_action(frame, [], [16, 14], fallback_hook=(380, 260))
+    assert plan["hook_detected"] is False
+    assert plan["hook_source"] == "fallback"
+    assert (plan["hook_x"], plan["hook_y"]) == (380, 260)
 
 
 def test_track_fish_ema_blends_with_prior_velocity() -> None:

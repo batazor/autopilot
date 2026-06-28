@@ -208,6 +208,10 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Re-export helpers and tap/overlay symbols for tests that monkeypatch ``tasks.dsl_scenario``.
 "src/tasks/dsl_scenario.py" = ["F401"]
+# Embedded single-file HTML/CSS/JS page asset (the ``/label`` labeling page) is
+# one big string literal — long inline markup/script lines are inherent to the
+# format, same rationale as ``stubs``.
+"src/api/routers/label_live.py" = ["E501"]
 # Tests: relaxed typing, long golden / inline YAML strings, and intentional
 # private-member access (``obj._foo``) for white-box assertions on the unit
 # under test — that's literally what unit tests are for.
