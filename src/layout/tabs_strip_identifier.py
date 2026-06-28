@@ -41,6 +41,49 @@ match at 0.83-1.00 and non-visible templates score 0.34-0.48. A floor at
 0.70 cleanly separates the two clusters."""
 
 
+# Auto-discovered tab templates are derived from *static* reference frames
+# (``cv2.imread`` of each page's reference PNG + strip segmentation), yet
+# ``discover_tab_templates`` is called from the per-tick overlay path — so it
+# re-read PNGs from disk and re-ran CV on every frame. Memoize: the inputs are
+# static at runtime, and the content-based key (namespace screens' id / ocr /
+# region names + strip bbox) self-invalidates if the area manifests reload.
+# Callers consume the returned dict read-only.
+_TAB_TEMPLATE_CACHE: dict[tuple, dict[str, np.ndarray]] = {}
+
+
+def clear_tab_template_cache() -> None:
+    """Drop memoized tab templates (tests / area hot-reload)."""
+    _TAB_TEMPLATE_CACHE.clear()
+
+
+def _tab_template_cache_key(
+    area_doc: dict, repo_root: Path, strip_bbox: dict, *, namespace: str
+) -> tuple:
+    ns = str(namespace or "").strip()
+    ns_prefix = f"{ns}."
+    strip_key = tuple(
+        sorted(
+            (str(k), round(float(v), 4))
+            for k, v in strip_bbox.items()
+            if isinstance(v, (int, float))
+        )
+    )
+    screens_key: list[tuple] = []
+    for screen in area_doc.get("screens", []) or []:
+        if not isinstance(screen, dict):
+            continue
+        sid = str(screen.get("screen_id") or "").strip()
+        if not (sid == ns or sid.startswith(ns_prefix)):
+            continue
+        regions = tuple(
+            str(r.get("name", "")).strip()
+            for r in (screen.get("regions") or [])
+            if isinstance(r, dict)
+        )
+        screens_key.append((sid, str(screen.get("ocr", "")).strip(), regions))
+    return (str(repo_root), ns, strip_key, tuple(sorted(screens_key)))
+
+
 def identify_tabs_by_template(
     image_bgr: np.ndarray,
     tabs: list[TabDetection],
@@ -224,6 +267,13 @@ def discover_tab_templates(
     if not ns or not isinstance(strip_bbox, dict):
         return {}
 
+    cache_key = _tab_template_cache_key(
+        area_doc, repo_root, strip_bbox, namespace=ns
+    )
+    cached = _TAB_TEMPLATE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     templates: dict[str, np.ndarray] = {}
     if ns == "shop":
         strip_y_lo = float(strip_bbox.get("y", 0.0))
@@ -275,6 +325,7 @@ def discover_tab_templates(
         namespace=ns,
     ).items():
         templates.setdefault(page_id, img)
+    _TAB_TEMPLATE_CACHE[cache_key] = templates
     return templates
 
 

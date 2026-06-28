@@ -138,3 +138,22 @@ def test_active_tab_identifies_as_own_page(
         f"[{screen_id}] active tab [{active.index}] identified as "
         f"{ids.get(active.index)!r}, expected {screen_id!r}"
     )
+
+
+def test_discover_tab_templates_is_cached(area_doc, strip_bbox):
+    """Repeated discovery returns the memoized dict (no re-imread/CV per call)."""
+    from layout.tabs_strip_identifier import (
+        clear_tab_template_cache,
+        discover_tab_templates,
+    )
+
+    clear_tab_template_cache()
+    first = discover_tab_templates(area_doc, REPO_ROOT, strip_bbox, namespace="shop")
+    second = discover_tab_templates(area_doc, REPO_ROOT, strip_bbox, namespace="shop")
+    assert first is second  # cache hit returns the same object
+    assert first  # shop discovery is non-empty on the production area doc
+
+    clear_tab_template_cache()
+    third = discover_tab_templates(area_doc, REPO_ROOT, strip_bbox, namespace="shop")
+    assert third is not first  # cleared → recomputed
+    assert set(third) == set(first)  # same content
