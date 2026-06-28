@@ -604,7 +604,7 @@ class ScrcpyClient:
             "tunnel_forward=true",
             "keep_active=true",
             "cleanup=false",
-            # Do not pass v3 tuning/default options (video_bit_rate, max_fps,
+            # Do not pass v3 tuning/default options (video_bit_rate,
             # max_size, raw_stream, etc.) or even default-valued booleans
             # (video/control/send_*). On at least Samsung SM-G780G/Android 13,
             # explicitly passing several otherwise-valid options makes the
@@ -612,6 +612,14 @@ class ScrcpyClient:
             # packet. The official v4 client also relies on defaults and only
             # passes only a small option set for this no-audio forward tunnel.
         ]
+        # ``max_fps`` is the one tuning option we *do* pass, and only when set
+        # (>0): it caps the device-side encoder so the host decodes fewer
+        # frames. Driven dynamically per scenario (low during normal autopilot,
+        # lifted for the fishing minigame) via :meth:`set_max_fps`. Default 0
+        # keeps the historical no-cap behaviour; if a device aborts on the
+        # option the reader self-heals by dropping the cap (see ``_read_loop``).
+        if self.max_fps > 0:
+            server_args.append(f"max_fps={self.max_fps}")
         cmd = [
             self.adb_bin, "-s", self.serial, "shell",
             f"CLASSPATH={DEVICE_JAR}",
@@ -787,6 +795,18 @@ class ScrcpyClient:
                 break
             # Video dropped unexpectedly — rebuild the session and resume.
             if not self._restart_session():
+                # Some devices abort when handed the ``max_fps`` option (see the
+                # server_args note). If we can't reconnect *with* a cap, drop it
+                # and try once more before giving up so the stream self-heals.
+                if self.max_fps > 0:
+                    logger.warning(
+                        "scrcpy %s: reconnect failed with max_fps=%d — "
+                        "dropping the cap and retrying uncapped",
+                        self.serial, self.max_fps,
+                    )
+                    self.max_fps = 0
+                    if self._restart_session():
+                        continue
                 return  # retries exhausted; capture path will recreate us
 
     def _stream_video(self) -> str:
@@ -832,6 +852,30 @@ class ScrcpyClient:
                 self._cache = _CachedFrame(image=img, captured_at=time.monotonic())
             self._frame_event.set()
         return "stopped"
+
+    def set_max_fps(self, fps: int) -> None:
+        """Change the stream's frame-rate cap at runtime (0 = uncapped).
+
+        ``max_fps`` is a server launch argument, so a change takes effect by
+        relaunching the stream: we shut down the video socket, which unblocks
+        the reader's ``recv`` → ``_stream_video`` returns ``"dropped"`` →
+        ``_read_loop`` rebuilds the session with the new cap. The last cached
+        frame keeps being served during the sub-second reconnect, so callers
+        never see a gap. No-op when the cap is unchanged, so the per-tick
+        capture-fps policy can call this every tick cheaply.
+        """
+        fps = max(0, int(fps))
+        if fps == self.max_fps:
+            return
+        logger.info(
+            "scrcpy %s: max_fps %d → %d — restarting stream",
+            self.serial, self.max_fps, fps,
+        )
+        self.max_fps = fps
+        sock = self._video_sock
+        if sock is not None:
+            with contextlib.suppress(Exception):
+                sock.shutdown(socket.SHUT_RDWR)
 
     def _restart_session(self) -> bool:
         """Relaunch the server + reopen the sockets in place, with bounded

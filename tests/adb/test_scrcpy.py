@@ -854,3 +854,25 @@ def test_lookup_scrcpy_client_does_not_register_a_new_one() -> None:
 
     close_scrcpy_client(serial)
     assert lookup_scrcpy_client(serial) is None
+
+
+def test_set_max_fps_updates_cap_and_noops_when_unchanged() -> None:
+    """``set_max_fps`` updates the launch cap; unchanged value is a no-op.
+
+    Before ``start()`` there is no video socket, so the call just records the
+    new cap (the next ``_launch_session`` appends ``max_fps=N`` to server_args).
+    """
+    client = ScrcpyClient(serial="fps-test", adb_bin="/bin/true")
+    assert client.max_fps == 0  # default: uncapped, no regression
+
+    client.set_max_fps(8)
+    assert client.max_fps == 8
+
+    client.set_max_fps(8)  # unchanged → no-op (no exception without a socket)
+    assert client.max_fps == 8
+
+    client.set_max_fps(0)  # back to uncapped
+    assert client.max_fps == 0
+
+    client.set_max_fps(-5)  # clamped to 0
+    assert client.max_fps == 0

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import tempfile
@@ -8,7 +9,10 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from config.capture_rate import MIN_CAPTURE_INTERVAL_S
+from config.capture_rate import (
+    MIN_CAPTURE_INTERVAL_S,
+    scrcpy_max_fps_for_capture_interval,
+)
 from config.paths import repo_root
 from config.reference_naming import rolling_preview_basename, temporal_png_abs_path
 from config.tracing import screenshot_analysis_duration_histogram
@@ -233,6 +237,20 @@ class InstanceWorkerRollingMixin(_Base):
     async def _run_rolling_snapshot_analysis(self, image_bgr: np.ndarray) -> None:
         """Screen detect + overlay on a captured frame (may run in background)."""
         from tasks.dsl_scenario_helpers import _read_active_player
+
+        # Match the scrcpy decode rate to what the active scenario needs: a fast
+        # module (fishing, via ``capture_interval_ms``) streams uncapped; normal
+        # autopilot (and idle/blocked workers) caps low to save H.264 decode.
+        # ``_capture_interval_override_s`` is maintained by the task lifecycle;
+        # ``set_scrcpy_max_fps`` no-ops unless the cap actually changes, so this
+        # only triggers a stream restart at fast-scenario boundaries.
+        with contextlib.suppress(Exception):
+            self._bot_actions.set_scrcpy_max_fps(
+                self._cfg.instance_id,
+                scrcpy_max_fps_for_capture_interval(
+                    getattr(self, "_capture_interval_override_s", None)
+                ),
+            )
 
         cfg = self._settings.worker
         task_busy = self._task_busy.is_set()

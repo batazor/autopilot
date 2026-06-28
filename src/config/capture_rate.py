@@ -25,6 +25,25 @@ from config.module_discovery import iter_module_dirs, load_module_yaml, module_m
 # ``capture_interval_ms: 1`` hammering the device.
 MIN_CAPTURE_INTERVAL_S = 0.05
 
+# scrcpy stream frame-rate cap (fps) during normal autopilot. The overlay only
+# samples ~2 fps and post-tap captures need a fresh frame within ~125 ms, so a
+# low cap keeps H.264 decode cheap without hurting responsiveness. Fast modules
+# that declare ``capture_interval_ms`` (fishing, dreamscape) stream uncapped.
+IDLE_SCRCPY_MAX_FPS = 8
+
+
+def scrcpy_max_fps_for_capture_interval(
+    capture_interval_override_s: float | None,
+) -> int:
+    """scrcpy ``max_fps`` for the active scenario (0 = uncapped).
+
+    A scenario whose module declares a faster ``capture_interval_ms`` (so
+    ``capture_interval_override_s`` is set) needs frames as fast as the device
+    produces them — stream uncapped. Otherwise cap to ``IDLE_SCRCPY_MAX_FPS`` so
+    a static screen isn't decoded at the device's native frame rate.
+    """
+    return 0 if capture_interval_override_s else IDLE_SCRCPY_MAX_FPS
+
 
 @lru_cache(maxsize=8)
 def _module_capture_ms_map(repo_root_s: str) -> dict[str, int]:

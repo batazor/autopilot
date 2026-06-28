@@ -2,11 +2,24 @@
 from __future__ import annotations
 
 from config.capture_rate import (
+    IDLE_SCRCPY_MAX_FPS,
     MIN_CAPTURE_INTERVAL_S,
     capture_interval_s_for_scenario_key,
     module_capture_interval_ms,
+    scrcpy_max_fps_for_capture_interval,
 )
 from config.paths import repo_root
+
+
+def test_scrcpy_fps_uncapped_for_fast_scenario() -> None:
+    # A scenario with a capture override (fishing) streams uncapped (0).
+    assert scrcpy_max_fps_for_capture_interval(0.1) == 0
+
+
+def test_scrcpy_fps_idle_cap_for_normal_scenario() -> None:
+    # No override (normal autopilot / idle) → low cap.
+    assert scrcpy_max_fps_for_capture_interval(None) == IDLE_SCRCPY_MAX_FPS
+    assert IDLE_SCRCPY_MAX_FPS > 0
 
 
 def test_fast_modules_declare_capture_interval() -> None:

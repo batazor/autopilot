@@ -16,7 +16,12 @@ from adb.frame_normalize import (
     normalized_point_to_source_point,
 )
 from adb.scrcpy import DEFAULT_PORT_BASE as _SCRCPY_PORT_BASE
-from adb.scrcpy import ScrcpyClient, close_scrcpy_client, get_or_create_scrcpy_client
+from adb.scrcpy import (
+    ScrcpyClient,
+    close_scrcpy_client,
+    get_or_create_scrcpy_client,
+    lookup_scrcpy_client,
+)
 from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr_with_transform, resolve_adb_executable
 from layout.types import Point
 from worker import frame_bus
@@ -302,6 +307,23 @@ class BotActions:
             self._frame_cache[instance_id] = (now, img, transform)
             self._clear_settle_boundary_locked(instance_id, now)
         return img
+
+    def set_scrcpy_max_fps(self, instance_id: str, fps: int) -> None:
+        """Apply a scrcpy frame-rate cap for ``instance_id`` (0 = uncapped).
+
+        Best-effort and side-effect free when scrcpy isn't running: uses
+        ``lookup_scrcpy_client`` (never creates one), so calling it on an
+        adb-backend device or before the stream is up is a no-op. The client
+        itself no-ops when the cap is unchanged, so the per-tick capture-fps
+        policy can call this every tick.
+        """
+        try:
+            client = lookup_scrcpy_client(self._get_serial(instance_id))
+        except Exception:
+            client = None
+        if client is not None:
+            with contextlib.suppress(Exception):
+                client.set_max_fps(fps)
 
     def _get_scrcpy_client(self, instance_id: str) -> ScrcpyClient:
         """Lazy-start the shared scrcpy server for ``instance_id``.
