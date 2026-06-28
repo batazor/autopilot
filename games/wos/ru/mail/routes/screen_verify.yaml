@@ -1,0 +1,43 @@
+# RU «Белая мгла»: the mail panel title is «Почта» (not "Mail"), so re-detect the
+# mail screens by the RU title (OCRs cleanly, conf ~0.97). tab_active stays on the
+# base tab regions (colour-based active-tab detection). Mirrors the base structure
+# (parent: mail + per-tab tab_active). EN "Mail" kept too so this is a superset.
+screens:
+  mail:
+    priority: 30
+    rules:
+    - ocr: page.common.title
+      contains: [Почта, Mail]
+      threshold: 0.8
+  mail.system:
+    parent: mail
+    priority: 15
+    rules:
+    - ocr: page.common.title
+      contains: [Почта, Mail]
+      threshold: 0.8
+      tab_active: mail.tab.system
+  mail.wars:
+    parent: mail
+    priority: 15
+    rules:
+    - ocr: page.common.title
+      contains: [Почта, Mail]
+      threshold: 0.8
+      tab_active: mail.tab.wars
+  mail.alliance:
+    parent: mail
+    priority: 15
+    rules:
+    - ocr: page.common.title
+      contains: [Почта, Mail]
+      threshold: 0.8
+      tab_active: mail.tab.alliance
+  mail.reports:
+    parent: mail
+    priority: 15
+    rules:
+    - ocr: page.common.title
+      contains: [Почта, Mail]
+      threshold: 0.8
+      tab_active: mail.tab.reports

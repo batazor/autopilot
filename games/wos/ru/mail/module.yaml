@@ -1,0 +1,12 @@
+id: mail-ru-overlay
+title: Mail (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the mail module. The mail panel title is
+  «Почта» (not "Mail"), so the EN screen_verify (ocr page.common.title contains
+  "Mail") never recognizes it — mail / mail.system / mail.* stay unrecognized and
+  mail.claim.{tab} fails navigation + wanders. This overlay re-detects the mail
+  screens by the RU title «Почта» (which OCRs cleanly, conf ~0.97). tab_active is
+  colour-based and works as-is on the base tab regions. Base games/wos/mail owns
+  the scenarios + tab regions.
+enabled: true
+wiki: false
