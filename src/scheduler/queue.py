@@ -390,10 +390,16 @@ class RedisQueue:
         parks the task in the queue instead; it unparks automatically once the
         rolling detector restores ``current_screen``.
 
-        Node-less recovery scenarios (``dismiss_unknown_popup``, ``who_i_am``,
-        tutorial dismissals) carry no ``node:`` and are therefore *not* in this
-        set — they remain free to run precisely when the screen is unknown,
-        which is what bridges us back to a known screen.
+        Node-less recovery scenarios (``dismiss_unknown_popup``, tutorial
+        dismissals) carry no ``node:`` and are therefore *not* in this set — they
+        remain free to run precisely when the screen is unknown, which is what
+        bridges us back to a known screen. ``who_i_am`` is **not** node-less — it
+        declares ``node: chief_profile`` (it navigates to the profile to OCR the
+        id), so it *is* gated here and can only run once the screen is known
+        again. The identity bootstrap therefore depends on the dismissers first
+        clearing any blocking modal; see :func:`worker.onboarding_phase.
+        onboarding_active`, which must not falsely gate the dismissers off for a
+        developed account whose ``active_player`` is not yet resolved.
 
         Backed by the same all-scenarios map as ranking
         (:meth:`_task_type_to_required_node`); ranking uses it for the hops
