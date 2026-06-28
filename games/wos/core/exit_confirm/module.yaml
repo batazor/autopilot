@@ -1,0 +1,14 @@
+id: exit_confirm
+title: Exit-game confirmation
+description: >
+  Detects the game's "Exit the game?" confirm dialog (a system modal that pops on
+  a top-level Back press) and auto-taps Cancel to return to the previous screen.
+  Without this node the bot strands on node=unknown next to a Confirm button that
+  would quit the game. Detection is by the unique body text crop (the
+  "Confirmation" title is shared by many confirm dialogs); the Cancel tap is
+  positional (fixed dialog layout), so it is language-neutral and lives here in
+  the base module. The RU «Выйти из игры?» body crop ships in the
+  games/wos/ru/core/exit_confirm overlay.
+enabled: true
+area: area.yaml
+analyze: analyze/analyze.yaml

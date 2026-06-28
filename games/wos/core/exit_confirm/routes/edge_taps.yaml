@@ -1,0 +1,11 @@
+# Routing → Cancel → previous screen. The exit dialog is a top-level Back prompt,
+# so the screen behind it is main_city; tapping «Отмена» (or the ✕) returns there.
+# any_of taps whichever is present (cancel is primary, close is the fallback). We
+# deliberately never map exit_confirm.confirm — that button quits the game.
+edges:
+  exit_confirm:
+    main_city:
+      - type: any_of
+        regions:
+          - exit_confirm.cancel
+          - exit_confirm.close

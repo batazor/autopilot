@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay: re-declares exit_confirm.body with the same bbox but a RU crop (references/crop/exit_confirm_exit_confirm.body.png — «Выйти из игры?», cut from the live bs5 dialog). This is what makes screen_verify (match: exit_confirm.body, priority 2) recognise the exit-confirm dialog on the RU build. Base games/wos/core/exit_confirm owns screen_verify / edge_taps / analyze and the cancel/confirm/close geometry.",
+  "screens": [
+    {
+      "screen_id": "exit_confirm",
+      "ocr": "references/exit_confirm.png",
+      "regions": [
+        {
+          "name": "exit_confirm.body",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.556,
+            "y": 45.859,
+            "width": 28.611,
+            "height": 3.359,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

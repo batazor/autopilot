@@ -1,0 +1,10 @@
+id: exit_confirm-ru-overlay
+title: Exit-confirm (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the exit_confirm module. Ships ONLY the RU
+  body crop («Выйти из игры?») so screen_verify (match: exit_confirm.body) detects
+  the exit-game dialog on the RU build. Geometry, screen_verify, edge_taps and the
+  positional Cancel tap live in the base games/wos/core/exit_confirm.
+enabled: true
+area: area.yaml
+wiki: false

@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "_comment": "Exit-game confirm dialog (system modal). Detection landmark is exit_confirm.body — the unique body text «Выйти из игры?» / 'Exit the game?'; the shared «Подтверждение» title is NOT a reliable signal (every confirm dialog wears it). Button bboxes are fixed by the dialog layout (measured on bs5, 720×1280): cancel = orange left, confirm = blue right (DO-NOT-TAP), close = ✕ top-right. The body template crop is supplied per-build: RU crop in games/wos/ru/core/exit_confirm; EN crop TODO from an English device.",
+  "screens": [
+    {
+      "screen_id": "exit_confirm",
+      "ocr": "references/exit_confirm.png",
+      "regions": [
+        {
+          "name": "exit_confirm.body",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.556,
+            "y": 45.859,
+            "width": 28.611,
+            "height": 3.359,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "exit_confirm.cancel",
+          "_comment": "«Отмена» — orange button, bottom-left. The cancel tap target. click: exit_confirm.cancel taps this bbox centre.",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.833,
+            "y": 58.672,
+            "width": 36.111,
+            "height": 6.172,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "exit_confirm.confirm",
+          "_comment": "«Подтвердить» — blue button, bottom-right. DO NOT TAP: this quits the game. Defined only to document the layout and keep it distinct from cancel.",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.778,
+            "y": 58.516,
+            "width": 36.667,
+            "height": 6.328,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "exit_confirm.close",
+          "_comment": "✕ close button, top-right of the panel. Cancels the exit (same effect as «Отмена»); kept as an alternative edge tap.",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.778,
+            "y": 32.813,
+            "width": 5.833,
+            "height": 3.281,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

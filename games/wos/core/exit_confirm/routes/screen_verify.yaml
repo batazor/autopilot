@@ -1,0 +1,12 @@
+# Exit-game confirm dialog. Probe it very early (priority 2, just after `loading`):
+# it is a hard blocker that overlays main_city, and the body crop is unique, so an
+# early high-precedence check catches it before anything misclassifies the blurred
+# main_city behind it. Detection is the body text only — the «Подтверждение» title
+# is shared by every confirm dialog, so matching it would false-fire on unrelated
+# confirmations.
+screens:
+  exit_confirm:
+    priority: 2
+    rules:
+    - match: exit_confirm.body
+      threshold: 0.9
