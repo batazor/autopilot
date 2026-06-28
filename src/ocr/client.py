@@ -73,6 +73,10 @@ class OcrClient:
     # missing ``rus.traineddata`` degrades to the default lang instead of a hard
     # tesseract error on every RU-build OCR call.
     _avail_langs: ClassVar[dict[str, frozenset[str]]] = {}
+    # Executables already confirmed present — the ``shutil.which`` + ``Path``
+    # probe scans PATH (several stats) and ran on every OCR call; cache the
+    # success so it happens once per distinct command per process.
+    _verified_cmds: ClassVar[set[str]] = set()
 
     @classmethod
     def _patch_hash(
@@ -361,14 +365,19 @@ class OcrClient:
     def _run_tesseract(self, crop: np.ndarray, *, preprocess: str | None = None) -> tuple[str, float]:
         if crop is None or crop.size == 0:
             return "", 0.0
-        if shutil.which(self._tesseract_cmd) is None and not Path(self._tesseract_cmd).exists():
-            msg = (
-                f"tesseract executable not found: {self._tesseract_cmd!r}. "
-                "Install Tesseract with eng.traineddata or set WOS_TESSERACT_CMD."
-            )
-            raise RuntimeError(
-                msg
-            )
+        if self._tesseract_cmd not in type(self)._verified_cmds:
+            if (
+                shutil.which(self._tesseract_cmd) is None
+                and not Path(self._tesseract_cmd).exists()
+            ):
+                msg = (
+                    f"tesseract executable not found: {self._tesseract_cmd!r}. "
+                    "Install Tesseract with eng.traineddata or set WOS_TESSERACT_CMD."
+                )
+                raise RuntimeError(
+                    msg
+                )
+            type(self)._verified_cmds.add(self._tesseract_cmd)
 
         work = self._prepare_crop(crop, preprocess)
         ok, buf = cv2.imencode(".png", work)
