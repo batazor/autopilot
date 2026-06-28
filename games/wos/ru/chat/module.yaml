@@ -1,0 +1,13 @@
+id: chat-ru-overlay
+title: Chat (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the chat module. The chat title reads
+  «Чат» and the three top tabs read «Мир» / «Альянс» / «Личный», so the EN
+  screen_verify (`contains: Chat`) never confirms arrival and
+  `navigate_to(chat.*)` fails on this build. This overlay re-detects the chat
+  screen and its sub-tabs by Russian OCR labels + the HSV active-tab check
+  (`max_mean_saturation: 70`, same calibration as base). The tab tap targets
+  (region bboxes) and edge_taps are language-independent and stay in
+  games/wos/chat.
+enabled: true
+wiki: false

@@ -1,0 +1,54 @@
+# RU «Белая мгла» chat detection / nav-verify.
+#
+# Replaces the base games/wos/chat rules for the wos_ru catalog (screen_verify
+# merges last-doc-wins per screen id, and games/wos/ru is discovered after
+# games/wos). OCR switches to `rus` automatically on a wos_ru worker.
+#
+# Title reads «Чат»; the three top tabs read «Мир» / «Альянс» / «Личный»
+# (verified on bs1: conf 0.89-0.97). Each sub-tab is confirmed by OCR-ing its
+# OWN label AND the HSV active-tab check on the same region (both must hold —
+# one rule = AND), so the detector can tell which tab is open. Tab labels stay
+# visible whether active or not, so OCR alone can't disambiguate the open tab —
+# `tab_active` does.
+#
+# `max_mean_saturation: 70` keeps the base calibration: on this build the
+# inactive tabs sit at S_mean≈120 («Мир» 124, «Личный» 118) and the active tab
+# at S_mean≈24 («Альянс»), so the global default (120) would false-positive
+# «Личный» as active. 70 cleanly splits active from inactive.
+screens:
+  chat:
+    priority: 30
+    rules:
+    - ocr: page.common.title
+      contains: Чат
+      threshold: 0.8
+
+  chat.world:
+    parent: chat
+    priority: 15
+    rules:
+    - ocr: chat.world
+      contains: Мир
+      threshold: 0.8
+      tab_active: chat.world
+      max_mean_saturation: 70
+
+  chat.alliance:
+    parent: chat
+    priority: 15
+    rules:
+    - ocr: chat.alliance
+      contains: Альянс
+      threshold: 0.8
+      tab_active: chat.alliance
+      max_mean_saturation: 70
+
+  chat.personal:
+    parent: chat
+    priority: 15
+    rules:
+    - ocr: chat.personal
+      contains: Личный
+      threshold: 0.8
+      tab_active: chat.personal
+      max_mean_saturation: 70
