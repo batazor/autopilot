@@ -169,6 +169,22 @@ def test_research_levels_from_ocr_rows_maps_and_drops_unknown() -> None:
     assert got == {"bandaging_i": 2, "camp_expansion_i": 1}
 
 
+def test_pill_level_from_text_rejects_denominator_and_garble() -> None:
+    """In a pill X/Y the current X is always < max (a done tile shows the word MAX).
+    A digit == max is the denominator misread as the current; a digit > max is garble;
+    'MAX' maps to max; an illegible read is None (never assumed MAX)."""
+    mod = _load_exec_module()
+    f = mod._pill_level_from_text
+    assert f("2/3", 3) == 2            # clean fraction → current
+    assert f("0/3", 3) == 0            # frontier zero → 0
+    assert f("3", 3) is None           # bare digit == max = denominator misread → reject
+    assert f("4 —", 3) is None         # above max = garble → reject
+    assert f("9/10", 10) == 9          # multi-digit current
+    assert f("MAX", 3) == 3            # the word → maxed
+    assert f("— ,", 3) is None         # illegible → None (not assumed MAX)
+    assert f("", 3) is None
+
+
 def test_is_frontier_band_stops_only_on_all_unresearched() -> None:
     """0/Y frontier short-circuit: a band of ≥2 all-zero tiles ends the tab sweep,
     but any researched tile in view (or a lone zero) keeps it scrolling."""

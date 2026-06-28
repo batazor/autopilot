@@ -227,33 +227,6 @@ def _infer_maxed_predecessors(levels: dict[str, int], graph: Any) -> dict[str, i
     return out
 
 
-def _drop_unconfirmed_max(levels: dict[str, int], graph: Any) -> dict[str, int]:
-    """Drop a tile claimed at MAX when its tier-successor was never seen.
-
-    MAX means the whole tile is researched — and the game only unlocks (shows) the
-    next tier on a line once the current tier is maxed. So a tile read at its max
-    level is only *confirmed* MAX when a tier-successor was also read. A frontier
-    tile whose current-level digit misread **up** to max (the tiny ``X/Y`` pill is
-    unreliable) has no read successor and would otherwise look done — drop it so the
-    planner still treats it as researchable. Run this **before**
-    :func:`_infer_maxed_predecessors`: any genuinely-maxed tile that is a predecessor
-    of a read successor is restored there, so this only strips unconfirmed max claims
-    at the research frontier (where the pill misread actually hurts the planner).
-    """
-    has_successor = {graph.tier_predecessor(n) for n in graph.nodes}
-    has_successor.discard(None)
-    confirmed_pred = {graph.tier_predecessor(n) for n in levels}
-    confirmed_pred.discard(None)
-    out = dict(levels)
-    for node_id, level in levels.items():
-        spec = graph.spec(node_id)
-        if spec is None or level < spec.max_level:
-            continue
-        if node_id in has_successor and node_id not in confirmed_pred:
-            del out[node_id]
-    return out
-
-
 def branch_to_tab(branch: str) -> str:
     """Map a planner branch id to the on-screen tab key.
 
@@ -315,6 +288,28 @@ async def _read_rc_level(oc: Any, frame: Any, w: int, h: int) -> int:
     return int(m.group()) if m else 0
 
 
+def _pill_level_from_text(txt: str, max_level: int) -> int | None:
+    """Parse a level-pill OCR string → current level, or ``None`` when untrustworthy.
+
+    The pill reads "current/max" (X/Y), and a finished tile shows the *word* "MAX",
+    never "N/N" — so in a fraction the current X is ALWAYS strictly below max. Trust a
+    digit only when it is ``< max``: a digit EQUAL to max is the denominator misread as
+    the current (the tiny X glyph dropped, leaving Y) and a digit ABOVE max is pure
+    garble — both would tell the planner a tech is more researched than it is (the bug
+    behind a "2/3" tile stored as done). The word "MAX" (or a partial letter read) maps
+    to ``max_level``. An illegible pill returns ``None`` — we do NOT assume MAX (that
+    mis-stored partially-researched frontier tiles as done); _infer_maxed_predecessors
+    backfills a genuinely maxed tile from any read successor, and the sweep retries it.
+    """
+    nums = re.findall(r"\d+", txt)
+    if nums:
+        cur = int(nums[0])
+        return cur if cur < max_level else None
+    if re.search(r"[A-Za-z]", txt):        # "MAX" (or a partial letter read) → maxed
+        return max_level
+    return None
+
+
 async def _read_pill_level(oc: Any, frame: Any, w: int, h: int,
                            cx_px: int, name_y_px: int, node: ResearchNode) -> tuple[int | None, str]:
     """OCR the level pill above a tile's name → current level (``MAX`` → max_level).
@@ -343,24 +338,7 @@ async def _read_pill_level(oc: Any, frame: Any, w: int, h: int,
     res = await oc.ocr_region(up, Region(0, 0, up.shape[1], up.shape[0]),
                               region_id="rc_tile_level", preprocess="fast_line")
     txt = res.text or ""
-    # The pill reads "current/max" (X/Y); the leading number is the current level.
-    # Sanity-check it against the node's known max: a current ABOVE max is a digit
-    # misread (e.g. "2/3" → "4"), not a real level, and must not be stored — it would
-    # tell the planner a tech is further along than it is. Reject it so the
-    # multi-frame sweep retries this tile on a better-aligned frame.
-    nums = re.findall(r"\d+", txt)
-    if nums:
-        cur = int(nums[0])
-        return (cur, txt) if cur <= node.max_level else (None, txt)
-    if re.search(r"[A-Za-z]", txt):        # "MAX" (or a partial letter read) → maxed
-        return node.max_level, txt
-    # Illegible pill: do NOT assume MAX. The old "present-but-illegible → MAX"
-    # fallback mis-stored partially-researched frontier tiles (e.g. a "1/3" whose
-    # digits OCR'd to nothing) as done, which made the planner skip a real upgrade.
-    # Leave it unread instead — _infer_maxed_predecessors backfills genuinely maxed
-    # tiles from any researched successor (the game's tier rule), and the sweep
-    # retries this one on a later frame.
-    return None, txt
+    return _pill_level_from_text(txt, node.max_level), txt
 
 
 def _is_frontier_band(frame_levels: list[int]) -> bool:
@@ -585,8 +563,7 @@ async def _exec_sync_research_levels(ctx: Any) -> None:
         ctx.result.update({"reason": "no_tiles_read"})
         return
 
-    levels = _infer_maxed_predecessors(
-        _drop_unconfirmed_max(_research_levels_from_ocr_rows(rows, graph), graph), graph)
+    levels = _infer_maxed_predecessors(_research_levels_from_ocr_rows(rows, graph), graph)
     mapping: dict[str, str] = {f"research.levels.{nid}": str(lvl) for nid, lvl in levels.items()}
     if rc_level > 0:
         mapping["research.center.level"] = str(rc_level)
