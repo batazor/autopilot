@@ -38,6 +38,23 @@ def test_building_name_matched_inside_objective_text() -> None:
     assert furnace is not None and furnace.id == "furnace"
 
 
+def test_ru_declined_objective_names_match_via_lemmas() -> None:
+    # RU objectives decline the building name to the accusative ("улучшите
+    # Кухню", not the nominative «Кухня»); a plain substring of the registry
+    # alias misses (я→ю). pymorphy3 lemmatisation maps every case back to the
+    # lemma, so the declined plates still resolve. Regression for the live
+    # «Кухню: улучшите до ур. 3» objective that previously matched nothing.
+    cases = {
+        "Кухню: улучшите до ур. 3 (2/3)": "cookhouse",
+        "Лесопилку: улучшите до ур. 5": "sawmill",
+        "Угольный рудник: улучшите до ур. 3": "coal_mine",
+        "Барак 2: улучшите до ур. 3": "shelter",
+    }
+    for text, expected in cases.items():
+        b = _match_building_in_text(text, _BUILDINGS)
+        assert b is not None and b.id == expected, (text, None if b is None else b.id)
+
+
 def test_building_feasible_routes_to_building_upgrade() -> None:
     # Coal Mine unbuilt, furnace high enough that the planner's ready step IS the
     # objective building → feasible, hand off to building.upgrade.

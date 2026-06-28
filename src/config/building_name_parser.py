@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from pymorphy3 import MorphAnalyzer
 
     from config.buildings import BuildingDef
 
@@ -37,6 +40,47 @@ def normalise_building_lookup_text(value: str) -> str:
     return re.sub(r"[^a-z0-9а-яё]+", "", (value or "").lower())
 
 
+@lru_cache(maxsize=1)
+def _ru_morph() -> MorphAnalyzer:
+    """Lazy, process-cached pymorphy3 analyzer (the RU dict loads once on first
+    use, so importing this module stays cheap)."""
+    import pymorphy3
+
+    return pymorphy3.MorphAnalyzer()
+
+
+_LEMMA_WORD_RE = re.compile(r"[a-zа-яё]+")
+
+
+def ru_lemma_tokens(text: str) -> list[str]:
+    """Lemmatise *text* to normal-form word tokens (declension-stable).
+
+    A RU objective declines the building name — "улучшите **Кухню**" is the
+    accusative, not the nominative «Кухня» — so an exact substring of the
+    registry name misses (я→ю). pymorphy3 maps every case form back to the lemma
+    («кухню»/«кухни»/«кухне» → «кухня»), so matching on lemmas is grammatically
+    robust rather than a vowel-stripping heuristic. English words have no RU
+    paradigm and pass through unchanged, so EN registry names keep matching.
+    """
+    morph = _ru_morph()
+    return [morph.parse(w)[0].normal_form for w in _LEMMA_WORD_RE.findall((text or "").lower())]
+
+
+def lemma_phrase_in_text(name: str, text: str) -> bool:
+    """True when *name*'s lemma tokens occur as a contiguous run in *text*'s.
+
+    Contiguous (not merely "all tokens present") keeps multi-word names precise —
+    "Дом вождя" must appear together — and matching whole lemma tokens stops a
+    short name from matching inside a longer word ("Дом" ≠ part of "домик").
+    """
+    sub = ru_lemma_tokens(name)
+    if not sub:
+        return False
+    full = ru_lemma_tokens(text)
+    n = len(sub)
+    return any(full[i : i + n] == sub for i in range(len(full) - n + 1))
+
+
 # RU building name → canonical English registry name. The «Белая мгла»
 # (com.gof.globalru) build renders Cyrillic plates while the registry is English,
 # so the level reader (and any name→id lookup) needs this bridge. Keys are written
@@ -66,7 +110,7 @@ _RU_NAME_TO_CANON = {
     # matched in-game. Keep both — extra aliases for one building are harmless.
     "Угольный рудник": "Coal Mine", "Угольная шахта": "Coal Mine",
     "Железный рудник": "Iron Mine",
-    "Хижина охотника": "Hunter's Hut",
+    "Охотничий домик": "Hunter's Hut", "Хижина охотника": "Hunter's Hut",
     "Кухня": "Cookhouse", "Столовая": "Cookhouse",
     # — capacity / civic / defence —
     "Барак": "Shelter",

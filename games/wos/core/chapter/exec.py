@@ -291,24 +291,37 @@ def _match_building_in_text(text: str, buildings: Any) -> Any | None:
 
     The objective text wraps the building name in verbs/levels, so the exact
     ``building_by_ocr_name`` match won't fire — we look for any registry name (EN
-    or its RU localisation) as a normalised substring, longest match wins (so
-    "Coal Mine" beats a stray short token). RU-aware via ``ru_aliases_for_building``.
+    or its RU localisation) as a contiguous run of *lemmas*, longest match wins
+    (so "Coal Mine" beats a stray short token). RU-aware via
+    ``ru_aliases_for_building``.
+
+    Declension-tolerant: a RU objective declines the building name to the
+    accusative ("улучшите **Кухню**", not the nominative «Кухня»). pymorphy3
+    lemmatises every case form back to «кухня», so the lemma run «кухня» is found
+    in «кухня улучшить …» regardless of the surface ending — «Кухня»→«Кухню»,
+    «Столовая»→«Столовую», «Лесопилка»→«Лесопилку» all match. EN names lemmatise
+    to themselves, so they match exactly as before. See
+    ``config.building_name_parser.lemma_phrase_in_text``.
     """
     from config.building_name_parser import (
-        normalise_building_lookup_text,
+        lemma_phrase_in_text,
         ru_aliases_for_building,
+        ru_lemma_tokens,
     )
 
-    hay = normalise_building_lookup_text(text)
-    if not hay:
+    if not (text or "").strip():
         return None
     best = None
     best_len = 0
     for b in buildings:
         for nm in (b.name, *ru_aliases_for_building(b.name)):
-            norm = normalise_building_lookup_text(nm)
-            if norm and norm in hay and len(norm) > best_len:
-                best, best_len = b, len(norm)
+            if not lemma_phrase_in_text(nm, text):
+                continue
+            # Rank by the lemma-token character length so a longer registry name
+            # (more specific) beats a short one when several match.
+            score = sum(len(t) for t in ru_lemma_tokens(nm))
+            if score > best_len:
+                best, best_len = b, score
     return best
 
 
