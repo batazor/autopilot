@@ -88,19 +88,20 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     assert {"click": "intel.claim_all"} in claim_steps
     assert any(step.get("while_match") == "button.click_to_continue" for step in claim_steps)
     assert any(step.get("while_match") == "button.tap_anywhere_to_exit" for step in claim_steps)
-    assert steps[2]["exec"] == "tap_intel_fight"
-    assert steps[2]["threshold"] == 0.72
-    assert steps[3]["wait_screen"]["any"] == ["intel.fight"]
-    assert steps[4] == {"click": "intel.fight.view"}
-    assert steps[5]["wait_screen"]["any"] == ["intel.explore", "main_world"]
-    assert steps[6] == {"wait": "1s"}
-    assert steps[7] == {
+    assert steps[2]["exec"] == "read_intel_stamina"
+    assert steps[3]["exec"] == "tap_intel_fight"
+    assert steps[3]["threshold"] == 0.72
+    assert steps[4]["wait_screen"]["any"] == ["intel.fight"]
+    assert steps[5] == {"click": "intel.fight.view"}
+    assert steps[6]["wait_screen"]["any"] == ["intel.explore", "main_world"]
+    assert steps[7] == {"wait": "1s"}
+    assert steps[8] == {
         "match": "intel.explore.is_blue",
         "steps": [{"click": "intel.explore"}],
         "else": [{"click": "intel.attack"}],
     }
-    assert steps[8]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
-    deploy_branch = steps[9]
+    assert steps[9]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
+    deploy_branch = steps[10]
     assert deploy_branch["cond"] == "currentNode == heroes.deploy"
     assert deploy_branch["steps"] == [
         {"click": "heroes.deploy.equalize"},
@@ -119,7 +120,7 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
             "extra_seconds": 15,
         },
     ]
-    squad_branch = steps[10]
+    squad_branch = steps[11]
     assert squad_branch["cond"] == "currentNode == squad_settings"
     squad_steps = squad_branch["steps"]
     assert {"click": "squad_settings.quick_deploy"} in squad_steps

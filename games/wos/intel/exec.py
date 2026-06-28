@@ -818,7 +818,70 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
     )
 
 
+async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
+    """Read the intel board's «current/max» stamina («44/90», green bar bottom-left)
+    and store current + max to player state for the stamina budget.
+
+    The avatar bar reader (``read_stamina_bar``) doesn't populate on the RU build,
+    so intel reads its own explicit counter on-board instead of depending on the
+    periodic ``read_stamina`` cron — the value is then fresh every run and
+    ``_read_player_stamina`` (hence ``tap_intel_fight``) sees a real number rather
+    than ``no_stamina_signal``. OCR ``fast_line`` reads the whole «44/90» reliably
+    (~0.92); the «44»-alone crop is mangled by the green/grey bar edge.
+    """
+    from layout.area_lookup import screen_region_by_name
+    from layout.area_manifest import load_area_doc
+    from layout.types import Region
+    from services import get_active_module_catalog, get_ocr_client, get_repo_root
+
+    area_doc = load_area_doc(get_repo_root(), game=get_active_module_catalog())
+    pair = screen_region_by_name(area_doc, "intel.stamina") if area_doc else None
+    bbox = pair[1].get("bbox") if pair and isinstance(pair[1], dict) else None
+    if not isinstance(bbox, dict):
+        ctx.result.update({"action": "unknown_region"})
+        return
+    actions = dsl_runtime.bot_actions()
+    try:
+        image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+    except Exception:
+        logger.exception("intel stamina: capture failed instance=%s", ctx.instance_id)
+        ctx.result.update({"action": "capture_failed"})
+        return
+    h, w = image.shape[:2]
+    reg = Region(
+        int(round(float(bbox["x"]) / 100.0 * w)),
+        int(round(float(bbox["y"]) / 100.0 * h)),
+        int(round(float(bbox["width"]) / 100.0 * w)),
+        int(round(float(bbox["height"]) / 100.0 * h)),
+    )
+    res = await get_ocr_client().ocr_region(image, reg, preprocess="fast_line")
+    text = (getattr(res, "text", "") or "").strip()
+    m = re.search(r"(\d+)\s*/\s*(\d+)", text)
+    if not m:
+        ctx.result.update({"action": "parse_failed", "text": text})
+        return
+    cur, mx = int(m.group(1)), int(m.group(2))
+    if ctx.redis_client is not None and ctx.player_id:
+        try:
+            await ctx.redis_client.hset(
+                f"wos:player:{ctx.player_id}:state",
+                mapping={
+                    "stamina": str(cur),
+                    "stamina_max": str(mx),
+                    "stamina_at": str(time.time()),
+                    "stamina_source": "intel",
+                },
+            )
+        except Exception:
+            logger.exception("intel stamina: hset failed player=%s", ctx.player_id)
+    ctx.result.update({"action": "measured", "stamina": cur, "stamina_max": mx, "text": text})
+    logger.info(
+        "dsl exec read_intel_stamina: instance=%s stamina=%d/%d", ctx.instance_id, cur, mx
+    )
+
+
 DSL_EXEC_HANDLERS = {
     "confirm_intel_march_lease": _exec_confirm_intel_march_lease,
     "tap_intel_fight": _exec_tap_intel_fight,
+    "read_intel_stamina": _exec_read_intel_stamina,
 }

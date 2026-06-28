@@ -11,18 +11,19 @@ screens:
   intel:
     # Checked before main_world (priority 10): the widened isSearch
     # main_world.to.intel tap-region can match on the intel screen too, so intel
-    # must resolve first. Safe — intel.stamina is intel-specific (≈0.5 on the
-    # world map, ≈0.81 on intel), so this never false-fires off the intel screen.
+    # must resolve first.
     priority: 9
     rules:
-      # Locale-tolerant title OCR: EN "Intel" / RU «Разведка» (the «Белая мгла»
-      # build). RU is white-outlined and often unreadable by default OCR, so
-      # detection also falls through to the language-independent stamina-icon
-      # landmark below.
+      # Locale-tolerant title OCR: EN "Intel" reads cleanly. RU «Разведка» is
+      # white-outlined and OCRs poorly (~0.4, partial), so it falls through to
+      # the title TEMPLATE below — which findIcon-matches the styled title image
+      # (EN main_intel.title.png / RU intel_intel.title.png via the wos_ru
+      # overlay). The old `match: intel.stamina` landmark was repurposed to read
+      # the «44/90» stamina bar (read_intel_stamina), so it no longer detects.
       - ocr: intel.title
         contains:
           - Intel
           - Разведка
         threshold: 0.8
-      - match: intel.stamina
-        threshold: 0.75
+      - match: intel.title
+        threshold: 0.6

@@ -81,19 +81,20 @@
         },
         {
           "name": "intel.stamina",
+          "_comment": "Stamina «current/max» («44/90») on the green bar bottom-left of the intel board (white outlined digits). Read via exec read_intel_stamina (OCR fast_line → '44/90' conf~0.92, parse current+max). Was wrongly at top-right (79.7%,1%) where the gem count sits. The «44»-alone OCR is mangled by the green/grey bar edge, so the region spans the WHOLE «44/90».",
           "action": "text",
           "threshold": 0.7,
           "bbox": {
-            "x": 79.72222222222223,
-            "y": 1.015625,
-            "width": 12.222222222222221,
-            "height": 4.21875,
+            "x": 21.666666666666668,
+            "y": 93.515625,
+            "width": 18.333333333333332,
+            "height": 5.15625,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
-          "type": "integer",
-          "preprocess": "fast_digits"
+          "type": "string",
+          "preprocess": "fast_line"
         }
       ]
     },

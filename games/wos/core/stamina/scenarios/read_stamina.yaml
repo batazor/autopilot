@@ -24,8 +24,7 @@ steps:
       - ocr: chief_profile.stamina.max
         store: stamina_max
 
-  - match: intel.title                # intel screen → current (top-right)
+  - match: intel.title                # intel screen → «current/max» bottom-left bar
     threshold: 0.85
     steps:
-      - ocr: intel.stamina
-        store: stamina
+      - exec: read_intel_stamina      # OCRs «44/90», parses + stores current + max

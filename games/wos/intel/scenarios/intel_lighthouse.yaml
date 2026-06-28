@@ -34,6 +34,10 @@ steps:
           - click: button.tap_anywhere_to_exit
           - wait: 500ms
 
+  # Read the board's «44/90» stamina on-screen so tap_intel_fight can budget the
+  # pick (the avatar bar reader is blind on RU). Fresh every run, no cron needed.
+  - exec: read_intel_stamina
+
   - exec: tap_intel_fight
     strategy: best_score
     threshold: 0.72
