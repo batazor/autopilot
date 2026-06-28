@@ -74,7 +74,15 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
 
     building, level, building_instance_id = parsed
     now = time.time()
-    level_field = f"buildings.levels.{building_instance_id}"
+    # Key the level by the canonical registry id, NOT the plate's instance
+    # discriminator. RU plates carry a trailing index («Барак 2 Ур. 2») that
+    # ``parse_..._instance`` surfaces as ``building_instance_id`` ("shelter_2");
+    # writing that as the level slug created a phantom ``buildings.levels.shelter_2``
+    # the build planner (which reads by ``building.id``) never sees — so the read
+    # level was silently lost. The instance id is kept in ``parsed_instance_id``
+    # for diagnostics. Mirrors ``record_building_level`` (building/common/exec.py),
+    # which already keys by ``building.id``.
+    level_field = f"buildings.levels.{building.id}"
     prev_level_raw = await ctx.redis_client.hget(state_key, level_field)
     prev_level = _decode_redis_raw(prev_level_raw)
     mapping = {

@@ -225,15 +225,28 @@ async def _exec_plan_next_builds(ctx: Any) -> None:
         state = await r.hgetall(inst_key)
     except Exception:
         state = {}
+    import time as _time
+
     levels = _read_levels(state)
+    # ``free_queues`` arg = the account's TOTAL build slots (1–2); subtract the
+    # slots the build-queue ETA tracker (``record_build_eta``) shows still busy so
+    # we only plan picks for genuinely-free queues. Falls back to "all free" when
+    # nothing has been observed yet.
     try:
-        free = max(1, min(2, int(ctx.args.get("free_queues") or 2)))
+        total_slots = max(1, min(2, int(ctx.args.get("free_queues") or 2)))
     except (TypeError, ValueError):
-        free = 2
+        total_slots = 2
+    busy = _busy_build_queues(state, _time.time())
+    free = max(0, total_slots - busy)
 
     slate = plan_builds(load_graph(), levels, free_queues=free)
     picks = slate.picks
-    mapping: dict[str, str] = {"planner.build_reason": slate.reason}
+    mapping: dict[str, str] = {
+        "planner.build_reason": slate.reason,
+        "planner.build_total_queues": str(total_slots),
+        "planner.build_busy_queues": str(busy),
+        "planner.build_free_queues": str(free),
+    }
     for i in range(2):
         pick = picks[i] if i < len(picks) else None
         mapping[f"planner.build_q{i + 1}"] = pick.instance_id if pick else ""
@@ -476,10 +489,93 @@ async def _exec_sweep_building_levels(ctx: Any) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Build-queue ETA tracker
+#
+# When ``building.upgrade`` starts an upgrade it OCRs the building's countdown
+# (``building.upgrading.time``, ``type: time`` → seconds in ``dsl_last_ocr_value``).
+# ``record_build_eta`` turns that into an absolute ``finishes_at`` epoch and
+# stores it per building, so the fleet knows WHICH building is under construction
+# and until WHEN, and the planner can count genuinely-free build queues instead
+# of assuming a fixed 2. A zero / absent countdown clears the entry (the panel
+# shows no timer → the building is idle or the upgrade just completed).
+# ---------------------------------------------------------------------------
+_UPGRADING_PREFIX = "buildings.upgrading."
+
+
+def _busy_build_queues(state: dict, now: float) -> int:
+    """Count buildings whose stored ``finishes_at`` epoch is still in the future."""
+    busy = 0
+    for raw_k, raw_v in (state or {}).items():
+        k = raw_k.decode() if isinstance(raw_k, bytes) else str(raw_k)
+        if not k.startswith(_UPGRADING_PREFIX) or k.endswith(".to_level"):
+            continue
+        v = raw_v.decode() if isinstance(raw_v, bytes) else str(raw_v)
+        try:
+            if float(v) > now:
+                busy += 1
+        except (TypeError, ValueError):
+            continue
+    return busy
+
+
+async def _exec_record_build_eta(ctx: Any) -> None:
+    import time as _time
+
+    from tasks.dsl_exec.context import (
+        _decode_redis_raw,
+        _resolve_player_id_for_device_level_exec,
+    )
+
+    r = ctx.redis_client
+    if r is None:
+        ctx.result.update({"reason": "no_redis_client"})
+        return
+    inst_key = f"wos:instance:{ctx.instance_id}:state"
+    building_id = _decode_redis_raw(await r.hget(inst_key, "building.name.parsed_id")).strip()
+    if not building_id:
+        ctx.result.update({"reason": "no_building"})
+        return
+    try:
+        seconds = int(float(_decode_redis_raw(await r.hget(inst_key, "dsl_last_ocr_value"))))
+    except (TypeError, ValueError):
+        seconds = 0
+
+    now = _time.time()
+    field = f"{_UPGRADING_PREFIX}{building_id}"
+    if seconds > 0:
+        finishes_at = int(now + seconds)
+        action = "upgrading"
+    else:
+        finishes_at = 0  # no timer on the panel → idle / just finished
+        action = "idle"
+
+    player = (await _resolve_player_id_for_device_level_exec(ctx)) or ctx.instance_id
+    try:
+        from config.state_store import get_state_store
+
+        get_state_store().get_or_create(str(player)).update_from_flat({field: finishes_at})
+    except Exception:
+        logger.exception("record_build_eta: durable write failed field=%s", field)
+    try:
+        await r.hset(inst_key, field, str(finishes_at))
+    except Exception:
+        logger.debug("record_build_eta: redis mirror failed", exc_info=True)
+
+    ctx.result.update(
+        {"action": action, "building": building_id, "finishes_at": finishes_at, "seconds": seconds}
+    )
+    logger.info(
+        "record_build_eta: %s=%d (%s, %ds left) player=%s instance=%s",
+        field, finishes_at, action, seconds, player, ctx.instance_id,
+    )
+
+
 DSL_EXEC_HANDLERS = {
     "record_building_level": _exec_record_building_level,
     "plan_next_building": _exec_plan_next_building,
     "plan_next_builds": _exec_plan_next_builds,
+    "record_build_eta": _exec_record_build_eta,
     "sweep_building_levels": _exec_sweep_building_levels,
     "navigate_to_building": _exec_navigate_to_building,
 }

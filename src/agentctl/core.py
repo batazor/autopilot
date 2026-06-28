@@ -627,6 +627,19 @@ def planners(fid: str | None = None, *, instance: str | None = None) -> dict[str
             missing = [p for p in inputs if not _input_present(flat, p)]
             blind = bool(missing)
 
+        # Freshness: present inputs older than the planner's TTL → stale (the
+        # reader exists but hasn't refreshed in time). None when no player.
+        ttl = e.get("freshness_ttl_seconds")
+        stale_inputs: list[str] = []
+        if fid and isinstance(ttl, (int, float)) and ttl > 0:
+            for p in inputs:
+                if not _input_present(flat, p):
+                    continue
+                _, age = _fact_freshness(flat, p)
+                if age is not None and age > float(ttl):
+                    stale_inputs.append(p)
+        stale = bool(stale_inputs) if fid else None
+
         trace_key = str(e.get("trace_key", "")).strip().replace("{fid}", fid)
         last = _latest_zset_json(client, trace_key) if (trace_key and fid) else None
         last_decision = None
@@ -648,6 +661,9 @@ def planners(fid: str | None = None, *, instance: str | None = None) -> dict[str
                 "enabled": enabled,
                 "blind": blind,
                 "missing_inputs": missing,
+                "stale": stale,
+                "stale_inputs": stale_inputs,
+                "freshness_ttl_seconds": ttl if isinstance(ttl, (int, float)) else None,
                 "last_decision": last_decision,
                 "note": str(e.get("note", "")),
             }
@@ -821,6 +837,48 @@ def current_detection(instance: str | None = None) -> dict[str, Any]:
     }
 
 
+def _build_queue_summary(flat: dict[str, str], now: float) -> dict[str, Any]:
+    """Construction-queue occupancy from the per-building ETA tracker.
+
+    ``record_build_eta`` stores ``buildings.upgrading.<id>`` = finishes_at epoch.
+    Surface which buildings are still under construction (and for how long) plus
+    the busy/free slot count, so an operator/agent can see how occupied the build
+    queue is without reading raw keys.
+    """
+    upgrading: list[dict[str, Any]] = []
+    for k, v in flat.items():
+        if not k.startswith("buildings.upgrading.") or k.endswith(".to_level"):
+            continue
+        try:
+            fin = float(v)
+        except (TypeError, ValueError):
+            continue
+        if fin <= now:
+            continue
+        left = int(fin - now)
+        eta = f"{left // 3600}h{left % 3600 // 60:02d}m" if left >= 3600 else f"{left // 60}m{left % 60:02d}s"
+        upgrading.append(
+            {
+                "building": k[len("buildings.upgrading.") :],
+                "finishes_at": int(fin),
+                "seconds_left": left,
+                "eta": eta,
+            }
+        )
+    upgrading.sort(key=lambda u: u["finishes_at"])
+    try:
+        total = int(flat.get("planner.build_total_queues") or 2)
+    except (TypeError, ValueError):
+        total = 2
+    busy = len(upgrading)
+    return {
+        "total_queues": total,
+        "busy_queues": busy,
+        "free_queues": max(0, total - busy),
+        "upgrading": upgrading,
+    }
+
+
 def instance_diagnosis(instance: str | None = None) -> dict[str, Any]:
     """Why is one instance idle / stuck / blind? — one prioritized answer.
 
@@ -850,6 +908,11 @@ def instance_diagnosis(instance: str | None = None) -> dict[str, Any]:
     ]
     diag["active_player"] = fid or diag.get("active_player", "")
     diag["blind_planners"] = blind
+    import time as _time
+
+    diag["build_queue"] = _build_queue_summary(
+        _player_flat(client, fid) if fid else {}, _time.time()
+    )
     return diag
 
 
@@ -900,6 +963,26 @@ def _fact_freshness(flat: dict[str, str], fact: str) -> tuple[float | None, floa
     return None, None
 
 
+# Order for surfacing the most actionable facts first.
+_FRESHNESS_RANK = {"missing": 0, "stale": 1, "present": 2, "fresh": 3, "unknown": 4}
+
+
+def _freshness_verdict(present: bool | None, age: float | None, ttl: float | None) -> str:
+    """Data-coverage verdict for one fact: missing | stale | present | fresh | unknown.
+
+    ``present`` but freshness untracked (no TTL or no ``synced_at``) → ``present``.
+    A known age beyond the TTL → ``stale`` (the reader hasn't refreshed in time).
+    ``unknown`` only when no player is resolved.
+    """
+    if present is None:
+        return "unknown"
+    if not present:
+        return "missing"
+    if not ttl or age is None:
+        return "present"
+    return "stale" if age > float(ttl) else "fresh"
+
+
 def reader_health(fid: str | None = None, *, instance: str | None = None) -> dict[str, Any]:
     """Data-coverage map: every observed fact → its readers, consumers, freshness.
 
@@ -921,16 +1004,22 @@ def reader_health(fid: str | None = None, *, instance: str | None = None) -> dic
     for e in _load_planner_manifest():
         name = str(e.get("name", ""))
         readers = set(_re.findall(r"sync_[a-z0-9_]+", str(e.get("note", ""))))
+        ttl = e.get("freshness_ttl_seconds")
         for inp in e.get("observed_inputs") or []:
             key = str(inp)
-            slot = facts.setdefault(key, {"consumers": [], "readers": set()})
+            slot = facts.setdefault(key, {"consumers": [], "readers": set(), "ttls": []})
             slot["consumers"].append(name)
             slot["readers"].update(readers)
+            if isinstance(ttl, (int, float)) and ttl > 0:
+                slot["ttls"].append(float(ttl))
 
     rows: list[dict[str, Any]] = []
     for fact, info in facts.items():
         present = _input_present(flat, fact) if fid else None
         synced_at, age = _fact_freshness(flat, fact) if fid else (None, None)
+        # A fact's TTL is the strictest of its consumers' (most conservative).
+        ttl = min(info["ttls"]) if info["ttls"] else None
+        state = _freshness_verdict(present, age, ttl)
         rows.append(
             {
                 "fact": fact,
@@ -940,10 +1029,13 @@ def reader_health(fid: str | None = None, *, instance: str | None = None) -> dic
                 "present": present,
                 "synced_at": synced_at,
                 "age_s": age,
+                "ttl_s": ttl,
+                "state": state,
             }
         )
-    # Most actionable first: blind facts, then the ones the most planners need.
-    rows.sort(key=lambda r: (r["present"] is not False, -r["consumer_count"], r["fact"]))
+    # Most actionable first: missing, then stale, then present, then fresh; ties by
+    # how many planners the fact blocks.
+    rows.sort(key=lambda r: (_FRESHNESS_RANK.get(r["state"], 9), -r["consumer_count"], r["fact"]))
     return {"fid": fid, "fid_source": fid_source, "count": len(rows), "facts": rows}
 
 

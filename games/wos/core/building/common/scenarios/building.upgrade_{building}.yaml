@@ -86,3 +86,5 @@ steps:
   - ocr: building.upgrading.time
     type: time
     throttle_push: building.upgrade
+  # Persist construction ETA so the planner counts free build queues.
+  - exec: record_build_eta

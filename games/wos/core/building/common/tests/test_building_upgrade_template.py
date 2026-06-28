@@ -60,7 +60,7 @@ def test_load_doc_renders_node_and_name() -> None:
     # RU «Белая мгла» furniture-interior building pill (which renders above the EN
     # single-pill anchor) is probed first; the rest is the EN sequence
     # (upgrade → next → build → big). The top probe is a no-op on EN.
-    loop = doc["steps"][-2]["loop"]["steps"]
+    loop = next(s for s in doc["steps"] if "loop" in s)["loop"]["steps"]
     assert [s["while_match"] for s in loop] == [
         "upgrade_button_top",
         "upgrade_button",
