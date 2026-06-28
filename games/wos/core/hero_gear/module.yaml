@@ -1,0 +1,12 @@
+id: hero_gear
+title: Hero Gear (reader)
+description: >-
+  On-device reader for hero-gear per-piece per-track levels →
+  planner['hero_gear']['owned'], un-blinding the hero_gear investment planner
+  (games/wos/core/hero_gear/planner). Reader code + planner read-back wiring are
+  live; the cron ships DISABLED until the Hero Gear screen (reached from a hero
+  detail card) is found and its 6×3 regions are labeled on-device.
+enabled: true
+scenarios: scenarios
+exec: exec.py
+wiki: false

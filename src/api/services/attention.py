@@ -382,4 +382,113 @@ def build_attention_view(client: redis.Redis) -> dict[str, Any]:
             "warning": len(items) - critical,
             "total": len(items),
         },
+        # Roll-up context for one-call health verdicts (additive — existing
+        # consumers read items/counts only).
+        "live_workers": live_count,
+        "instances_total": len(instance_ids),
+    }
+
+
+def diagnose_instance(
+    client: redis.Redis, instance_id: str, *, now: float | None = None
+) -> dict[str, Any]:
+    """Why is ONE instance idle / not doing work? — a single prioritized answer.
+
+    Reuses the same per-instance signal logic the attention feed emits
+    (:func:`_instance_items`: device offline, worker down/error, stuck task, nav
+    error, overdue queue) and adds the two reasons the feed deliberately omits
+    as "not actionable" but which an agent diagnosing idleness still needs: a
+    pending click approval and a manual pause. Returns a per-instance ``verdict``
+    so a caller can branch without re-deriving severity.
+    """
+    now = time.time() if now is None else now
+    items, live = _instance_items(client, instance_id, now=now)
+    row = get_instance_state(client, instance_id)
+    status = fleet_status(row)
+    paused = row.get("paused") == "1"
+    auto_paused = row.get("auto_paused") == "1"
+    approval = _approval_pending(client, instance_id)
+
+    issues = list(items)
+    if approval:
+        issues.append(
+            _item(
+                kind="approval_pending",
+                severity=SEVERITY_WARNING,
+                instance_id=instance_id,
+                title=f"{instance_id}: click approval waiting",
+                detail="a device tap is parked on operator approval — the queue won't advance until it is acted on",
+            )
+        )
+    # Manual pause is the operator's own doing (and never an attention item),
+    # but for "why is this idle?" it is the answer. Skip when a cause that
+    # already implies a pause (offline / auto-pause) is listed.
+    if (
+        paused
+        and not auto_paused
+        and not any(i["kind"] in {"device_offline", "worker_down"} for i in items)
+    ):
+        issues.append(
+            _item(
+                kind="paused",
+                severity=SEVERITY_WARNING,
+                instance_id=instance_id,
+                title=f"{instance_id}: manually paused",
+                detail="operator paused this instance; resume to run work",
+            )
+        )
+
+    issues.sort(key=lambda i: (i["severity"] != SEVERITY_CRITICAL, i["kind"]))
+    has_critical = any(i["severity"] == SEVERITY_CRITICAL for i in issues)
+    verdict = "critical" if has_critical else ("degraded" if issues else "ok")
+    return {
+        "instance_id": instance_id,
+        "status": status,
+        "live": live,
+        "paused": paused,
+        "auto_paused": auto_paused,
+        "approval_pending": approval,
+        "current_screen": (row.get("current_screen") or "").strip(),
+        "current_scenario": (row.get("current_scenario") or "").strip(),
+        "active_player": (row.get("active_player") or row.get("current_task_player") or "").strip(),
+        "verdict": verdict,
+        "issues": issues,
+    }
+
+
+def fleet_health(client: redis.Redis) -> dict[str, Any]:
+    """One verdict for the whole fleet: HEALTHY / DEGRADED / CRITICAL.
+
+    Rolls the existing attention feed (so the worker-down suppression and
+    cause/consequence logic stay the single source of truth) into a compact
+    steering signal an agent can poll once: counts, an issues-by-kind tally,
+    and the full prioritized item list. ``DEGRADED`` covers any warning OR a
+    configured fleet with zero live workers (a stopped/crashed bot).
+    """
+    view = build_attention_view(client)
+    counts = view["counts"]
+    total = int(view.get("instances_total", 0))
+    live = int(view.get("live_workers", 0))
+    critical = int(counts["critical"])
+    warning = int(counts["warning"])
+
+    if critical:
+        verdict = "CRITICAL"
+    elif warning or (total and live == 0):
+        verdict = "DEGRADED"
+    else:
+        verdict = "HEALTHY"
+
+    by_kind: dict[str, int] = {}
+    for item in view["items"]:
+        by_kind[item["kind"]] = by_kind.get(item["kind"], 0) + 1
+
+    return {
+        "verdict": verdict,
+        "instances_total": total,
+        "live_workers": live,
+        "critical": critical,
+        "warning": warning,
+        "issues_by_kind": by_kind,
+        "items": view["items"],
     }

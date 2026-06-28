@@ -227,34 +227,6 @@ def _render_screenshot(d: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _render_label_hints(d: dict[str, Any]) -> str:
-    head = f"{d.get('count', 0)} label hint(s)" + ("  (cleared)" if d.get("cleared") else "")
-    rows = []
-    for h in d.get("hints", []):
-        regs = h.get("regions") or []
-        rows.append(
-            {
-                "ts": _ts(h.get("ts")),
-                "inst": h.get("instance_id") or "—",
-                "screen": h.get("screen_id") or "—",
-                "regions": ", ".join(str(r.get("name") or "?") for r in regs) or "—",
-                "committed": h.get("committed"),
-            }
-        )
-    if not rows:
-        return head + "\n(none — draw a box on /label and press Send hint)"
-    return head + "\n" + _table(
-        rows,
-        [
-            ("ts", "TS"),
-            ("inst", "INST"),
-            ("screen", "SCREEN"),
-            ("regions", "REGIONS"),
-            ("committed", "DONE"),
-        ],
-    )
-
-
 def _render_player(d: dict[str, Any]) -> str:
     flat = d.get("state", {})
     if not flat:
@@ -364,6 +336,102 @@ def _render_why(d: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_detection(d: dict[str, Any]) -> str:
+    lines = [
+        f"detection {d.get('instance_id')}  screen={d.get('current_screen') or '—'}",
+        "  " + d.get("note", ""),
+    ]
+    ov = d.get("last_overlay") or {}
+    if ov:
+        bits = [f"{k}={_cell(v)}" for k, v in ov.items()]
+        lines.append("\nlast overlay match: " + "  ".join(bits))
+    else:
+        lines.append("\nlast overlay match: —")
+    regions = d.get("regions") or []
+    lines.append(f"\nregion reads ({len(regions)}):")
+    if regions:
+        lines.append(
+            _table(
+                regions,
+                [("name", "REGION"), ("text", "TEXT"), ("confidence", "CONF"), ("age_s", "AGE_S")],
+            )
+        )
+    else:
+        lines.append("  (none persisted)")
+    ctx = d.get("context") or {}
+    flags = [f"{k}={_cell(v)}" for k, v in ctx.items() if v not in (None, "", False)]
+    lines.append("\ncontext: " + ("  ".join(flags) if flags else "(clean)"))
+    return "\n".join(lines)
+
+
+def _render_issues(issues: list[dict[str, Any]]) -> str:
+    if not issues:
+        return "  (no issues)"
+    rows = [
+        {"sev": i.get("severity"), "kind": i.get("kind"), "title": i.get("title"), "detail": i.get("detail")}
+        for i in issues
+    ]
+    return _table(rows, [("sev", "SEV"), ("kind", "KIND"), ("title", "TITLE"), ("detail", "DETAIL")])
+
+
+def _render_diagnosis(d: dict[str, Any]) -> str:
+    head = (
+        f"diagnose {d.get('instance_id')}  verdict={str(d.get('verdict')).upper()}  "
+        f"status={d.get('status')}  screen={d.get('current_screen') or '—'}  "
+        f"player={d.get('active_player') or '—'}"
+    )
+    lines = [head, "\nissues:", _render_issues(d.get("issues") or [])]
+    blind = d.get("blind_planners") or []
+    if blind:
+        lines.append("\nblind planners (missing readers):")
+        lines.extend(f"  {b['name']}: {', '.join(b['missing_inputs'])}" for b in blind)
+    else:
+        lines.append("\nblind planners: none")
+    return "\n".join(lines)
+
+
+def _render_fleet_health(d: dict[str, Any]) -> str:
+    head = (
+        f"fleet: {d.get('verdict')}   live_workers={d.get('live_workers')}/{d.get('instances_total')}   "
+        f"critical={d.get('critical')}  warning={d.get('warning')}"
+    )
+    by = d.get("issues_by_kind") or {}
+    if by:
+        head += "\nby kind: " + ", ".join(f"{k}={v}" for k, v in sorted(by.items()))
+    items = d.get("items") or []
+    if items:
+        return head + "\n\n" + _render_issues(items)
+    return head + "\n\n  (no issues — fleet clean)"
+
+
+def _render_reader_health(d: dict[str, Any]) -> str:
+    fid = d.get("fid") or "—"
+    head = f"reader-health  (player {fid}, {d.get('fid_source')})  facts={d.get('count')}"
+    rows = []
+    for f in d.get("facts", []):
+        present = f.get("present")
+        rows.append(
+            {
+                **f,
+                "_status": "—" if present is None else ("BLIND" if not present else "ok"),
+                "_readers": ", ".join(f.get("readers") or []) or "—",
+                "_consumers": ", ".join(f.get("consumers") or []),
+                "_age": f.get("age_s") if f.get("age_s") is not None else "—",
+            }
+        )
+    table = _table(
+        rows,
+        [
+            ("fact", "FACT"),
+            ("_status", "STATE"),
+            ("_age", "AGE_S"),
+            ("_readers", "READERS"),
+            ("_consumers", "CONSUMERS"),
+        ],
+    )
+    return head + "\n" + table
+
+
 def _render_drive(d: dict[str, Any]) -> str:
     head = (
         f"drive {d.get('scenario')} on {d.get('instance_id')}  "
@@ -432,6 +500,30 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("why", parents=[common], help="why the running task was chosen")
     _add_inst(p)
 
+    p = sub.add_parser(
+        "detection", parents=[common], aliases=["detect"],
+        help="what the bot last detected on screen (screen + overlay match + region reads)",
+    )
+    _add_inst(p)
+
+    p = sub.add_parser(
+        "diagnose", parents=[common],
+        help="why one instance is idle/stuck/blind — one prioritized verdict",
+    )
+    _add_inst(p)
+
+    sub.add_parser(
+        "fleet-health", parents=[common], aliases=["health"],
+        help="one fleet verdict HEALTHY/DEGRADED/CRITICAL + issues",
+    )
+
+    p = sub.add_parser(
+        "reader-health", parents=[common],
+        help="data coverage: each fact → readers, consumers, present?, freshness",
+    )
+    p.add_argument("fid", nargs="?", help="player id (default: active player)")
+    p.add_argument("--inst", dest="instance", help="instance to resolve the active player from")
+
     p = sub.add_parser("planners", parents=[common], help="live status of every planner")
     p.add_argument("fid", nargs="?", help="player id (default: active player)")
     p.add_argument("--inst", dest="instance", help="instance to resolve the active player from")
@@ -453,12 +545,6 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("logs", parents=[common], help="tail local worker logfile if present")
     p.add_argument("--inst", dest="instance", help="filter lines for this instance")
     p.add_argument("-n", "--limit", type=int, default=200)
-
-    p = sub.add_parser(
-        "label-hints", parents=[common],
-        help="pending UI label hints from the /label page (operator → agent)",
-    )
-    p.add_argument("--clear", action="store_true", help="drain the queue after reading")
 
     # control
     p = sub.add_parser("run", parents=[common], help="enqueue a scenario now")
@@ -486,26 +572,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-approval", dest="approval", action="store_false",
         help="bypass click-approval for this run (taps fire without operator)",
     )
+    p.add_argument(
+        "--auto-pause", dest="auto_pause_worker", action="store_true",
+        help="stop an isolated single-device worker for the run, restart it after (frees scrcpy)",
+    )
+    p.add_argument(
+        "--force", action="store_true",
+        help="skip the device-busy pre-flight check (try even if a worker may hold the device)",
+    )
     p.add_argument("--timeout", type=float, default=180.0, help="abort after N seconds")
-
-    p = sub.add_parser(
-        "label", parents=[common],
-        help="commit labeled region(s) from a fresh frame into area.yaml + crop",
-    )
-    p.add_argument("--inst", dest="instance", help="instance id")
-    p.add_argument(
-        "--region-json", dest="region_json", required=True,
-        help='JSON region or array, e.g. [{"name":"mail.claim","action":"exist","bbox":{...}}]',
-    )
-    p.add_argument("--ref", help="existing reference repo-rel path to attach to")
-    p.add_argument("--screen", dest="screen", default="", help="existing screen_id to attach to")
-    p.add_argument(
-        "--mode", default="surgical", choices=["surgical", "recapture_reference"],
-        help="surgical (default) upserts only these regions; recapture_reference rewrites the screen ref",
-    )
-    p.add_argument("--scope", default="core", help="module scope (default: core)")
-    p.add_argument("--version", default=None, help="screen version id (default: base)")
-    p.add_argument("--game", default=None, help="game id (default: configured default)")
 
     p = sub.add_parser("focus", parents=[common], help="pin/clear focus mode for an instance")
     _add_inst(p)
@@ -556,6 +631,14 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
         return core.trace(args.instance), _render_trace
     if cmd == "why":
         return core.why(args.instance), _render_why
+    if cmd in ("detection", "detect"):
+        return core.current_detection(args.instance), _render_detection
+    if cmd == "diagnose":
+        return core.instance_diagnosis(args.instance), _render_diagnosis
+    if cmd in ("fleet-health", "health"):
+        return core.fleet_health(), _render_fleet_health
+    if cmd == "reader-health":
+        return core.reader_health(args.fid, instance=args.instance), _render_reader_health
     if cmd == "planners":
         return core.planners(args.fid, instance=args.instance), _render_planners
     if cmd == "screenshot":
@@ -568,8 +651,6 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
         return core.devices(), _render_devices
     if cmd == "logs":
         return core.logs(instance=args.instance, limit=args.limit), _render_logs
-    if cmd == "label-hints":
-        return core.label_hints(clear=args.clear), _render_label_hints
     if cmd == "run":
         return (
             core.run_scenario(
@@ -589,29 +670,9 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
             core.drive(
                 args.scenario, args.instance,
                 player_id=args.player, approval=args.approval, timeout=args.timeout,
+                auto_pause_worker=args.auto_pause_worker, force=args.force,
             ),
             _render_drive,
-        )
-    if cmd == "label":
-        try:
-            regions = json.loads(args.region_json)
-        except ValueError as exc:
-            msg = f"--region-json is not valid JSON: {exc}"
-            raise AgentctlError(msg) from exc
-        if isinstance(regions, dict):
-            regions = [regions]
-        return (
-            core.label(
-                instance=args.instance,
-                regions=regions,
-                ref=args.ref,
-                screen_id=args.screen,
-                scope=args.scope,
-                mode=args.mode,
-                version=args.version,
-                game=args.game,
-            ),
-            _render_ok,
         )
     if cmd == "focus":
         if args.clear:

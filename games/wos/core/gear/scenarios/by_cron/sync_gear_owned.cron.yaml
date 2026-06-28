@@ -1,0 +1,30 @@
+enabled: false   # ⚠ needs nav + labeling — see notes. Handler + wiring are live.
+name: "🛡️ Sync Chief Gear levels (reader)"
+
+# Background reader → planner['gear']['owned'] = {piece_id: ordinal} for the 6
+# gear pieces (gloves_belt/goggles_boots × infantry/lancer/marksman), un-blinding
+# the gear investment planner. Shared durable-SQLite reader pattern.
+#
+# WHY DISABLED (greenfield — nav + labeling, both on-device):
+#   1. NAV — no chief_profile→chief_gear screen node/edge exists. Add a
+#      screen_verify (OCR title landmark) + a chief_profile→chief_gear edge in this
+#      module's routes/, then set node: below.
+#   2. LABELING — label the 6 piece level regions and add an ocr: step each, e.g.:
+#        - ocr: gear.gloves_belt_infantry.level
+#          store: gear.read.gloves_belt_infantry   # gear.read.<piece_id>
+#          type: integer
+#          preprocess: fast_digits
+#          threshold: 0.0
+#      DECIDE during labeling: does the screen show a NUMBER (use the above) or a
+#      quality BADGE like "Pink T3-4"? If a badge, OCR the label and decode it to
+#      the ordinal via db/chief_gear.yaml's ladder order (see exec.py NOTE).
+# Then enable: true.
+
+priority: 40_000
+cron: "35 7 * * *"             # once a day — gear levels change slowly
+# node: chief_gear             # ← set once the screen node + edge exist
+cond: "active_player != null"
+
+steps:
+  # LABELING TODO: add the per-piece `ocr: … store: gear.read.<piece_id>` steps here.
+  - exec: sync_gear_owned

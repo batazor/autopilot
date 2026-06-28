@@ -73,6 +73,26 @@ def bot_why(instance: str | None = None) -> dict[str, Any]:
     return _run(core.why, instance)
 
 
+def bot_current_detection(instance: str | None = None) -> dict[str, Any]:
+    """What the bot last detected on screen: current_screen + matched overlay + per-region OCR reads (read-only, last persisted tick)."""  # noqa: E501
+    return _run(core.current_detection, instance)
+
+
+def bot_diagnose(instance: str | None = None) -> dict[str, Any]:
+    """Why is one instance idle/stuck/blind? One prioritized verdict: offline/approval/stuck/nav/queue issues + blind planners."""  # noqa: E501
+    return _run(core.instance_diagnosis, instance)
+
+
+def bot_fleet_health() -> dict[str, Any]:
+    """One fleet verdict (HEALTHY/DEGRADED/CRITICAL): live workers, critical/warning counts, issues-by-kind — one poll to decide proceed/wait."""  # noqa: E501
+    return _run(core.fleet_health)
+
+
+def bot_reader_health(fid: str | None = None, instance: str | None = None) -> dict[str, Any]:
+    """Data-coverage map: each observed fact → readers, consumers, present?, freshness — see which reader unblocks the most planners."""  # noqa: E501
+    return _run(core.reader_health, fid, instance=instance)
+
+
 def bot_planners(fid: str | None = None, instance: str | None = None) -> dict[str, Any]:
     """Live status of every planner: LIVE/DORMANT/CALC-ONLY, blind? (missing readers), last decision."""
     return _run(core.planners, fid, instance=instance)
@@ -96,11 +116,6 @@ def bot_devices() -> dict[str, Any]:
 def bot_logs(instance: str | None = None, limit: int = 200) -> dict[str, Any]:
     """Tail the local worker logfile if one is configured (else a pointer to history/trace/Loki)."""
     return _run(core.logs, instance=instance, limit=limit)
-
-
-def bot_label_hints(clear: bool = False) -> dict[str, Any]:
-    """Pending UI label hints from the /label page (operator → agent): bbox + region name/action/screen per hint. clear=True drains the queue after reading."""  # noqa: E501
-    return _run(core.label_hints, clear=clear)
 
 
 # --------------------------------------------------------------------------- #
@@ -137,34 +152,14 @@ def bot_drive(
     player_id: str = "",
     approval: bool = True,
     timeout: float = 180.0,
+    auto_pause_worker: bool = False,
+    force: bool = False,
 ) -> dict[str, Any]:
-    """Run ONE scenario on a device SYNCHRONOUSLY in-process (no worker/scheduler) and return its step trace + state diff. approval=False bypasses click-approval (taps fire without operator). Needs no worker running on the instance."""  # noqa: E501
+    """Run ONE scenario on a device SYNCHRONOUSLY in-process (no worker/scheduler) and return its step trace + state diff. approval=False bypasses click-approval (taps fire without operator). Needs the device free — a live worker holds scrcpy; auto_pause_worker=True stops an isolated worker for the run and restarts it after, else it errors with guidance. force=True skips the check."""  # noqa: E501
     return _run(
-        core.drive, scenario, instance, player_id=player_id, approval=approval, timeout=timeout,
-    )
-
-
-def bot_label(
-    instance: str | None = None,
-    regions: list[dict[str, Any]] | None = None,
-    ref: str | None = None,
-    screen_id: str = "",
-    scope: str = "core",
-    mode: str = "surgical",
-    version: str | None = None,
-    game: str | None = None,
-) -> dict[str, Any]:
-    """Commit labeled region(s) from a FRESH device frame into area.yaml + crop. Each region needs name + percent bbox {x,y,width,height}. mode=surgical (default) upserts only these regions (sibling regions + the screen reference PNG untouched); mode=recapture_reference overwrites the screen reference and re-exports all crops. Pass an existing ref or a screen_id already in the area manifest."""  # noqa: E501
-    return _run(
-        core.label,
-        instance=instance,
-        regions=regions,
-        ref=ref,
-        screen_id=screen_id,
-        scope=scope,
-        mode=mode,
-        version=version,
-        game=game,
+        core.drive, scenario, instance,
+        player_id=player_id, approval=approval, timeout=timeout,
+        auto_pause_worker=auto_pause_worker, force=force,
     )
 
 
@@ -225,15 +220,17 @@ TOOLS = [
     bot_trace,
     bot_screenshot,
     bot_why,
+    bot_current_detection,
+    bot_diagnose,
+    bot_fleet_health,
+    bot_reader_health,
     bot_planners,
     bot_player,
     bot_scenarios,
     bot_devices,
     bot_logs,
-    bot_label_hints,
     bot_run,
     bot_drive,
-    bot_label,
     bot_focus,
     bot_pause,
     bot_resume,

@@ -1,0 +1,32 @@
+enabled: false   # ⚠ needs labeling — see steps below. The handler + wiring are live;
+                 # flip to true once the Pet-Hall roster regions are labeled.
+name: "🐾 Sync pet ownership (reader)"
+
+# Background reader: keeps planner['pets']['owned'] = {pet_id: {level, refine, skill}}
+# fresh so the pets investment planner runs on real ownership instead of operator
+# input. Pattern: the durable-SQLite reader (sync_furnace_level / sync_vip_level)
+# generalised for the planner "owned" dict — see games/wos/core/readers.
+#
+# WHY DISABLED: the Pet-Hall / roster screen and its per-pet level/refine/skill
+# regions are NOT yet labeled in games/wos/pets/area.yaml. Enabling now would just
+# clean-fail at the (unlabeled) ocr: steps. To finish on-device:
+#   1. Navigate to the Pets screen, confirm a roster shows every owned pet's
+#      level (+ refine/skill if visible) on one screen (else it's a per-pet walk —
+#      loop the cards like sync_hero_roster's chevron walk).
+#   2. Label one region per pet cell and add an ocr: step per (pet, stat), e.g.:
+#        - ocr: pets.snow_leopard.level
+#          store: pets.read.snow_leopard.level   # <domain>.read.<entity>.<stat>
+#          type: integer
+#          preprocess: fast_digits
+#          threshold: 0.0
+#      (repeat .refine / .skill). The exec below reads every pets.read.* field.
+#   3. enable: true.
+
+priority: 40_000
+cron: "23 7 * * *"             # once a day — ownership changes slowly
+node: pets
+cond: "active_player != null"
+
+steps:
+  # LABELING TODO: add the per-pet `ocr: … store: pets.read.<pet_id>.<stat>` steps here.
+  - exec: sync_pet_owned

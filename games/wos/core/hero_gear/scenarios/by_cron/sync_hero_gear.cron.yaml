@@ -1,0 +1,30 @@
+enabled: false   # ⚠ needs nav + labeling — see notes. Handler + wiring are live.
+name: "⚔️ Sync Hero Gear levels (reader)"
+
+# Background reader → planner['hero_gear']['owned'] = {piece_id: {enhance, mastery,
+# widget}} for the 6 pieces (gloves_belt/goggles_boots × infantry/lancer/marksman),
+# un-blinding the hero_gear investment planner. Shared durable-SQLite reader pattern.
+#
+# WHY DISABLED (greenfield, deepest nav — both on-device):
+#   1. NAV — the Hero Gear screen is reached from a hero detail card
+#      (page.heroes.unit); no node/edge exists. FIRST confirm on-device whether it's
+#      ONE screen with a 6×3 grid or 6 per-piece sub-screens (a walk). Add the
+#      screen_verify + page.heroes.unit→hero_gear edge, then set node: below.
+#   2. LABELING — label the 18 cells and add an ocr: step each, e.g.:
+#        - ocr: hero_gear.gloves_belt_infantry.enhance
+#          store: hero_gear.read.gloves_belt_infantry.enhance  # <piece>.<track>
+#          type: integer
+#          preprocess: fast_digits
+#          threshold: 0.0
+#      (repeat .mastery / .widget for all 6 pieces). The exec reads every
+#      hero_gear.read.* field.
+# Then enable: true.
+
+priority: 40_000
+cron: "47 7 * * *"             # once a day — hero-gear levels change slowly
+# node: hero_gear              # ← set once the screen node + edge exist
+cond: "active_player != null"
+
+steps:
+  # LABELING TODO: add the per-piece-per-track `ocr: … store: hero_gear.read.<piece>.<track>` steps.
+  - exec: sync_hero_gear

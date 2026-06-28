@@ -34,12 +34,13 @@ __all__ = [
     "AgentctlError",
     "abort",
     "bot_lifecycle",
+    "current_detection",
     "devices",
     "drive",
+    "fleet_health",
     "history",
+    "instance_diagnosis",
     "instance_state",
-    "label",
-    "label_hints",
     "list_instances",
     "logs",
     "pause",
@@ -49,6 +50,7 @@ __all__ = [
     "queue_clear",
     "queue_remove",
     "queue_run_now",
+    "reader_health",
     "resolve_instance",
     "resume",
     "run_scenario",
@@ -287,69 +289,6 @@ def _serial_for_instance(instance_id: str) -> str | None:
     return None
 
 
-def label_hints(*, clear: bool = False) -> dict[str, Any]:
-    """Pending UI label hints (operator → agent) from the lightweight ``/label`` page.
-
-    Each hint is ``{ts, instance_id, screen_id, ref, scope, regions:[{name,action,
-    bbox,…}], note, committed}`` pushed by the page's *Send hint* / *Commit*
-    buttons. ``clear=True`` drains the queue after reading. Returns
-    ``{count, cleared, hints}`` (newest first).
-    """
-    client = _redis()
-    raw = client.lrange("wos:label:hints", 0, -1)
-    hints: list[Any] = []
-    for item in raw:
-        try:
-            hints.append(json.loads(item))
-        except (TypeError, ValueError):
-            continue
-    if clear and raw:
-        client.delete("wos:label:hints")
-    return {"count": len(hints), "cleared": bool(clear and raw), "hints": hints}
-
-
-def label(
-    *,
-    instance: str | None = None,
-    regions: list[dict[str, Any]] | None = None,
-    ref: str | None = None,
-    screen_id: str = "",
-    scope: str = "core",
-    mode: str = "surgical",
-    version: str | None = None,
-    game: str | None = None,
-) -> dict[str, Any]:
-    """Commit labeled region(s) from a fresh device frame into ``area.yaml`` + crop.
-
-    Same engine as the ``/label`` page. ``mode="surgical"`` (default) upserts only
-    the given regions and leaves sibling regions / the screen's reference PNG
-    untouched; ``mode="recapture_reference"`` overwrites the screen reference and
-    re-exports all crops. Pass an existing ``ref`` or a ``screen_id`` that already
-    exists in the manifest. Each region needs ``name`` + percent ``bbox``.
-    """
-    iid = resolve_instance(instance)
-    if not regions:
-        msg = "no regions given (each needs a name + percent bbox)"
-        raise AgentctlError(msg)
-    from api.services.game_resolver import set_current_request_game
-    from api.services.labeling import commit_region_from_frame
-    from config.games import default_game
-
-    set_current_request_game(game or default_game())
-    try:
-        return commit_region_from_frame(
-            instance_id=iid,
-            regions=regions,
-            ref=ref,
-            screen_id=screen_id,
-            scope=scope,
-            mode=mode,
-            version=version,
-        )
-    except (ValueError, FileNotFoundError, RuntimeError) as exc:
-        raise AgentctlError(str(exc)) from exc
-
-
 def player(fid: str, key: str | None = None) -> dict[str, Any]:
     """Per-account state from the encrypted SQLite store, flattened (dot keys).
 
@@ -581,6 +520,15 @@ def _player_flat(client: redis.Redis, fid: str) -> dict[str, str]:
                 flat[str(k)] = str(v)
     except Exception:
         pass
+    # Self-heal the planner "owned" inputs (pets/charms/gear/hero_gear/island) into
+    # the flat keys their observed_inputs name, so blind doesn't falsely regress when
+    # the hot Redis mirror is cold (post-flush) but durable SQLite has the data.
+    try:
+        from games.wos.core.readers import overlay_durable_planner_owned
+
+        overlay_durable_planner_owned(fid, flat)
+    except Exception:
+        pass
     return flat
 
 
@@ -788,6 +736,218 @@ def why(instance: str | None = None) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Live observation — what the bot sees, why an instance is idle, fleet verdict
+# --------------------------------------------------------------------------- #
+def current_detection(instance: str | None = None) -> dict[str, Any]:
+    """What the bot last detected on screen for one instance (read-only).
+
+    The overlay engine evaluates every tick but only persists the *matched*
+    overlay (``last_overlay_*``) plus ``current_screen`` and any per-region OCR
+    reads to the instance state hash — this presents that scattered state as one
+    structured detection view, so an agent can tell "wrong screen" from "region
+    not matching" from "stale read" without a device round-trip. It reflects the
+    **last persisted overlay tick**, not a fresh scan: for a live frame use
+    ``screenshot(fresh=True)`` or ``drive``.
+    """
+    from dashboard.redis_client import get_instance_state
+
+    iid = resolve_instance(instance)
+    client = _redis()
+    row = get_instance_state(client, iid)
+    now = time.time()
+
+    def _f(v: Any) -> float | None:
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    def _age(at: Any) -> float | None:
+        ts = _f(at)
+        return round(now - ts, 1) if ts is not None else None
+
+    # The matched overlay the worker persisted (region, score, tap target, text).
+    last_overlay: dict[str, Any] = {}
+    _ov = (
+        ("region", "last_overlay_match_region", str),
+        ("score", "last_overlay_match_score", _f),
+        ("threshold", "last_overlay_match_threshold", _f),
+        ("match_x_pct", "last_overlay_match_x_pct", _f),
+        ("match_y_pct", "last_overlay_match_y_pct", _f),
+        ("text", "last_overlay_text", str),
+        ("confidence", "last_overlay_confidence", _f),
+    )
+    for out_key, hash_key, conv in _ov:
+        raw = row.get(hash_key)
+        if raw is not None and str(raw).strip():
+            last_overlay[out_key] = conv(raw)
+
+    # Per-region OCR reads: the worker writes ``<region>_text`` (+ optional
+    # ``_confidence`` / ``_at``) for each region it read this tick.
+    def _region_row(name: str, text: str) -> dict[str, Any]:
+        return {
+            "name": name,
+            "text": text,
+            "confidence": _f(row.get(f"{name}_confidence")),
+            "age_s": _age(row.get(f"{name}_at")),
+        }
+
+    regions = sorted(
+        (
+            _region_row(key[: -len("_text")], str(val))
+            for key, val in row.items()
+            if key.endswith("_text") and not key.startswith("last_overlay") and str(val).strip()
+        ),
+        key=lambda r: r["name"],
+    )
+
+    context = {
+        "paused": row.get("paused") == "1",
+        "auto_paused": row.get("auto_paused") == "1",
+        "nav_error": (row.get("nav_error") or "").strip(),
+        "last_error": (row.get("last_error") or "").strip(),
+        "queue_blocked_reason": (row.get("queue_blocked_reason") or "").strip(),
+        "focus_scenario": (row.get("focus_scenario") or "").strip(),
+        "current_scenario": (row.get("current_scenario") or "").strip(),
+        "active_player": (row.get("active_player") or row.get("current_task_player") or "").strip(),
+    }
+    return {
+        "instance_id": iid,
+        "current_screen": (row.get("current_screen") or "").strip(),
+        "last_overlay": last_overlay,
+        "regions": regions,
+        "context": context,
+        "note": "last persisted overlay tick, not a fresh scan — use screenshot(fresh=True)/drive for a live frame",
+    }
+
+
+def instance_diagnosis(instance: str | None = None) -> dict[str, Any]:
+    """Why is one instance idle / stuck / blind? — one prioritized answer.
+
+    Combines the attention-feed signals (offline / worker down / stuck task /
+    nav error / overdue queue / pending approval / manual pause) with the blind
+    planners for the instance's active player, so an agent gets a single "here's
+    what's wrong and why no work is happening" verdict instead of stitching
+    ``status`` + ``planners`` + ``why`` + ``queue``.
+    """
+    from api.services.attention import diagnose_instance as _diagnose
+
+    iid = resolve_instance(instance)
+    client = _redis()
+    diag = _diagnose(client, iid)
+
+    fid = _resolve_active_fid(client, iid)
+    planner_rows: list[dict[str, Any]] = []
+    if fid:
+        try:
+            planner_rows = planners(fid, instance=iid)["planners"]
+        except AgentctlError:
+            planner_rows = []
+    blind = [
+        {"name": p["name"], "missing_inputs": p["missing_inputs"]}
+        for p in planner_rows
+        if p.get("blind")
+    ]
+    diag["active_player"] = fid or diag.get("active_player", "")
+    diag["blind_planners"] = blind
+    return diag
+
+
+def fleet_health() -> dict[str, Any]:
+    """One fleet verdict (HEALTHY / DEGRADED / CRITICAL) for fast agent steering.
+
+    Rolls the attention feed into a single answer to "is the fleet OK to work?":
+    live-worker count, critical/warning tallies, an issues-by-kind breakdown and
+    the full prioritized item list — one poll instead of stitching ``status`` +
+    ``planners`` + the attention view.
+    """
+    from api.services.attention import fleet_health as _fleet_health
+
+    return _fleet_health(_redis())
+
+
+# --------------------------------------------------------------------------- #
+# Reader health — fact → reader → consumers → freshness (data coverage at a glance)
+# --------------------------------------------------------------------------- #
+import re as _re  # noqa: E402  (local to the reader-health helpers below)
+
+
+def _fact_freshness(flat: dict[str, str], fact: str) -> tuple[float | None, float | None]:
+    """Best-effort ``(synced_at, age_s)`` for a fact from its ``*.synced_at`` mirror.
+
+    Readers that track freshness write ``<root>.synced_at`` (e.g. ``troops``,
+    ``heroes.roster``). We probe the fact path and its parents (so
+    ``troops.infantry.available`` finds ``troops.synced_at``). ``(None, None)``
+    when no reader records a timestamp — itself the signal that this fact's
+    freshness is untracked.
+    """
+    root = fact.removesuffix(".*")
+    parts = root.split(".")
+    seen: set[str] = set()
+    for i in range(len(parts), 0, -1):
+        cand = ".".join(parts[:i]) + ".synced_at"
+        if cand in seen:
+            continue
+        seen.add(cand)
+        raw = flat.get(cand)
+        if raw is None or not str(raw).strip():
+            continue
+        try:
+            ts = float(raw)
+        except (TypeError, ValueError):
+            continue
+        return ts, round(time.time() - ts, 1)
+    return None, None
+
+
+def reader_health(fid: str | None = None, *, instance: str | None = None) -> dict[str, Any]:
+    """Data-coverage map: every observed fact → its readers, consumers, freshness.
+
+    Inverts the planner registry so an agent can see, at a glance, which fact is
+    blocking the most planners and how stale it is. ``readers`` are parsed from
+    each planner's ``note`` (the ``sync_*`` reader it documents); ``present`` and
+    ``synced_at`` come from the player's merged SQLite + Redis state. Facts are
+    ordered most-blocking first (absent, then by consumer count).
+    """
+    client = _redis()
+    fid = str(fid or "").strip()
+    fid_source = "arg" if fid else "none"
+    if not fid:
+        fid = _resolve_active_fid(client, instance)
+        fid_source = "resolved" if fid else "none"
+    flat = _player_flat(client, fid) if fid else {}
+
+    facts: dict[str, dict[str, Any]] = {}
+    for e in _load_planner_manifest():
+        name = str(e.get("name", ""))
+        readers = set(_re.findall(r"sync_[a-z0-9_]+", str(e.get("note", ""))))
+        for inp in e.get("observed_inputs") or []:
+            key = str(inp)
+            slot = facts.setdefault(key, {"consumers": [], "readers": set()})
+            slot["consumers"].append(name)
+            slot["readers"].update(readers)
+
+    rows: list[dict[str, Any]] = []
+    for fact, info in facts.items():
+        present = _input_present(flat, fact) if fid else None
+        synced_at, age = _fact_freshness(flat, fact) if fid else (None, None)
+        rows.append(
+            {
+                "fact": fact,
+                "consumers": sorted(info["consumers"]),
+                "consumer_count": len(info["consumers"]),
+                "readers": sorted(info["readers"]),
+                "present": present,
+                "synced_at": synced_at,
+                "age_s": age,
+            }
+        )
+    # Most actionable first: blind facts, then the ones the most planners need.
+    rows.sort(key=lambda r: (r["present"] is not False, -r["consumer_count"], r["fact"]))
+    return {"fid": fid, "fid_source": fid_source, "count": len(rows), "facts": rows}
+
+
+# --------------------------------------------------------------------------- #
 # Drive — run ONE scenario on a device synchronously, in-process (dev velocity)
 # --------------------------------------------------------------------------- #
 # Noisy instance-state fields that churn every tick — dropped from the state diff
@@ -925,6 +1085,46 @@ async def _drive_async(instance_id: str, scenario: str, fid: str, timeout: float
                 pass
 
 
+def _instance_uses_scrcpy(instance_id: str) -> bool:
+    """Does this instance capture via scrcpy? (empty backend defaults to scrcpy).
+
+    Only scrcpy is a single device-holder; adb/minitouch instances have no
+    such conflict, so the drive pre-flight check skips them.
+    """
+    try:
+        from config.devices import load_devices
+
+        for d in load_devices().devices:
+            if str(d.name) == instance_id:
+                return (d.screenshot_backend or "").strip().lower() in ("", "scrcpy")
+    except Exception:
+        pass
+    return True  # unknown → assume scrcpy (the safe default)
+
+
+def _device_holder(instance_id: str) -> str | None:
+    """Who is holding the device, if anyone: ``"isolated"`` | ``"worker"`` | ``None``.
+
+    ``"isolated"`` is a single-device ``instance_runner`` we can stop/restart
+    around a drive; ``"worker"`` is any other live worker (the multi-instance
+    supervisor / a container) seen only via a fresh Redis heartbeat — we can't
+    safely manage it, only warn. ``None`` means the device is free.
+    """
+    try:
+        from worker import local_bot
+
+        if local_bot.instance_worker_status(instance_id).get("running"):
+            return "isolated"
+        if any(
+            h.get("instance_id") == instance_id
+            for h in local_bot._external_worker_heartbeats()
+        ):
+            return "worker"
+    except Exception:
+        return None
+    return None
+
+
 def drive(
     scenario: str,
     instance: str | None = None,
@@ -932,6 +1132,8 @@ def drive(
     player_id: str = "",
     approval: bool = True,
     timeout: float = 180.0,
+    auto_pause_worker: bool = False,
+    force: bool = False,
 ) -> dict[str, Any]:
     """Run ONE scenario on a device **synchronously, in-process** — return its
     step trace + the resulting state diff.
@@ -942,8 +1144,13 @@ def drive(
     The scenario self-routes to its ``node:`` first, then runs its steps.
 
     ``approval=False`` bypasses the click-approval gate for this run (restored
-    after). Requires NO worker running on the instance — scrcpy is a single holder
-    per device, so a live worker would conflict.
+    after). scrcpy is a single holder per device, so a live worker would
+    conflict — and **pausing it does not release the device** (the rolling
+    capture loop keeps scrcpy open); only stopping the worker frees it. So drive
+    pre-flights the device: with ``auto_pause_worker=True`` it stops an isolated
+    single-device worker for the run and restarts it after; otherwise (or for the
+    multi-instance supervisor, which it won't touch) it raises a clear error
+    instead of a cryptic scrcpy failure. ``force=True`` skips the check.
     """
     import asyncio
 
@@ -954,13 +1161,36 @@ def drive(
         raise AgentctlError(msg)
 
     client = _redis()
-    fid = str(player_id or "").strip()
-    before = _state_snapshot(client, iid, fid)
 
+    # Pre-flight: a live worker holds scrcpy. Stop an isolated worker if asked
+    # (and restart it after); otherwise fail with actionable guidance.
+    restart_worker = False
+    if not force and _instance_uses_scrcpy(iid):
+        holder = _device_holder(iid)
+        if holder == "isolated" and auto_pause_worker:
+            from worker.local_bot import stop_instance_worker
+
+            stop_instance_worker(iid)
+            restart_worker = True
+        elif holder is not None:
+            hint = (
+                "stop it first (`botctl bot stop`), or retry with auto_pause_worker=True"
+                if holder == "isolated"
+                else "stop the worker first (`botctl bot stop`) — drive won't touch the multi-instance supervisor"
+            )
+            msg = (
+                f"instance {iid!r} has a live {holder} worker holding the device "
+                f"(scrcpy is a single holder; pausing won't release it). {hint}, "
+                f"or pass force=True to try anyway."
+            )
+            raise AgentctlError(msg)
+
+    fid = str(player_id or "").strip()
     flag_key = f"wos:ui:click_approval:enabled:{iid}"
     prior_flag = client.get(flag_key)
     started = time.time()
     try:
+        before = _state_snapshot(client, iid, fid)
         if not approval:
             client.set(flag_key, "0")
         result = asyncio.run(_drive_async(iid, scenario, fid, timeout))
@@ -972,6 +1202,13 @@ def drive(
                 client.delete(flag_key)
             else:
                 client.set(flag_key, prior_flag)
+        if restart_worker:
+            try:
+                from worker.local_bot import start_instance_worker
+
+                start_instance_worker(iid)
+            except Exception:
+                pass  # best-effort restart; never mask the drive result
 
     after = _state_snapshot(client, iid, fid)
     meta = dict(getattr(result, "metadata", {}) or {})
@@ -984,6 +1221,7 @@ def drive(
         "reason": str(meta.get("reason") or ""),
         "duration_s": round(time.time() - started, 1),
         "approval_bypassed": not approval,
+        "worker_paused": restart_worker,
         "steps": meta.get("steps_trace") or [],
         "state_diff": _state_diff(before, after),
     }

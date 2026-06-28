@@ -65,13 +65,17 @@ uv run botctl history bs1 -n 10    # recent executions (ok/fail, reason, duratio
 uv run botctl trace bs1            # last scenario's step-by-step trace
 uv run botctl why bs1              # WHY the running/last task was chosen: source (cron/overlay/optimizer/operator/focus), rank_meta, latest planner decisions
 uv run botctl planners            # live status of every planner: LIVE / DORMANT / CALC-ONLY, blind? (missing readers), last decision
+uv run botctl fleet-health         # ONE fleet verdict HEALTHY/DEGRADED/CRITICAL + ranked issues — one poll to decide proceed/wait (alias: health)
+uv run botctl diagnose bs1         # WHY one instance is idle/stuck/blind: offline/approval/stuck/nav/queue issues + blind planners, in one prioritized verdict
+uv run botctl detection bs1        # what the bot LAST detected on screen: current_screen + matched overlay + per-region OCR reads (last persisted tick, NOT a fresh scan — use screenshot --fresh/drive for that)
+uv run botctl reader-health        # data coverage: each fact → reader(s)/consumers/present?/freshness — see which reader unblocks the most planners
 uv run botctl screenshot bs1       # path to the live preview PNG → then Read that path to SEE the screen
 uv run botctl player 401227964 buildings.levels   # per-account SQLite state (dot-key filter)
 uv run botctl scenarios --grep mail               # list DSL scenarios + metadata
 uv run botctl devices              # devices + backends + adb-online
 
 # control (enqueue work / send commands — device taps still go through click-approval)
-uv run botctl drive sync_furnace_level.cron --inst bs1 --player 401227964 --no-approval  # run ONE scenario SYNC, in-process (no worker): step trace + state diff. Needs the device free (no worker running — scrcpy single-holder). Best way to dev/verify a reader or scenario.
+uv run botctl drive sync_furnace_level.cron --inst bs1 --player 401227964 --no-approval  # run ONE scenario SYNC, in-process (no worker): step trace + state diff. Needs the device free — scrcpy is a single holder and PAUSING WON'T RELEASE IT. A live worker is detected pre-flight: --auto-pause stops an isolated single-device worker for the run + restarts it after; --force skips the check. Best way to dev/verify a reader or scenario.
 uv run botctl run check_main_city --inst bs1 --player 401227964   # enqueue now
 uv run botctl pause bs1            # / resume / abort [--restart]
 uv run botctl bot start|stop|status                              # local worker lifecycle

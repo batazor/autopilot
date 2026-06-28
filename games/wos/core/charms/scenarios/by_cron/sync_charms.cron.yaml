@@ -1,0 +1,29 @@
+enabled: false   # ⚠ needs nav + labeling — see notes. Handler + wiring are live.
+name: "🔮 Sync Chief Charms levels (reader)"
+
+# Background reader → planner['charms']['owned'] = {slot_id: level} for the 18
+# charm slots (infantry_1..infantry_6, lancer_1..lancer_6, marksman_1..marksman_6),
+# un-blinding the charms investment planner. Shared durable-SQLite reader pattern
+# (games/wos/core/readers).
+#
+# WHY DISABLED (greenfield — nav + labeling, both on-device):
+#   1. NAV — no chief_profile→chief_charms screen node/edge exists. Add a
+#      screen_verify (OCR title landmark for the Chief Charms screen) + a
+#      chief_profile→chief_charms edge in this module's routes/, then set node: below.
+#   2. LABELING — label the 18 slot level regions and add an ocr: step each, e.g.:
+#        - ocr: charms.infantry_1.level
+#          store: charms.read.infantry_1     # charms.read.<slot_id>
+#          type: integer
+#          preprocess: fast_digits
+#          threshold: 0.0
+#      The exec reads every charms.read.* field.
+# Then enable: true.
+
+priority: 40_000
+cron: "29 7 * * *"             # once a day — charm levels change slowly
+# node: chief_charms           # ← set once the screen node + edge exist
+cond: "active_player != null"
+
+steps:
+  # LABELING TODO: add the per-slot `ocr: … store: charms.read.<slot_id>` steps here.
+  - exec: sync_charms

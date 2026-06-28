@@ -1,0 +1,11 @@
+id: gear
+title: Chief Gear (reader)
+description: >-
+  On-device reader for chief gear piece levels → planner['gear']['owned'],
+  un-blinding the gear investment planner (games/wos/core/gear/planner). Reader
+  code + planner read-back wiring are live; the cron ships DISABLED until the
+  Chief Gear screen is reached and its 6 piece regions are labeled on-device.
+enabled: true
+scenarios: scenarios
+exec: exec.py
+wiki: false

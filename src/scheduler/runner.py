@@ -60,6 +60,28 @@ return 0
 """
 
 
+def _apply_durable_role(player_id: str, state: dict[str, object]) -> None:
+    """Mirror the durable per-account role into ``state['planner.role']``.
+
+    The role (``planner.role``, set via the farm UI) lives in the per-gamer
+    SQLite store, not the hot Redis player hash, so the value-greedy planners
+    never see it unless we inject it here. No-op when already present or unset.
+    """
+    if str(state.get("planner.role") or "").strip():
+        return
+    try:
+        from config.state_store import get_state_store
+
+        gamer = get_state_store().get(player_id)
+    except Exception:
+        return
+    if gamer is None:
+        return
+    role_id = str(gamer.get("planner.role") or "").strip()
+    if role_id:
+        state["planner.role"] = role_id
+
+
 class SchedulerRunner:
     def __init__(
         self,
@@ -631,6 +653,10 @@ class SchedulerRunner:
                 # the typed troop pool as 0 and silently block troop actions). Cheap:
                 # a no-op when the mirror is warm. See ``sync_troop_pool``.
                 overlay_durable_troops(player_id, state)
+                # Mirror the durable per-account role (planner.role, set via the farm
+                # UI) into the hot state so the value-greedy planners actually bias by
+                # it — the Redis player hash doesn't carry it. No-op when present.
+                _apply_durable_role(player_id, state)
                 states[player_id] = state
         return states
 
@@ -1069,6 +1095,7 @@ class SchedulerRunner:
         assert self._queue is not None and self._redis is not None
         from games.wos.core.coordinator.dispatch import load_march_config, run_march_tick
         from games.wos.core.resources import adapter as resources
+        from games.wos.core.roles import get_role
 
         try:
             cfg = load_march_config()       # mtime-cached; no disk read per tick
@@ -1098,6 +1125,7 @@ class SchedulerRunner:
                     now=now,
                     idle_slots=world.slots_free,
                     state=state,
+                    role=get_role(str(state.get("planner.role") or "")),
                     cooldown_s=cfg.intel_cooldown_s,
                 )
             except Exception:

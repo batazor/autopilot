@@ -1168,6 +1168,14 @@ _PLANNER_STATE_DOMAINS = (
     "research",
     "heroes",
     "pets",
+    # Investment domains fed by the on-device "owned" readers (games/wos/core/readers):
+    # listing them here round-trips their saved owned dicts through GET/PUT /state and
+    # _planner_domains_from_snapshot, so once a reader writes them the calculators +
+    # the fleet arbitration (below) see real levels instead of empty defaults.
+    "charms",
+    "gear",
+    "hero_gear",
+    "island",
     "intel",
     "coordinator",
     "safety",
@@ -1638,6 +1646,11 @@ def _fleet_row(player_id: str) -> dict[str, Any]:
         research=ResearchBody(**domains["research"]),
         heroes=HeroesBody(**domains["heroes"]),
         pets=PetsBody(**domains["pets"]),
+        # Investment domains fed by the on-device "owned" readers — populated here so
+        # they contend in the live per-player arbitration once their reader writes.
+        charms=CharmsBody(**domains["charms"]),
+        gear=GearBody(**domains["gear"]),
+        hero_gear=HeroGearBody(**domains["hero_gear"]),
         balances={
             **_FLEET_ECON_BALANCES,
             **dict(domains["heroes"].get("resources") or {}),

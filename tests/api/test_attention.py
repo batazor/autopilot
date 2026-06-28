@@ -325,3 +325,58 @@ def test_critical_sorts_before_warning(fleet) -> None:
     view = _view()
     assert _kinds(view) == ["worker_down", "nav_error"]
     assert view["counts"] == {"critical": 1, "warning": 1, "total": 2}
+
+
+# --------------------------------------------------------------------------- #
+# fleet_health — one verdict for agent steering
+# --------------------------------------------------------------------------- #
+def test_fleet_health_healthy(fleet) -> None:
+    h = attention.fleet_health(client=None)
+    assert h["verdict"] == "HEALTHY"
+    assert h["live_workers"] == 2
+    assert h["instances_total"] == 2
+    assert h["items"] == []
+
+
+def test_fleet_health_degraded_on_warning(fleet) -> None:
+    fleet.states["bs1"]["nav_error"] = "boom"
+    h = attention.fleet_health(client=None)
+    assert h["verdict"] == "DEGRADED"
+    assert h["issues_by_kind"] == {"nav_error": 1}
+
+
+def test_fleet_health_critical_on_worker_down(fleet) -> None:
+    fleet.states["bs2"] = {
+        "worker_started_at": str(fleet.now - 9000),
+        "last_seen_at": str(fleet.now - 9000),
+    }  # stale → worker_down (critical), bs1 still live so no suppression
+    h = attention.fleet_health(client=None)
+    assert h["verdict"] == "CRITICAL"
+    assert h["critical"] == 1
+    assert h["live_workers"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# diagnose_instance — why is one instance idle?
+# --------------------------------------------------------------------------- #
+def test_diagnose_instance_healthy(fleet) -> None:
+    d = attention.diagnose_instance(None, "bs1", now=fleet.now)
+    assert d["verdict"] == "ok"
+    assert d["issues"] == []
+    assert d["live"] is True
+    assert d["approval_pending"] is False
+
+
+def test_diagnose_instance_flags_pending_approval(fleet) -> None:
+    fleet.approvals["bs1"] = "claim_mail"
+    d = attention.diagnose_instance(None, "bs1", now=fleet.now)
+    assert d["approval_pending"] is True
+    assert "approval_pending" in [i["kind"] for i in d["issues"]]
+    assert d["verdict"] == "degraded"
+
+
+def test_diagnose_instance_flags_manual_pause(fleet) -> None:
+    fleet.states["bs1"]["paused"] = "1"
+    d = attention.diagnose_instance(None, "bs1", now=fleet.now)
+    assert "paused" in [i["kind"] for i in d["issues"]]
+    assert d["verdict"] == "degraded"

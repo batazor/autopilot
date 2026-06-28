@@ -1,0 +1,32 @@
+enabled: false   # ⚠ needs labeling + a re-entry nav edge — see notes. Handler + wiring live.
+name: "🌳 Sync Daybreak Island state (reader)"
+
+# Background reader: keeps planner['island']['owned'] (Tree of Life level, prosperity,
+# life essence, decorations, lumber camps) + the flat island.tree_of_life.level fresh
+# so the island planner runs on real state. Shared durable-SQLite reader pattern
+# (games/wos/core/readers).
+#
+# WHY DISABLED (two gaps, both on-device):
+#   1. LABELING — area.yaml has island.title / life_essence.collect / to_city only.
+#      Label OCR regions for the stats and add an ocr: step per stat, e.g.:
+#        - ocr: island.tree_of_life.header
+#          store: island.read.tree_of_life_level   # island.read.<stat>
+#          type: integer
+#          preprocess: fast_digits
+#          threshold: 0.0
+#      (+ prosperity / life_essence; decorations as island.read.decoration.<id>,
+#       lumber as island.read.lumber.<n>). The exec reads every island.read.* field.
+#   2. NAV — the only island edge today is island→main_city (return). Entry is a
+#      one-shot panel exec tap (claim_life_essence), so a cron with node:island has
+#      no routable path TO the island. Add a re-entry edge (or an exec-tap entry
+#      step) before enabling, else this strands at navigation.
+# Then enable: true.
+
+priority: 40_000
+cron: "41 7 * * *"             # once a day — island state changes slowly
+node: island
+cond: "active_player != null"
+
+steps:
+  # LABELING TODO: add the `ocr: … store: island.read.<stat>` steps here.
+  - exec: sync_island_state

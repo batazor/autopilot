@@ -1,0 +1,11 @@
+id: charms
+title: Chief Charms (reader)
+description: >-
+  On-device reader for chief charm slot levels → planner['charms']['owned'],
+  un-blinding the charms investment planner (games/wos/core/charms/planner).
+  Reader code + planner read-back wiring are live; the cron ships DISABLED until
+  the Chief Charms screen is reached and its 18 slot regions are labeled on-device.
+enabled: true
+scenarios: scenarios
+exec: exec.py
+wiki: false

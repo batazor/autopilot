@@ -430,6 +430,7 @@ def test_drive_assembles_trace_diff_and_restores_approval(
         return _Result()
 
     monkeypatch.setattr(core, "_drive_async", _fake_async)
+    monkeypatch.setattr(core, "_device_holder", lambda *_a, **_k: None)  # device free
 
     out = core.drive("sync_troop_pool.cron", "bs1", player_id="42", approval=False)
     assert out["ok"] is True
@@ -498,6 +499,7 @@ def test_drive_diff_includes_durable_sqlite_state(
         return _Result()
 
     monkeypatch.setattr(core, "_drive_async", _fake_async)
+    monkeypatch.setattr(core, "_device_holder", lambda *_a, **_k: None)  # device free
 
     out = core.drive("scan_hero_details", "bs1", player_id="42", approval=False)
     assert out["state_diff"]["db:heroes.entries.charlie.star"] == {"before": None, "after": "4"}
@@ -525,3 +527,159 @@ def test_why_idle_falls_back_to_last_history_task(
     assert out["from_history"] is True
     assert out["scenario"] == "event.fishing_tournament"
     assert out["source"]["code"] == "focus"   # priority 90_000 → focus enqueue
+
+
+# --------------------------------------------------------------------------- #
+# Live observation — current_detection / instance_diagnosis / fleet_health
+# --------------------------------------------------------------------------- #
+def test_current_detection_structures_instance_hash(
+    fake_redis: FakeRedis, one_instance: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    row = {
+        "current_screen": "main_city",
+        "last_overlay_match_region": "workers_icon",
+        "last_overlay_match_score": "0.93",
+        "last_overlay_match_threshold": "0.85",
+        "last_overlay_text": "",                       # empty → omitted
+        "furnace.level_text": "30",
+        "furnace.level_confidence": "0.97",
+        "furnace.level_at": str(NOW),
+        "paused": "1",
+        "nav_error": "",
+        "active_player": "42",
+    }
+    monkeypatch.setattr("dashboard.redis_client.get_instance_state", lambda *_a, **_k: row)
+
+    out = core.current_detection("bs1")
+    assert out["current_screen"] == "main_city"
+    assert out["last_overlay"]["region"] == "workers_icon"
+    assert out["last_overlay"]["score"] == 0.93
+    assert "text" not in out["last_overlay"]            # empty value dropped
+    regs = {r["name"]: r for r in out["regions"]}
+    assert regs["furnace.level"]["text"] == "30"
+    assert regs["furnace.level"]["confidence"] == 0.97
+    assert regs["furnace.level"]["age_s"] is not None
+    assert out["context"]["paused"] is True
+    assert out["context"]["active_player"] == "42"
+
+
+def test_instance_diagnosis_enriches_with_blind_planners(
+    fake_redis: FakeRedis, one_instance: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "api.services.attention.diagnose_instance",
+        lambda *_a, **_k: {
+            "instance_id": "bs1", "verdict": "ok", "issues": [], "active_player": "",
+        },
+    )
+    monkeypatch.setattr(core, "_resolve_active_fid", lambda *_a, **_k: "42")
+    monkeypatch.setattr(
+        core, "planners",
+        lambda *_a, **_k: {
+            "planners": [
+                {"name": "resources", "blind": True, "missing_inputs": ["troops.infantry.available"]},
+                {"name": "march", "blind": False, "missing_inputs": []},
+            ]
+        },
+    )
+
+    out = core.instance_diagnosis("bs1")
+    assert out["active_player"] == "42"
+    assert out["blind_planners"] == [
+        {"name": "resources", "missing_inputs": ["troops.infantry.available"]}
+    ]
+
+
+def test_fleet_health_passthrough(
+    fake_redis: FakeRedis, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "api.services.attention.fleet_health",
+        lambda _c: {"verdict": "HEALTHY", "live_workers": 2, "instances_total": 2},
+    )
+    out = core.fleet_health()
+    assert out["verdict"] == "HEALTHY"
+    assert out["live_workers"] == 2
+
+
+# --------------------------------------------------------------------------- #
+# reader_health — fact → reader/consumer inversion + freshness + ordering
+# --------------------------------------------------------------------------- #
+def test_reader_health_inverts_sorts_and_dates(
+    fake_redis: FakeRedis, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = [
+        {"name": "resources", "observed_inputs": ["troops.infantry.available", "heroes.roster"],
+         "note": "входы читаются sync_hero_roster + sync_troop_pool"},
+        {"name": "troops", "observed_inputs": ["troops.infantry.available"],
+         "note": "sync_troop_pool max-per-type"},
+        {"name": "vip", "observed_inputs": ["vip.level"], "note": "Ридер sync_vip_level пишет vip.level"},
+    ]
+    monkeypatch.setattr(core, "_load_planner_manifest", lambda *_a, **_k: manifest)
+    monkeypatch.setattr(core, "_resolve_active_fid", lambda *_a, **_k: "42")
+    monkeypatch.setattr(core, "_player_flat", lambda *_a, **_k: {"vip.level": "5", "vip.synced_at": str(NOW)})
+
+    out = core.reader_health()
+    by = {f["fact"]: f for f in out["facts"]}
+    troops = by["troops.infantry.available"]
+    assert troops["consumer_count"] == 2                 # resources + troops
+    assert "sync_troop_pool" in troops["readers"]
+    assert troops["present"] is False                    # no reader has run
+    vip = by["vip.level"]
+    assert vip["present"] is True
+    assert vip["synced_at"] == NOW                       # found via vip.synced_at parent probe
+    assert vip["age_s"] is not None
+    # Most-blocking first: blind facts precede present ones, by consumer count.
+    assert out["facts"][0]["fact"] == "troops.infantry.available"
+    assert out["facts"][-1]["fact"] == "vip.level"
+
+
+# --------------------------------------------------------------------------- #
+# drive() device-busy pre-flight guard
+# --------------------------------------------------------------------------- #
+def test_drive_blocks_on_live_supervisor_worker(
+    fake_redis: FakeRedis, one_instance: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(core, "_instance_uses_scrcpy", lambda *_a, **_k: True)
+    monkeypatch.setattr(core, "_device_holder", lambda *_a, **_k: "worker")
+    with pytest.raises(AgentctlError, match="holding the device"):
+        core.drive("x", "bs1")  # auto_pause_worker=False → must refuse
+
+
+def test_drive_auto_pause_stops_and_restarts_isolated_worker(
+    one_instance: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FR:
+        def get(self, k: str) -> None:
+            return None
+
+        def set(self, k: str, v: str) -> None:
+            pass
+
+        def delete(self, k: str) -> None:
+            pass
+
+    monkeypatch.setattr("dashboard.redis_client.require_redis_connection", lambda: FR())
+    monkeypatch.setattr(core, "_instance_uses_scrcpy", lambda *_a, **_k: True)
+    monkeypatch.setattr(core, "_device_holder", lambda *_a, **_k: "isolated")
+    monkeypatch.setattr("dashboard.redis_client.get_instance_state", lambda *_a, **_k: {})
+    monkeypatch.setattr("dashboard.redis_client.get_player_state_hash", lambda *_a, **_k: {})
+
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr("worker.local_bot.stop_instance_worker", lambda iid: calls.append(("stop", iid)))
+    monkeypatch.setattr("worker.local_bot.start_instance_worker", lambda iid: calls.append(("start", iid)))
+
+    from types import SimpleNamespace
+
+    async def _fake_async(*_a, **_k):
+        return SimpleNamespace(
+            success=True,
+            metadata={"scenario_completed": True, "reason": "ok", "steps_trace": []},
+        )
+
+    monkeypatch.setattr(core, "_drive_async", _fake_async)
+
+    out = core.drive("x", "bs1", player_id="42", auto_pause_worker=True)
+    assert out["worker_paused"] is True
+    assert ("stop", "bs1") in calls
+    assert ("start", "bs1") in calls

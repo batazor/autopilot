@@ -117,7 +117,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "pets.owned"
-    note: "Только калькулятор; нет ридера владения/уровней питомцев."
+    note: "Ридер sync_pet_owned + read-back wiring готовы (games/wos/pets/exec.py → planner['pets']['owned'], shared games/wos/core/readers); крон ВЫКЛ до лейблинга Pet-Hall ростера (level/refine/skill). Парс/persist протестированы."
 
   - name: island
     title: "Планировщик Daybreak Island (Tree of Life)"
@@ -128,7 +128,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "island.tree_of_life.level"
-    note: "Только калькулятор; нет ридера дерева/процветания/декораций."
+    note: "Ридер sync_island_state + read-back готовы (games/wos/core/island/exec.py → planner['island']['owned'] + flat island.tree_of_life.level); крон ВЫКЛ до лейблинга stat-регионов И re-entry nav-edge (сейчас только island→main_city). Парс/persist протестированы."
 
   - name: troops
     title: "Планировщик состава войск"
@@ -150,7 +150,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "charms.owned"
-    note: "Только калькулятор; реальные данные стоимости (db/chief_charms.yaml), нет ридера уровней чармов."
+    note: "Реальные данные стоимости (db/chief_charms.yaml). Ридер sync_charms + read-back wiring готовы (games/wos/core/charms → planner['charms']['owned'], 18 слотов); крон ВЫКЛ до nav+лейблинга экрана Chief Charms. Парс/persist протестированы."
 
   - name: gear
     title: "Планировщик Chief Gear"
@@ -161,7 +161,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "gear.owned"
-    note: "Только калькулятор; реальные данные (db/chief_gear.yaml, 42 шага Green→Pink), нет ридера уровней частей."
+    note: "Реальные данные (db/chief_gear.yaml, 42 шага Green→Pink). Ридер sync_gear_owned + read-back wiring готовы (games/wos/core/gear → planner['gear']['owned'], 6 частей); крон ВЫКЛ до nav+лейблинга экрана Chief Gear (решить: число vs badge→ordinal). Парс/persist протестированы."
 
   - name: hero_gear
     title: "Планировщик Hero Gear (enhance/mastery/widget)"
@@ -172,7 +172,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "hero_gear.owned"
-    note: "Только калькулятор; 3 трека из db/gear/enhancement.yaml, нет ридера уровней по трекам."
+    note: "3 трека из db/gear/enhancement.yaml. Ридер sync_hero_gear + read-back wiring готовы (games/wos/core/hero_gear → planner['hero_gear']['owned'], 6 частей × 3 трека); крон ВЫКЛ до nav (из page.heroes.unit) + лейблинга (1 экран-сетка vs пер-part walk?). Парс/persist протестированы."
 
   - name: vip
     title: "Планировщик VIP (уровни 1→12)"
