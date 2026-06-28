@@ -2,6 +2,14 @@ edges:
   main_city:
     chief_profile: [to_chief_profile]
 
+  # The chief avatar/power widget sits at the same top-left position on the world
+  # map as in the city, so the identity readers (who_i_am, sync_furnace_level,
+  # sync_troop_pool) can reach chief_profile directly from main_world instead of
+  # detouring world → city → profile. Region names resolve globally by bbox, so
+  # the same to_chief_profile zone (labelled under main_city) is reused here.
+  main_world:
+    chief_profile: [to_chief_profile]
+
   chief_profile:
     main_city: [icon.page.back]
     troops_preview: [icon.troopse]
