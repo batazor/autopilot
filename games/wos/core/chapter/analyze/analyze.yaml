@@ -88,3 +88,24 @@ overlay:
       - chapter
     steps:
       - click: chapter.button.claim
+
+  # Idle objective advance: on the story «Глава»/Chapter screen, a blue
+  # «Вперёд»/«Go» button means an incomplete objective is waiting. Hand it to
+  # building.upgrade, which taps Вперёд (its `currentNode == chapter` branch) to
+  # travel to the target building and run the upgrade loop. Low priority — claim
+  # rules (green, 90k badge / on-page) win first, so this only effectively runs
+  # once nothing higher is queued: a pure idle filler that follows the game's own
+  # next-step pointer instead of stalling on the panel.
+  - name: chapter.objective.go.visible
+    region: chapter.objective.go
+    action: cta_button
+    color: blue
+    threshold: 0.5
+    priority: 30_000
+    ttl: 30s
+    screens:
+      - chapter
+    steps:
+      - push_scenario:
+          name: building.upgrade
+          ttl: 1m

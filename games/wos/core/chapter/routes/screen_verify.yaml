@@ -24,5 +24,15 @@ screens:
   chapter:
     priority: 30
     rules:
-      - match: chapter.title
-        threshold: 0.9
+      # The story-chapter («A Place to Call Home») header reads «Chapter» (EN) /
+      # «Глава» (RU «Белая мгла»). OCR-contains covers both; the old EN-only
+      # `chapter.title` TEMPLATE never matched the RU «Глава» screen, so it fell
+      # through to the last-known building node (e.g. coal_mine) and stranded the
+      # bot on a screen it thought was the mine — check_main_city looped and the
+      # chapter→building.upgrade flow never ran. Default-psm OCR reads «Глава»
+      # cleanly (~0.42 conf); screen-identity uses an exact case-insensitive
+      # substring, so no high confidence threshold is needed. Mirrors the
+      # shelter/sawmill/cookhouse RU title rules.
+      - ocr: chapter.title
+        contains: [Chapter, Глава]
+        threshold: 0.5

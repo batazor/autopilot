@@ -56,9 +56,13 @@ def test_load_doc_renders_node_and_name() -> None:
     assert doc["node"] == "cookhouse"
     assert doc["navigate"] is False
     assert "Cookhouse" in doc["name"]
-    # Body shares the canonical upgrade loop (upgrade → next → build → big).
+    # Body shares the canonical upgrade loop. `upgrade_button_top` leads it so the
+    # RU «Белая мгла» furniture-interior building pill (which renders above the EN
+    # single-pill anchor) is probed first; the rest is the EN sequence
+    # (upgrade → next → build → big). The top probe is a no-op on EN.
     loop = doc["steps"][-2]["loop"]["steps"]
     assert [s["while_match"] for s in loop] == [
+        "upgrade_button_top",
         "upgrade_button",
         "button.next",
         "build_building_item",
@@ -170,6 +174,13 @@ def _eval_single_rule(region: str, reference: str) -> dict:
 
 
 def test_blue_button_mask_matches_building_reference_ctas() -> None:
+    # ``top_left`` of the matched blue lozenge. These pin the *saturated, bright*
+    # button core (mask S≥70, V≥175): pale panel backdrops AND the dimmer bottom
+    # tab strip are excluded, so the blob sits tightly on the pill instead of
+    # bleeding up-left into the panel. (Raising the value floor 140→175 to drop
+    # the «Белая мгла» «Выживший»/«Мебель» tab nudged ``build_building_item`` onto
+    # its button core — ``[466,620]`` → ``[524,620]`` — and shifted a couple of
+    # others by 1 px; all are the corrected, on-button positions.)
     cases = [
         (
             "upgrade_button",
@@ -179,37 +190,37 @@ def test_blue_button_mask_matches_building_reference_ctas() -> None:
         (
             "button.next",
             "games/wos/core/common/references/button.next.png",
-            [466, 573],
+            [524, 620],
         ),
         (
             "build_building_item",
             "games/wos/core/building/common/references/build_building_item.png",
-            [466, 595],
+            [524, 620],
         ),
         (
             "build_button",
             "games/wos/core/building/common/references/build_button.png",
-            [227, 1135],
+            [227, 1164],
         ),
         (
             "upgrade_big_button",
             "games/wos/core/building/common/references/upgrade_big_button.png",
-            [214, 1166],
+            [214, 1168],
         ),
         (
             "upgrade_building",
             "games/wos/core/building/common/references/upgrade_building.png",
-            [470, 594],
+            [524, 620],
         ),
         (
             "upgrade_blue_button",
             "games/wos/core/building/common/references/building.lancer_camp.upgrade_dialog.png",
-            [378, 999],
+            [378, 1000],
         ),
         (
             "shelter.next",
             "games/wos/core/building/shelter/references/main.png",
-            [487, 560],
+            [524, 620],
         ),
     ]
     for region, reference, top_left in cases:

@@ -3,6 +3,7 @@ name: 🏗️ Building upgrade (chapter task)
 navigate: false
 nodes:
 - main_city
+- chapter
 - enlistment_office
 - barricade
 - marksman_camp
@@ -39,6 +40,23 @@ nodes:
 - fire_crystal_command_center
 - fire_crystal_furnace
 steps:
+# Two ways in to the target building, both via the game's own «what to do next»
+# pointer (no per-account citymap scan needed):
+#   • from the hub: tap the bottom-left objective plate (chapter.task);
+#   • from the story «Глава»/Chapter screen: tap the active objective's blue
+#     «Вперёд»/«Go» button (chapter.objective.go) — cta_button so the colour
+#     search taps whichever Вперёд renders (top row = active objective).
+# After either tap currentNode becomes the building and the loop below runs.
+- cond: currentNode == chapter
+  steps:
+  - while_match: chapter.objective.go
+    action: cta_button
+    color: blue
+    threshold: 0.5
+    max: 1
+    steps:
+    - click: chapter.objective.go
+    - wait: 2s
 - cond: currentNode == main_city
   steps:
   - click: chapter.task
@@ -61,6 +79,23 @@ steps:
 - loop:
     max: 10
     steps:
+    # «Белая мгла» (RU) building panels are furniture-interiors that stack TWO
+    # «Улучшить» pills — the building pill (upper) + the selected-furniture pill
+    # (lower) — and the building pill renders HIGHER than the single-pill EN
+    # `upgrade_button` anchor (measured on RU «Угольный рудник»: pill at y≈42%,
+    # the RU `upgrade_button` anchor sits at y≈51% and only scores ~0.86, so it
+    # intermittently misses). Probe the upper pill first via `upgrade_button_top`
+    # (the same region shelter.upgrade uses); re-searched fresh each outer-loop
+    # iteration so we follow the button as it greys/moves. EN has no
+    # `upgrade_button_top` region → the block resolves no row and is skipped.
+    - while_match: upgrade_button_top
+      action: cta_button
+      color: blue
+      threshold: 0.5
+      max: 1
+      steps:
+      - long_click: upgrade_button_top
+        wait: 5s
     - while_match: upgrade_button
       action: cta_button
       color: blue

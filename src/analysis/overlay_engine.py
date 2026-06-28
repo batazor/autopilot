@@ -13,7 +13,7 @@ from analysis.overlay_rules import (
 )
 from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region, region_version_of
-from layout.blue_button_detector import find_blue_buttons
+from layout.blue_button_detector import BLUE_MIN_ASPECT_RATIO, find_blue_buttons
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
 from layout.green_button_detector import find_green_buttons
@@ -1286,22 +1286,39 @@ def _eval_blue_button_rule(
             }
         search_bbox = search_pair[1]["bbox"]
 
+    # Search-geometry tuners may live on the DSL step (→ ``rule``) or on the
+    # area.json region itself (``reg``); the region is the natural home for
+    # layout-specific values (e.g. tight per-row ``y_padding_ratio`` on stacked
+    # RU «Улучшить» pills). Prefer the rule, fall back to the region, then default.
+    def _geom(key: str, default: float) -> float:
+        raw = rule.get(key)
+        if raw is None:
+            raw = reg.get(key)
+        try:
+            return float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+
     try:
         threshold = float(rule.get("threshold", 0.5))
     except (TypeError, ValueError):
         threshold = 0.5
-    try:
-        min_fill_ratio = float(rule.get("min_fill_ratio", 0.30))
-    except (TypeError, ValueError):
-        min_fill_ratio = 0.30
-    try:
-        x_padding_ratio = float(rule.get("x_padding_ratio", 0.50))
-    except (TypeError, ValueError):
-        x_padding_ratio = 0.50
-    try:
-        y_padding_ratio = float(rule.get("y_padding_ratio", 1.00))
-    except (TypeError, ValueError):
-        y_padding_ratio = 1.00
+    min_fill_ratio = _geom("min_fill_ratio", 0.30)
+    x_padding_ratio = _geom("x_padding_ratio", 0.50)
+    y_padding_ratio = _geom("y_padding_ratio", 1.00)
+    min_aspect_ratio = _geom("min_aspect_ratio", BLUE_MIN_ASPECT_RATIO)
+
+    def _geom_int_opt(key: str) -> int | None:
+        raw = rule.get(key)
+        if raw is None:
+            raw = reg.get(key)
+        try:
+            return int(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    min_saturation = _geom_int_opt("min_saturation")
+    min_value = _geom_int_opt("min_value")
     hits = find_blue_buttons(
         image_bgr,
         anchor_bbox_percent=bbox,
@@ -1310,6 +1327,9 @@ def _eval_blue_button_rule(
         min_fill_ratio=min_fill_ratio,
         x_padding_ratio=x_padding_ratio,
         y_padding_ratio=y_padding_ratio,
+        min_aspect_ratio=min_aspect_ratio,
+        min_saturation=min_saturation,
+        min_value=min_value,
     )
     excludes_raw = rule.get("exclude_top_lefts")
     excludes: list[tuple[float, float]] = []
@@ -1494,6 +1514,11 @@ def _eval_reward_ribbon_rule(
         min_area = float(rule.get("min_component_area_ratio", 0.12))
     except (TypeError, ValueError):
         min_area = 0.12
+    max_area_raw = rule.get("max_component_area_ratio")
+    try:
+        max_area = float(max_area_raw) if max_area_raw is not None else None
+    except (TypeError, ValueError):
+        max_area = None
 
     stats = detect_reward_ribbon_in_bbox_percent(
         image_bgr,
@@ -1504,6 +1529,7 @@ def _eval_reward_ribbon_rule(
         min_component_y_ratio=min_y,
         min_component_height_ratio=min_height,
         min_component_area_ratio=min_area,
+        max_component_area_ratio=max_area,
     )
     threshold = compiled.threshold
     matched = bool(stats.present and stats.mask_share >= threshold)

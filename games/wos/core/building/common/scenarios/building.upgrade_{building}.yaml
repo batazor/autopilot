@@ -34,6 +34,18 @@ steps:
   - loop:
       max: 10
       steps:
+        # RU «Белая мгла» furniture-interior panels stack a building pill (upper)
+        # above the furniture pill; the building pill renders higher than the EN
+        # `upgrade_button` anchor. Probe the upper pill first (see the untargeted
+        # building.upgrade.yaml for the full rationale). No-op on EN.
+        - while_match: upgrade_button_top
+          action: cta_button
+          color: blue
+          threshold: 0.5
+          max: 1
+          steps:
+            - long_click: upgrade_button_top
+              wait: 5s
         - while_match: upgrade_button
           action: cta_button
           color: blue

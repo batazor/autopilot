@@ -11,8 +11,32 @@ from layout.template_match import patch_bgr_from_bbox_percent
 
 BLUE_HUE_MIN = 95
 BLUE_HUE_MAX = 125
-BLUE_MIN_SATURATION = 35
-BLUE_MIN_VALUE = 95
+# A real WoS CTA pill is a *saturated, bright* blue. Pale panel backgrounds and
+# greyed-out (inactive) pills are blue-*ish* but washed out — low saturation
+# (S≈50) and, for grey pills, dim (V≈108). The old floors (S≥35, V≥95) admitted
+# both, so a building panel's light-blue backdrop registered as one giant
+# near-square blob and the long-press landed on the card body instead of the
+# button. Measured on bs5 RU «Барак»: active pill S≈94 V≈205, grey pill S≈51
+# V≈108, panel backdrop S≈53 V≈248 — so S≥70 rejects the backdrop and grey pills.
+#
+# VALUE floor raised 140 → 175: the «Белая мгла» furniture-interior building
+# panels (coal_mine, shelter, …) carry a bottom tab strip («Мебель»/«Выживший»)
+# whose *active* tab is a dimmer mid-blue. Measured on bs4 RU «Угольный рудник»:
+# the «Улучшить» pill is V≈213–250, but the «Выживший» tab is V≈149 and the top
+# resource bar V≈96 — both below the old 140 floor's reach, so `upgrade_big_button`
+# kept long-pressing the bottom TAB instead of the upgrade button (a no-op that
+# stalled the chapter-objective upgrade). V≥175 keeps every real CTA pill
+# (active pills sit at V≈205–250, comfortable margin) while dropping the tab,
+# the bar, and any other dim non-button blue. Saturation stays at 70 so the
+# less-saturated-but-bright RU «Барак» pill (S≈94) is still kept. Both floors are
+# overridable per-call (min_saturation / min_value) for any future exception.
+BLUE_MIN_SATURATION = 70
+BLUE_MIN_VALUE = 175
+
+# CTA pills are wide lozenges (w/h ≳ 1.8); a low-aspect (near-square) blob is a
+# merged panel/background, never a button. Rejecting them is a backstop in case
+# a washed-out panel still clears the colour gate on some screen.
+BLUE_MIN_ASPECT_RATIO = 1.4
 
 
 @dataclass(frozen=True)
@@ -85,6 +109,9 @@ def find_blue_buttons(
     max_width_ratio: float = 3.40,
     min_height_ratio: float = 0.25,
     max_height_ratio: float = 3.40,
+    min_aspect_ratio: float = BLUE_MIN_ASPECT_RATIO,
+    min_saturation: int | None = None,
+    min_value: int | None = None,
 ) -> list[BlueButtonHit]:
     """Find blue CTA-like components near an anchor bbox.
 
@@ -125,12 +152,14 @@ def find_blue_buttons(
     if search.size == 0:
         return []
 
+    sat_floor = BLUE_MIN_SATURATION if min_saturation is None else int(min_saturation)
+    val_floor = BLUE_MIN_VALUE if min_value is None else int(min_value)
     hsv = cv2.cvtColor(search, cv2.COLOR_BGR2HSV)
     mask = (
         (hsv[..., 0] >= BLUE_HUE_MIN)
         & (hsv[..., 0] <= BLUE_HUE_MAX)
-        & (hsv[..., 1] >= BLUE_MIN_SATURATION)
-        & (hsv[..., 2] >= BLUE_MIN_VALUE)
+        & (hsv[..., 1] >= sat_floor)
+        & (hsv[..., 2] >= val_floor)
     ).astype(np.uint8) * 255
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (17, 9))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
@@ -155,6 +184,9 @@ def find_blue_buttons(
         cx = float(centroids[idx][0]) + search_x
         cy = float(centroids[idx][1]) + search_y
         if not (min_w <= w <= max_w and min_h <= h <= max_h):
+            continue
+        if float(w) < float(min_aspect_ratio) * float(h):
+            # Near-square / tall blob — a merged panel background, not a pill.
             continue
         if abs(cx - anchor_cx) > max_dx or abs(cy - anchor_cy) > max_dy:
             continue

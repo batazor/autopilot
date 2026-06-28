@@ -243,15 +243,33 @@ def _assert_screen_verify_matches_reference(
 ) -> None:
     rules = screen_verify_rules(screen)
     assert rules, f"{screen} screen_verify rules missing"
-    probes = [
-        {
-            "name": f"verify.{r['match']}",
-            "action": "findIcon",
-            "region": r["match"],
-            "threshold": r.get("threshold", 0.9),
-        }
-        for r in rules
-    ]
+    probes = []
+    for r in rules:
+        if "match" in r:
+            probes.append(
+                {
+                    "name": f"verify.{r['match']}",
+                    "action": "findIcon",
+                    "region": r["match"],
+                    "threshold": r.get("threshold", 0.9),
+                }
+            )
+        elif "ocr" in r:
+            # OCR-contains identity rule (e.g. the «Chapter»/«Глава» story header).
+            # On the EN reference the title OCRs «Chapter», matching the substring.
+            contains = r.get("contains")
+            expected = [contains] if isinstance(contains, str) else list(contains or [])
+            probe = {
+                "name": f"verify.{r['ocr']}.ocr",
+                "action": "text",
+                "region": r["ocr"],
+                "threshold": r.get("threshold", 0.8),
+                "expected": expected,
+                "exact": not bool(r.get("fuzzy", False)),
+            }
+            if r.get("preprocess"):
+                probe["preprocess"] = r["preprocess"]
+            probes.append(probe)
     out = asyncio.run(
         evaluate_overlay_rules_async(
             _load_reference_bgr(reference), area_doc, REPO_ROOT, probes, state_flat={}
