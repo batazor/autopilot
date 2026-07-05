@@ -1,38 +1,38 @@
 enabled: true
 name: "Troops: train marksman"
-priority: 70_000
-node: marksman
-cond: "active_player != null"
+node: main_menu
+
+# Navigate to the camp via the City-panel training row (OCR scroll-find), NOT the
+# static main_menu→marksman edge: that edge taps a fixed bbox tuned to the EN
+# panel layout and mis-fires on the RU «Белая мгла» build, whose panel sits lower
+# and scrolls. The scroll-find matches the row by title and works on both builds,
+# and collects a ready batch as a side effect. Camp options-ring / Train-screen
+# button positions were verified identical to the EN bboxes on a live RU walk →
+# taps are positional (EN-text gates never match RU and only forced a ring-closing
+# double-tap). See troops.infantry.train for the full rationale.
 
 steps:
-  # Tap the camp building: collects the ready bubble when one is up,
-  # otherwise opens the options ring (Details / Upgrade / Train).
+  - exec: tap_training_accept
+    troop: marksman
+  - wait: 2s
+  - wait_screen:
+      any: [main_city]
+      max: 8
+      interval: 500ms
+  - click: main_city.center_building
+  - wait: 1.5s
+
   - click: marksman.complete
-  - wait: 1s
+  - wait: 1.2s
+  - click: troops.options.train
+  - wait: 1.5s
 
-  # If the first tap collected troops the options did NOT open (verified on a
-  # live walk) — tap the building again, then enter Train.
-  - while_match: troops.options.train
-    max: 1
-    steps:
-      - click: troops.options.train
-      - wait: 1.5s
-    else:
-      - click: marksman.complete
-      - wait: 1s
-      - click: troops.options.train
-      - wait: 1.5s
-
-  # New-tier unlock splash ("IX Supreme ... — Tap anywhere to continue") shows
-  # up both on entering Train and when switching camp tabs.
   - while_match: troops.tap_anywhere
     max: 1
     steps:
       - click: troops.tap_anywhere
       - wait: 1s
 
-  # Prefer promoting old troops to the newest tier (green up-arrow hint);
-  # otherwise start a regular training batch.
   - while_match: train.upgrade
     max: 1
     steps:
@@ -46,10 +46,18 @@ steps:
       - click: troops.train.start
       - wait: 1.5s
 
-  # Conveyor: snapshot the Training/Promoting countdown pill and requeue this
-  # scenario for right after the batch lands so the camp never idles.
+  # Нехватка ресурсов → «Использовать припасы» (см. troops.infantry.train).
+  - ocr: troops.train.confirm_dialog
+    store: troops.train.confirm_dialog
+  - cond: troops.train.confirm_dialog ~= "припас|недостаточно|использов|подтверд|not enough|insufficient"
+    steps:
+      - click: troops.train.use_supplies
+      - wait: 1s
+      - click: troops.train.start
+      - wait: 1.5s
+
   - ocr: troops.train.timer
     event_timer: troops.marksman.training
   - push_scenario:
       name: troops.marksman.train
-      delay: "troops.marksman.training + 5m"
+      delay: "troops.marksman.training + 1m"

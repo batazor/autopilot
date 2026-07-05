@@ -365,7 +365,20 @@ _BUTTON_X0_PCT, _BUTTON_X1_PCT = 54.9, 64.2
 # Row-title keywords → (section, row_slug). Title inference beats header OCR:
 # headers sit on busy translucent background and the first visible row often
 # has its header scrolled off-screen.
+#
+# Russian "Белая мгла" (wos_ru) renders Cyrillic titles — the panel scanner runs
+# the same on every build, so the RU needles live alongside the EN ones (matched
+# case-insensitively against the rus OCR). Keep the RU rows first so a Cyrillic
+# title resolves before the EN fuzzy fallback can mis-fire.
 _ROW_TITLE_MAP: tuple[tuple[str, str, str], ...] = (
+    # --- Russian «Белая мгла» (wos_ru) ---
+    ("очередь строительства", "building_queue", ""),  # slug from the queue no.
+    ("пехота", "training", "infantry"),
+    ("копейщики", "training", "lancer"),
+    ("стрелки", "training", "marksman"),
+    ("научный центр", "tech_research", "center"),
+    ("военная академия", "tech_research", "war_academy"),
+    # --- English (global build) ---
     ("building queue", "building_queue", ""),  # slug derived from the queue no.
     ("infantry", "training", "infantry"),
     ("lancer", "training", "lancer"),
@@ -400,6 +413,12 @@ _ROW_TITLE_MAP: tuple[tuple[str, str, str], ...] = (
 )
 
 _HEADER_SECTION_MAP: tuple[tuple[str, str], ...] = (
+    # --- Russian «Белая мгла» (wos_ru) section headers ---
+    ("очередь строительства", "building_queue"),
+    ("тренировка", "training"),
+    ("исследование технологии", "tech_research"),
+    ("исследование", "tech_research"),
+    # --- English ---
     ("building queue", "building_queue"),
     ("training", "training"),
     ("tech research", "tech_research"),
@@ -588,17 +607,32 @@ def _classify_status(text: str) -> tuple[str, int]:
     secs = _parse_hms_to_seconds(t)
     if secs is not None:
         return "in_progress", int(secs)
-    if "completed" in t or fuzz.partial_ratio("completed", t) >= _STATUS_FUZZ_THRESHOLD:
+    # Russian «Белая мгла» (wos_ru) status strings are checked alongside the EN
+    # ones — the panel scanner is build-agnostic. "Очередь покупки" (a 2nd build
+    # queue still behind a purchase) must read as locked, never idle, so the
+    # idle-queue dispatch never fires on a queue the player hasn't unlocked.
+    if "очередь покупки" in t or "покупк" in t:
+        return "locked", 0
+    if (
+        "completed" in t
+        or "завершено" in t
+        # RU OCR garbles «Завершено» frame-to-frame ("Завертено", "ЗаВерШетО") —
+        # a fuzzy pass recovers the completed state the exact substring misses.
+        or fuzz.partial_ratio("завершено", t) >= _STATUS_FUZZ_THRESHOLD
+        or fuzz.partial_ratio("completed", t) >= _STATUS_FUZZ_THRESHOLD
+    ):
         return "completed", 0
-    if "idle" in t:
+    if "idle" in t or "свободно" in t:
         return "idle", 0
     if (
         "not yet bui" in t
         or "locked" in t
+        or "не построено" in t
+        or "недоступно" in t
         or fuzz.partial_ratio("not yet built", t) >= _STATUS_FUZZ_THRESHOLD
     ):
         return "locked", 0
-    if "free" in t:
+    if "free" in t or "бесплатно" in t:
         return "free", 0
     if (
         "contribute" in t

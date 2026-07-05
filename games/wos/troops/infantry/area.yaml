@@ -186,6 +186,37 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "troops.train.confirm_dialog",
+          "_comment": "OCR-band over the confirm modal that pops when Train is tapped with insufficient resources ('Недостаточно ресурсов' / 'Использовать припасы'). The train scenario gates the use-supplies tap on this text. Best-guess bbox over the modal button row — confirm on a live RU shortage frame.",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.5,
+          "bbox": {
+            "x": 8.0,
+            "y": 56.0,
+            "width": 84.0,
+            "height": 13.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "troops.train.use_supplies",
+          "_comment": "Primary confirm button of the insufficient-resources modal ('Использовать припасы' / use stored items & train). Best-guess centered WoS modal-confirm position — confirm on a live RU shortage frame.",
+          "action": "click",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.0,
+            "y": 59.0,
+            "width": 52.0,
+            "height": 6.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },

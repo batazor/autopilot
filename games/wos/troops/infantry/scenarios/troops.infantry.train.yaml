@@ -1,38 +1,48 @@
 enabled: true
 name: "Troops: train infantry"
-priority: 70_000
-node: infantry
-cond: "active_player != null"
+node: main_menu
+
+# Navigate to the camp via the City-panel training row (OCR scroll-find), NOT the
+# static main_menu→infantry edge: that edge taps a fixed bbox tuned to the EN
+# panel layout and mis-fires on the RU «Белая мгла» build, whose panel sits lower
+# and scrolls (verified live: the old node nav landed on the build-queue purchase
+# popup). The scroll-find matches the row by title and works on both builds, and
+# collects a ready batch as a side effect.
+#
+# Button positions on the camp options ring (Обучение) and the Train screen CTA
+# (Обучение) were verified identical to the EN bboxes on a live RU walk, so the
+# taps are positional — the EN-text `while_match` gates would never match RU and
+# only forced a harmful double-tap that closed the ring.
 
 steps:
-  # Tap the camp building: collects the ready bubble when one is up,
-  # otherwise opens the options ring (Details / Upgrade / Train).
+  - exec: tap_training_accept
+    troop: infantry
+  - wait: 2s
+  - wait_screen:
+      any: [main_city]
+      max: 8
+      interval: 500ms
+  # Release a ready bubble if the batch was done (no-op when the camp is idle),
+  # leaving the camp idle so the next tap opens the options ring cleanly.
+  - click: main_city.center_building
+  - wait: 1.5s
+
+  # Open the camp options ring, then enter Training.
   - click: infantry.complete
-  - wait: 1s
+  - wait: 1.2s
+  - click: troops.options.train
+  - wait: 1.5s
 
-  # If the first tap collected troops the options did NOT open (verified on a
-  # live walk) — tap the building again, then enter Train.
-  - while_match: troops.options.train
-    max: 1
-    steps:
-      - click: troops.options.train
-      - wait: 1.5s
-    else:
-      - click: infantry.complete
-      - wait: 1s
-      - click: troops.options.train
-      - wait: 1.5s
-
-  # New-tier unlock splash ("IX Supreme ... — Tap anywhere to continue") shows
-  # up both on entering Train and when switching camp tabs.
+  # New-tier unlock splash ("...Tap anywhere to continue") — guarded, harmless
+  # when absent.
   - while_match: troops.tap_anywhere
     max: 1
     steps:
       - click: troops.tap_anywhere
       - wait: 1s
 
-  # Prefer promoting old troops to the newest tier (green up-arrow hint);
-  # otherwise start a regular training batch.
+  # Prefer promoting old troops to the newest tier (EN green up-arrow hint);
+  # absent on RU → falls through to starting a regular training batch.
   - while_match: train.upgrade
     max: 1
     steps:
@@ -46,10 +56,23 @@ steps:
       - click: troops.train.start
       - wait: 1.5s
 
+  # Нехватка ресурсов: тап «Тренировать/Обучение» при недостатке открывает
+  # модалку подтверждения («Недостаточно ресурсов» → «Использовать припасы»).
+  # Читаем текст модалки; если это она — тратим припасы (use_supplies) и
+  # повторяем старт. Хватило ресурсов → модалки нет → cond ложный → no-op.
+  - ocr: troops.train.confirm_dialog
+    store: troops.train.confirm_dialog
+  - cond: troops.train.confirm_dialog ~= "припас|недостаточно|использов|подтверд|not enough|insufficient"
+    steps:
+      - click: troops.train.use_supplies
+      - wait: 1s
+      - click: troops.train.start
+      - wait: 1.5s
+
   # Conveyor: snapshot the Training/Promoting countdown pill and requeue this
-  # scenario for right after the batch lands so the camp never idles.
+  # scenario for right after the batch lands (+1 min) so the camp never idles.
   - ocr: troops.train.timer
     event_timer: troops.infantry.training
   - push_scenario:
       name: troops.infantry.train
-      delay: "troops.infantry.training + 5m"
+      delay: "troops.infantry.training + 1m"

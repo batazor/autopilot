@@ -83,65 +83,58 @@ def test_only_infantry_has_bubble_overlay_rule() -> None:
 
 @pytest.mark.parametrize("troop_type", TROOP_TYPES)
 def test_troop_training_scenario_shape(troop_type: str) -> None:
-    """Collect-or-options double tap → Train → unlock splash guard →
-    promotion-first branch → conveyor re-push from the countdown pill."""
+    """OCR scroll-find nav (build-agnostic) → collect → options ring → Train →
+    promotion-first guard → resource-shortage guard → conveyor re-push (+1m).
+
+    Asserted by structural properties rather than the exact step list: the flow
+    navigates via ``tap_training_accept`` (not the EN-fixed ``main_menu→<type>``
+    edge, which mis-fires on the scrolled RU panel), so it lands on ``main_menu``
+    not the per-troop node.
+    """
     module_dir = TROOPS_DIR / troop_type
     scenario = _load_yaml(
         module_dir / "scenarios" / f"troops.{troop_type}.train.yaml"
     )
+    steps = scenario["steps"]
 
     assert scenario["enabled"] is True
-    assert scenario["node"] == troop_type
-    assert scenario["cond"] == "active_player != null"
-    assert scenario["steps"] == [
-        {"click": f"{troop_type}.complete"},
-        {"wait": "1s"},
-        {
-            "while_match": "troops.options.train",
-            "max": 1,
-            "steps": [
-                {"click": "troops.options.train"},
-                {"wait": "1.5s"},
-            ],
-            "else": [
-                {"click": f"{troop_type}.complete"},
-                {"wait": "1s"},
-                {"click": "troops.options.train"},
-                {"wait": "1.5s"},
-            ],
-        },
-        {
-            "while_match": "troops.tap_anywhere",
-            "max": 1,
-            "steps": [
-                {"click": "troops.tap_anywhere"},
-                {"wait": "1s"},
-            ],
-        },
-        {
-            "while_match": "train.upgrade",
-            "max": 1,
-            "steps": [
-                {"click": "train.upgrade"},
-                {"wait": "1s"},
-                {"click": "troops.upgrade.start"},
-                {"wait": "1s"},
-                {"click": "troops.promotion"},
-                {"wait": "1.5s"},
-            ],
-            "else": [
-                {"click": "troops.train.start"},
-                {"wait": "1.5s"},
-            ],
-        },
-        {"ocr": "troops.train.timer", "event_timer": f"troops.{troop_type}.training"},
-        {
-            "push_scenario": {
-                "name": f"troops.{troop_type}.train",
-                "delay": f"troops.{troop_type}.training + 5m",
-            }
-        },
-    ]
+    # Lands on the panel and scroll-finds the row (RU-robust), not the per-troop
+    # node whose static nav edge taps an EN-tuned bbox.
+    assert scenario["node"] == "main_menu"
+    assert steps[0] == {"exec": "tap_training_accept", "troop": troop_type}
+
+    def _clicks(s: list) -> list[str]:
+        out: list[str] = []
+        for st in s:
+            if "click" in st:
+                out.append(st["click"])
+            for key in ("steps", "else"):
+                if isinstance(st.get(key), list):
+                    out.extend(_clicks(st[key]))
+        return out
+
+    clicks = _clicks(steps)
+    # Collect bubble, open ring, enter Train, start the batch — positional taps
+    # (verified RU == EN bboxes), no EN-text gate in the hot path.
+    for region in (
+        "main_city.center_building",
+        f"{troop_type}.complete",
+        "troops.options.train",
+        "troops.train.start",
+    ):
+        assert region in clicks, f"{troop_type}: missing click {region}"
+
+    # Resource-shortage guard.
+    assert any(st.get("ocr") == "troops.train.confirm_dialog" for st in steps)
+    assert "troops.train.use_supplies" in clicks
+
+    # Conveyor re-push at timer + 1 min.
+    push = next(
+        s["push_scenario"] for s in steps
+        if isinstance(s.get("push_scenario"), dict)
+        and s["push_scenario"].get("name") == f"troops.{troop_type}.train"
+    )
+    assert push["delay"] == f"troops.{troop_type}.training + 1m"
 
 
 @pytest.mark.parametrize("troop_type", TROOP_TYPES)

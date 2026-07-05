@@ -29,8 +29,14 @@ def test_module_manifest_declares_main_menu() -> None:
 
 
 def test_edge_taps_enter_and_leave_main_menu() -> None:
-    edges = _load_yaml("routes/edge_taps.yaml")["edges"]
+    doc = _load_yaml("routes/edge_taps.yaml")
+    edges = doc["edges"]
+    # The whole main_menu screen is furnace-gated at the node level (the City menu
+    # button only exists once the Furnace reaches level 10), so the edges stay
+    # plain lists — the gate is applied to every incident edge by the loader.
+    assert doc["nodes"]["main_menu"]["cond"] == "buildings.levels.furnace >= 10"
     assert edges["main_city"]["main_menu"] == ["main_city.to.main_menu"]
+    assert edges["main_world"]["main_menu"] == ["main_city.to.main_menu"]
     assert edges["main_menu"]["main_city"] == ["icon.page.back"]
     assert edges["main_menu"]["infantry"] == ["main_menu.to.infantry"]
     assert edges["main_menu"]["lancer"] == ["main_menu.to.lancer"]
@@ -160,6 +166,83 @@ def test_screen_graph_exposes_main_menu_node() -> None:
     assert screen_graph.screen_verify_rules("main_menu") == [
         {"from_screen": ["main_city", "main_world"]}
     ]
+
+
+def test_main_menu_node_is_furnace_gated() -> None:
+    """The City menu screen only exists once the Furnace reaches level 10. It is
+    declared as a node-level ``cond``, which expands onto EVERY edge incident to
+    ``main_menu`` — the entry edges and the ``X -> main_menu [back]`` return edges
+    other modules declare — so there is no back door. The taps stay in the static
+    graph (unfiltered topology unchanged); BFS prunes the whole node — routing
+    around it — when an ``edge_allowed`` predicate reports the furnace is below the
+    gate or unknown, and restores it once high enough."""
+    from layout.area_versions import eval_cond
+
+    bind_active_game("wos")
+    screen_graph.invalidate_edge_taps_cache()
+
+    conds = screen_graph.edge_conds_for_game("wos")
+    gate = "(buildings.levels.furnace >= 10)"
+    # The node cond lands on incident edges of every kind: the primary entries,
+    # an outbound menu edge, and a back-door return edge from a child screen.
+    assert conds[("main_city", "main_menu")] == gate
+    assert conds[("main_world", "main_menu")] == gate
+    assert conds[("main_menu", "infantry")] == gate
+    assert conds[("infantry", "main_menu")] == gate
+
+    # The cond is metadata only — the taps still live in the static registry,
+    # so unfiltered BFS / route_taps keep the full topology.
+    static, _dynamic, _graph = screen_graph.graph_for_game("wos")
+    assert static[("main_city", "main_menu")] == ["main_city.to.main_menu"]
+    assert screen_graph.bfs_route("main_city", "main_menu") == [
+        "main_city",
+        "main_menu",
+    ]
+
+    def _allowed(flat: dict[str, Any]) -> Any:
+        def predicate(src: str, dst: str) -> bool:
+            cond = conds.get((src, dst))
+            return cond is None or eval_cond(cond, flat)
+
+        return predicate
+
+    # Furnace below the gate, or never read (unknown) → the node is pruned with no
+    # back door, so it is unreachable and BFS routes around (None).
+    assert (
+        screen_graph.bfs_route(
+            "main_city",
+            "main_menu",
+            edge_allowed=_allowed({"buildings.levels.furnace": 9}),
+        )
+        is None
+    )
+    assert (
+        screen_graph.bfs_route(
+            "main_city", "main_menu", edge_allowed=_allowed({})
+        )
+        is None
+    )
+    # Furnace at/above the gate → menu reachable again.
+    assert screen_graph.bfs_route(
+        "main_city",
+        "main_menu",
+        edge_allowed=_allowed({"buildings.levels.furnace": 10}),
+    ) == ["main_city", "main_menu"]
+    # A target reachable only through the menu (a troop camp) is likewise gated:
+    # unreachable below the gate, reachable at/above it.
+    assert (
+        screen_graph.bfs_route(
+            "main_city",
+            "infantry",
+            edge_allowed=_allowed({"buildings.levels.furnace": 9}),
+        )
+        is None
+    )
+    assert screen_graph.bfs_route(
+        "main_city",
+        "infantry",
+        edge_allowed=_allowed({"buildings.levels.furnace": 10}),
+    ) == ["main_city", "main_menu", "infantry"]
 
 
 def test_research_center_is_a_dynamic_menu_teleport_not_chapter_task() -> None:
