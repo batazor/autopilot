@@ -98,7 +98,12 @@ async def persist_planner_owned(
         f"{domain}.owned.synced_at": str(now),
     }
     if extra_flat:
-        mapping.update({str(k): str(v) for k, v in extra_flat.items()})
+        # Each extra flat key is a planner observed_input (e.g. island's
+        # island.tree_of_life.level) — stamp its own `.synced_at` too so the
+        # freshness verdict can age it directly.
+        for k, v in extra_flat.items():
+            mapping[str(k)] = str(v)
+            mapping[f"{k}.synced_at"] = str(now)
 
     try:
         await redis.hset(f"wos:player:{player_id}:state", mapping=mapping)
@@ -115,6 +120,10 @@ async def persist_planner_owned(
         planner = dict(getattr(store.snapshot(), "planner", None) or {})
         dom = dict(planner.get(domain) or {})
         dom["owned"] = dict(owned)
+        # Sibling of "owned" (not inside it) so the *Body models ignore it but the
+        # self-heal overlay can restore freshness after a Redis flush. pydantic
+        # `extra=ignore` keeps CharmsBody(**dom) safe.
+        dom["owned_synced_at"] = now
         planner[domain] = dom
         store.set("planner", planner)
     except Exception:
@@ -158,11 +167,19 @@ def overlay_durable_planner_owned(player_id: str, state: dict[str, Any]) -> None
         return
 
     for d in missing:
-        owned = (planner.get(d) or {}).get("owned")
+        dom = planner.get(d) or {}
+        owned = dom.get("owned")
         if owned:
             state[f"{d}.owned"] = _blob(owned)
+            sa = dom.get("owned_synced_at")
+            if sa is not None and f"{d}.owned.synced_at" not in state:
+                state[f"{d}.owned.synced_at"] = str(sa)
     if island_missing:
-        owned = (planner.get("island") or {}).get("owned") or {}
+        island = planner.get("island") or {}
+        owned = island.get("owned") or {}
         level = owned.get("tree_of_life_level")
         if level is not None:
             state["island.tree_of_life.level"] = str(level)
+            sa = island.get("owned_synced_at")
+            if sa is not None and "island.tree_of_life.level.synced_at" not in state:
+                state["island.tree_of_life.level.synced_at"] = str(sa)

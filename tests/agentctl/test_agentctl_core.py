@@ -10,6 +10,7 @@ exact Redis payloads.
 from __future__ import annotations
 
 import json
+from typing import ClassVar
 
 import pytest
 
@@ -420,13 +421,13 @@ def test_drive_assembles_trace_diff_and_restores_approval(
 
     class _Result:
         success = True
-        metadata = {
+        metadata: ClassVar[dict] = {
             "scenario_completed": True,
             "reason": "success",
             "steps_trace": [{"i": "0", "status": "ok", "summary": "exec sync_troop_pool"}],
         }
 
-    async def _fake_async(iid, scn, fid, timeout):  # noqa: ANN001, ANN202
+    async def _fake_async(iid, scn, fid, timeout_s):
         return _Result()
 
     monkeypatch.setattr(core, "_drive_async", _fake_async)
@@ -486,16 +487,16 @@ def test_drive_diff_includes_durable_sqlite_state(
             return self._flat
 
     class _StateStore:
-        def get(self, _fid: str):  # noqa: ANN202
+        def get(self, _fid: str):
             return _Store(next(flats))
 
     monkeypatch.setattr("config.state_store.get_state_store", lambda: _StateStore())
 
     class _Result:
         success = True
-        metadata = {"scenario_completed": True, "reason": "success", "steps_trace": []}
+        metadata: ClassVar[dict] = {"scenario_completed": True, "reason": "success", "steps_trace": []}
 
-    async def _fake_async(iid, scn, fid, timeout):  # noqa: ANN001, ANN202
+    async def _fake_async(iid, scn, fid, timeout_s):
         return _Result()
 
     monkeypatch.setattr(core, "_drive_async", _fake_async)
@@ -632,6 +633,76 @@ def test_reader_health_inverts_sorts_and_dates(
     # Most-blocking first: blind facts precede present ones, by consumer count.
     assert out["facts"][0]["fact"] == "troops.infantry.available"
     assert out["facts"][-1]["fact"] == "vip.level"
+
+
+# --------------------------------------------------------------------------- #
+# Freshness verdict — fresh / stale / present / missing
+# --------------------------------------------------------------------------- #
+def test_freshness_verdict_boundaries() -> None:
+    fv = core._freshness_verdict
+    assert fv(None, None, None) == "unknown"      # no player resolved
+    assert fv(False, None, 100) == "missing"
+    assert fv(True, None, None) == "present"        # present, no TTL
+    assert fv(True, None, 100) == "present"         # TTL set but age unknown
+    assert fv(True, 50.0, 100) == "fresh"
+    assert fv(True, 100.0, 100) == "fresh"          # exactly at TTL is still fresh
+    assert fv(True, 200.0, 100) == "stale"
+
+
+def test_reader_health_computes_freshness_state(
+    fake_redis: FakeRedis, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time as _t
+
+    manifest = [
+        {"name": "troops", "observed_inputs": ["troops.infantry.available"],
+         "note": "sync_troop_pool", "freshness_ttl_seconds": 100},
+        {"name": "vip", "observed_inputs": ["vip.level"],
+         "note": "sync_vip_level", "freshness_ttl_seconds": 100},
+        {"name": "charms", "observed_inputs": ["charms.owned"],
+         "note": "sync_charms", "freshness_ttl_seconds": 100},
+    ]
+    monkeypatch.setattr(core, "_load_planner_manifest", lambda *_a, **_k: manifest)
+    monkeypatch.setattr(core, "_resolve_active_fid", lambda *_a, **_k: "42")
+    flat = {
+        "troops.infantry.available": "1000",
+        "troops.synced_at": str(_t.time() - 50),    # age ~50 < ttl 100 → fresh
+        "vip.level": "8",
+        "vip.synced_at": str(_t.time() - 200),       # age ~200 > ttl 100 → stale
+        # charms.owned absent → missing
+    }
+    monkeypatch.setattr(core, "_player_flat", lambda *_a, **_k: flat)
+
+    out = core.reader_health()
+    by = {f["fact"]: f for f in out["facts"]}
+    assert by["troops.infantry.available"]["state"] == "fresh"
+    assert by["troops.infantry.available"]["ttl_s"] == 100
+    assert by["vip.level"]["state"] == "stale"
+    assert by["charms.owned"]["state"] == "missing"
+    # actionable first: missing, then stale, then fresh.
+    assert [f["state"] for f in out["facts"]] == ["missing", "stale", "fresh"]
+
+
+def test_planners_flags_stale_input(
+    fake_redis_z: FakeRedisZ, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time as _t
+
+    manifest = [{
+        "name": "troops", "wired": "calculator", "config": "", "trace_key": "",
+        "observed_inputs": ["troops.infantry.available"], "freshness_ttl_seconds": 100,
+    }]
+    monkeypatch.setattr(core, "_load_planner_manifest", lambda *_a, **_k: manifest)
+    monkeypatch.setattr(core, "_yaml_enabled", lambda *_a, **_k: True)
+    monkeypatch.setattr(core, "_resolve_active_fid", lambda *_a, **_k: "42")
+    flat = {"troops.infantry.available": "1000", "troops.synced_at": str(_t.time() - 200)}
+    monkeypatch.setattr(core, "_player_flat", lambda *_a, **_k: flat)
+
+    p = core.planners()["planners"][0]
+    assert p["blind"] is False                 # present
+    assert p["stale"] is True                  # but older than TTL
+    assert p["stale_inputs"] == ["troops.infantry.available"]
+    assert p["freshness_ttl_seconds"] == 100
 
 
 # --------------------------------------------------------------------------- #

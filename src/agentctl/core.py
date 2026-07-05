@@ -20,6 +20,7 @@ Design rules:
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import time
@@ -1130,7 +1131,7 @@ def _bind_running_build_catalog(instance_id: str, serial: str | None) -> None:
         pass
 
 
-async def _drive_async(instance_id: str, scenario: str, fid: str, timeout: float) -> Any:
+async def _drive_async(instance_id: str, scenario: str, fid: str, timeout_s: float) -> Any:
     """Bootstrap a headless runtime, run the scenario task, return its TaskResult."""
     import asyncio
 
@@ -1140,10 +1141,9 @@ async def _drive_async(instance_id: str, scenario: str, fid: str, timeout: float
     from config.runtime_bootstrap import bootstrap_runtime_observability
 
     settings = load_settings()
-    try:
+    # Observability is best-effort; never block a drive on it.
+    with contextlib.suppress(Exception):
         bootstrap_runtime_observability("botctl-drive", instance_id=instance_id)
-    except Exception:
-        pass  # observability is best-effort; never block a drive on it
 
     # Bytes-mode async client matching the worker (aioredis.from_url without
     # decode_responses) so the DSL task's hget/hset behave identically.
@@ -1162,12 +1162,10 @@ async def _drive_async(instance_id: str, scenario: str, fid: str, timeout: float
             scenario_key=scenario,
             redis_client=ar,
         )
-        return await asyncio.wait_for(task.execute(instance_id), timeout=float(timeout))
+        return await asyncio.wait_for(task.execute(instance_id), timeout=float(timeout_s))
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await ar.aclose()
-        except Exception:
-            pass
         if serial:
             try:
                 from adb.scrcpy import close_scrcpy_client
@@ -1287,7 +1285,8 @@ def drive(
             client.set(flag_key, "0")
         result = asyncio.run(_drive_async(iid, scenario, fid, timeout))
     except (TimeoutError, asyncio.TimeoutError) as exc:  # noqa: UP041
-        raise AgentctlError(f"scenario {scenario!r} timed out after {timeout:.0f}s") from exc
+        msg = f"scenario {scenario!r} timed out after {timeout:.0f}s"
+        raise AgentctlError(msg) from exc
     finally:
         if not approval:
             if prior_flag is None:

@@ -20,6 +20,10 @@
 #   enabled_key     top-level key in that YAML holding the on/off flag (default: enabled)
 #   trace_key       Redis ZSET of decision snapshots, {fid} templated ("" = no trace yet)
 #   observed_inputs state keys (glob with trailing .* allowed) the planner needs to act
+#   freshness_ttl_seconds  [optional] max age of observed_inputs before they're STALE
+#                   (the reader hasn't refreshed in time). Drives the fresh/stale/missing
+#                   verdict in `botctl reader-health` + `botctl planners`. Tune to ~2× the
+#                   reader's cron interval. Omit → presence-only (no staleness check).
 #   note            one-line why-it's-in-this-state, for the operator/agent
 
 planners:
@@ -41,6 +45,7 @@ planners:
     enabled_key: enabled
     trace_key: "wos:player:{fid}:stamina_decisions"
     observed_inputs: [stamina]
+    freshness_ttl_seconds: 3600       # 1h — stamina regenerates continuously
     note: "enabled:false как диспатчер — но это источник резерва/бюджета, который march читает (reserve_for). intel_run уже реальный сценарий (не заглушка)."
 
   - name: resources
@@ -53,6 +58,7 @@ planners:
     observed_inputs:
       - "troops.infantry.available"
       - "heroes.roster"
+    freshness_ttl_seconds: 43200      # 12h — sync_troop_pool/sync_hero_roster ~6h cron
     note: "enabled:false; входы читаются (sync_hero_roster + sync_troop_pool). Флипнуть enabled:true когда потребители перестанут быть заглушками."
 
   - name: fleet
@@ -74,6 +80,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "buildings.levels.*"
+    freshness_ttl_seconds: 86400      # 24h — sync_furnace_level ~6h cron, levels change slowly
     note: "Крон */10м кладёт рекомендацию в state; апгрейд сам не диспатчит."
 
   - name: intel
@@ -84,6 +91,7 @@ planners:
     enabled_key: enabled
     trace_key: "wos:player:{fid}:march_decisions"
     observed_inputs: [intel.refresh_in]
+    freshness_ttl_seconds: 3600       # 1h — live board-refresh countdown, ages fast
     note: "Не отдельный тик: march вызывает intel_intent; кулдаун = живой board-TTL intel.refresh_in (фолбэк 900с) + cron-флор 2×/день (intel_claim.cron)."
 
   - name: research
@@ -95,6 +103,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "research.levels.*"
+    freshness_ttl_seconds: 86400      # 24h — sync_research_levels cron; tech changes slowly
     note: "Крон */10м (research.plan_tick) кладёт planner.next_research в state. Тех-дерево залейблено: ридер sync_research_levels (читает research.levels.* + research.center.level со всех трёх вкладок) и диспатч start_idle_research теперь enabled. Покрытие копится по запускам — пока какой-то лайн ещё не считан, planner может разок выбрать уже maxed тех (диспатч само-лечит, помечая его maxed)."
 
   - name: heroes
@@ -106,6 +115,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "heroes.roster"
+    freshness_ttl_seconds: 43200      # 12h — sync_hero_roster cron
     note: "Только калькулятор; ростер читается (sync_hero_roster), звёзды/навыки (per-hero detail) ещё нет."
 
   - name: pets
@@ -117,6 +127,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "pets.owned"
+    freshness_ttl_seconds: 172800     # 48h — sync_pet_owned daily cron; ownership changes slowly
     note: "Ридер sync_pet_owned + read-back wiring готовы (games/wos/pets/exec.py → planner['pets']['owned'], shared games/wos/core/readers); крон ВЫКЛ до лейблинга Pet-Hall ростера (level/refine/skill). Парс/persist протестированы."
 
   - name: island
@@ -128,6 +139,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "island.tree_of_life.level"
+    freshness_ttl_seconds: 172800     # 48h — sync_island_state daily cron
     note: "Ридер sync_island_state + read-back готовы (games/wos/core/island/exec.py → planner['island']['owned'] + flat island.tree_of_life.level); крон ВЫКЛ до лейблинга stat-регионов И re-entry nav-edge (сейчас только island→main_city). Парс/persist протестированы."
 
   - name: troops
@@ -139,6 +151,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "troops.infantry.available"
+    freshness_ttl_seconds: 43200      # 12h — sync_troop_pool ~6h cron
     note: "Только калькулятор; численность по типам читается (sync_troop_pool, max-per-type)."
 
   - name: charms
@@ -150,6 +163,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "charms.owned"
+    freshness_ttl_seconds: 172800     # 48h — sync_charms daily cron
     note: "Реальные данные стоимости (db/chief_charms.yaml). Ридер sync_charms + read-back wiring готовы (games/wos/core/charms → planner['charms']['owned'], 18 слотов); крон ВЫКЛ до nav+лейблинга экрана Chief Charms. Парс/persist протестированы."
 
   - name: gear
@@ -161,6 +175,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "gear.owned"
+    freshness_ttl_seconds: 172800     # 48h — sync_gear_owned daily cron
     note: "Реальные данные (db/chief_gear.yaml, 42 шага Green→Pink). Ридер sync_gear_owned + read-back wiring готовы (games/wos/core/gear → planner['gear']['owned'], 6 частей); крон ВЫКЛ до nav+лейблинга экрана Chief Gear (решить: число vs badge→ordinal). Парс/persist протестированы."
 
   - name: hero_gear
@@ -172,6 +187,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "hero_gear.owned"
+    freshness_ttl_seconds: 172800     # 48h — sync_hero_gear daily cron
     note: "3 трека из db/gear/enhancement.yaml. Ридер sync_hero_gear + read-back wiring готовы (games/wos/core/hero_gear → planner['hero_gear']['owned'], 6 частей × 3 трека); крон ВЫКЛ до nav (из page.heroes.unit) + лейблинга (1 экран-сетка vs пер-part walk?). Парс/persist протестированы."
 
   - name: vip
@@ -183,6 +199,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "vip.level"
+    freshness_ttl_seconds: 172800     # 48h — sync_vip_level daily check
     note: "Калькулятор XP-лестницы (db/vip_levels.yaml, факты wostools) + координатор-канал VIP. Ридер sync_vip_level пишет vip.level; счётчик предметов VIP Points пока не читается → live-арбитраж инертен, ежедневная трата идёт через vip.daily. Реальные $-пакеты/гемы намеренно не моделируем."
 
   - name: hero_upgrade
@@ -194,6 +211,7 @@ planners:
     trace_key: ""
     observed_inputs:
       - "heroes.entries"
+    freshness_ttl_seconds: 43200      # 12h — heroes.entries from the roster/detail readers
     note: "Расширение heroes: уровень/EXP (db/hero_xp.yaml) + roadmap по level/star/skill; LEVEL_UP читает heroes.entries.<id>.level."
 
   - name: svs

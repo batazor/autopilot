@@ -271,10 +271,18 @@ def _render_planners(d: dict[str, Any]) -> str:
     for p in d.get("planners", []):
         ld = p.get("last_decision") or {}
         blind = p.get("blind")
+        if blind is None:
+            inputs = "—"
+        elif blind:
+            inputs = "BLIND"
+        elif p.get("stale"):
+            inputs = "STALE"
+        else:
+            inputs = "ok"
         rows.append(
             {
                 **p,
-                "_inputs": "—" if blind is None else ("BLIND" if blind else "ok"),
+                "_inputs": inputs,
                 "_last": (f"{ld.get('action')}: {ld.get('reason')}" if ld else "—"),
             }
         )
@@ -409,22 +417,25 @@ def _render_reader_health(d: dict[str, Any]) -> str:
     head = f"reader-health  (player {fid}, {d.get('fid_source')})  facts={d.get('count')}"
     rows = []
     for f in d.get("facts", []):
-        present = f.get("present")
+        state = str(f.get("state") or "unknown")
         rows.append(
             {
                 **f,
-                "_status": "—" if present is None else ("BLIND" if not present else "ok"),
+                # Uppercase the actionable states (MISSING/STALE) to draw the eye.
+                "_state": state.upper() if state in ("missing", "stale") else (state if state != "unknown" else "—"),
                 "_readers": ", ".join(f.get("readers") or []) or "—",
                 "_consumers": ", ".join(f.get("consumers") or []),
                 "_age": f.get("age_s") if f.get("age_s") is not None else "—",
+                "_ttl": f.get("ttl_s") if f.get("ttl_s") is not None else "—",
             }
         )
     table = _table(
         rows,
         [
             ("fact", "FACT"),
-            ("_status", "STATE"),
+            ("_state", "STATE"),
             ("_age", "AGE_S"),
+            ("_ttl", "TTL_S"),
             ("_readers", "READERS"),
             ("_consumers", "CONSUMERS"),
         ],

@@ -127,6 +127,20 @@ async def test_persist_extra_flat_for_island(state_store: _FakeStateStore) -> No
     assert redis.store[PKEY]["island.tree_of_life.level"] == "5"
     assert redis.store[IKEY]["island.tree_of_life.level"] == "5"
     assert json.loads(redis.store[PKEY]["island.owned"]) == owned
+    # each extra flat key gets its OWN .synced_at so the freshness verdict can age it.
+    assert "island.tree_of_life.level.synced_at" in redis.store[PKEY]
+
+
+@pytest.mark.asyncio
+async def test_persist_writes_durable_synced_at(state_store: _FakeStateStore) -> None:
+    redis = _FakeRedis()
+    await P.persist_planner_owned(
+        redis, player_id=PLAYER, instance_id="bs1", domain="charms", owned={"infantry_1": 5}
+    )
+    # synced_at persisted as a sibling of "owned" (so the overlay can restore freshness).
+    dom = state_store.get(PLAYER).snapshot().planner["charms"]
+    assert "owned_synced_at" in dom
+    assert dom["owned"] == {"infantry_1": 5}            # sibling, not nested inside owned
 
 
 @pytest.mark.asyncio
@@ -146,15 +160,17 @@ async def test_persist_skips_on_bad_input(state_store: _FakeStateStore) -> None:
 # --------------------------------------------------------------------------- #
 def test_overlay_backfills_cold_mirror(state_store: _FakeStateStore) -> None:
     state_store.stores[PLAYER] = _FakeStore({
-        "pets": {"owned": {"snow_leopard": {"level": 30}}},
-        "island": {"owned": {"tree_of_life_level": 7}},
+        "pets": {"owned": {"snow_leopard": {"level": 30}}, "owned_synced_at": 1700.0},
+        "island": {"owned": {"tree_of_life_level": 7}, "owned_synced_at": 1800.0},
     })
     state: dict[str, Any] = {}  # cold mirror after a flush
 
     P.overlay_durable_planner_owned(PLAYER, state)
 
     assert json.loads(state["pets.owned"]) == {"snow_leopard": {"level": 30}}
+    assert state["pets.owned.synced_at"] == "1700.0"               # freshness restored too
     assert state["island.tree_of_life.level"] == "7"
+    assert state["island.tree_of_life.level.synced_at"] == "1800.0"
 
 
 def test_overlay_is_fill_only(state_store: _FakeStateStore) -> None:
