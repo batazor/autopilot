@@ -9,4 +9,9 @@ overlay:
       - world
     priority: 100_000
     steps:
-      - click: button.alliance.help
+      # NOT a plain click: the bubble expires when someone else helps first and
+      # its spot doubles as the chat entry — a click off the (stale) overlay
+      # match landed in alliance chat. The exec re-matches on a fresh frame,
+      # taps only a live bubble, and backs out of chat if the tap still slipped
+      # (ported from the standalone play-helper loop).
+      - exec: play_helper
