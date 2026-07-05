@@ -46,7 +46,7 @@ def _fail(msg: str) -> None:
 def _validate(data: dict) -> tuple[str, str, int, list[dict]]:
     if data.get("type") not in (None, "dreamscape_scene"):
         _fail(f"not a dreamscape scene export (type={data.get('type')!r}); "
-              "zones/regions JSONs are applied to area.yaml by hand")
+              "zones/regions JSONs go through scripts/import_regions_json.py")
     slug = str(data.get("slug", "")).strip()
     if not _SLUG_RE.match(slug):
         _fail(f"bad or missing slug {slug!r} (want kebab-case, e.g. frost-harbor)")
