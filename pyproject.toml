@@ -84,6 +84,7 @@ api = "api.main:main"
 radar = "modules.radar.cli:main"
 botctl = "agentctl.cli:main"
 botctl-mcp = "agentctl.mcp_server:main"
+play-helper = "helper_loop.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/batazor/autopilot"
