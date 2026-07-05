@@ -13,8 +13,16 @@ overlay:
       # NOT an inline click: the bubble expires when someone else helps first
       # and its spot doubles as the chat entry — a click off the (stale)
       # overlay match landed in alliance chat. The pushed scenario's
-      # ``play_helper`` exec re-matches on a fresh frame, taps only a live
-      # bubble, and backs out of chat if the tap still slipped (ported from
-      # the standalone play-helper loop). Inline steps can't run an ``exec:``
-      # — the overlay hot path only supports click/wait.
-      - push_scenario: play_helper
+      # ``play_helper`` exec taps the overlay's own match point and backs out
+      # of chat if the tap slipped (ported from the standalone play-helper
+      # loop). Inline steps can't run an ``exec:`` — the overlay hot path only
+      # supports click/wait.
+      #
+      # The push-item ``ttl`` is the anti-flood: while the bubble stays on
+      # screen (new help requests keep arriving) every overlay tick re-pushes,
+      # and back-to-back play_helper runs starve the queue — who_i_am never
+      # got a slot. The rule-level ``ttl: 10`` above only throttles rule
+      # re-EVALUATION, not the push.
+      - push_scenario:
+          name: play_helper
+          ttl: 30s

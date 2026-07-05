@@ -50,18 +50,21 @@ _HELP_CROP = "games/wos/alliance/helper/references/crop/alliance.helper_button.a
 _CHAT_TITLE_CROP_EN = "games/wos/chat/references/crop/chat.alliance_chat.title.png"
 _CHAT_REF_RU = "games/wos/ru/chat/references/chat.alliance.png"  # full frame; title cropped below
 
-_HELP_THRESHOLD = 0.80
+# Fallback-only re-match floor (no overlay coordinates to trust, e.g. a manual
+# run). The handshake icon ANIMATES (it swings): live scores on a plainly
+# visible bubble ranged 0.56-0.94 across its cycle while an absent bubble
+# scored ~0.6, so no threshold separates them reliably — which is why the
+# primary path taps the overlay's own match coordinates instead of re-matching,
+# with the chat-escape verify as the staleness safety net.
+_HELP_THRESHOLD = 0.65
 _CHAT_THRESHOLD = 0.80
 _SEARCH_PAD_PCT = 6.0
 _POST_TAP_SETTLE_S = 1.2
 
-# The handshake icon ANIMATES (it swings): template matching on a single frame
-# scores ~0.25-0.6 mid-swing vs ~0.97 in the neutral pose (measured live on
-# bs5), so one capture routinely misses a bubble that is plainly there. Sample
-# a few frames across the animation cycle and tap on the first neutral hit —
-# the standalone play-helper loop got this for free from its 2 Hz cadence.
-_MATCH_ATTEMPTS = 4
-_MATCH_RETRY_DELAY_S = 0.35
+# Fallback sampling across a full swing cycle (~2.4 s) — the standalone
+# play-helper loop got this for free from its 2 Hz cadence.
+_MATCH_ATTEMPTS = 6
+_MATCH_RETRY_DELAY_S = 0.4
 
 
 def _expand(bbox: dict[str, float], pad: float = _SEARCH_PAD_PCT) -> dict[str, float]:
@@ -159,39 +162,68 @@ async def _tap_back(actions: Any, ctx: DslExecContext, frame: np.ndarray) -> boo
     )
 
 
-async def _exec_play_helper(ctx: DslExecContext) -> None:
-    """Tap the alliance-help bubble off a fresh frame; escape chat on a slip."""
-    actions = dsl_runtime.bot_actions()
+async def _overlay_match_center(ctx: DslExecContext, frame: np.ndarray) -> Point | None:
+    """The overlay's own match point for THIS pushed task (from instance state).
 
-    # 1)+2) Sample frames across the icon's swing animation: escape to back if
-    #    any frame shows the chat title (a previous mis-tap left us there), tap
-    #    on the first frame where the bubble matches in its neutral pose. All
-    #    frames missing = the bubble really vanished since the overlay tick.
-    hit, best_score, center = False, 0.0, Point(0, 0)
-    frame: np.ndarray | None = None
-    for attempt in range(_MATCH_ATTEMPTS):
-        if attempt:
-            await asyncio.sleep(_MATCH_RETRY_DELAY_S)
-        frame = await _capture(actions, ctx.instance_id)
-        if frame is None:
-            continue
-        chat = _chat_score(frame)
-        if chat >= _CHAT_THRESHOLD:
-            tapped = await _tap_back(actions, ctx, frame)
-            ctx.result.update(
-                {"action": "chat_escape" if tapped else "chat_escape_blocked", "chat_score": round(chat, 3)}
-            )
-            return
-        hit, score, center = _match(frame, _templates()["help"], _HELP_BBOX, _HELP_THRESHOLD)
-        best_score = max(best_score, score)
-        if hit:
-            break
+    The worker publishes the queue item's ``tap_match_*_pct`` — i.e. where the
+    overlay engine actually saw the bubble — for the duration of the task.
+    Trusting it beats re-matching: the swinging icon defeats any fixed template
+    threshold, while the overlay only pushes on a confident hit.
+    """
+    if ctx.redis_client is None:
+        return None
+    try:
+        raw = await ctx.redis_client.hmget(
+            f"wos:instance:{ctx.instance_id}:state",
+            ["current_task_tap_match_x_pct", "current_task_tap_match_y_pct"],
+        )
+    except Exception:
+        return None
+    try:
+        vals = [float((v.decode() if isinstance(v, bytes) else v) or "") for v in raw]
+    except (TypeError, ValueError):
+        return None
+    h, w = frame.shape[:2]
+    return Point(int(vals[0] / 100.0 * w), int(vals[1] / 100.0 * h))
+
+
+async def _exec_play_helper(ctx: DslExecContext) -> None:
+    """Tap the alliance-help bubble; escape chat on a slip."""
+    actions = dsl_runtime.bot_actions()
+    frame = await _capture(actions, ctx.instance_id)
     if frame is None:
         ctx.result.update({"action": "capture_failed"})
         return
-    if not hit:
-        ctx.result.update({"action": "vanished", "score": round(best_score, 3)})
+
+    # 1) Already in chat (a previous mis-tap, or any other path) → back out.
+    chat = _chat_score(frame)
+    if chat >= _CHAT_THRESHOLD:
+        tapped = await _tap_back(actions, ctx, frame)
+        ctx.result.update(
+            {"action": "chat_escape" if tapped else "chat_escape_blocked", "chat_score": round(chat, 3)}
+        )
         return
+
+    # 2) Primary: tap where the overlay matched when it pushed this task.
+    #    Fallback (no coords → e.g. a manual enqueue): sample frames across the
+    #    swing animation and tap the best fresh match.
+    center = await _overlay_match_center(ctx, frame)
+    best_score = -1.0
+    if center is None:
+        hit = False
+        for attempt in range(_MATCH_ATTEMPTS):
+            if attempt:
+                await asyncio.sleep(_MATCH_RETRY_DELAY_S)
+                nxt = await _capture(actions, ctx.instance_id)
+                if nxt is not None:
+                    frame = nxt
+            hit, score, center = _match(frame, _templates()["help"], _HELP_BBOX, _HELP_THRESHOLD)
+            best_score = max(best_score, score)
+            if hit:
+                break
+        if not hit:
+            ctx.result.update({"action": "vanished", "score": round(best_score, 3)})
+            return
 
     tapped = await asyncio.to_thread(
         actions.tap,
@@ -216,12 +248,12 @@ async def _exec_play_helper(ctx: DslExecContext) -> None:
             ctx.result.update(
                 {
                     "action": "tapped_then_chat_escape" if escaped else "tapped_chat_escape_blocked",
-                    "score": round(score, 3),
+                    "score": round(best_score, 3),
                     "chat_score": round(chat, 3),
                 }
             )
             return
-    ctx.result.update({"action": "tapped", "score": round(score, 3)})
+    ctx.result.update({"action": "tapped", "score": round(best_score, 3)})
 
 
 DSL_EXEC_HANDLERS = {

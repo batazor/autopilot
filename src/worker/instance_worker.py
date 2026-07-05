@@ -222,6 +222,7 @@ class InstanceWorker(
         # blocked (e.g. on an unattended click-approval) past the threshold.
         self._current_task_started_m: float | None = None
         self._stuck_task_watchdog_task: asyncio.Task[None] | None = None
+        self._heartbeat_task: asyncio.Task[None] | None = None
         # Scenario key of the task ``_current_task_handle`` is running. Read by
         # the overlay push path so a device-level push doesn't preempt a task
         # that's already running the same scenario.
@@ -435,6 +436,32 @@ class InstanceWorker(
         self._task_abort_reschedule = bool(reschedule)
         handle.cancel()
         return True
+
+    async def _run_heartbeat_loop(self) -> None:
+        """Publish ``last_seen_at`` + the fleet heartbeat every 2s, task-independent.
+
+        The task loop's inline heartbeat only fires between iterations, so any
+        task longer than the 10s fleet-liveness window (most navigations) made a
+        BUSY worker read as "stale" in the dashboard and fleet-health. This loop
+        keeps liveness truthful while a task runs; the inline write remains as a
+        harmless redundancy.
+        """
+        while True:
+            if self._stopping:
+                return
+            if self._redis is not None:
+                try:
+                    await self._redis.hset(
+                        _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+                        "last_seen_at",
+                        str(time.time()),
+                    )
+                    await self._publish_fleet_heartbeat(time.time())
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.debug("heartbeat loop write failed", exc_info=True)
+            await asyncio.sleep(2.0)
 
     async def _run_stuck_task_watchdog(self) -> None:
         """Abort a task whose ``task.execute()`` has been running too long.
@@ -1037,6 +1064,14 @@ class InstanceWorker(
                 self._run_stuck_task_watchdog(),
                 name=f"stuck-watchdog-{self._cfg.instance_id}",
             )
+            # Dedicated heartbeat task: the inline heartbeat below only writes
+            # between task-loop iterations, so any task running longer than the
+            # fleet-status liveness window (10s — most navigations qualify)
+            # made a busy worker read as "stale" in fleet-health/dashboard.
+            self._heartbeat_task = asyncio.create_task(
+                self._run_heartbeat_loop(),
+                name=f"heartbeat-{self._cfg.instance_id}",
+            )
             last_heartbeat = 0.0
 
             try:
@@ -1125,6 +1160,12 @@ class InstanceWorker(
         finally:
             # Stop new thread-pool work before cancelling snapshot.
             self._stopping = True
+            hb = getattr(self, "_heartbeat_task", None)
+            self._heartbeat_task = None
+            if hb is not None and not hb.done():
+                hb.cancel()
+                with suppress(asyncio.CancelledError):
+                    await hb
             al = self._abort_task_listener_task
             self._abort_task_listener_task = None
             if al is not None and not al.done():

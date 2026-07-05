@@ -215,6 +215,15 @@ def load_settings(path: Path | None = None) -> Settings:
         for d in devices_registry.devices
         if d.name.strip()
     ]
+    # WOS_INSTANCES=bs5,bs6 — hard allowlist of instance ids. The supervisor
+    # spawns a worker (adb connect + scrcpy attach) for EVERY registered
+    # device; pausing is not isolation — a paused worker still touches its
+    # emulator at boot. The filter makes the excluded devices invisible to
+    # the whole process tree (supervisor, scheduler, workers).
+    if allow_raw := _env_value("WOS_INSTANCES"):
+        allow = {s.strip() for s in allow_raw.split(",") if s.strip()}
+        if allow:
+            instances = [i for i in instances if i.instance_id in allow]
 
     return Settings(
         redis=redis_cfg,

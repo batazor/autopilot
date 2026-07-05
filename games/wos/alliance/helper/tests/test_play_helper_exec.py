@@ -25,11 +25,18 @@ class _FakeActions:
         return self.tap_ok
 
 
-def _ctx() -> DslExecContext:
-    return DslExecContext(redis_client=None, player_id="p1", instance_id="bs6")
+class _FakeRedisWithCoords:
+    """Instance-state hash carrying the overlay's tap_match coords."""
+
+    async def hmget(self, key: str, fields):
+        return [b"73.19", b"88.59"]
 
 
-def _run(monkeypatch, *, actions, chat_scores, help_hit):
+def _ctx(redis=None) -> DslExecContext:
+    return DslExecContext(redis_client=redis, player_id="p1", instance_id="bs6")
+
+
+def _run(monkeypatch, *, actions, chat_scores, help_hit, redis=None):
     """Run the handler with matching stubbed out; returns ctx.result.
 
     ``chat_scores`` is consumed per _chat_score call (pre-tap, then post-tap).
@@ -45,9 +52,26 @@ def _run(monkeypatch, *, actions, chat_scores, help_hit):
         lambda _frame, _tpl, _bbox, _thr: (help_hit, 0.95 if help_hit else 0.4, Point(535, 566)),
     )
     monkeypatch.setattr(helper_exec.dsl_runtime, "bot_actions", lambda: actions)
-    ctx = _ctx()
+    ctx = _ctx(redis)
     asyncio.run(helper_exec._exec_play_helper(ctx))
     return ctx.result
+
+
+def test_overlay_coords_win_over_rematch(monkeypatch):
+    # With the pusher's match coords published in instance state, the exec taps
+    # them directly — no template re-match (the swinging icon defeats it).
+    actions = _FakeActions()
+    result = _run(
+        monkeypatch,
+        actions=actions,
+        chat_scores=[0.1, 0.1],
+        help_hit=False,             # re-match would say "vanished" — must not run
+        redis=_FakeRedisWithCoords(),
+    )
+    assert result["action"] == "tapped"
+    point, region = actions.taps[0]
+    assert region == "button.alliance.help"
+    assert (point.x, point.y) == (int(73.19 / 100 * 720), int(88.59 / 100 * 1280))
 
 
 def test_chat_escape_taps_back_and_stops(monkeypatch):
