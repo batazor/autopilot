@@ -55,6 +55,14 @@ _CHAT_THRESHOLD = 0.80
 _SEARCH_PAD_PCT = 6.0
 _POST_TAP_SETTLE_S = 1.2
 
+# The handshake icon ANIMATES (it swings): template matching on a single frame
+# scores ~0.25-0.6 mid-swing vs ~0.97 in the neutral pose (measured live on
+# bs5), so one capture routinely misses a bubble that is plainly there. Sample
+# a few frames across the animation cycle and tap on the first neutral hit —
+# the standalone play-helper loop got this for free from its 2 Hz cadence.
+_MATCH_ATTEMPTS = 4
+_MATCH_RETRY_DELAY_S = 0.35
+
 
 def _expand(bbox: dict[str, float], pad: float = _SEARCH_PAD_PCT) -> dict[str, float]:
     return {
@@ -147,31 +155,42 @@ async def _tap_back(actions: Any, ctx: DslExecContext, frame: np.ndarray) -> boo
         _bbox_center(_BACK_BBOX, w, h),
         approval_region="icon.page.back",
         approval_context={"source": "play_helper.chat_escape"},
+        require_approval=False,
     )
 
 
 async def _exec_play_helper(ctx: DslExecContext) -> None:
     """Tap the alliance-help bubble off a fresh frame; escape chat on a slip."""
     actions = dsl_runtime.bot_actions()
-    frame = await _capture(actions, ctx.instance_id)
+
+    # 1)+2) Sample frames across the icon's swing animation: escape to back if
+    #    any frame shows the chat title (a previous mis-tap left us there), tap
+    #    on the first frame where the bubble matches in its neutral pose. All
+    #    frames missing = the bubble really vanished since the overlay tick.
+    hit, best_score, center = False, 0.0, Point(0, 0)
+    frame: np.ndarray | None = None
+    for attempt in range(_MATCH_ATTEMPTS):
+        if attempt:
+            await asyncio.sleep(_MATCH_RETRY_DELAY_S)
+        frame = await _capture(actions, ctx.instance_id)
+        if frame is None:
+            continue
+        chat = _chat_score(frame)
+        if chat >= _CHAT_THRESHOLD:
+            tapped = await _tap_back(actions, ctx, frame)
+            ctx.result.update(
+                {"action": "chat_escape" if tapped else "chat_escape_blocked", "chat_score": round(chat, 3)}
+            )
+            return
+        hit, score, center = _match(frame, _templates()["help"], _HELP_BBOX, _HELP_THRESHOLD)
+        best_score = max(best_score, score)
+        if hit:
+            break
     if frame is None:
         ctx.result.update({"action": "capture_failed"})
         return
-
-    # 1) Already in chat (a previous mis-tap, or any other path) → back out.
-    chat = _chat_score(frame)
-    if chat >= _CHAT_THRESHOLD:
-        tapped = await _tap_back(actions, ctx, frame)
-        ctx.result.update(
-            {"action": "chat_escape" if tapped else "chat_escape_blocked", "chat_score": round(chat, 3)}
-        )
-        return
-
-    # 2) Re-verify the bubble on THIS frame — the overlay match that queued us
-    #    can be seconds stale, and its spot doubles as the chat entry.
-    hit, score, center = _match(frame, _templates()["help"], _HELP_BBOX, _HELP_THRESHOLD)
     if not hit:
-        ctx.result.update({"action": "vanished", "score": round(score, 3)})
+        ctx.result.update({"action": "vanished", "score": round(best_score, 3)})
         return
 
     tapped = await asyncio.to_thread(
@@ -179,10 +198,11 @@ async def _exec_play_helper(ctx: DslExecContext) -> None:
         ctx.instance_id,
         center,
         approval_region="button.alliance.help",
-        approval_context={"score": round(score, 4), "source": "play_helper"},
+        approval_context={"score": round(best_score, 4), "source": "play_helper"},
+        require_approval=False,
     )
     if not tapped:
-        ctx.result.update({"action": "tap_blocked", "score": round(score, 3)})
+        ctx.result.update({"action": "tap_blocked", "score": round(best_score, 3)})
         return
 
     # 3) The bubble can expire in the milliseconds before the tap lands —

@@ -1,0 +1,13 @@
+# Alliance-help bubble tap, pushed by the ``alliance_helper_button.visible``
+# overlay rule. All logic is in the ``play_helper`` exec (fresh-frame re-match
+# → tap → chat escape): the overlay's inline-steps hot path only supports
+# ``click``/``wait``, and a click off a stale match is exactly the bug this
+# replaces (the expired bubble's spot doubles as the chat entry).
+enabled: true
+name: Alliance help (tap + chat escape)
+priority: 100_000
+
+device_level: true
+
+steps:
+  - exec: play_helper

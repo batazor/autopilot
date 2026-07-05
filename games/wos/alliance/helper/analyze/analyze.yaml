@@ -8,10 +8,13 @@ overlay:
       - main_city
       - world
     priority: 100_000
+    ttl: 10
     steps:
-      # NOT a plain click: the bubble expires when someone else helps first and
-      # its spot doubles as the chat entry — a click off the (stale) overlay
-      # match landed in alliance chat. The exec re-matches on a fresh frame,
-      # taps only a live bubble, and backs out of chat if the tap still slipped
-      # (ported from the standalone play-helper loop).
-      - exec: play_helper
+      # NOT an inline click: the bubble expires when someone else helps first
+      # and its spot doubles as the chat entry — a click off the (stale)
+      # overlay match landed in alliance chat. The pushed scenario's
+      # ``play_helper`` exec re-matches on a fresh frame, taps only a live
+      # bubble, and backs out of chat if the tap still slipped (ported from
+      # the standalone play-helper loop). Inline steps can't run an ``exec:``
+      # — the overlay hot path only supports click/wait.
+      - push_scenario: play_helper

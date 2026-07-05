@@ -14,12 +14,14 @@ class _FakeActions:
     def __init__(self, *, tap_ok: bool = True) -> None:
         self.tap_ok = tap_ok
         self.taps: list[tuple[Point, str]] = []
+        self.approval_flags: list[bool] = []
 
     def capture_screen_bgr(self, instance_id: str):
         return np.zeros((1280, 720, 3), dtype=np.uint8)
 
     def tap(self, instance_id: str, point: Point, **kwargs) -> bool:
         self.taps.append((point, str(kwargs.get("approval_region") or "")))
+        self.approval_flags.append(bool(kwargs.get("require_approval", True)))
         return self.tap_ok
 
 
@@ -34,6 +36,7 @@ def _run(monkeypatch, *, actions, chat_scores, help_hit):
     """
     scores = list(chat_scores)
     monkeypatch.setattr(helper_exec, "_POST_TAP_SETTLE_S", 0.0)
+    monkeypatch.setattr(helper_exec, "_MATCH_RETRY_DELAY_S", 0.0)
     monkeypatch.setattr(helper_exec, "_templates", lambda: {"help": "tpl", "chat_titles": []})
     monkeypatch.setattr(helper_exec, "_chat_score", lambda _frame: scores.pop(0) if scores else 0.0)
     monkeypatch.setattr(
@@ -69,6 +72,8 @@ def test_live_bubble_tapped(monkeypatch):
     result = _run(monkeypatch, actions=actions, chat_scores=[0.1, 0.1], help_hit=True)
     assert result["action"] == "tapped"
     assert [r for _, r in actions.taps] == ["button.alliance.help"]
+    # Own-bot taps skip click-approval by design (operator decision).
+    assert actions.approval_flags == [False]
 
 
 def test_post_tap_slip_escapes_chat(monkeypatch):
