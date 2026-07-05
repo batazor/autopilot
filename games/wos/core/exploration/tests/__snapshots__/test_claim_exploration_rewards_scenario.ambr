@@ -7,36 +7,49 @@
     'node': 'exploration',
     'steps': list([
       dict({
-        'click': 'button.claim',
-      }),
-      dict({
-        'wait': '2s',
-      }),
-      dict({
-        'retry': dict({
-          'attempts': 3,
-          'interval': '1s',
-        }),
+        'action': 'cta_button',
+        'color': 'green',
+        'match': 'exploration.claim',
         'steps': list([
           dict({
-            'click': 'button.claim.big',
+            'click': 'exploration.claim',
           }),
           dict({
-            'wait': '2s',
+            'wait': '1.5s',
+          }),
+        ]),
+        'threshold': 0.5,
+      }),
+      dict({
+        'action': 'cta_button',
+        'color': 'green',
+        'match': 'exploration.claim.collect',
+        'steps': list([
+          dict({
+            'click': 'exploration.claim.collect',
           }),
           dict({
-            'match': 'button.tap_anywhere_to_exit',
+            'wait': '1.5s',
+          }),
+          dict({
+            'expected': list([
+              'нажмите',
+              'любом месте',
+              'tap anywhere',
+            ]),
+            'max': 3,
             'steps': list([
               dict({
                 'click': 'button.tap_anywhere_to_exit',
               }),
               dict({
-                'wait': '0.5s',
+                'wait': '1s',
               }),
             ]),
+            'while_match': 'button.tap_anywhere_to_exit',
           }),
         ]),
-        'while_match': 'button.claim.big',
+        'threshold': 0.5,
       }),
     ]),
   })

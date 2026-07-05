@@ -26,14 +26,14 @@ def test_build_scenario_progress_shows_step_while_busy_without_running_key(
         "current_scenario": "claim_exploration_rewards",
         "current_task_id": "t1",
         "current_task_type": "claim_exploration_rewards",
-        "last_active_scenario_step": "2",
+        "last_active_scenario_step": "1",
         "last_active_scenario_iter": "3",
         "nav_target": "",
     }
     progress = build_scenario_progress(client, "bs1", instance_state)
     assert progress["is_running"] is True
-    assert progress["step_current"] == 2
-    assert progress["step_total"] == 3
+    assert progress["step_current"] == 1
+    assert progress["step_total"] == 2
     assert progress["step_iter"] == 3
 
 

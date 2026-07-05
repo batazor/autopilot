@@ -5,18 +5,35 @@ node: exploration
 
 cron: "0 */4 * * *"
 
+# Collect the accumulated idle income on the «Освоение» / Exploration screen.
+# Every button in the flow is the only GREEN CTA on its frame (the bottom
+# «Освоить» is blue), so they are matched by colour — no template/OCR — which
+# works on every locale.
 steps:
-  - click: button.claim
-  - wait: 2s
-  - while_match: button.claim.big
-    retry:
-      attempts: 3
-      interval: 1s
+  # 1) Small green «Получить» on the right of the page → opens the «Пассивный
+  #    доход» (passive-income) popup. Non-strict: skips cleanly when nothing has
+  #    accumulated yet.
+  - match: exploration.claim
+    action: cta_button
+    color: green
+    threshold: 0.5
     steps:
-      - click: button.claim.big
-      - wait: 2s
-      - match: button.tap_anywhere_to_exit
-        expected: ["tap anywhere"]
+      - click: exploration.claim
+      - wait: 1.5s
+
+  # 2) Big green «Получить» centred in the popup → collects the income, then
+  #    dismiss the «Награды» reward popup ("Для выхода нажмите в любом месте").
+  #    Also covers re-entry when the popup is already open.
+  - match: exploration.claim.collect
+    action: cta_button
+    color: green
+    threshold: 0.5
+    steps:
+      - click: exploration.claim.collect
+      - wait: 1.5s
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["нажмите", "любом месте", "tap anywhere"]
+        max: 3
         steps:
           - click: button.tap_anywhere_to_exit
-          - wait: 0.5s
+          - wait: 1s

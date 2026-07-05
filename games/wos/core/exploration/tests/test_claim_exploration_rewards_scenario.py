@@ -53,7 +53,7 @@ def test_claim_exploration_rewards_scenario_is_registered_with_expected_shape(sn
     assert doc == snapshot
 
 
-def test_squad_fight_victory_repush_waits_until_squad_settings() -> None:
+def test_squad_fight_victory_repush_waits_for_track_or_settings() -> None:
     loaded = template_resolver.load_doc(REPO_ROOT, "squad_fight")
     assert loaded is not None
 
@@ -63,9 +63,13 @@ def test_squad_fight_victory_repush_waits_until_squad_settings() -> None:
         if isinstance(step, dict) and step.get("cond") == "currentNode == exploration.victory"
     )
 
+    # «Продолжить» / Continue advances the «Освоение» track by a stage and returns
+    # to the track page (not straight to the next Squad Settings), so the post-
+    # victory wait accepts either landing; re-pushing re-enters via the «Освоить»
+    # edge.
     assert victory_step["steps"] == [
         {"click": "page.exploration.victory.next"},
-        {"wait_screen": {"any": ["squad_settings"], "max": 5, "interval": "500ms"}},
+        {"wait_screen": {"any": ["squad_settings", "exploration"], "max": 8, "interval": "500ms"}},
         {"push_scenario": "squad_fight"},
     ]
 
@@ -145,13 +149,10 @@ async def test_claim_exploration_rewards_rehearses_main_city_reward_flow(
         [
             main_city,      # Navigator detects current node.
             exploration,    # Navigator verifies after tapping `main_city.to.exploration`.
-            exploration,    # Navigator may re-check during route verification.
-            exploration,    # Step 0: `click: button.claim`.
-            idle_income,    # Step 2: `while_match: button.claim.big`.
-            rewards,        # Step 2.0.2: `match: button.tap_anywhere_to_exit`.
-            rewards,        # Step 2.0.2.steps.0: click tap-anywhere.
-            after_rewards,  # Next `button.claim.big` probe exits the loop.
-            after_rewards,
+            exploration,    # `match: exploration.claim` — green «Получить» on the track.
+            idle_income,    # `match: exploration.claim.collect` — green collect in the popup.
+            rewards,        # `while_match: button.tap_anywhere_to_exit` — reward popup.
+            after_rewards,  # Re-probe exits the dismiss loop (back on the track).
         ]
     )
     patch_dsl(mocker, actions, repo_root=REPO_ROOT)
@@ -174,8 +175,10 @@ async def test_claim_exploration_rewards_rehearses_main_city_reward_flow(
             approval_source="navigation",
             approval_context=ANY,
         ),
-        call("bs1", ANY, approval_region="button.claim"),
-        call("bs1", ANY, approval_region="button.claim.big"),
+        # Both claim taps land on a green CTA matched by colour (locale-proof) —
+        # the small «Получить» on the track, then the big one in the popup.
+        call("bs1", ANY, approval_region="exploration.claim"),
+        call("bs1", ANY, approval_region="exploration.claim.collect"),
         # ``button.tap_anywhere_to_exit`` carries ``tap_hold_ms: 200`` in
         # ``games/wos/core/common/area.yaml`` so the production tap propagates
         # ``hold_ms=200`` (long-press dismiss to avoid spawning followups).

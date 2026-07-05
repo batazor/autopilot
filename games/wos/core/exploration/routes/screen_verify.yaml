@@ -1,17 +1,25 @@
 screens:
   exploration:
     priority: 30
+    # Identify the page by its title plate alone. The title OCRs in the worker's
+    # catalog language (``wos_ru`` → ``rus``), so listing both the EN "Exploration"
+    # and RU «Освоение» strings makes the one rule cover both builds. The old
+    # second rule (``match: exploration.to.squad_settings``) AND-gated detection
+    # on an English button crop that never matches the RU «Освоить» button, so the
+    # «Белая мгла» build fell through to dismiss_unknown_popup. The bottom button is
+    # now reached as a locale-free blind-tap edge, so it is no longer a landmark.
     rules:
     - ocr: page.common.title
-      contains: Exploration
+      contains: [Exploration, Освоение]
       threshold: 0.8
-    - match: exploration.to.squad_settings
-      threshold: 0.9
   squad_settings:
     priority: 30
+    # Title plate reads "Squad Settings" / RU «Настройки отряда». The squad-deploy
+    # buttons («Быстрая отправка» / «Биться») are blind-tap-by-position so the
+    # whole flow is locale-free except this title.
     rules:
     - ocr: page.common.title
-      contains: Squad Settings
+      contains: [Squad Settings, Настройки отряда]
       threshold: 0.8
   exploration.squad_fight:
     priority: 25
@@ -40,10 +48,10 @@ screens:
     # recover home if the bot strands here outside its own scenario.
     rules:
     - ocr: page.exploration.victory.title
-      contains: "Victory"
+      contains: [Victory, Победа]
   exploration.defeat:
     # See exploration.victory — beat the generic arena.result matcher (20).
     priority: 18
     rules:
     - ocr: exploration.defeat.title
-      contains: "Defeat"
+      contains: [Defeat, Поражение]

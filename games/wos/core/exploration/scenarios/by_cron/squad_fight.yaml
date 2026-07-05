@@ -28,10 +28,14 @@ steps:
 
   - cond: currentNode == exploration.victory
     steps:
+      # «Продолжить» / Continue advances the «Освоение» track by one stage and
+      # returns to the track page (NOT straight to the next Squad Settings).
+      # Accept either landing; re-pushing squad_fight re-enters Squad Settings
+      # via the «Освоить» edge, so the grind continues until a stage is lost.
       - click: page.exploration.victory.next
       - wait_screen:
-          any: [squad_settings]
-          max: 5
+          any: [squad_settings, exploration]
+          max: 8
           interval: 500ms
       - push_scenario: squad_fight
 

@@ -3,6 +3,15 @@ name: Welcome new survivors
 
 priority: 100_000
 
+# The welcome banner only exists on main_city, and the overlay rule that pushes
+# this scenario (`isNewPeople.visible`) only fires there. Readers like
+# `sync_furnace_level` drift the bot to `chief_profile` between push and run; when
+# popped off main_city the navigator would route back via `icon.page.back` and tap
+# the transient banner — a fragile round-trip to a popup that fails as
+# `navigation_failed` (and churns the queue). Guard to main_city instead: skip
+# benignly when off-node and let the overlay re-push once the bot is home again.
+cond: currentNode == main_city
+
 node: isNewPeople
 
 steps:

@@ -144,6 +144,38 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "exploration.claim",
+          "action": "cta_button",
+          "color": "green",
+          "threshold": 0.5,
+          "comment": "Anchor for the small green «Получить» CTA on the right of the «Освоение» page — opens the «Пассивный доход» (passive-income) popup. Matched as a green cta_button (colour, not template/OCR) so it works on every locale; it is the only green button on the page (the bottom «Освоить» is blue).",
+          "bbox": {
+            "x": 75.0,
+            "y": 67.0,
+            "width": 18.0,
+            "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "exploration.claim.collect",
+          "action": "cta_button",
+          "color": "green",
+          "threshold": 0.5,
+          "comment": "Anchor for the big green «Получить»/Claim button centred in the «Пассивный доход» popup — actually collects the accumulated idle income. Matched as a green cta_button (colour), locale-proof.",
+          "bbox": {
+            "x": 32.0,
+            "y": 74.0,
+            "width": 36.0,
+            "height": 6.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },

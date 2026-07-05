@@ -9,10 +9,19 @@ overlay:
     set_node: exploration.squad_fight
     ttl: 2s
 
+  # The Auto-battle toggle is BLUE while OFF and orange once ON. Detect the blue
+  # (off) state by colour and tap to enable — locale- AND build-proof. The label
+  # reads "Auto" on every build (it is not localised), but the «Белая мгла» build
+  # renders the button differently enough that the English "Auto" crop only
+  # scored 0.78, so the old findIcon@0.9 never fired on RU. Colour has no such
+  # gap, and it doubles as the on/off state probe (mirrors furnace.max_power.off):
+  # once ON the button turns orange, the blue check stops matching, and we never
+  # re-toggle it back off.
   - name: exploration.squad_fight.auto.inactive
     region: page.squad_fight.auto
-    action: findIcon
-    threshold: 0.9
+    action: color_check
+    type: blue
+    threshold: 0.4
     screens:
       - exploration.squad_fight
     cond: exploration.level >= 5

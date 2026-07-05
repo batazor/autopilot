@@ -1,6 +1,7 @@
 # serializer version: 1
 # name: test_welcome_new_survivors_scenario_is_registered_with_expected_shape
   dict({
+    'cond': 'currentNode == main_city',
     'enabled': True,
     'name': 'Welcome new survivors',
     'node': 'isNewPeople',
