@@ -33,6 +33,13 @@ import yaml
 # return structured tap specs when the final coordinate must be resolved from
 # the current framebuffer (for example, template-matched event icons).
 Tap = str | dict[str, Any]
+EdgeAllowed = Callable[[str, str], bool]
+"""``(src, dst) -> bool`` predicate gating which edges BFS may traverse.
+
+Built per-instance from :func:`edge_conds_for_game` + the active player's flat
+state, so a cond-gated edge (e.g. the City menu, only present once the Furnace
+is built up) is pruned for instances whose state fails the guard — BFS then
+routes around it instead of tapping a button that isn't there."""
 VerifyRule = dict[str, Any]
 VerifyConfig = dict[str, Any]
 ScreenVerifyEntry = dict[str, Any]
@@ -117,15 +124,39 @@ def _load_edge_taps(
 ) -> tuple[
     dict[tuple[str, str], list[Tap]],
     dict[tuple[str, str], DynamicEdgeSpec],
+    dict[tuple[str, str], str],
 ]:
-    """Parse module edge_taps.yaml into static + dynamic registries for ``game``.
+    """Parse module edge_taps.yaml into static + dynamic + cond registries for ``game``.
 
     Edge value forms:
     * ``str`` — single static tap region (legacy shorthand).
     * ``list[str | dict]`` — static action sequence.
-    * ``dict`` — dynamic edge resolved at runtime via an :data:`EDGE_RESOLVERS`
-      entry; the dict is opaque to the loader and passed through to the
-      resolver as-is.
+    * ``dict`` — either a dynamic edge or a cond-gated static edge:
+      * ``{resolver: <name>, ...}`` — dynamic edge resolved at runtime via an
+        :data:`EDGE_RESOLVERS` entry; the remaining keys are opaque to the
+        loader and passed through to the resolver as-is.
+      * ``{taps: [<region>, ...], ...}`` (or ``{tap: <region>}``) — a static
+        action sequence in dict form, used so it can carry sibling metadata.
+      * an optional ``cond:`` on either form gates the edge: a per-instance
+        guard expression (same ``eval_cond`` mini-language as DSL ``cond`` /
+        area versions, e.g. ``"buildings.levels.furnace >= 10"``). The cond is
+        stripped from the resolver spec and recorded separately so BFS can
+        prune the edge for instances whose state fails the guard (e.g. the
+        City menu only exists once the Furnace is built up). An edge with no
+        ``cond`` is always available.
+
+    A top-level ``nodes:`` mapping gates a whole *screen*::
+
+        nodes:
+          main_menu:
+            cond: "buildings.levels.furnace >= 10"
+
+    A node cond is sugar for "this screen only exists when the cond holds": it is
+    expanded onto the cond of **every edge incident to the node** (both entries
+    and the ``X -> main_menu [back]`` return edges other modules declare), AND-ed
+    with any pre-existing edge cond. BFS then prunes the node entirely for
+    instances that fail the guard, with no back door — there is no separate
+    node-cond registry, the expansion folds into the per-edge conds above.
 
     Phase 4: ``game`` defaults to :func:`services.get_active_game` so worker
     processes pick up only their bound game's edges. API / scheduler call
@@ -133,8 +164,23 @@ def _load_edge_taps(
     """
     static: dict[tuple[str, str], list[Tap]] = {}
     dynamic: dict[tuple[str, str], DynamicEdgeSpec] = {}
+    conds: dict[tuple[str, str], str] = {}
+    node_conds: dict[str, str] = {}
     for path in _edge_taps_yaml_paths(game=game):
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        nodes_raw = raw.get("nodes")
+        if isinstance(nodes_raw, dict):
+            for node, spec in nodes_raw.items():
+                cond_s = ""
+                if isinstance(spec, dict):
+                    cond_v = spec.get("cond")
+                    cond_s = str(cond_v).strip() if cond_v is not None else ""
+                elif spec is not None:
+                    cond_s = str(spec).strip()
+                if cond_s:
+                    node_conds[str(node)] = cond_s
+                else:
+                    node_conds.pop(str(node), None)
         edges_raw = raw.get("edges", {})
         if not isinstance(edges_raw, dict):
             continue
@@ -145,6 +191,7 @@ def _load_edge_taps(
             dsts = cast("dict[str, Any]", dsts_raw)
             for dst, taps in dsts.items():
                 key = (str(src), str(dst))
+                conds.pop(key, None)
                 if isinstance(taps, list):
                     static[key] = [
                         dict(t) if isinstance(t, dict) else str(t) for t in taps
@@ -154,8 +201,30 @@ def _load_edge_taps(
                     static[key] = [taps]
                     dynamic.pop(key, None)
                 elif isinstance(taps, dict):
-                    dynamic[key] = dict(taps)
-                    static.pop(key, None)
+                    spec = dict(taps)
+                    # ``cond`` is edge metadata, not part of the resolver spec —
+                    # pop it before the dict reaches a resolver.
+                    cond_raw = spec.pop("cond", None)
+                    cond_s = str(cond_raw).strip() if cond_raw is not None else ""
+                    if "resolver" in spec:
+                        dynamic[key] = spec
+                        static.pop(key, None)
+                    elif "taps" in spec or "tap" in spec:
+                        raw_taps = spec.get("taps", spec.get("tap"))
+                        if isinstance(raw_taps, list):
+                            static[key] = [
+                                dict(t) if isinstance(t, dict) else str(t)
+                                for t in raw_taps
+                            ]
+                        else:
+                            static[key] = [str(raw_taps)]
+                        dynamic.pop(key, None)
+                    else:
+                        # Dict with neither a resolver nor taps is not an edge —
+                        # skip it rather than register an unreachable hop.
+                        continue
+                    if cond_s:
+                        conds[key] = cond_s
     # Generated per-hero edges, synthesized from the heroes wiki index so the
     # ~250 entries (grid-entry + back + wiki-open + wiki-back, ×62 heroes)
     # never drift from the catalog by hand. ``setdefault`` lets an explicit
@@ -197,7 +266,21 @@ def _load_edge_taps(
         ):
             static.setdefault(("main_city", building_id), ["chapter.task"])
         static.setdefault((building_id, "main_city"), ["from.building.to.main_city"])
-    return static, dynamic
+    # Expand node conds onto every incident edge (after ALL edges — including the
+    # synthesized hero/building ones and other modules' back edges — are known),
+    # AND-ing with any edge-level cond so both must hold.
+    if node_conds:
+        all_keys = set(static) | set(dynamic)
+        for key in all_keys:
+            src, dst = key
+            gates = [node_conds[n] for n in (src, dst) if n in node_conds]
+            if not gates:
+                continue
+            existing = conds.get(key)
+            if existing:
+                gates = [existing, *gates]
+            conds[key] = " and ".join(f"({g})" for g in gates)
+    return static, dynamic, conds
 
 
 def _edge_taps_yaml_paths(*, game: str | None = None) -> list[Path]:
@@ -230,6 +313,12 @@ _GAME_GRAPHS: dict[
     ],
 ] = {}
 
+# Per-edge ``cond`` guards (``(src, dst) -> expr``), parallel to ``_GAME_GRAPHS``.
+# Kept separate from the cached graph tuple so the public ``graph_for_game``
+# shape (and its many unpack sites) stays a 3-tuple; the conds only matter to
+# BFS when a caller supplies a per-instance ``edge_allowed`` predicate.
+_GAME_EDGE_CONDS: dict[str, dict[tuple[str, str], str]] = {}
+
 
 def _resolve_active_game() -> str:
     try:
@@ -254,19 +343,34 @@ def graph_for_game(
     cached = _GAME_GRAPHS.get(g)
     if cached is not None:
         return cached
-    static, dynamic = _load_edge_taps(game=g)
+    static, dynamic, conds = _load_edge_taps(game=g)
     graph: dict[str, set[str]] = {}
     for s, d in static:
         graph.setdefault(s, set()).add(d)
     for s, d in dynamic:
         graph.setdefault(s, set()).add(d)
     _GAME_GRAPHS[g] = (static, dynamic, graph)
+    _GAME_EDGE_CONDS[g] = conds
     return _GAME_GRAPHS[g]
+
+
+def edge_conds_for_game(game: str | None = None) -> dict[tuple[str, str], str]:
+    """Per-edge ``cond`` guards for ``game`` (``(src, dst) -> expr``); ``{}`` when none.
+
+    Populated as a side effect of :func:`graph_for_game`. Callers pair this with
+    a per-instance flat state dict to build the ``edge_allowed`` predicate that
+    :func:`bfs_route` (and the ``route_*_async`` helpers) accept.
+    """
+    g = (game or _resolve_active_game()).strip() or _resolve_active_game()
+    if g not in _GAME_EDGE_CONDS:
+        graph_for_game(g)
+    return _GAME_EDGE_CONDS.get(g, {})
 
 
 def invalidate_edge_taps_cache() -> None:
     """Drop the per-game graph cache (reload button / tests)."""
     _GAME_GRAPHS.clear()
+    _GAME_EDGE_CONDS.clear()
 
 
 # Module-level attribute access via ``__getattr__`` so legacy callers that do
@@ -392,6 +496,11 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
         "type",
         "threshold",
         "confidence",
+        # OCR preprocess pipeline (e.g. ``title_line`` for white-outlined title
+        # plates). Forwarded so a screen-identity rule can read a region with a
+        # different pipeline than the region's own default — without disturbing
+        # other consumers of that shared region (e.g. the building-level reader).
+        "preprocess",
         "min_match_saturation",
         "min_mask_share",
         "min_component_width_ratio",
@@ -990,12 +1099,23 @@ def route_path_cost(path: list[str] | None, *, target: str | None = None) -> int
     return total
 
 
-def bfs_route(src: str, dst: str, *, game: str | None = None) -> list[str] | None:
+def bfs_route(
+    src: str,
+    dst: str,
+    *,
+    game: str | None = None,
+    edge_allowed: EdgeAllowed | None = None,
+) -> list[str] | None:
     """Lowest-cost path ``[src, …, dst]`` over the tap-action graph.
 
     Historically this was a pure BFS. It now keeps the public name for callers
     but ranks routes by edge cost so local screen-family hops beat a visually
     silly fallback through ``main_city`` when both are available.
+
+    ``edge_allowed`` (optional) prunes cond-gated edges for the current instance:
+    when supplied, an edge ``(node, nb)`` for which it returns ``False`` is
+    skipped, so the search routes around it. Omitting it (the default) walks the
+    full static topology — what tests and tooling want.
     """
     if src == dst:
         return [src]
@@ -1009,6 +1129,8 @@ def bfs_route(src: str, dst: str, *, game: str | None = None) -> list[str] | Non
         if best.get(node) != (cost, hops):
             continue
         for nb in sorted(graph.get(node, set())):
+            if edge_allowed is not None and not edge_allowed(node, nb):
+                continue
             next_cost = cost + _edge_cost(node, nb, target=dst)
             next_hops = hops + 1
             prev = best.get(nb)
@@ -1118,6 +1240,7 @@ async def route_taps_async(
     instance_id: str,
     redis_client: Any,
     game: str | None = None,
+    edge_allowed: EdgeAllowed | None = None,
 ) -> list[list[Tap]] | None:
     """Like :func:`route_taps` but resolves dynamic edges via :data:`EDGE_RESOLVERS`.
 
@@ -1125,9 +1248,12 @@ async def route_taps_async(
     ``None`` (target not in current per-instance state), the whole route is
     treated as unavailable and ``None`` is returned. The caller can then
     fall back / retry after the state refreshes.
+
+    ``edge_allowed`` (optional) prunes cond-gated edges so the route adapts to
+    the instance's state — see :func:`bfs_route`.
     """
     static, _dynamic, _graph = graph_for_game(game)
-    path = bfs_route(src, dst, game=game)
+    path = bfs_route(src, dst, game=game, edge_allowed=edge_allowed)
     if path is None:
         return None
     result: list[list[Tap]] = []
@@ -1150,10 +1276,11 @@ async def route_hops_async(
     instance_id: str,
     redis_client: Any,
     game: str | None = None,
+    edge_allowed: EdgeAllowed | None = None,
 ) -> list[tuple[str, list[Tap]]] | None:
     """Per-hop variant of :func:`route_taps_async`."""
     static, _dynamic, _graph = graph_for_game(game)
-    path = bfs_route(src, dst, game=game)
+    path = bfs_route(src, dst, game=game, edge_allowed=edge_allowed)
     if path is None:
         return None
     result: list[tuple[str, list[Tap]]] = []

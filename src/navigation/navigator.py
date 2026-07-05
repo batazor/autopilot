@@ -28,7 +28,9 @@ from navigation.nav_state import (
 )
 from navigation.nav_state import NavStateStore
 from navigation.screen_graph import (
+    EdgeAllowed,
     Tap,
+    edge_conds_for_game,
     format_route_explain,
     route_hops_async,
     same_screen_family,
@@ -145,6 +147,32 @@ class Navigator:
                 exc_info=True,
             )
             return None
+
+    def _edge_allowed_for_state(
+        self, state_flat: dict[str, Any] | None
+    ) -> EdgeAllowed | None:
+        """Predicate gating cond-bearing edges against the instance's state.
+
+        Returns ``None`` (no filtering, the fast path) when the active game has
+        no cond-gated edges at all, so games/routes without conds keep the exact
+        pre-existing BFS behaviour. Otherwise each cond is evaluated with the
+        same ``eval_cond`` mini-language used by DSL ``cond`` and area versions:
+        an edge with a failing or unknown-state cond (e.g. the City menu before
+        the Furnace reaches level 10) is pruned so the search routes around it.
+        """
+        conds = edge_conds_for_game()
+        if not conds:
+            return None
+        flat = state_flat or {}
+        from layout.area_versions import eval_cond
+
+        def _allowed(src: str, dst: str) -> bool:
+            cond = conds.get((src, dst))
+            if not cond:
+                return True
+            return eval_cond(cond, flat)
+
+        return _allowed
 
     # Tap execution (region/template/tab/calendar/panel + system-back + approval
     # signature introspection) lives in ``self._tap_executor`` (TapExecutor).
@@ -667,6 +695,10 @@ class Navigator:
 
         for attempt in range(10):
             state_flat = await self._active_player_state_flat(instance_id)
+            # Adapt routing to this instance's state: cond-gated edges (e.g. the
+            # City menu, only present once the Furnace is built up) are pruned so
+            # BFS routes around them rather than tapping a button that isn't there.
+            edge_allowed = self._edge_allowed_for_state(state_flat)
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
             current = await self._detector.detect_screen(image, expected=target)
 
@@ -744,6 +776,7 @@ class Navigator:
             hop_sequences = await route_hops_async(
                 str(current), str(target),
                 instance_id=instance_id, redis_client=self._redis,
+                edge_allowed=edge_allowed,
             )
 
             if (
@@ -775,6 +808,7 @@ class Navigator:
                 to_hub = await route_hops_async(
                     str(current), str(_MAIN_CITY),
                     instance_id=instance_id, redis_client=self._redis,
+                    edge_allowed=edge_allowed,
                 )
                 if to_hub:
                     hr = await self._execute_hops(
@@ -823,6 +857,7 @@ class Navigator:
                 from_hub = await route_hops_async(
                     str(_MAIN_CITY), str(target),
                     instance_id=instance_id, redis_client=self._redis,
+                    edge_allowed=edge_allowed,
                 )
                 if from_hub:
                     hr = await self._execute_hops(

@@ -1,3 +1,17 @@
+# The City menu (building list) only appears once the Furnace reaches level 10 —
+# below that the left-side menu button does not exist, and the menu screen can't
+# be reached at all. Declaring it as a node-level `cond` gates EVERY edge incident
+# to main_menu (the two entry edges below AND every `X -> main_menu [icon.page.back]`
+# return edge other modules declare), so BFS can't sneak in through a back door.
+# When the cond fails — or the level is unknown, e.g. a fresh account the furnace
+# reader hasn't touched — the whole node is pruned and routing goes around it
+# instead of tapping a button that isn't there. The cond uses the same eval_cond
+# mini-language as DSL `cond` / area versions, read from the active player's flat
+# state (`buildings.levels.furnace`, the durable mirror).
+nodes:
+  main_menu:
+    cond: "buildings.levels.furnace >= 10"
+
 edges:
   main_city:
     main_menu: [main_city.to.main_menu]

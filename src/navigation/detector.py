@@ -219,6 +219,13 @@ class ScreenDetector:
                 confidence = rule.get("confidence")
                 if confidence is not None:
                     overlay_rule["confidence"] = confidence
+                # White-outlined title plates (e.g. the RU «Охотничий домик»
+                # building header) garble under the default psm-6 pass; a rule
+                # may pin ``preprocess: title_line`` so screen identity reads
+                # the styled title cleanly.
+                preprocess = rule.get("preprocess")
+                if preprocess is not None:
+                    overlay_rule["preprocess"] = preprocess
                 rules.append(overlay_rule)
                 group_names.append(str(overlay_rule["name"]))
             if tab_region_name:
