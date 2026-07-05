@@ -17,14 +17,16 @@ screens:
     parent: shop
     priority: 50
     rules:
+    # RU guess «Рынок» (Dawn Market → «Рынок рассвета»?) — VERIFY LIVE.
     - ocr: page.shop.dawn_market.title
-      contains: "Market"
+      contains: ["Market", "Рынок"]
   shop.mix_match:
     parent: shop
     priority: 55
     rules:
+    # RU guess «Микс» (Mix & Match) — VERIFY LIVE (low confidence).
     - ocr: page.shop.mix_match.title
-      contains: "Mix"
+      contains: ["Mix", "Микс"]
   shop.chief_stamina:
     parent: shop
     priority: 55
@@ -43,24 +45,39 @@ screens:
     parent: shop
     priority: 55
     rules:
+    # NOTE: this title OCRs EMPTY even in EN (stylized logo) — OCR can't localize
+    # it in any language. RU detection needs a template/tab approach, not OCR.
+    # Left on the EN template; RU won't narrow past `shop` until done live.
     - match: page.shop.construction_queue.title
       threshold: 0.9
   shop.daily_deals:
     parent: shop
     priority: 55
     rules:
-    - match: page.shop.daily_deals.title
-      threshold: 0.9
+    # RU «Белая мгла» + EN, fully by OCR (no title crop). contains is a
+    # case-insensitive OR of FULL words: «Сделки» (RU «Сделки дня») / «Daily»
+    # (EN «Daily Deals»). page.shop.daily_deals.title carries preprocess:
+    # title_line — the stylized banner is garbage under plain OCR. RU reads the
+    # full word at the WIDER bbox supplied by the wos_ru overlay
+    # (games/wos/ru/core/shop/area.yaml); the EN narrow base bbox reads «Daily».
+    - ocr: page.shop.daily_deals.title
+      contains: ["Daily", "Сделки"]
   shop.weekly_monthly_cards:
     parent: shop
     priority: 55
     rules:
     - match: page.shop.weekly_monthly_cards.title
       threshold: 0.9
+    # EN ref reads «Ultra Value» at this title (page is reskinned). RU guess
+    # «Ультра» — VERIFY LIVE (low confidence; EN token kept too).
+    - ocr: page.shop.weekly_monthly_cards.title
+      contains: ["Ultra", "Value", "Ультра"]
   shop.regular_pack:
     parent: shop
     priority: 55
     rules:
+    # NOTE: this title OCRs EMPTY even in EN (stylized) — OCR can't localize it.
+    # RU needs template/tab, not OCR. Left on the EN template.
     - match: page.shop.regular_pack.title
       threshold: 0.9
   shop.dawn_fund:
@@ -69,18 +86,25 @@ screens:
     rules:
     - match: page.shop.dawn_fund.title
       threshold: 0.9
+    # EN reads «Dawn» here (plain OCR, no title_line). RU guess «Фонд»
+    # (Dawn Fund → «Фонд рассвета»?) — VERIFY LIVE.
+    - ocr: page.shop.dawn_fund.title
+      contains: ["Dawn", "Фонд"]
   shop.get_gems:
     parent: shop
     priority: 55
     rules:
+    # NOTE: this title OCRs EMPTY even in EN (stylized gem logo) — OCR can't
+    # localize it. RU needs template/tab, not OCR. Left on the EN template.
     - match: page.shop.get_gems.title
       threshold: 0.9
   shop.artisans_trove:
     parent: shop
     priority: 55
     rules:
+    # RU guess «ремесл» (Artisan's Trove → «…ремесленника»?) — VERIFY LIVE.
     - ocr: artisans_trove.title
-      contains: "Artisan"
+      contains: ["Artisan", "ремесл"]
   shop.custom_artistry_chest:
     parent: shop
     priority: 55
@@ -89,8 +113,9 @@ screens:
     # (was "Custom Artistry Chest" on a purple banner, now "Custom Armament
     # Chest" on blue), so a fixed crop goes stale on every rename/recolour.
     # "Armament" is the distinctive token (sibling tab is "Custom Pet Chest").
+    # RU guess «оруж» (Armament → «…вооружения»?) — VERIFY LIVE.
     - ocr: page.shop.custom_artistry_chest.title
-      contains: "Armament"
+      contains: ["Armament", "оруж"]
   shop:
     priority: 60
     rules:

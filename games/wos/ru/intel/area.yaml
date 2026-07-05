@@ -29,13 +29,13 @@
     {
       "screen_id": "intel",
       "ocr": "references/intel.png",
-      "_comment": "RU intel-board screen landmark: the «Разведка» title TEMPLATE (white-outlined, intel-specific + stable). The base screen_verify rule `match: intel.title` findIcon resolves this RU crop (intel_intel.title.png) for wos_ru. Needed because the RU title OCRs poorly (white outline → conf ~0.4, partial «Разве») and the old intel.stamina OR-landmark was repurposed to read the «44/90» stamina bar — which broke intel detection.",
+      "_comment": "RU intel-board screen landmark: the «Разведка» title TEMPLATE (white-outlined, intel-specific + stable). The base screen_verify rule `match: intel.title` findIcon resolves this RU crop (intel_intel.title.png) for wos_ru. Needed because the RU title OCRs poorly (white outline → conf ~0.4, partial «Разве») and the old intel.stamina OR-landmark was repurposed to read the «44/90» stamina bar — which broke intel detection. threshold 0.8 (was 0.6): the title crop's light-blue gradient also matches the main_city sky behind the avatar (spurious isSearch peak ~0.66); 0.6 straddled the gate and let the sticky detector pin intel over a real main_city. Real intel scores 1.0, so 0.8 separates cleanly.",
       "regions": [
         {
           "name": "intel.title",
           "action": "exist",
           "isSearch": true,
-          "threshold": 0.6,
+          "threshold": 0.8,
           "bbox": {
             "x": 10.0,
             "y": 0.78,

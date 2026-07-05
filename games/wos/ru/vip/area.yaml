@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay for the VIP module. Loaded only for the wos_ru catalog; overlay regions REPLACE the same-named base region by name (overlay-first merge in layout.area_manifest). Two screens are localized: (1) increase_level — the «Повысить уровень» panel title template (EN «Increase Level» fails → detection false-fired to intel → bot stuck); (2) vip — the page.vip.level reader bbox, shifted right because RU «Текущий уровень: VIP N» is longer than EN «Current Level: VIP N», so the EN bbox lands on «VIP» (reads «: МР») instead of the level digit. The vip SCREEN detection itself is fixed locale-independently in games/wos/vip/routes/screen_verify.yaml (match: vip.title), not here.",
+  "screens": [
+    {
+      "screen_id": "increase_level",
+      "ocr": "references/increase_level.png",
+      "regions": [
+        {
+          "name": "increase_level.title",
+          "_comment": "RU «Повысить уровень» panel title (white-on-blue header). The base screen_verify rule `match: increase_level.title` (priority 5, before intel@9) resolves THIS crop for wos_ru. isSearch → full-frame findIcon, so the bbox is nominal only; the title is stable across VIP levels (only the «Уровень N → N+1» numbers below it change). Crop: references/crop/increase_level_increase_level.title.png.",
+          "action": "exist",
+          "isSearch": true,
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.8333,
+            "y": 7.9687,
+            "width": 39.4444,
+            "height": 3.4375,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "screen_id": "vip",
+      "ocr": "references/page.vip.png",
+      "regions": [
+        {
+          "name": "page.vip.level",
+          "_comment": "RU VIP level digit in «Текущий уровень: VIP N». Shifted right vs the EN base bbox (61.16%): the longer RU label «Текущий уровень» pushes «VIP N» right, so the EN bbox sits on «VIP» (fast_digits → empty / the «VIP»→«МР» homoglyph). This bbox brackets the digit(s) just after «VIP », wide enough for 2 digits (VIP 10-12). Verified reading «1» on bs1 (VIP 1). The sync_vip_level.cron step supplies preprocess: fast_digits + threshold: 0.0.",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 67.3,
+            "y": 9.4,
+            "width": 6.5,
+            "height": 3.6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+id: 7-day-ru-overlay
+title: 7-Day Login (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the 7-Day Login event. Provides ONLY
+  area.yaml region overrides — the event.7-day SCREEN landmark (hero name «Молли»,
+  the RU re-skin of EN «Molly») and the global green «Получить» claim button
+  (button.claim.big, which differs from EN «Claim» in text so the EN template
+  never matches on RU). Loaded only for the wos_ru catalog; overlay regions
+  REPLACE the same-named base region by name (overlay-first merge in
+  layout.area_manifest). No scenarios/analyze of its own — the base
+  games/wos/events/7-day module owns those.
+enabled: true
+area: area.yaml
+wiki: false

@@ -2,12 +2,14 @@ screens:
   deals.hall_of_heroes:
     priority: 53
     rules:
+    # RU guess «героев» (Hall of Heroes → «Зал героев»?) — VERIFY LIVE.
     - ocr: deals.hall_of_heroes.title
-      contains: Hall of Heroes
+      contains: ["Hall of Heroes", "героев"]
       threshold: 0.9
   hall_of_heroes.witness:
     priority: 54
     rules:
+    # RU guess «Свидетель» (A Hero's Witness) — VERIFY LIVE (low confidence).
     - ocr: page.common.title
-      contains: A Hero's Witness
+      contains: ["A Hero's Witness", "Свидетель"]
       threshold: 0.8

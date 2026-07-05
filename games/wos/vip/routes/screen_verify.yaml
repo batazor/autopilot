@@ -1,10 +1,30 @@
 screens:
   vip:
-    priority: 30
+    # Checked BEFORE intel (9) and the building/storehouse screens (~86): the VIP
+    # screen carries generic landmarks that those screens' loose rules false-fire
+    # on — intel's `match: intel.title` (thr 0.6) intermittently matches the
+    # white-on-blue «VIP» title, and storehouse's `building.title contains Склад`
+    # reads the «Вместимость склада» (Storehouse Capacity) VIP benefit line. Both
+    # sit earlier in the scan than vip's old priority 30, so the node flickered to
+    # intel/storehouse. vip.title is highly specific (0.97 on VIP vs ≤0.63 on
+    # intel/main_city/increase_level/building), so winning first is safe — and it
+    # also lets vip preempt a sticky intel/storehouse hint (sticky-preempt scans
+    # earlier-priority screens). Must stay AFTER increase_level (5): the
+    # «Повысить уровень» modal sits on top of the vip screen.
+    priority: 8
     rules:
+    # Locale-tolerant title detection (OR of the two rules below).
+    # EN reads «VIP» cleanly via OCR. On RU «Белая мгла» the Tesseract lang is
+    # `rus`, which renders the Latin brand «VIP» as the Cyrillic homoglyph «МР»
+    # (~0.87) so `contains: VIP` misses and detection used to fall through to
+    # `storehouse`. The styled «VIP» title is identical pixels EN/RU, so the
+    # template OR-landmark below findIcon-matches it on both (RU ~0.97) — a
+    # language-independent fallback, same pattern as intel.title.
     - ocr: page.common.title
       contains: VIP
       threshold: 0.8
+    - match: vip.title
+      threshold: 0.9
   increase_level:
     priority: 5
     rules:

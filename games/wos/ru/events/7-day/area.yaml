@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay for the 7-Day Login event. Loaded only for the wos_ru catalog; overlay regions REPLACE the same-named base region (overlay-first merge in layout.area_manifest). Crops resolve under games/wos/ru/events/7-day/references/crop/ via the screen's `ocr`.",
+  "screens": [
+    {
+      "screen_id": "event.7-day",
+      "ocr": "references/page.7-day.png",
+      "_screen_region_note": "Detect the 7-Day Login popup by the hero-name plate «Молли» (yellow text), the RU re-skin of EN «Molly». Mirrors the base approach exactly (same bbox region). The 7-Day Login hero is FIXED (never rotates), so «Молли» is a stable landmark.",
+      "screen_region": "event.7-day",
+      "regions": [
+        {
+          "name": "event.7-day",
+          "_comment": "RU «Молли» hero-name plate. isSearch findIcon (sliding) — tolerant of the ±1px exact-size pHash trap; the text is unique to this screen so no false-fire. Crop: references/crop/page.7-day_event.7-day.png.",
+          "action": "exist",
+          "isSearch": true,
+          "threshold": 0.85,
+          "bbox": {
+            "x": 27.5,
+            "y": 44.0,
+            "width": 15.0,
+            "height": 3.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.claim.big",
+          "_comment": "GLOBAL RU override of the universal green «Получить» claim button (replaces EN «Claim», which never matches on RU because the text differs). Region-name override → applies to EVERY scenario that uses button.claim.big on the wos_ru catalog (mail/deals/events/7-day). isSearch findIcon = full-frame sliding, finds «Получить» wherever it sits. Centre ≈ 360,1059. Crop: references/crop/page.7-day_button.claim.big.png. Hosted under this overlay (not core/common) because its reference frame is captured here; functionally global.",
+          "action": "exist",
+          "isSearch": true,
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.944,
+            "y": 80.156,
+            "width": 36.111,
+            "height": 5.391,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

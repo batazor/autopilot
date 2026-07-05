@@ -72,7 +72,9 @@ def test_deals_hub_thresholds_are_live_tolerant() -> None:
     )
 
     assert edge_doc["edges"]["main_city"]["deals"]["threshold"] == 0.85
-    assert verify_doc["screens"]["deals"]["rules"][0]["threshold"] == 0.85
+    # The deals hub verify rule is OCR-based (EN/RU title tokens) — 0.8 is its
+    # OCR-confidence floor, not a template score.
+    assert verify_doc["screens"]["deals"]["rules"][0]["threshold"] == 0.8
     assert analyze_doc["overlay"][0]["threshold"] == 0.85
 
 

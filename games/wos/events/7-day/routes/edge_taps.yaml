@@ -7,4 +7,7 @@ edges:
       threshold: 0.9
 
   event.7-day:
-    main_city: [icon.page.back]
+    # Close via the panel's top-right «×» (event.7-day.close, centre ≈ 678,349),
+    # NOT icon.page.back — the 7-Day popup has no top-left back arrow, so the old
+    # blind tap landed at 44,55 and missed.
+    main_city: [event.7-day.close]

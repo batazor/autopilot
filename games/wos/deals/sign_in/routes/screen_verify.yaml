@@ -2,5 +2,6 @@ screens:
   deals.sign_in:
     priority: 50
     rules:
+    # RU guess «Вход» (Sign-in → «Ежедневный вход»?) — VERIFY LIVE.
     - ocr: deals.sign_in.title
-      contains: "Sign-in"
+      contains: ["Sign-in", "Вход"]

@@ -2,10 +2,12 @@ screens:
   deals.bank:
     priority: 52
     rules:
+      # RU guess «Банк» (Bank) — VERIFY LIVE (high confidence, cognate).
       - ocr: bank.title
-        contains: "Bank"
+        contains: ["Bank", "Банк"]
   bank.deposit_dialog:
     priority: 53
     rules:
+      # RU guess «хранения» (Storage Duration → «Срок хранения»?) — VERIFY LIVE.
       - ocr: bank.deposit_dialog.title
-        contains: "Storage Duration"
+        contains: ["Storage Duration", "хранения"]

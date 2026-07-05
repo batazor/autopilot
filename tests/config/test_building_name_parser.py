@@ -92,6 +92,9 @@ def test_every_ru_alias_targets_a_real_building(buildings):
         ("Командный центр Ур. 9", "command_center"),
         ("Угольная шахта ур. 4", "coal_mine"),
         ("Дом вождя Ур. 6", "chiefs_house"),
+        # Live «Белая мгла» Hunter's Hut plate (bs5) — the real RU title is
+        # «Охотничий домик», not the earlier guess «Хижина охотника».
+        ("Охотничий домик Ур. 2", "hunters_hut"),
     ],
 )
 def test_multiword_ru_building_names(buildings, text, expected_id):

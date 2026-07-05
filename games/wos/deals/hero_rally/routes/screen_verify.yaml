@@ -8,6 +8,7 @@ screens:
     rules:
       # Detect by the deal name (OCR), robust to art reskins — the name is
       # always in this slot. "Rally" is the reliable token ("Hero Rally").
+      # RU guess «Сбор» (Hero Rally → «Сбор героев»?) — VERIFY LIVE (low confidence).
       - ocr: hero_rally.title
-        contains: Rally
+        contains: [Rally, Сбор]
         threshold: 0.8

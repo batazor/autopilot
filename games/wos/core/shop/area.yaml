@@ -154,6 +154,8 @@
           "name": "page.shop.daily_deals.title",
           "action": "exist",
           "threshold": 0.9,
+          "preprocess": "title_line",
+          "_comment": "preprocess: title_line lets OCR read the stylized white-on-blue banner (plain OCR returns garbage). Used by the shop.daily_deals screen_verify OCR rule (contains: [Daily, Сдел]) for RU «Сделки дня» + EN «Daily Deals». bbox unchanged so the EN findIcon template (match rule) still pHash-matches the «Daily» crop.",
           "bbox": {
             "x": 4.594594594594595,
             "y": 15.869565217391305,

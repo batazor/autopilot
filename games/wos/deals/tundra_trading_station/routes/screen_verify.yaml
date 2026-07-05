@@ -5,6 +5,7 @@ screens:
     # ran. Detect by OCR of the deal name (robust to art reskins).
     priority: 52
     rules:
+      # RU guess «Тундр» (Tundra Trading Station → «Тундровая…»?) — VERIFY LIVE (cognate).
       - ocr: tundra_trading_station.title
-        contains: Tundra
+        contains: [Tundra, Тундр]
         threshold: 0.8

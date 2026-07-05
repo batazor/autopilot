@@ -60,10 +60,11 @@ def test_hall_of_heroes_title_landmark_uses_ocr_text() -> None:
 
     screen_graph.load_screen_verify_config.cache_clear()
     try:
+        # RU «Белая мгла» guess token «героев» appended (EN kept) — VERIFY LIVE.
         assert screen_graph.screen_verify_rules("deals.hall_of_heroes") == [
             {
                 "ocr": TITLE_REGION,
-                "contains": "Hall of Heroes",
+                "contains": ["Hall of Heroes", "героев"],
                 "threshold": 0.9,
             }
         ]

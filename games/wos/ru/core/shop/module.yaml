@@ -1,0 +1,13 @@
+id: shop-ru-overlay
+title: Shop (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the Shop module. Provides ONLY area.yaml
+  region overrides — the sub-page title templates that differ from EN in text, so
+  the base findIcon template fails and screen detection cannot narrow past the
+  generic `shop` hub (e.g. daily_deals «Сделки дня» vs EN «Daily Deals»). Loaded
+  only for the wos_ru catalog; overlay regions REPLACE the same-named base region
+  by name (overlay-first merge in layout.area_manifest). No scenarios/analyze of
+  its own — the base games/wos/core/shop module owns those.
+enabled: true
+area: area.yaml
+wiki: false

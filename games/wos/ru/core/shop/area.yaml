@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay for the Shop module. Loaded only for the wos_ru catalog; overlay regions REPLACE the same-named base region by name (overlay-first merge in layout.area_manifest). Page/title DETECTION is done by OCR in games/wos/core/shop/routes/screen_verify.yaml (contains: [EN, RU] tokens) — NO RU title crops. This overlay only carries the daily-deals free-chest CLAIM ICON (box.free), which is an icon-match target, not text: the EN crop bakes in a «Free» band that drops to 0.69 on the RU «Бесплат.» chest (just below the 0.70 claim trigger), so a RU icon crop is supplied. Add icon overrides here only; titles stay OCR.",
+  "screens": [
+    {
+      "screen_id": "shop.daily_deals",
+      "ocr": "references/page.shop.daily_deals.png",
+      "regions": [
+        {
+          "name": "page.shop.daily_deals.title",
+          "_comment": "RU «Сделки дня» — WIDER bbox than the EN base so OCR captures the full word «Сделки» (the narrow EN bbox cuts it to «Сдел»; w24% reads «Сделки» cleanly). action: text + preprocess: title_line (plain OCR of the stylized banner is garbage). The base screen_verify rule `ocr: page.shop.daily_deals.title contains: [Daily, Сделки]` reads HERE for wos_ru. No crop — pure OCR. EN keeps the narrow base bbox (reads «Daily»).",
+          "action": "text",
+          "preprocess": "title_line",
+          "bbox": {
+            "x": 3.2,
+            "y": 15.5,
+            "width": 24.0,
+            "height": 4.6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "box.free",
+          "_comment": "RU daily-deals free-chest claim target. The base analyze rule (shop.daily_deals.free.visible) AND the shop.daily_deals scenario (`while_match: box.free threshold 0.70`) resolve THIS crop for wos_ru. The EN crop bakes in a «Free» band that drops to 0.69 on the RU «Бесплат.» chest; this RU crop self-matches 0.94. Exact-size pHash (no isSearch) — crop is sized to the bbox. EN unaffected (base wos crop still resolves). Crop: references/crop/page.shop.daily_deals_box.free.png.",
+          "action": "exist",
+          "threshold": 0.7,
+          "bbox": {
+            "x": 6.9,
+            "y": 29.9,
+            "width": 9.3,
+            "height": 4.5,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -2,7 +2,15 @@ screens:
   hunters_hut:
     priority: 31
     rules:
-    # RU «Белая мгла»: Hunter's Hut → «Хижина охотника».
+    # RU «Белая мгла»: the live Hunter's Hut plate reads «Охотничий домик»
+    # (confirmed on bs5). «Хижина охотника» kept as a tolerant alt — a RU name
+    # that never appears simply fails to match, it can't mis-map to another
+    # screen. Without «Охотничий домик» the title OCR fell through to a loose
+    # `intel.fight.view` template and the page mis-mapped to intel.fight.
+    # title_line (psm-7 + enhance) — the white-outlined RU plate garbles under
+    # the default psm-6 block pass; the building-level reader keeps the region's
+    # raw default so its «… Ур. N» level parse is untouched.
     - ocr: building.title
-      contains: [Hunters, Хижина охотника]
+      contains: [Hunters, Охотничий домик, Хижина охотника]
       threshold: 0.8
+      preprocess: title_line

@@ -55,6 +55,9 @@
             'wait': '0.8s',
           }),
           dict({
+            'expected': list([
+              'tap anywhere',
+            ]),
             'max': 3,
             'steps': list([
               dict({

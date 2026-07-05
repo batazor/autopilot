@@ -11,6 +11,7 @@ screens:
   deals:
     priority: 60
     rules:
+    # RU guess «Сделки» (Deals hub) — VERIFY LIVE (could be «Акции»/«Предложения»).
     - ocr: page.common.title
-      contains: Deals
+      contains: [Deals, Сделки]
       threshold: 0.8

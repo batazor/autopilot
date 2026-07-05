@@ -1,0 +1,13 @@
+id: vip-ru-overlay
+title: VIP (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the VIP module. Provides ONLY area.yaml
+  region overrides — the increase_level («Повысить уровень») panel title, which
+  differs from EN «Increase Level» in text so the base findIcon template fails and
+  screen detection false-fires to intel (the bot then gets stuck on the panel with
+  no close route). Loaded only for the wos_ru catalog; overlay regions replace the
+  same-named base region by name (overlay-first merge in layout.area_manifest).
+  No scenarios/analyze of its own — the base games/wos/vip module owns those.
+enabled: true
+area: area.yaml
+wiki: false

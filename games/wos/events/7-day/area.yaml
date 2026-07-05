@@ -16,3 +16,19 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
+  # Close «×» button — top-RIGHT of the panel (NOT a top-left back arrow), centre
+  # ≈ 678,349. Blind-tap zone for the event.7-day → main_city edge: the navigator
+  # taps a string edge-region at its bbox centre (no detect gate), so the old
+  # `icon.page.back` sent the close tap to 44,55 (top-left) and missed. Position
+  # is UI chrome (language-independent) → lives in base, fixes EN + RU.
+  - name: event.7-day.close
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 91.24
+      y: 25.27
+      width: 6.0
+      height: 4.0
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280

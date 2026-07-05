@@ -11,3 +11,21 @@ overlay:
       - push_scenario:
           name: event.7-day
           ttl: 1m
+
+  # When the 7-Day Login popup is already on screen (auto-opens on login, or any
+  # entry that didn't come via the main_city icon) and the claim button is lit,
+  # claim it. Without this the popup is only handled from main_city, so an
+  # auto-opened panel falls through to dismiss_unknown_popup / gets routed home
+  # unclaimed. `region: button.claim.big` carries no `template:` so it resolves
+  # the region's own crop per catalog — EN «Claim», RU «Получить» (overlay
+  # override). Gating on the button means it only fires when a day is claimable.
+  - name: event.7-day.popup.claimable
+    region: button.claim.big
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - event.7-day
+    steps:
+      - push_scenario:
+          name: event.7-day
+          ttl: 1m

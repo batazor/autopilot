@@ -1,16 +1,17 @@
 {
   "version": 2,
-  "_comment": "RU «Белая мгла» overlay for the Shelter (Барак) interior, which stacks TWO blue «Улучшить» pills that alternate blue↔grey as you upgrade: the building pill (upper, y≈42%) and the selected-furniture pill (lower, y≈51%). The blue-CTA detector (`action: cta_button color: blue` in shelter.upgrade) skips grey pills automatically, so each is given a TIGHT anchor at its own row — a single wide anchor merges the pill with the blue panel background (lands in the gap between them) and a y≈53% anchor reaches down into the furniture thumbnail row (y≈60%) and mis-taps. shelter.upgrade re-probes both each loop iteration and long-taps whichever is blue. Matched by colour+position, no Latin template crop. Verified live on bs4 (find_blue_buttons: upper score 1.0 @ (619,531); lower 0 hits while grey).",
+  "_comment": "RU «Белая мгла» overlay for the Shelter (Барак) interior, which stacks TWO blue «Улучшить» pills that alternate blue↔grey as you upgrade: the building pill (upper, y≈42%) and the selected-furniture pill (lower, y≈51%). The blue-CTA detector (`action: cta_button color: blue` in shelter.upgrade) only matches *saturated* blue (find_blue_buttons S≥70 V≥140), so washed-out grey pills AND the pale-blue panel backdrop are skipped — earlier the backdrop registered as one giant near-square blob and the long-press landed on the card body (bs5). Each anchor still gets a TIGHT per-row `y_padding_ratio` so the upper pill's search patch does not reach DOWN into the lower row and the lower pill's does not reach UP into the upper button (default y_padding 1.0 overlapped both pills). shelter.upgrade re-probes both each loop iteration and long-taps whichever is blue. Matched by colour+position, no Latin template crop. Verified on the bs5 grey-lower-pill frame: upper hit 245x95 @ (597,524) on the button; lower → NO HIT while grey.",
   "screens": [
     {
       "screen_id": "building",
       "regions": [
         {
           "name": "upgrade_button_top",
-          "_comment": "RU building «Улучшить» pill — upper row, beside «Барак N Ур. M».",
+          "_comment": "RU building «Улучшить» pill — upper row, beside «Барак N Ур. M». y_padding_ratio kept low so the search patch stays on this row and does not merge with the panel above the title.",
           "action": "color_check",
           "type": "blue",
           "threshold": 0.45,
+          "y_padding_ratio": 0.35,
           "bbox": {
             "x": 76.0,
             "y": 39.0,
@@ -23,10 +24,11 @@
         },
         {
           "name": "upgrade_button",
-          "_comment": "RU selected-furniture «Улучшить» pill — lower row. Tight on the pill row so the blue-CTA search never drifts into the furniture thumbnail strip below (y≈60%).",
+          "_comment": "RU selected-furniture «Улучшить» pill — lower row. Tight `y_padding_ratio` keeps the blue-CTA search on this pill row so it neither reaches UP into the (blue) upper building button nor DOWN into the furniture thumbnail strip (y≈60%).",
           "action": "color_check",
           "type": "blue",
           "threshold": 0.45,
+          "y_padding_ratio": 0.30,
           "bbox": {
             "x": 74.0,
             "y": 48.0,
