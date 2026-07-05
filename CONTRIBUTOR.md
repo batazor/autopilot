@@ -106,6 +106,15 @@ uv run ruff check .
 uv run pytest -q
 ```
 
+### Pre-push hook (recommended while CI is down)
+
+A committed hook under `.githooks/` runs `ruff` + the non-integration test
+suite before every push (skip once with `git push --no-verify`):
+
+```sh
+git config core.hooksPath .githooks
+```
+
 Module-owned tests should live next to the module they protect:
 
 ```text

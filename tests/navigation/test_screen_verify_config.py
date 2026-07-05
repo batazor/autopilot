@@ -277,7 +277,10 @@ def test_production_screen_verify_yaml_contains_welcome_back_rule() -> None:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [
-        {"match": "text.welcome_back", "threshold": 0.9}
+        {"match": "text.welcome_back", "threshold": 0.9},
+        # RU fallback: the template crops English text; the OCR rule catches
+        # «С возвращением» on the RU build.
+        {"ocr": "text.welcome_back", "contains": ["Welcome", "возвращением"]},
     ]
     assert landmarks == expected
     assert rules == expected

@@ -535,6 +535,44 @@ def get_last_active_player(*device_candidates: str) -> str:
     return ""
 
 
+def first_gamer_for_device(*device_candidates: str) -> str:
+    """Return the first CONFIGURED gamer fid for a device (lowest gamer_order).
+
+    Fallback identity when no worker has resolved ``active_player`` yet (e.g.
+    headless agentctl reads with the bot stopped): the operator's account
+    mapping is the next best truth. Returns ``""`` when the device has no
+    profile/gamer rows.
+    """
+    seen: set[str] = set()
+    with _conn_lock, Session(_engine()) as s:
+        for raw in device_candidates:
+            candidate = str(raw or "").strip()
+            if not candidate or candidate in seen:
+                continue
+            seen.add(candidate)
+            canonical = _find_canonical(s, candidate)
+            if canonical is None:
+                continue
+            profile_ids = [
+                int(row.id)
+                for row in s.exec(
+                    select(DeviceProfileRow)
+                    .where(DeviceProfileRow.device_name == canonical)
+                    .order_by(col(DeviceProfileRow.profile_order))
+                ).all()
+                if row.id is not None
+            ]
+            for pid in profile_ids:
+                gamer = s.exec(
+                    select(DeviceProfileGamerRow)
+                    .where(DeviceProfileGamerRow.profile_id == pid)
+                    .order_by(col(DeviceProfileGamerRow.gamer_order))
+                ).first()
+                if gamer is not None:
+                    return str(gamer.player_id)
+    return ""
+
+
 def upsert_device_gamer(
     device_name: str,
     player_id: str,

@@ -9,7 +9,9 @@
     "start": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" next start --port 3000",
     "test": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" vitest run",
     "test:watch": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" vitest",
-    "postinstall": "node scripts/fix-svar-exports.mjs"
+    "postinstall": "node scripts/fix-svar-exports.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",

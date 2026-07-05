@@ -14,7 +14,9 @@ enabled: false
 
 cap: 200
 regen_per_hour: 12            # 1 stamina every 5 minutes
-daily_reset_utc: "02:00"      # TODO: confirm the in-game daily reset hour (UTC)
+daily_reset_utc: "02:00"      # DEFER(on-device): confirm the reset hour — watch when the daily
+                                # missions/shop refresh flips on a live account (WoS events use UTC+8
+                                # windows, so 02:00 UTC is an educated default, not a verified fact).
 overflow_horizon_hours: 1     # if stamina would cap within 1h, drain surplus now
 
 demands:

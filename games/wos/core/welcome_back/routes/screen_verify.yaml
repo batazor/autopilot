@@ -9,3 +9,10 @@ screens:
     rules:
     - match: text.welcome_back
       threshold: 0.9
+    # OR-fallback for the RU «Белая мгла» build: the template above crops the
+    # ENGLISH "Welcome back!" text, so on RU the reconnect popup was UNDETECTABLE
+    # (fell through to `rewards` via the loose blue ribbon) and the welcome-back
+    # flow never confirmed. RU guess «С возвращением» — VERIFY LIVE on the next
+    # real offline-income popup.
+    - ocr: text.welcome_back
+      contains: [Welcome, возвращением]

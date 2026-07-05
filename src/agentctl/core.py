@@ -481,7 +481,12 @@ def _latest_zset_json(client: redis.Redis, key: str) -> dict[str, Any] | None:
 
 
 def _resolve_active_fid(client: redis.Redis, instance_id: str | None = None) -> str:
-    """First non-empty active player across instances (or one instance)."""
+    """First non-empty active player across instances (or one instance).
+
+    Falls back to the devices-DB gamer mapping when Redis has no live identity
+    (worker stopped / never ran who_i_am) — so headless reads like
+    ``botctl reader-health`` show real facts instead of an all-«—» table.
+    """
     from dashboard.redis_client import get_instance_state
 
     ids = [instance_id] if instance_id else list_instances()
@@ -492,7 +497,13 @@ def _resolve_active_fid(client: redis.Redis, instance_id: str | None = None) -> 
         ap = (st.get("active_player") or st.get("current_task_player") or "").strip()
         if ap:
             return ap
-    return ""
+    try:
+        from config.devices_db import first_gamer_for_device
+
+        return first_gamer_for_device(*[i for i in ids if i])
+    except Exception:
+        # Best-effort fallback — a broken devices DB must not break Redis reads.
+        return ""
 
 
 def _player_flat(client: redis.Redis, fid: str) -> dict[str, str]:

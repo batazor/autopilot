@@ -148,8 +148,8 @@ describe("ScenarioFlow canvas", () => {
 describe("ScenarioFlow inspector", () => {
   it("shows the header form until a node is picked", () => {
     arrange();
-    expect(screen.getByText(/Click a node to edit it here/)).toBeInTheDocument();
-    expect(screen.getByText("cond (root guard, optional)")).toBeInTheDocument();
+    expect(screen.getByText(/click a node on the canvas to edit a step/)).toBeInTheDocument();
+    expect(screen.getByText("cond")).toBeInTheDocument();
   });
 
   it("opens step fields on node click and frames the region on its screen", async () => {
@@ -218,7 +218,7 @@ describe("ScenarioFlow structural edits", () => {
     next = onChange.mock.calls.at(-1)![0] as ScenarioDocument;
     expect(next.steps).toHaveLength(3);
     // Selection cleared → back to the header form.
-    expect(screen.getByText(/Click a node to edit it here/)).toBeInTheDocument();
+    expect(screen.getByText(/click a node on the canvas to edit a step/)).toBeInTheDocument();
   });
 
   it("offers break only inside loop-like containers", async () => {
