@@ -91,17 +91,25 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     assert steps[2]["exec"] == "read_intel_stamina"
     assert steps[3]["exec"] == "tap_intel_fight"
     assert steps[3]["threshold"] == 0.72
+    # Optional: tap_intel_fight may legitimately skip (claim-only pass) — the
+    # modal wait tolerates the timeout and the modal flow is cond-gated below.
     assert steps[4]["wait_screen"]["any"] == ["intel.fight"]
-    assert steps[5] == {"click": "intel.fight.view"}
-    assert steps[6]["wait_screen"]["any"] == ["intel.explore", "main_world"]
-    assert steps[7] == {"wait": "1s"}
-    assert steps[8] == {
+    assert steps[4]["wait_screen"]["optional"] is True
+    modal_branch = steps[5]
+    assert modal_branch["cond"] == "currentNode == intel.fight"
+    modal_steps = modal_branch["steps"]
+    assert modal_steps[0] == {"click": "intel.fight.view"}
+    assert modal_steps[1]["wait_screen"]["any"] == ["intel.explore", "main_world"]
+    assert modal_steps[2] == {"wait": "1s"}
+    assert modal_steps[3] == {
         "match": "intel.explore.is_blue",
         "steps": [{"click": "intel.explore"}],
         "else": [{"click": "intel.attack"}],
     }
-    assert steps[9]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
-    deploy_branch = steps[10]
+    # Optional: rescue targets dispatch instantly — no deploy screen appears.
+    assert modal_steps[4]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
+    assert modal_steps[4]["wait_screen"]["optional"] is True
+    deploy_branch = steps[6]
     assert deploy_branch["cond"] == "currentNode == heroes.deploy"
     assert deploy_branch["steps"] == [
         {"click": "heroes.deploy.equalize"},
@@ -119,12 +127,16 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
             "round_trip_multiplier": 2,
             "extra_seconds": 15,
         },
+        # Multi-march chain: spend the next free slot in the same board window.
+        {"exec": "queue_next_intel_run"},
     ]
-    squad_branch = steps[11]
+    squad_branch = steps[7]
     assert squad_branch["cond"] == "currentNode == squad_settings"
     squad_steps = squad_branch["steps"]
     assert {"click": "squad_settings.quick_deploy"} in squad_steps
     assert {"click": "squad_settings.fight"} in squad_steps
+    # Both dispatch branches end with the multi-march chain exec.
+    assert squad_steps[-1] == {"exec": "queue_next_intel_run"}
     assert not any("push_scenario" in str(step) for step in steps)
 
 

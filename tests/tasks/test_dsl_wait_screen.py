@@ -71,6 +71,104 @@ async def test_wait_screen_detects_target_and_persists_current_screen(
 
 
 @pytest.mark.asyncio
+async def test_wait_screen_optional_timeout_completes_scenario(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """``optional: true`` tolerates the timeout: step ok, scenario completes.
+
+    The intel rescue path relies on this — rescue targets dispatch instantly
+    with no deploy screen, so the post-click wait for heroes.deploy may
+    legitimately never match.
+    """
+    _write_scenario(
+        tmp_path,
+        [
+            {
+                "wait_screen": {
+                    "any": ["heroes.deploy"],
+                    "max": 2,
+                    "interval": "0ms",
+                    "optional": True,
+                }
+            },
+            {"wait": "0ms"},
+        ],
+    )
+    actions = make_actions()
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+
+    async def detect_screen(_self: object, _image: object, **_kwargs: object) -> str:
+        return "main_world"
+
+    mocker.patch("navigation.detector.ScreenDetector.detect_screen", new=detect_screen)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="wait_screen_demo",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    res = await task.execute("bs1")
+
+    assert res.success is True
+    assert (res.metadata or {}).get("scenario_completed") is True
+    # The optional timeout must not clobber current_screen with a false match.
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    assert cur != "heroes.deploy"
+
+
+@pytest.mark.asyncio
+async def test_wait_screen_optional_nested_timeout_completes_scenario(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """The nested (inside a cond group) wait_screen honours optional too —
+    mirrors intel_run's modal flow where the deploy wait sits under
+    ``cond: currentNode == intel.fight``."""
+    _write_scenario(
+        tmp_path,
+        [
+            {
+                "cond": "currentNode != main_city",
+                "steps": [
+                    {
+                        "wait_screen": {
+                            "any": ["heroes.deploy"],
+                            "max": 2,
+                            "interval": "0ms",
+                            "optional": True,
+                        }
+                    },
+                ],
+            },
+        ],
+    )
+    actions = make_actions()
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+
+    async def detect_screen(_self: object, _image: object, **_kwargs: object) -> str:
+        return "main_world"
+
+    mocker.patch("navigation.detector.ScreenDetector.detect_screen", new=detect_screen)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="wait_screen_demo",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    res = await task.execute("bs1")
+
+    assert res.success is True
+    assert (res.metadata or {}).get("scenario_completed") is True
+
+
+@pytest.mark.asyncio
 async def test_wait_screen_times_out(
     tmp_path: Path,
     mocker,

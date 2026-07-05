@@ -1,0 +1,160 @@
+"""Multi-march chaining: ``queue_next_intel_run`` re-enqueues while slots allow.
+
+The exec sits at the end of both dispatch branches of ``intel_run`` — it must
+push a follow-up run only when the march-slot view (capacity fact / default −
+occupancy − active leases) leaves a free slot AND the last stamina read covers
+another event. Termination relies on a non-dispatching run never reaching the
+exec, so these tests also pin the skip reasons.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from typing import Any
+
+import pytest
+from games.wos.intel import chain
+
+from tasks.dsl_exec.context import DslExecContext
+
+
+class _FakeRedis:
+    def __init__(self, hashes: dict[str, dict[str, Any]] | None = None) -> None:
+        self.hashes = hashes or {}
+
+    async def hgetall(self, key: str) -> dict[str, Any]:
+        return dict(self.hashes.get(key, {}))
+
+    async def hdel(self, key: str, *fields: str) -> int:
+        h = self.hashes.get(key, {})
+        for f in fields:
+            h.pop(f, None)
+        return len(fields)
+
+
+def _ctx(redis: _FakeRedis, **args: Any) -> DslExecContext:
+    return DslExecContext(
+        instance_id="bs5",
+        player_id="p1",
+        redis_client=redis,  # type: ignore[arg-type]
+        args=args,
+        result={},
+    )
+
+
+def _lease_entry(*, slots: int = 1, ttl: int = 300) -> str:
+    now = time.time()
+    return json.dumps(
+        {
+            "slots": slots,
+            "status": "confirmed",
+            "lease_end": now + ttl,
+            "confirm_by": now + ttl,
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_chains_when_slot_and_stamina_remain(monkeypatch) -> None:
+    redis = _FakeRedis({"wos:player:p1:state": {"stamina": "25"}})
+    pushed: list[dict[str, Any]] = []
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        pushed.append(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        "tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue
+    )
+    ctx = _ctx(redis)
+
+    await chain.queue_next_intel_run(ctx)
+
+    assert ctx.result["action"] == "queued"
+    assert len(pushed) == 1
+    assert pushed[0]["scenario"] == "intel_run"
+    assert pushed[0]["skip_if_duplicate"] is False
+    # capacity default 2, nothing occupied/held → 2 free
+    assert ctx.result["free_slots"] == 2
+
+
+@pytest.mark.asyncio
+async def test_skips_when_leases_fill_capacity(monkeypatch) -> None:
+    redis = _FakeRedis(
+        {
+            "wos:player:p1:state": {"stamina": "25"},
+            "wos:player:p1:resources:reservations": {
+                "a": _lease_entry(),
+                "b": _lease_entry(),
+            },
+        }
+    )
+    # Point the ledger key helper at our fake hash regardless of naming drift.
+    from games.wos.core.resources import adapter as resource_adapter
+
+    monkeypatch.setattr(
+        resource_adapter,
+        "_ledger_key",
+        lambda player_id: f"wos:player:{player_id}:resources:reservations",
+    )
+    ctx = _ctx(redis)
+
+    await chain.queue_next_intel_run(ctx)
+
+    assert ctx.result["action"] == "skipped"
+    assert ctx.result["reason"] == "no_free_march_slot"
+    assert ctx.result["held_slots"] == 2
+
+
+@pytest.mark.asyncio
+async def test_skips_on_insufficient_stamina() -> None:
+    redis = _FakeRedis({"wos:player:p1:state": {"stamina": "4"}})
+    ctx = _ctx(redis)
+
+    await chain.queue_next_intel_run(ctx)
+
+    assert ctx.result["action"] == "skipped"
+    assert ctx.result["reason"] == "insufficient_stamina"
+
+
+@pytest.mark.asyncio
+async def test_capacity_fact_overrides_default(monkeypatch) -> None:
+    redis = _FakeRedis(
+        {
+            "wos:player:p1:state": {
+                "stamina": "25",
+                "marches.capacity": "1",
+                "marches.active_count": "1",
+            }
+        }
+    )
+    ctx = _ctx(redis)
+
+    await chain.queue_next_intel_run(ctx)
+
+    assert ctx.result["action"] == "skipped"
+    assert ctx.result["reason"] == "no_free_march_slot"
+    assert ctx.result["capacity"] == 1
+
+
+@pytest.mark.asyncio
+async def test_unknown_stamina_still_chains(monkeypatch) -> None:
+    """A failed stamina read must not block the chain — the follow-up run
+    re-reads it on the board and its planner makes the real call."""
+    redis = _FakeRedis({"wos:player:p1:state": {}})
+    pushed: list[dict[str, Any]] = []
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        pushed.append(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        "tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue
+    )
+    ctx = _ctx(redis)
+
+    await chain.queue_next_intel_run(ctx)
+
+    assert ctx.result["action"] == "queued"
+    assert len(pushed) == 1

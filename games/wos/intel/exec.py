@@ -21,6 +21,9 @@ from typing import TYPE_CHECKING
 # it has no parent package and relative imports would fail. The submodules it
 # pulls in are imported as proper ``games.wos.intel.*`` package modules.
 from games.wos.intel import started as started_mem
+from games.wos.intel.chain import (
+    queue_next_intel_run as _exec_queue_next_intel_run,
+)
 from games.wos.intel.detection import (
     IntelMarker,
     _pick_marker,
@@ -375,6 +378,7 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
 
 DSL_EXEC_HANDLERS = {
     "confirm_intel_march_lease": _exec_confirm_intel_march_lease,
+    "queue_next_intel_run": _exec_queue_next_intel_run,
     "tap_intel_fight": _exec_tap_intel_fight,
     "read_intel_stamina": _exec_read_intel_stamina,
 }

@@ -650,6 +650,15 @@ class DslScenarioStepActionsMixin(_Base):
             step=step,
         )
         if not matched:
+            if self._wait_screen_is_optional(step):
+                await _mark_top_level_step_done()
+                _trace_row(
+                    _resumable_step,
+                    step,
+                    "ok",
+                    reason="wait_screen_timeout_optional",
+                )
+                return None
             await self._clear_step_context(instance_id)
             _trace_row(
                 _resumable_step,

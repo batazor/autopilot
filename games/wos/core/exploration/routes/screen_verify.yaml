@@ -49,9 +49,15 @@ screens:
     rules:
     - ocr: page.exploration.victory.title
       contains: [Victory, Победа]
+    # OR-probe for the INTEL auto-battle result card, which sits ~50px lower —
+    # the primary bbox clips its title to garbage (see the title2 region note).
+    - ocr: page.exploration.victory.title2
+      contains: [Victory, Победа]
   exploration.defeat:
     # See exploration.victory — beat the generic arena.result matcher (20).
     priority: 18
     rules:
     - ocr: exploration.defeat.title
+      contains: [Defeat, Поражение]
+    - ocr: exploration.defeat.title2
       contains: [Defeat, Поражение]

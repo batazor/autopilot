@@ -67,6 +67,22 @@ class DslScenarioInlineMixin(_Base):
     _implicit_match_for_region: str
     _exclude_match_top_lefts: dict[str, list[tuple[int, int]]]
 
+    @staticmethod
+    def _wait_screen_is_optional(step: dict[str, Any]) -> bool:
+        """Whether a ``wait_screen`` timeout should be tolerated (step ok, run on).
+
+        ``optional: true`` (on the spec dict or the step) marks waits whose
+        target screen legitimately may never appear — e.g. intel rescue targets
+        dispatch instantly with NO deploy screen, so waiting for
+        ``heroes.deploy`` after the click is a best-effort branch probe, not a
+        precondition. Default (absent) keeps the historical fatal behaviour.
+        """
+        spec = step.get("wait_screen")
+        raw = spec.get("optional") if isinstance(spec, dict) else None
+        if raw is None:
+            raw = step.get("optional")
+        return bool(raw)
+
     def _parse_wait_screen_spec(
         self, step: dict[str, Any]
     ) -> tuple[list[str], int, float]:
@@ -1194,6 +1210,11 @@ class DslScenarioInlineMixin(_Base):
                 step=step,
             )
             if not matched:
+                if self._wait_screen_is_optional(step):
+                    self._append_trace_row(
+                        trace_path, step, "ok", reason="wait_screen_timeout_optional"
+                    )
+                    return None
                 await self._clear_step_context(instance_id)
                 self._append_trace_row(
                     trace_path, step, "stopped", reason="wait_screen_timeout"

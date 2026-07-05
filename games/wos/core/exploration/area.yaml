@@ -72,6 +72,22 @@
           "isSearch": true
         },
         {
+          "name": "page.exploration.victory.title2",
+          "_comment": "Same «Victory!»/«Победа!» banner on the INTEL auto-battle result variant, whose card sits ~50px lower than the exploration squad-fight one — the primary title bbox clips it to garbage ('и'). PSM-7 title_line can't tolerate one tall bbox spanning both, so the verify rule ORs this second, lower probe (measured live on the RU intel victory: 'Победа' @0.96).",
+          "action": "text",
+          "threshold": 0.7,
+          "preprocess": "title_line",
+          "bbox": {
+            "x": 29.88416988416989,
+            "y": 33.0,
+            "width": 39.3996138996139,
+            "height": 7.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "page.exploration.victory.next",
           "action": "exist",
           "threshold": 0.9,
@@ -108,6 +124,22 @@
             "original_height": 1280
           },
           "isSearch": true
+        },
+        {
+          "name": "exploration.defeat.title2",
+          "_comment": "Lower-variant probe for the INTEL auto-battle defeat card — mirrors page.exploration.victory.title2 (the intel result card sits ~50px below the exploration one).",
+          "action": "text",
+          "threshold": 0.7,
+          "preprocess": "title_line",
+          "bbox": {
+            "x": 29.88416988416989,
+            "y": 33.0,
+            "width": 39.3996138996139,
+            "height": 7.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         },
         {
           "name": "button.to_main_city",

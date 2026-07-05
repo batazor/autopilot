@@ -417,7 +417,12 @@ def test_production_screen_verify_yaml_contains_exploration_defeat_rule() -> Non
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"ocr": "exploration.defeat.title", "contains": ["Defeat", "Поражение"]}]
+    expected = [
+        {"ocr": "exploration.defeat.title", "contains": ["Defeat", "Поражение"]},
+        # Lower-variant probe: the intel auto-battle result card sits ~50px
+        # below the exploration one (see exploration.defeat.title2).
+        {"ocr": "exploration.defeat.title2", "contains": ["Defeat", "Поражение"]},
+    ]
     assert landmarks == expected
     assert rules == expected
 

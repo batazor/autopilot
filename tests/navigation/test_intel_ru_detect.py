@@ -191,6 +191,44 @@ def test_intel_claim_all_ru_crop_matches_board() -> None:
         bind_active_module_catalog(prior)
 
 
+_VICTORY_FIXTURE = _REPO_ROOT / "tests" / "fixtures" / "intel_victory_ru_belaya_mgla.png"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_belaya_mgla_intel_victory_detects_exploration_victory() -> None:
+    """The intel auto-battle «Победа!» card must resolve to exploration.victory.
+
+    Its title sits ~50px lower than on the exploration squad-fight variant the
+    primary bbox was measured on, clipping the OCR to garbage — the
+    ``page.exploration.victory.title2`` OR-probe covers it. Without this the
+    squad_settings branch's victory wait times out and the bot strands on the
+    result card.
+    """
+    import cv2
+
+    from config.loader import get_settings
+    from navigation.detector import ScreenDetector
+    from ocr.client import OcrClient
+    from services import bind_active_module_catalog, get_active_module_catalog
+
+    assert _VICTORY_FIXTURE.is_file(), f"fixture missing: {_VICTORY_FIXTURE}"
+    _require_rus_ocr()
+
+    image = cv2.imread(str(_VICTORY_FIXTURE))
+    assert image is not None, f"failed to decode {_VICTORY_FIXTURE}"
+
+    prior = get_active_module_catalog()
+    try:
+        _bind_ru()
+        detector = ScreenDetector(OcrClient(get_settings()))
+        node = await detector.detect_screen(image)
+        assert str(node) == "exploration.victory", f"expected exploration.victory, got {node!r}"
+    finally:
+        bind_active_module_catalog(prior)
+        _rules_reset()
+
+
 def test_intel_markers_detect_on_ru_board() -> None:
     """Pin detection is locale-independent — the RU board must still yield the
     5 skull pins + the gold camp («сбор»/rescue) pin present on the capture."""
