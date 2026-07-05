@@ -3,4 +3,4 @@ screens:
     priority: 50
     rules:
       - ocr: mercenary_prestige.title
-        contains: "Mercenary"
+        contains: ["Mercenary", "Наёмн"]

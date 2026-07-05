@@ -136,11 +136,11 @@ def test_mia_fortune_hut_screen_verify_parent_and_routes() -> None:
     try:
         assert screen_graph.screen_verify_parent(SCREEN) == "deals"
         assert screen_graph.screen_verify_rules(SCREEN) == [
-            {"ocr": TITLE_REGION, "contains": "Fortune Hut"}
+            {"ocr": TITLE_REGION, "contains": ["Fortune Hut", "удач"]}
         ]
         assert screen_graph.screen_verify_parent(PACK_SCREEN) is None
         assert screen_graph.screen_verify_rules(PACK_SCREEN) == [
-            {"ocr": "page.common.title", "contains": "Fortune Token Pack", "threshold": 0.8}
+            {"ocr": "page.common.title", "contains": ["Fortune Token Pack", "жетон"], "threshold": 0.8}
         ]
         assert screen_graph.screen_verify_parent(REWARD_WISH_SCREEN) is None
         assert screen_graph.screen_verify_rules(REWARD_WISH_SCREEN) == [

@@ -85,6 +85,7 @@
         },
         {
           "name": "rewards.upgraded.tap_anywhere_to_exit",
+          "_comment": "Locale-free BLIND tap (no isSearch) — see button.tap_anywhere_to_exit: the hint is localized text, and tapping anywhere works by definition.",
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -96,7 +97,6 @@
             "original_width": 720,
             "original_height": 1280
           },
-          "isSearch": true,
           "tap_hold_ms": 200
         }
       ]
@@ -124,6 +124,7 @@
         },
         {
           "name": "claimed.tap_anywhere_to_exit",
+          "_comment": "Locale-free BLIND tap (no isSearch) — see button.tap_anywhere_to_exit: the hint is localized text, and tapping anywhere works by definition.",
           "action": "text",
           "threshold": 0.9,
           "bbox": {
@@ -135,7 +136,6 @@
             "original_width": 720,
             "original_height": 1280
           },
-          "isSearch": true,
           "type": "string",
           "tap_hold_ms": 200
         }

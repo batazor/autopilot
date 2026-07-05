@@ -4,7 +4,7 @@ screens:
     priority: 15
     rules:
     - ocr: page.common.title
-      contains: Trials
+      contains: [Trials, Испытани]
       threshold: 0.8
       tab_active: trial.day.1
   event.trials.day.2:
@@ -12,7 +12,7 @@ screens:
     priority: 15
     rules:
     - ocr: page.common.title
-      contains: Trials
+      contains: [Trials, Испытани]
       threshold: 0.8
       tab_active: trial.day.2
   event.trials.day.3:
@@ -20,7 +20,7 @@ screens:
     priority: 15
     rules:
     - ocr: page.common.title
-      contains: Trials
+      contains: [Trials, Испытани]
       threshold: 0.8
       tab_active: trial.day.3
   event.trials.day.4:
@@ -28,7 +28,7 @@ screens:
     priority: 15
     rules:
     - ocr: page.common.title
-      contains: Trials
+      contains: [Trials, Испытани]
       threshold: 0.8
       tab_active: trial.day.4
   event.trials.day.5:
@@ -36,12 +36,12 @@ screens:
     priority: 15
     rules:
     - ocr: page.common.title
-      contains: Trials
+      contains: [Trials, Испытани]
       threshold: 0.8
       tab_active: trial.day.5
   event.trials:
     priority: 30
     rules:
     - ocr: page.common.title
-      contains: Trials
+      contains: [Trials, Испытани]
       threshold: 0.8

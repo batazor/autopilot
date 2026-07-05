@@ -5,7 +5,7 @@ screens:
     # parent (mirrors event.foundry_battle / event.alliance_championship).
     rules:
       - ocr: bear_hunt.info.title
-        contains: "Bear Hunt"
+        contains: ["Bear Hunt", "Охота"]
   event.bear_hunt:
     # World-map view focused on the bear: gate detection on main_world's
     # city-return anchor and outrank the hub (priority 10) so the

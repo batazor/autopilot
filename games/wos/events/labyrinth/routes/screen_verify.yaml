@@ -2,47 +2,47 @@ screens:
   event.labyrinth:
     rules:
       - ocr: labyrinth.title
-        contains: Labyrinth
+        contains: [Labyrinth, Лабиринт]
         threshold: 0.9
 
   event.labyrinth.research_center:
     rules:
       - ocr: labyrinth.cave.title
-        contains: Research Center
+        contains: [Research Center, Исследовательск]
         match: labyrinth.cave.challenge
         threshold: 0.85
 
   event.labyrinth.land_of_heroes:
     rules:
       - ocr: labyrinth.cave.title
-        contains: Land of Heroes
+        contains: [Land of Heroes, героев]
         match: labyrinth.cave.challenge
         threshold: 0.85
 
   event.labyrinth.cave_of_monsters:
     rules:
       - ocr: labyrinth.cave.title
-        contains: Cave of Monsters
+        contains: [Cave of Monsters, Пещера]
         match: labyrinth.cave.challenge
         threshold: 0.85
 
   event.labyrinth.charm_mine:
     rules:
       - ocr: labyrinth.cave.title
-        contains: Charm Mine
+        contains: [Charm Mine, Шахта]
         match: labyrinth.cave.challenge
         threshold: 0.85
 
   event.labyrinth.gear_forge:
     rules:
       - ocr: labyrinth.cave.title
-        contains: Gear Forge
+        contains: [Gear Forge, Кузниц]
         match: labyrinth.cave.challenge
         threshold: 0.85
 
   event.labyrinth.gaia_heart:
     rules:
       - ocr: labyrinth.cave.title
-        contains: Gaia Heart
+        contains: [Gaia Heart, Гайи]
         match: labyrinth.cave.challenge
         threshold: 0.85

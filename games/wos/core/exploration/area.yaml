@@ -175,7 +175,22 @@
         },
         {
           "name": "button.to_main_city",
-          "_comment": "Locale-free BLIND tap (no isSearch): the EN 'Return to City' crop never matches the RU «Вернуться в город», so the recovery edge off the defeat screen cancelled every tap and who_i_am looped navigation_failed. The bbox is narrowed to the x-overlap of both layouts: the plain result card centres one button (~30-67%), the RU upsell card puts it left (~7-49%) — any point in 34-46% lands on the button in both.",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.067318111196904,
+            "y": 81.3019213886064,
+            "width": 33.7898389440167,
+            "height": 4.616779342602974,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "button.to_main_city_tap",
+          "_comment": "Navigation tap override (TapExecutor prefers `<region>_tap`): a locale-free BLIND tap. The base region's EN 'Return to City' crop never matches the RU «Вернуться в город», so the recovery edge off the defeat screen cancelled every tap and who_i_am looped navigation_failed. The bbox is the x-overlap of both card layouts: the plain result card centres the button (~30-67%), the RU upsell card puts it left (~7-49%) — any point in 34-46% lands on the button in both. The base region keeps its crop+isSearch for overlay detection on EN frames.",
           "action": "exist",
           "threshold": 0.9,
           "bbox": {

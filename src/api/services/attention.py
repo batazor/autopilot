@@ -331,6 +331,28 @@ def _instance_items(
     return items, live
 
 
+def _managed_instance_ids(client: redis.Redis) -> set[str] | None:
+    """Instance ids a LIVE supervisor currently manages, or None when unknown.
+
+    A supervisor started with a ``WOS_INSTANCES`` allowlist deliberately runs a
+    subset of the registered devices; it advertises that subset under a TTL'd
+    key (see ``worker.supervisor._publish_managed_instances``). Health views run
+    WITHOUT that env and load the full registry — without this signal every
+    excluded instance reads as a critical ``worker_down``. ``None`` (no key /
+    Redis error) means "no live filtered supervisor": keep legacy behaviour.
+    """
+    try:
+        from worker.supervisor import MANAGED_INSTANCES_KEY
+
+        raw = client.get(MANAGED_INSTANCES_KEY)
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    text = raw.decode() if isinstance(raw, bytes) else str(raw)
+    return {s.strip() for s in text.split(",") if s.strip()}
+
+
 def _bot_process_running() -> bool:
     """Best-effort: is a local supervisor process alive?
 
@@ -371,6 +393,16 @@ def build_attention_view(client: redis.Redis) -> dict[str, Any]:
         # supervisor IS running with zero live workers, the per-instance
         # worker_down items are a real crash signal and stay.
         per_instance = [i for i in per_instance if i["kind"] != "worker_down"]
+    managed = _managed_instance_ids(client)
+    if managed is not None:
+        # A live supervisor advertises the (possibly WOS_INSTANCES-filtered)
+        # subset it actually runs — an excluded instance without a worker is
+        # the operator's choice, not a crash.
+        per_instance = [
+            i
+            for i in per_instance
+            if i["kind"] != "worker_down" or i["instance_id"] in managed
+        ]
     items.extend(per_instance)
 
     items.sort(key=lambda i: (i["severity"] != SEVERITY_CRITICAL, i["instance_id"]))

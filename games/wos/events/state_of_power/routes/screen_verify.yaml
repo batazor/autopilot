@@ -6,5 +6,5 @@ screens:
       # so a fixed crop goes stale. The title shows only when SoP is the active
       # screen. (see [[ocr-screen-verify-reskinnable-titles]])
       - ocr: state_of_power.title
-        contains: "State of Power"
+        contains: ["State of Power", "могуществ"]
         threshold: 0.8

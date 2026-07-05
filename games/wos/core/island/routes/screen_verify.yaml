@@ -12,6 +12,6 @@ screens:
     priority: 8
     rules:
       - ocr: island.title
-        contains: Island
+        contains: [Island, Остров]
         threshold: 0.6
         preprocess: title_line

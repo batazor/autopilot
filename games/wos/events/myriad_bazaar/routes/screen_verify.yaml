@@ -3,4 +3,4 @@ screens:
     priority: 5
     rules:
       - ocr: myriad_bazaar.title
-        contains: "Myriad Bazaar"
+        contains: ["Myriad Bazaar", "Базар"]

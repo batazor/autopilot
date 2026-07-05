@@ -241,6 +241,26 @@ def test_all_workers_down_with_bot_process_is_a_crash(
     assert _kinds(_view()) == ["worker_down", "worker_down"]
 
 
+def test_unmanaged_instance_worker_down_is_not_a_crash(fleet) -> None:
+    """A WOS_INSTANCES-filtered supervisor advertises what it runs; instances
+    the operator deliberately excluded must not read as critical worker_down."""
+    from worker.supervisor import MANAGED_INSTANCES_KEY
+
+    fleet.states["bs1"] = {
+        "worker_started_at": str(fleet.now - 9000),
+        "last_seen_at": str(fleet.now - 9000),
+    }
+    client = _FakeRedis()
+    client.set(MANAGED_INSTANCES_KEY, "bs2")   # live supervisor runs only bs2
+    assert _kinds(_view(client)) == []
+
+    # The same stale state on a MANAGED instance stays a real crash signal.
+    client.set(MANAGED_INSTANCES_KEY, "bs1,bs2")
+    view = _view(client)
+    assert _kinds(view) == ["worker_down"]
+    assert view["items"][0]["instance_id"] == "bs1"
+
+
 def test_queue_stuck_only_beyond_threshold_and_only_when_live(fleet) -> None:
     fleet.queue_heads["bs1"] = SimpleNamespace(
         scheduled_at=fleet.now - 60, task_type="check_main_city"

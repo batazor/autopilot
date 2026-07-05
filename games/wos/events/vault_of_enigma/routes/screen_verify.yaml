@@ -4,4 +4,4 @@ screens:
     parent: deals
     rules:
     - ocr: vault_of_enigma.title
-      contains: "Vault"
+      contains: ["Vault", "Хранилищ"]

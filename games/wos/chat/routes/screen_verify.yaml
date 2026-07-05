@@ -15,7 +15,7 @@ screens:
     priority: 30
     rules:
     - ocr: page.common.title
-      contains: Chat
+      contains: [Chat, Чат]
       threshold: 0.8
 
   chat.world:
@@ -23,7 +23,7 @@ screens:
     priority: 15
     rules:
     - ocr: page.common.title
-      contains: Chat
+      contains: [Chat, Чат]
       threshold: 0.8
       tab_active: chat.world
       max_mean_saturation: 70
@@ -33,7 +33,7 @@ screens:
     priority: 15
     rules:
     - ocr: page.common.title
-      contains: Chat
+      contains: [Chat, Чат]
       threshold: 0.8
       tab_active: chat.alliance
       max_mean_saturation: 70
@@ -43,7 +43,7 @@ screens:
     priority: 15
     rules:
     - ocr: page.common.title
-      contains: Chat
+      contains: [Chat, Чат]
       threshold: 0.8
       tab_active: chat.personal
       max_mean_saturation: 70

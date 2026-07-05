@@ -68,7 +68,9 @@ def test_mail_tab_strip_red_dot_pushes_tab_claim_scenario() -> None:
         {
             "type": "mail.claim.starred",
             "priority": None,
-            "ttl": None,
+            # Rule-level ``push_ttl: 5m`` — the anti-flood for red dots the
+            # claim scenario can't clear (rewardless mail); see tab_active.yaml.
+            "ttl": 300,
             "dsl_scenario": None,
         }
     ]

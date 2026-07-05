@@ -25,7 +25,7 @@ screens:
       min_component_y_ratio: 0.04
       min_component_height_ratio: 0.7
       ocr: rewards.upgraded.title
-      contains: "Upgraded"
+      contains: ["Upgraded", "Улучшен"]
 
   rewards:
     priority: 5

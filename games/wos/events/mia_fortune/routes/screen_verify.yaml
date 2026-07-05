@@ -4,12 +4,12 @@ screens:
     parent: deals
     rules:
       - ocr: mia_fortune_hut.title
-        contains: "Fortune Hut"
+        contains: ["Fortune Hut", "удач"]
   deals.mia_fortune_hut.fortune_token_pack:
     priority: 55
     rules:
       - ocr: page.common.title
-        contains: Fortune Token Pack
+        contains: [Fortune Token Pack, жетон]
         threshold: 0.8
   deals.mia_fortune_hut.reward_wish:
     priority: 56

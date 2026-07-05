@@ -63,7 +63,7 @@ def test_state_of_power_screen_verify_reads_title_by_ocr() -> None:
     # OCR the page title (tolerates per-phase banner reskins, and avoids the tab
     # template false-positiving on sibling carousel pages).
     rule = next(r for r in rules if r.get("ocr") == "state_of_power.title")
-    assert rule["contains"] == "State of Power"
+    assert rule["contains"] == ["State of Power", "могуществ"]
 
 
 def test_state_of_power_area_declares_assist_regions() -> None:

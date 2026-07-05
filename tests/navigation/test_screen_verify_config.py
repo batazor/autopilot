@@ -307,7 +307,9 @@ def test_production_screen_verify_yaml_contains_mail_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"ocr": "page.common.title", "contains": "Mail", "threshold": 0.8}]
+    expected = [
+        {"ocr": "page.common.title", "contains": ["Mail", "Почта"], "threshold": 0.8}
+    ]
     assert landmarks == expected
     assert rules == expected
 
@@ -427,6 +429,9 @@ def test_production_screen_verify_yaml_contains_exploration_defeat_rule() -> Non
         # Lower-variant probe: the intel auto-battle result card sits ~50px
         # below the exploration one (see exploration.defeat.title2).
         {"ocr": "exploration.defeat.title2", "contains": ["Defeat", "Поражение"]},
+        # Higher-variant probe: the RU squad-fight card with upsell rows draws
+        # the banner ~60px above the primary bbox (exploration.defeat.title0).
+        {"ocr": "exploration.defeat.title0", "contains": ["Defeat", "Поражение"]},
     ]
     assert landmarks == expected
     assert rules == expected
@@ -446,7 +451,7 @@ def test_production_screen_verify_yaml_contains_mail_tab_rules() -> None:
             expected = [
                 {
                     "ocr": "page.common.title",
-                    "contains": "Mail",
+                    "contains": ["Mail", "Почта"],
                     "threshold": 0.8,
                     "tab_active": tab_region,
                 }
@@ -500,14 +505,16 @@ def test_production_screen_verify_yaml_contains_trials_day_rules() -> None:
             expected = [
                 {
                     "ocr": "page.common.title",
-                    "contains": "Trials",
+                    "contains": ["Trials", "Испытани"],
                     "threshold": 0.8,
                     "tab_active": f"trial.day.{day}",
                 }
             ]
             assert screen_graph.screen_landmark_rules(screen) == expected
             assert screen_graph.screen_verify_rules(screen) == expected
-        expected_base = [{"ocr": "page.common.title", "contains": "Trials", "threshold": 0.8}]
+        expected_base = [
+            {"ocr": "page.common.title", "contains": ["Trials", "Испытани"], "threshold": 0.8}
+        ]
         assert screen_graph.screen_landmark_rules("event.trials") == expected_base
         assert screen_graph.screen_verify_rules("event.trials") == expected_base
     finally:
@@ -592,7 +599,7 @@ def test_production_screen_verify_yaml_contains_rewards_upgraded_rule() -> None:
         {
             "match": "rewards.ribbon",
             "ocr": "rewards.upgraded.title",
-            "contains": "Upgraded",
+            "contains": ["Upgraded", "Улучшен"],
             "action": "reward_ribbon",
             "type": "orange",
             "threshold": 0.35,

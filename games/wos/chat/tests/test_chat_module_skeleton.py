@@ -43,7 +43,7 @@ def test_screen_verify_detects_tabs_via_tab_active() -> None:
     # Parent screen: common OCR title.
     assert screens["chat"]["rules"][0] == {
         "ocr": "page.common.title",
-        "contains": "Chat",
+        "contains": ["Chat", "Чат"],
         "threshold": 0.8,
     }
 
@@ -52,7 +52,7 @@ def test_screen_verify_detects_tabs_via_tab_active() -> None:
         assert screens[node]["parent"] == "chat"
         rule = screens[node]["rules"][0]
         assert rule["ocr"] == "page.common.title"
-        assert rule["contains"] == "Chat"
+        assert rule["contains"] == ["Chat", "Чат"]
         # Active-tab is read off the tab button region itself.
         assert rule["tab_active"] == node
 

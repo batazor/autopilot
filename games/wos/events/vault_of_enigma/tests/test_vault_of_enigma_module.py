@@ -64,7 +64,7 @@ def test_screen_verify_registers_deals_vault_of_enigma() -> None:
         # Title verified by OCR (reskin-proof): the banner text reads "Vault"
         # cleanly, which is more robust than template-matching the small,
         # ribbon-overprinted title icon.
-        expected = [{"ocr": "vault_of_enigma.title", "contains": "Vault"}]
+        expected = [{"ocr": "vault_of_enigma.title", "contains": ["Vault", "Хранилищ"]}]
         assert screen_graph.screen_verify_rules("deals.vault_of_enigma") == expected
         assert screen_graph.screen_landmark_rules("deals.vault_of_enigma") == expected
     finally:

@@ -47,6 +47,11 @@ _STABILITY_WINDOW_SECONDS = 300.0
 # supervisor is considered hung and ``/health`` reports 503. Generous vs the
 # 1s cadence so a brief stall (e.g. a slow respawn) doesn't flap the probe.
 _HEALTH_STALE_SECONDS = 30.0
+
+# Which instances a live supervisor manages (see _publish_managed_instances).
+MANAGED_INSTANCES_KEY = "wos:bot:managed_instances"
+_MANAGED_PUBLISH_EVERY_S = 10.0
+_MANAGED_TTL_S = 30
 _shutdown = False
 _child_shutdown_requested = False
 _CHILD_SHUTDOWN_GRACE_S = 0.2
@@ -237,12 +242,42 @@ class Supervisor:
         # / the ``/health`` endpoint. Seeded to "now" so the probe is green from
         # construction (before ``run()`` takes its first tick).
         self._last_tick = time.monotonic()
+        self._managed_redis: Any | None = None
+        self._managed_published_at = 0.0
 
     def is_healthy(self) -> bool:
         """True while the reconcile loop is ticking (not shut down / not hung)."""
         if _shutdown:
             return False
         return (time.monotonic() - self._last_tick) < _HEALTH_STALE_SECONDS
+
+    def _publish_managed_instances(self, now_monotonic: float) -> None:
+        """Advertise which instances THIS supervisor run manages (best-effort).
+
+        With a ``WOS_INSTANCES`` allowlist the supervisor deliberately spawns a
+        subset of the registered devices; health consumers that load the full
+        registry (botctl fleet-health, the dashboard attention feed run WITHOUT
+        that env) would otherwise flag every excluded instance as a critical
+        ``worker_down``. The key is TTL'd so a dead supervisor stops claiming
+        anything and the "whole bot stopped" heuristics take back over.
+        """
+        if now_monotonic - self._managed_published_at < _MANAGED_PUBLISH_EVERY_S:
+            return
+        self._managed_published_at = now_monotonic
+        try:
+            import redis
+
+            if self._managed_redis is None:
+                self._managed_redis = redis.Redis.from_url(
+                    self._settings.redis.url, socket_connect_timeout=2.0
+                )
+            ids = ",".join(
+                sorted(name for name in self._processes if name != "scheduler")
+            )
+            self._managed_redis.set(MANAGED_INSTANCES_KEY, ids, ex=_MANAGED_TTL_S)
+        except Exception:
+            logger.debug("managed-instances publish failed", exc_info=True)
+            self._managed_redis = None
 
     def _spawn_worker(self, instance_config: InstanceConfig) -> multiprocessing.Process:
         proc = multiprocessing.Process(
@@ -449,6 +484,7 @@ class Supervisor:
         while not _shutdown:
             now = time.monotonic()
             self._last_tick = now  # heartbeat for the /health endpoint
+            self._publish_managed_instances(now)
             if self._device_reconcile_requested():
                 self._reconcile_devices()
             for name, proc in list(self._processes.items()):

@@ -2,7 +2,7 @@ screens:
   event.romance_season:
     rules:
       - ocr: romance_season.title
-        contains: "Romance Season"
+        contains: ["Romance Season", "романтик"]
 
   romance_season.target:
     priority: 5
@@ -15,4 +15,4 @@ screens:
     terminal: true
     rules:
       - ocr: rosarion.title
-        contains: "Rosarion"
+        contains: ["Rosarion", "Розарион"]

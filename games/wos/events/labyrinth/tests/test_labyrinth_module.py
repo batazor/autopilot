@@ -27,36 +27,42 @@ CAVES = {
         "route": "labyrinth.to.land_of_heroes",
         "slot": "left",
         "title": "Land of Heroes",
+        "title_ru": "героев",
         "days": ["Monday", "Tuesday"],
     },
     "event.labyrinth.cave_of_monsters": {
         "route": "labyrinth.to.cave_of_monsters",
         "slot": "left",
         "title": "Cave of Monsters",
+        "title_ru": "Пещера",
         "days": ["Wednesday", "Thursday"],
     },
     "event.labyrinth.charm_mine": {
         "route": "labyrinth.to.charm_mine",
         "slot": "right",
         "title": "Charm Mine",
+        "title_ru": "Шахта",
         "days": ["Wednesday", "Thursday"],
     },
     "event.labyrinth.research_center": {
         "route": "labyrinth.to.research_center",
         "slot": "left",
         "title": "Research Center",
+        "title_ru": "Исследовательск",
         "days": ["Friday", "Saturday"],
     },
     "event.labyrinth.gear_forge": {
         "route": "labyrinth.to.gear_forge",
         "slot": "right",
         "title": "Gear Forge",
+        "title_ru": "Кузниц",
         "days": ["Friday", "Saturday"],
     },
     "event.labyrinth.gaia_heart": {
         "route": "labyrinth.to.gaia_heart",
         "slot": "bottom",
         "title": "Gaia Heart",
+        "title_ru": "Гайи",
         "days": ["Sunday"],
     },
 }
@@ -231,7 +237,7 @@ def test_labyrinth_screen_verify_uses_title() -> None:
         expected = [
             {
                 "ocr": "labyrinth.title",
-                "contains": "Labyrinth",
+                "contains": ["Labyrinth", "Лабиринт"],
                 "threshold": 0.9,
             }
         ]
@@ -241,7 +247,7 @@ def test_labyrinth_screen_verify_uses_title() -> None:
             assert screen_graph.screen_verify_rules(cave_node) == [
                 {
                     "ocr": "labyrinth.cave.title",
-                    "contains": cave["title"],
+                    "contains": [cave["title"], cave["title_ru"]],
                     "match": "labyrinth.cave.challenge",
                     "threshold": 0.85,
                 }

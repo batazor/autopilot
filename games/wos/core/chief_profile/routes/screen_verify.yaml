@@ -20,4 +20,4 @@ screens:
     priority: 30
     rules:
     - ocr: troops_preview.title
-      contains: "Troops Preview"
+      contains: ["Troops Preview", "войск"]
