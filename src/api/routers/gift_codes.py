@@ -39,6 +39,30 @@ async def get_poll_status(game: str = Query(default="wos")) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+class ManualCodeIn(BaseModel):
+    code: str
+
+
+@router.post("/codes")
+def add_code(
+    payload: ManualCodeIn, game: str = Query(default="wos")
+) -> dict[str, Any]:
+    """Add an operator-typed gift code (manual entry for the RU shard)."""
+    try:
+        return svc.add_manual_code(game=game, code=payload.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/codes/{code}")
+def delete_code(code: str, game: str = Query(default="wos")) -> dict[str, Any]:
+    """Remove a manually-added gift code (typo recovery)."""
+    try:
+        return svc.delete_manual_code(game=game, code=code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/redeem")
 async def post_redeem(game: str = Query(default="wos")) -> dict[str, Any]:
     try:

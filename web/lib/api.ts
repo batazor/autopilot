@@ -1438,6 +1438,24 @@ export async function scrapeGiftCodes(
   return apiFetch(`/api/gift-codes/scrape?${q}`, { method: "POST" });
 }
 
+export async function addGiftCode(
+  game: string,
+  code: string,
+): Promise<{ ok: boolean; game: string; code: string; created: boolean }> {
+  const q = new URLSearchParams({ game }).toString();
+  return apiFetch(`/api/gift-codes/codes?${q}`, jsonInit("POST", { code }));
+}
+
+export async function deleteGiftCode(
+  game: string,
+  code: string,
+): Promise<{ ok: boolean; game: string; code: string }> {
+  const q = new URLSearchParams({ game }).toString();
+  return apiFetch(`/api/gift-codes/codes/${encodeURIComponent(code)}?${q}`, {
+    method: "DELETE",
+  });
+}
+
 export async function redeemGiftCodes(
   game = "wos",
 ): Promise<{

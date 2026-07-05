@@ -16,6 +16,7 @@ class RedeemStatus(StrEnum):
     CDK_NOT_FOUND = "CDK_NOT_FOUND"
     STOVE_LEVEL_TOO_LOW = "STOVE_LEVEL_TOO_LOW"
     VIP_LEVEL_TOO_LOW = "VIP_LEVEL_TOO_LOW"
+    ROLE_NOT_FOUND = "ROLE_NOT_FOUND"  # account FID has no role on this shard (Century 40001)
     FAILED = "FAILED"
 
 
@@ -67,6 +68,7 @@ class GiftCode(BaseModel):
             RedeemStatus.CDK_NOT_FOUND,
             RedeemStatus.STOVE_LEVEL_TOO_LOW,
             RedeemStatus.VIP_LEVEL_TOO_LOW,
+            RedeemStatus.ROLE_NOT_FOUND,
         )
 
 

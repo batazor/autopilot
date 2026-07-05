@@ -203,6 +203,30 @@ async def test_redeem_one_returns_success_on_first_attempt(
 
 
 @pytest.mark.asyncio
+async def test_redeem_one_returns_role_not_found_on_40001(
+    tmp_path: Path, mocker: MockerFixture, _no_sleep: None
+) -> None:
+    """A Century 40001 ("role not exist") at login is a benign, permanent skip —
+    no captcha call, no traceback, status ROLE_NOT_FOUND."""
+    mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
+    r = GiftCodeRedeemer()
+    r._client = _client_mock()
+    r._client.fetch_player = AsyncMock(
+        side_effect=CenturyAPIError(
+            "player fetch failed: role not exist err_code=40001",
+            err_code=ErrCode.ROLE_NOT_EXIST.value,
+            endpoint="player",
+        )
+    )
+
+    status, ec, msg = await r._redeem_one(123, "CODE")
+
+    assert status == RedeemStatus.ROLE_NOT_FOUND
+    assert ec is None and msg is None
+    r._client.fetch_captcha.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_redeem_one_returns_failed_when_login_fails(
     tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
@@ -362,6 +386,44 @@ async def test_redeem_all_propagates_cdk_not_found_to_every_player(
     # SQLite bulk-stamp: every player row marked terminal.
     for pid in ("1", "2", "3"):
         assert get_redemption("DEAD", pid) == RedeemStatus.CDK_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_redeem_all_skips_role_less_account_for_remaining_codes(
+    sqlite_db: Path, tmp_path: Path, mocker: MockerFixture, _no_sleep: None
+) -> None:
+    """An account that 40001s ("role not exist") is hit once, then stamped
+    terminal for every remaining code without another Century call."""
+    upsert_code("CODE1")
+    upsert_code("CODE2")
+    mocker.patch.object(redeemer, "load_devices", return_value=_registry(1, 2))
+    mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
+
+    role_err = CenturyAPIError(
+        "role not exist", err_code=ErrCode.ROLE_NOT_EXIST.value, endpoint="player"
+    )
+    # Player 1 (good) logs in; player 2 always 40001s.
+    def _fetch_player(fid: int) -> object:
+        if fid == 2:
+            raise role_err
+        return MagicMock()
+
+    r = GiftCodeRedeemer()
+    r._client = _client_mock(
+        captcha_calls=[MagicMock(img_b64="img1"), MagicMock(img_b64="img2")],
+        redeem_calls=[(ErrCode.SUCCESS, "ok"), (ErrCode.SUCCESS, "ok")],
+    )
+    r._client.fetch_player = AsyncMock(side_effect=_fetch_player)
+
+    summary = await r.redeem_all()
+
+    # Player 2 reaches Century exactly once across both codes (first code only).
+    assert r._client.fetch_player.await_args_list.count(mocker.call(2)) == 1
+    # Both codes are stamped terminal for the role-less account.
+    for code in ("CODE1", "CODE2"):
+        assert get_redemption(code, "2") == RedeemStatus.ROLE_NOT_FOUND
+        assert get_redemption(code, "1") == RedeemStatus.SUCCESS
+    assert summary.counts_by_status().get("ROLE_NOT_FOUND") == 1
 
 
 @pytest.mark.asyncio

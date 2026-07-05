@@ -7,7 +7,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
+from api.routers import gift_codes as gift_codes_router
 from api.services import gift_codes_api
 from config.devices import DeviceEntry, DeviceProfile, DeviceRegistry, Gamer
 from config.giftcodes_db import upsert_code
@@ -87,6 +90,106 @@ def test_beta_view_marks_codes_as_manual_in_game(sqlite_db: Path) -> None:
     assert view["redeem_supported"] is False
     assert view["apply_mode"] == "in_game_player"
     assert view["active"][0]["needs_run"] is False
+
+
+def test_wos_ru_registered_as_manual_in_game_source() -> None:
+    spec = gift_codes_api._GIFT_CODE_GAMES["wos_ru"]
+
+    assert spec.manual_source is True
+    assert spec.redeem_supported is False
+    assert spec.apply_mode == "in_game_player"
+
+
+def test_wos_ru_view_is_manual_source(sqlite_db: Path) -> None:
+    upsert_code("RUCODE1", game="wos_ru")
+
+    view = gift_codes_api.build_gift_codes_view(game="wos_ru")
+
+    assert view["manual_source"] is True
+    assert view["redeem_supported"] is False
+    assert view["apply_mode"] == "in_game_player"
+    assert view["active"][0]["code"] == "RUCODE1"
+
+
+def test_wos_view_is_not_manual_source(sqlite_db: Path) -> None:
+    view = gift_codes_api.build_gift_codes_view(game="wos")
+
+    assert view["manual_source"] is False
+
+
+def test_add_manual_code_inserts_and_is_idempotent(sqlite_db: Path) -> None:
+    from config.giftcodes_db import code_exists, list_codes
+
+    first = gift_codes_api.add_manual_code(game="wos_ru", code="  RUCODE2 ")
+
+    assert first == {"ok": True, "game": "wos_ru", "code": "RUCODE2", "created": True}
+    assert code_exists("RUCODE2", game="wos_ru")
+    assert [c.name for c in list_codes(game="wos_ru")] == ["RUCODE2"]
+
+    again = gift_codes_api.add_manual_code(game="wos_ru", code="RUCODE2")
+
+    assert again["created"] is False  # already present → idempotent
+
+
+@pytest.mark.parametrize("bad", ["", "   ", "AB CD", "AB\tCD"])
+def test_add_manual_code_rejects_blank_or_spaced_codes(sqlite_db: Path, bad: str) -> None:
+    with pytest.raises(ValueError, match="code"):
+        gift_codes_api.add_manual_code(game="wos_ru", code=bad)
+
+
+def test_add_manual_code_rejects_unknown_game(sqlite_db: Path) -> None:
+    with pytest.raises(ValueError, match="unknown gift-code game"):
+        gift_codes_api.add_manual_code(game="nope", code="X")
+
+
+def test_delete_manual_code_removes(sqlite_db: Path) -> None:
+    from config.giftcodes_db import code_exists
+
+    gift_codes_api.add_manual_code(game="wos_ru", code="RUCODE3")
+    assert code_exists("RUCODE3", game="wos_ru")
+
+    result = gift_codes_api.delete_manual_code(game="wos_ru", code="RUCODE3")
+
+    assert result == {"ok": True, "game": "wos_ru", "code": "RUCODE3"}
+    assert not code_exists("RUCODE3", game="wos_ru")
+
+
+def _gift_codes_client() -> TestClient:
+    app = FastAPI()
+    app.include_router(gift_codes_router.router)
+    return TestClient(app)
+
+
+def test_manual_code_routes_add_view_and_delete(sqlite_db: Path) -> None:
+    client = _gift_codes_client()
+
+    added = client.post("/api/gift-codes/codes?game=wos_ru", json={"code": "ROUTE1"})
+    assert added.status_code == 200
+    assert added.json() == {
+        "ok": True,
+        "game": "wos_ru",
+        "code": "ROUTE1",
+        "created": True,
+    }
+
+    view = client.get("/api/gift-codes?game=wos_ru").json()
+    assert view["manual_source"] is True
+    assert any(row["code"] == "ROUTE1" for row in view["active"])
+
+    removed = client.delete("/api/gift-codes/codes/ROUTE1?game=wos_ru")
+    assert removed.status_code == 200
+    assert removed.json() == {"ok": True, "game": "wos_ru", "code": "ROUTE1"}
+
+    after = client.get("/api/gift-codes?game=wos_ru").json()
+    assert not any(row["code"] == "ROUTE1" for row in after["active"])
+
+
+def test_add_code_route_rejects_blank_with_400(sqlite_db: Path) -> None:
+    client = _gift_codes_client()
+
+    resp = client.post("/api/gift-codes/codes?game=wos_ru", json={"code": "   "})
+
+    assert resp.status_code == 400
 
 
 def test_discord_config_is_saved_without_exposing_token(sqlite_db: Path) -> None:

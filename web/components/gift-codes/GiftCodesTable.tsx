@@ -6,10 +6,14 @@ export function GiftCodesTable({
   rows,
   playerIds,
   title,
+  onDeleteCode,
 }: {
   rows: GiftCodeRow[];
   playerIds: string[];
   title: string;
+  // When provided (manual-entry builds), each row gets a remove button so a
+  // mistyped code can be dropped.
+  onDeleteCode?: (code: string) => void;
 }) {
   if (!rows.length) return null;
   return (
@@ -27,6 +31,7 @@ export function GiftCodesTable({
               {playerIds.map((pid) => (
                 <th key={pid}>{pid}</th>
               ))}
+              {onDeleteCode ? <th>Remove</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -54,6 +59,18 @@ export function GiftCodesTable({
                     </td>
                   );
                 })}
+                {onDeleteCode ? (
+                  <td>
+                    <button
+                      type="button"
+                      className="btn-secondary px-2 py-1 text-xs"
+                      title={`Remove ${r.code}`}
+                      onClick={() => onDeleteCode(r.code)}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

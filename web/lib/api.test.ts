@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  addGiftCode,
   ApiError,
   apiErrorReport,
   createQueueTask,
+  deleteGiftCode,
   describeApiError,
   discardLabelingCapture,
   fetchLabelingScreenIds,
@@ -23,6 +25,40 @@ function mockFetchJson(body: unknown) {
     text: async () => JSON.stringify(body),
   } as Response);
 }
+
+describe("manual gift-code entry", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("POSTs the code in the body with the game in the query", async () => {
+    const fetchMock = mockFetchJson({
+      ok: true,
+      game: "wos_ru",
+      code: "ABC123",
+      created: true,
+    });
+
+    await addGiftCode("wos_ru", "ABC123");
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/api/gift-codes/codes");
+    expect(String(url)).toContain("game=wos_ru");
+    expect((init as RequestInit)?.method).toBe("POST");
+    expect(JSON.parse(String((init as RequestInit)?.body))).toEqual({ code: "ABC123" });
+  });
+
+  it("DELETEs by URL-encoded code with the game in the query", async () => {
+    const fetchMock = mockFetchJson({ ok: true, game: "wos_ru", code: "A B" });
+
+    await deleteGiftCode("wos_ru", "A B");
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/api/gift-codes/codes/A%20B");
+    expect(String(url)).toContain("game=wos_ru");
+    expect((init as RequestInit)?.method).toBe("DELETE");
+  });
+});
 
 describe("labeling API game scope", () => {
   beforeEach(() => {

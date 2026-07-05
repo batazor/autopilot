@@ -16,6 +16,7 @@ from century.gift_codes import kingshot as kingshot_gift_codes
 from century.gift_codes import kingshot_beta as kingshot_beta_gift_codes
 from century.gift_codes import wos as wos_gift_codes
 from century.gift_codes import wos_beta as wos_beta_gift_codes
+from century.gift_codes import wos_ru as wos_ru_gift_codes
 from century.gift_codes.models import RedeemStatus
 
 if TYPE_CHECKING:
@@ -58,6 +59,10 @@ class _GiftCodeGame:
     run_redeemer_for_player: Callable[..., Awaitable[Any]] | None = None
     redeem_supported: bool = True
     apply_mode: str = "api_all_accounts"
+    # ``True`` when codes have no automatic source and are entered by hand in the
+    # dashboard (the RU shard). The UI then shows an "Add code" input and hides
+    # the (no-op) Scrape button.
+    manual_source: bool = False
 
 
 _GIFT_CODE_GAMES: dict[str, _GiftCodeGame] = {
@@ -92,6 +97,18 @@ _GIFT_CODE_GAMES: dict[str, _GiftCodeGame] = {
         run_redeemer=kingshot_beta_gift_codes.run_gift_code_redeemer,
         redeem_supported=False,
         apply_mode="in_game_player",
+    ),
+    # "Белая мгла" — the Russian re-skin (com.gof.globalru). Century-blind: no
+    # scraper, no public API. Codes are typed in by the operator and applied
+    # in-game on the RU device, same flow as the beta build.
+    "wos_ru": _GiftCodeGame(
+        game="wos_ru",
+        redeem_lock_key="wos:gift_code_redeem:lock:wos_ru",
+        poll_once=wos_ru_gift_codes.poll_once,
+        run_redeemer=wos_ru_gift_codes.run_gift_code_redeemer,
+        redeem_supported=False,
+        apply_mode="in_game_player",
+        manual_source=True,
     ),
 }
 
@@ -234,6 +251,7 @@ def build_gift_codes_view(*, query: str = "", game: str = "wos") -> dict[str, An
         "game": game,
         "redeem_supported": spec.redeem_supported,
         "apply_mode": spec.apply_mode,
+        "manual_source": spec.manual_source,
         "codes_db": codes_path,
         "codes_path": codes_path,
         "devices_path": codes_path,
@@ -325,6 +343,52 @@ async def scrape_gift_codes() -> dict[str, Any]:
 async def scrape_gift_codes_for_game(game: str = "wos") -> list[str]:
     spec = _gift_code_game(game)
     return await spec.poll_once()
+
+
+def _normalize_gift_code(code: str) -> str:
+    """Validate and canonicalise an operator-typed code.
+
+    Codes are single whitespace-free tokens; we trim surrounding blanks and
+    reject anything empty or containing inner whitespace so a fat-fingered
+    "ABC 123" can't be stored as one unusable row.
+    """
+    name = (code or "").strip()
+    if not name:
+        msg = "code is required"
+        raise ValueError(msg)
+    if any(ch.isspace() for ch in name):
+        msg = "code must not contain spaces"
+        raise ValueError(msg)
+    return name
+
+
+def add_manual_code(*, game: str, code: str) -> dict[str, Any]:
+    """Insert an operator-typed gift code for ``game`` (no scraper involved).
+
+    Used by the RU shard, whose codes have no automatic source. Idempotent:
+    re-adding an existing code is a no-op that reports ``created=False``.
+    """
+    from config.giftcodes_db import code_exists, upsert_code
+
+    spec = _gift_code_game(game)
+    name = _normalize_gift_code(code)
+    existed = code_exists(name, game=spec.game)
+    upsert_code(name, game=spec.game)
+    return {"ok": True, "game": spec.game, "code": name, "created": not existed}
+
+
+def delete_manual_code(*, game: str, code: str) -> dict[str, Any]:
+    """Remove a gift code (and its redemption rows) for ``game``.
+
+    Lets the operator drop a mistyped manual code so it stops showing as
+    pending. ``delete_code`` cascades to the redemption child rows.
+    """
+    from config.giftcodes_db import delete_code
+
+    spec = _gift_code_game(game)
+    name = _normalize_gift_code(code)
+    delete_code(name, game=spec.game)
+    return {"ok": True, "game": spec.game, "code": name}
 
 
 async def redeem_gift_codes(game: str = "wos") -> dict[str, Any]:

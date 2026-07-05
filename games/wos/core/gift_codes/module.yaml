@@ -1,9 +1,10 @@
 id: gift_codes
-title: Gift Codes (beta, in-game)
+title: Gift Codes (in-game)
 description: >-
-  In-game redemption of beta gift codes via Settings → Gift Code → Redeem
-  Bundle. Beta codes can't use the public gift-code API, so they are typed for
-  the account logged in on the device. Codes come from giftcodes_db
-  (game="wos_beta"); attempts are stamped into gift_code_redemptions.
+  In-game redemption of gift codes via Settings → Gift Code → Redeem Bundle for
+  builds the public gift-code API rejects — the beta build (codes from Discord,
+  game="wos_beta") and the Russian "Белая мгла" re-skin (manually entered codes,
+  game="wos_ru"). The running build picks the code set; canonical wos is skipped
+  (it uses the API). Attempts are stamped into gift_code_redemptions.
 scenarios: scenarios
 wiki: false

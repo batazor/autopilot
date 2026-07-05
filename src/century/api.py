@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 
 
 class ErrCode(IntEnum):
+    UNKNOWN = -1                    # any err_code we have no mapping for (incl. 0) — see WARNING log
     SUCCESS = 20000
+    ROLE_NOT_EXIST = 40001          # FID has no role on this shard (alias build / wrong region)
     TIMEOUT_RETRY = 40004           # Kingshot — server-side timeout, retry the request
     ALREADY_RECEIVED_1 = 40008
     ALREADY_RECEIVED_2 = 40011
@@ -42,6 +44,13 @@ class ErrCode(IntEnum):
     RECHARGE_MONEY_VIP = 40018      # Kingshot — VIP-only code, account VIP too low
     CAPTCHA_TOO_FREQUENT = 40101    # WOS only
     CAPTCHA_ERROR = 40103           # WOS only
+
+    @classmethod
+    def _missing_(cls, _value: object) -> ErrCode:
+        # The API occasionally returns codes we don't model (e.g. 0). Map them
+        # to UNKNOWN instead of raising ValueError, so a single odd code can't
+        # crash a redeem. Callers treat UNKNOWN as a (retryable) failure.
+        return cls.UNKNOWN
 
 
 def _md5(s: str) -> str:
@@ -258,9 +267,13 @@ class CenturyClient:
                      self._game.id, fid, code, ec_raw, msg)
         try:
             ec = ErrCode(int(ec_raw))
-        except ValueError as exc:
-            msg_0 = f"unexpected err_code={ec_raw} msg={body.get('msg')!r}"
-            raise CenturyAPIError(
-                msg_0
-            ) from exc
+        except (TypeError, ValueError):
+            ec = ErrCode.UNKNOWN
+        if ec is ErrCode.UNKNOWN:
+            # Don't crash on a code we don't model — surface it (with msg, which
+            # the old `raise` swallowed) and let the caller treat it as failure.
+            logger.warning(
+                "redeem unmapped err_code=%r msg=%r game=%s fid=%d code=%s",
+                ec_raw, msg, self._game.id, fid, code,
+            )
         return ec, msg

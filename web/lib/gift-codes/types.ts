@@ -5,11 +5,16 @@ export const KNOWN_GAMES: ExternalAccountsGame[] = [
   { id: "kingshot", label: "Kingshot" },
   { id: "wos_beta", label: "WOS Beta" },
   { id: "kingshot_beta", label: "Kingshot Beta" },
+  { id: "wos_ru", label: "WOS RU" },
 ];
 
 export const DEFAULT_GAME = KNOWN_GAMES[0]?.id ?? "wos";
 export const EXTERNAL_ACCOUNT_GAME_IDS = new Set(["wos", "kingshot"]);
 export const BETA_GIFT_CODE_GAME_IDS = new Set(["wos_beta", "kingshot_beta"]);
+// Games with no automatic code source — the operator types codes by hand
+// (the RU shard). The authoritative signal is the view's `manual_source`;
+// this set is the static fallback before the view loads.
+export const MANUAL_GIFT_CODE_GAME_IDS = new Set(["wos_ru"]);
 export const EXTERNAL_ACCOUNT_GAMES = KNOWN_GAMES.filter((g) =>
   EXTERNAL_ACCOUNT_GAME_IDS.has(g.id),
 );
@@ -25,6 +30,7 @@ export const STATUS_CLASS: Record<string, string> = {
   CDK_NOT_FOUND: "pill-offline",
   STOVE_LEVEL_TOO_LOW: "pill-danger",
   VIP_LEVEL_TOO_LOW: "pill-danger",
+  ROLE_NOT_FOUND: "pill-offline",
   FAILED: "pill-danger",
 };
 
@@ -38,6 +44,8 @@ export const STATUS_HELP: Record<string, string> = {
   CDK_NOT_FOUND: "The game server doesn't recognize this code.",
   STOVE_LEVEL_TOO_LOW: "Furnace / Town Center level too low for this code.",
   VIP_LEVEL_TOO_LOW: "Account VIP level too low for this code.",
+  ROLE_NOT_FOUND:
+    "The game server has no role for this account FID (err_code 40001) — an alias build (beta / RU), wrong region, or a stale FID. Skipped; not retried.",
   FAILED:
     "Redeem failed — often transient (e.g. Kingshot login/session expired, err_code 40009). Retried on the next run.",
 };
@@ -50,6 +58,7 @@ export const STATUS_SHORT: Record<string, string> = {
   CDK_NOT_FOUND: "NOT FOUND",
   STOVE_LEVEL_TOO_LOW: "STOVE LOW",
   VIP_LEVEL_TOO_LOW: "VIP LOW",
+  ROLE_NOT_FOUND: "NO ROLE",
 };
 
 export function formatDuration(totalSeconds: number): string {

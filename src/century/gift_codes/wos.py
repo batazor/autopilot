@@ -312,6 +312,11 @@ class GiftCodeRedeemer:
         if progress_cb is not None:
             progress_cb(0, total_work, "starting")
 
+        # Accounts the API has told us have no role (40001) this run. The role is
+        # gone for *every* code, not just one, so once an account 40001s we stamp
+        # it terminal for the remaining codes instead of re-hitting Century.
+        dead_fids: set[str] = set()
+
         for code in codes:
             if code.is_effectively_expired():
                 logger.info("Skipping expired or API-dead code: %s", code.name)
@@ -328,7 +333,15 @@ class GiftCodeRedeemer:
                 if not code.needs_redemption(player_id):
                     continue
 
+                if player_id in dead_fids:
+                    # Known role-less account — stamp terminal and skip the call.
+                    set_redemption(code.name, player_id, RedeemStatus.ROLE_NOT_FOUND)
+                    code.user_for[player_id] = RedeemStatus.ROLE_NOT_FOUND
+                    continue
+
                 status, api_ec, api_msg = await self._redeem_one(int(player_id), code.name)
+                if status == RedeemStatus.ROLE_NOT_FOUND:
+                    dead_fids.add(player_id)
                 done += 1
                 if progress_cb is not None:
                     progress_cb(done, total_work, f"{code.name} → {_nick(player_id)}")
@@ -455,6 +468,19 @@ class GiftCodeRedeemer:
         # Step 1: login
         try:
             await self._client.fetch_player(fid)
+        except CenturyAPIError as exc:
+            if str(exc.err_code) == str(ErrCode.ROLE_NOT_EXIST.value):
+                # The FID has no role on the global shard — an alias-build (beta /
+                # RU "Белая мгла") account, a wrong region, or a stale/dead FID.
+                # Expected and permanent, not a fault: log one concise line (no
+                # traceback) and mark it terminal so it's never retried.
+                logger.warning(
+                    "Account fid=%d has no role on this shard (Century 40001) — skipping",
+                    fid,
+                )
+                return RedeemStatus.ROLE_NOT_FOUND, None, None
+            logger.exception("Login failed for fid=%d", fid)
+            return RedeemStatus.FAILED, None, None
         except Exception as exc:
             if _is_shutdown_error(exc):
                 raise

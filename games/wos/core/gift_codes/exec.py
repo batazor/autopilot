@@ -1,10 +1,18 @@
-"""DSL exec: redeem beta gift codes in-game.
+"""DSL exec: redeem gift codes in-game (beta + RU builds).
 
-WOS beta codes can't be applied through the public gift-code API — they must be
-typed into the in-game **Settings → Gift Code → Redeem Bundle** dialog for the
-account logged in on the device. The codes themselves are discovered elsewhere
-and stored under ``game="wos_beta"`` (see ``century.gift_codes``); this exec is
-the in-game applier.
+Some WOS builds can't apply gift codes through the public Century API — the
+**beta** build (``com.xyz.gof``) and the Russian "Белая мгла" re-skin
+(``com.gof.globalru``) both run on shards the global API rejects. Their codes
+must be typed into the in-game **Settings → Gift Code → Redeem Bundle** dialog
+for the account logged in on the device. The codes are discovered/entered
+elsewhere and stored under a per-build game id (``wos_beta`` from Discord
+scraping; ``wos_ru`` from manual operator entry — see
+``api.services.gift_codes_api``); this exec is the in-game applier.
+
+Which code set to apply is decided by the **running build**: the worker binds
+the active module catalog (``wos`` / ``wos_beta`` / ``wos_ru``) on launch, and
+the overlay catalogs map 1:1 to the gift-code game. The canonical ``wos`` build
+uses the API and is skipped here.
 
 Flow (720×1280, the mandatory emulator resolution, so fixed tap targets are
 stable): governor avatar → Settings → Gift Code → for each pending code: tap the
@@ -22,11 +30,19 @@ import asyncio
 import logging
 from typing import Any
 
+from config.games import MODULE_CATALOG_OVERLAYS
 from layout.types import Point
 
 logger = logging.getLogger(__name__)
 
-_GAME = "wos_beta"
+# WOS overlay catalogs apply codes in-game (they can't use the public API):
+# ``wos_beta`` and ``wos_ru``. Each overlay catalog id doubles as its gift-code
+# game id. Derived from the registry so a new WOS overlay is covered for free.
+_IN_GAME_GIFT_CODE_GAMES = frozenset(
+    catalog
+    for catalog, roots in MODULE_CATALOG_OVERLAYS.items()
+    if roots and roots[0] == "wos"
+)
 
 # Fixed tap targets (see module docstring).
 _AVATAR = Point(45, 55)        # main_city: governor avatar (opens Chief Profile)
@@ -36,6 +52,32 @@ _FIELD = Point(360, 620)       # Redeem dialog: "Enter Gift Code" field
 _REDEEM = Point(360, 770)      # Redeem dialog: Redeem button
 _EXIT = Point(360, 1180)       # reward/result popup: "Tap anywhere to exit"
 _CLOSE = Point(637, 473)       # Redeem dialog: close X
+
+
+def _in_game_gift_code_game(catalog: str | None) -> str | None:
+    """Gift-code game for an in-game-apply build, or ``None`` for the rest.
+
+    ``wos_ru`` / ``wos_beta`` → themselves; canonical ``wos`` (API redemption)
+    and anything unknown → ``None`` (this exec no-ops).
+    """
+    cat = (catalog or "").strip()
+    return cat if cat in _IN_GAME_GIFT_CODE_GAMES else None
+
+
+def _active_gift_code_game() -> str | None:
+    """Resolve the in-game gift-code game from the worker's active catalog.
+
+    The worker (and ``botctl drive``) bind the running build's module catalog;
+    a single-device worker process means this reflects *this* device's build.
+    """
+    try:
+        from services import get_active_module_catalog
+
+        catalog = get_active_module_catalog()
+    except Exception:
+        logger.debug("redeem_in_game_gift_codes: active catalog lookup failed", exc_info=True)
+        catalog = ""
+    return _in_game_gift_code_game(catalog)
 
 
 async def _tap(actions: Any, iid: str, pt: Point) -> None:
@@ -68,27 +110,35 @@ def _field_is_present(image: Any) -> bool:
         return False
 
 
-async def _exec_redeem_beta_gift_codes(ctx: Any) -> None:
+async def _exec_redeem_in_game_gift_codes(ctx: Any) -> None:
     from century.gift_codes.models import RedeemStatus
     from config.giftcodes_db import get_redemption, list_codes, set_redemption
     from tasks import dsl_runtime
     from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
 
     iid = ctx.instance_id
+
+    # The running build decides which code set applies in-game. Canonical wos
+    # (API redemption) and unknown builds are skipped without touching the UI.
+    game = _active_gift_code_game()
+    if game is None:
+        ctx.result.update({"action": "skipped_build"})
+        return
+
     # No gamer id during onboarding → key redemptions by the device id.
     player = (await _resolve_player_id_for_device_level_exec(ctx)) or iid
 
     _done = {RedeemStatus.SUCCESS, RedeemStatus.ALREADY_RECEIVED}
     pending: list[str] = []
-    for code in list_codes(game=_GAME):
+    for code in list_codes(game=game):
         name = getattr(code, "name", "")
         if not name:
             continue
-        status = get_redemption(name, player, game=_GAME)
+        status = get_redemption(name, player, game=game)
         if status not in _done:
             pending.append(name)
     if not pending:
-        ctx.result.update({"action": "none_pending"})
+        ctx.result.update({"action": "none_pending", "game": game})
         return
 
     actions = dsl_runtime.bot_actions()
@@ -103,8 +153,10 @@ async def _exec_redeem_beta_gift_codes(ctx: Any) -> None:
 
     frame = await asyncio.to_thread(actions.capture_screen_bgr, iid)
     if frame is None or not _field_is_present(frame):
-        logger.warning("redeem_beta_gift_codes: dialog not reached — aborting (instance=%s)", iid)
-        ctx.result.update({"action": "dialog_not_reached", "pending": len(pending)})
+        logger.warning(
+            "redeem_in_game_gift_codes: dialog not reached — aborting (instance=%s)", iid
+        )
+        ctx.result.update({"action": "dialog_not_reached", "game": game, "pending": len(pending)})
         return
 
     redeemed: list[str] = []
@@ -122,20 +174,20 @@ async def _exec_redeem_beta_gift_codes(ctx: Any) -> None:
         await asyncio.sleep(1.2)
         # Best-effort: stamp as attempted so we don't retype it next run.
         try:
-            set_redemption(name, player, RedeemStatus.SUCCESS, game=_GAME)
+            set_redemption(name, player, RedeemStatus.SUCCESS, game=game)
         except Exception:
-            logger.debug("redeem_beta_gift_codes: set_redemption failed code=%s", name, exc_info=True)
+            logger.debug("redeem_in_game_gift_codes: set_redemption failed code=%s", name, exc_info=True)
         redeemed.append(name)
 
     # Close the dialog and back out to the hub.
     await _tap(actions, iid, _CLOSE)
     await asyncio.sleep(0.8)
 
-    ctx.result.update({"action": "redeemed", "codes": redeemed, "count": len(redeemed)})
+    ctx.result.update({"action": "redeemed", "game": game, "codes": redeemed, "count": len(redeemed)})
     logger.info(
-        "redeem_beta_gift_codes: redeemed %d code(s) player=%s instance=%s: %s",
-        len(redeemed), player, iid, ", ".join(redeemed),
+        "redeem_in_game_gift_codes[%s]: redeemed %d code(s) player=%s instance=%s: %s",
+        game, len(redeemed), player, iid, ", ".join(redeemed),
     )
 
 
-DSL_EXEC_HANDLERS = {"redeem_beta_gift_codes": _exec_redeem_beta_gift_codes}
+DSL_EXEC_HANDLERS = {"redeem_in_game_gift_codes": _exec_redeem_in_game_gift_codes}

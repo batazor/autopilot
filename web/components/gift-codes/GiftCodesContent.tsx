@@ -8,6 +8,7 @@ import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { PageHeader } from "@/components/PageHeader";
 import { Button, MetricCard, MetricGrid, type MetricTone } from "@/components/ui";
 import {
+  deleteGiftCode,
   fetchGiftCodeDiscordConfig,
   fetchGiftCodes,
   redeemGiftCodes,
@@ -22,9 +23,11 @@ import {
   EXTERNAL_ACCOUNT_GAMES,
   INPUT_CLASS,
   KNOWN_GAMES,
+  MANUAL_GIFT_CODE_GAME_IDS,
 } from "@/lib/gift-codes/types";
 import { DiscordConfigPanel } from "./DiscordConfigPanel";
 import { GiftCodesTable } from "./GiftCodesTable";
+import { ManualCodePanel } from "./ManualCodePanel";
 import { NextPollTimer } from "./NextPollTimer";
 
 export function GiftCodesContent() {
@@ -166,12 +169,28 @@ export function GiftCodesContent() {
     }
   };
 
+  const removeCode = useCallback(
+    async (code: string) => {
+      try {
+        await deleteGiftCode(game, code);
+        showInfo(`Removed ${code}.`);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [game, load, showInfo],
+  );
+
   const m = data?.metrics;
   const redeemSupported = data?.redeem_supported ?? !BETA_GIFT_CODE_GAME_IDS.has(game);
   // Beta games scrape from Discord, which needs a token. Block the scrape
   // action (and explain why) until one is configured.
   const isBetaGame = BETA_GIFT_CODE_GAME_IDS.has(game);
   const betaTokenMissing = isBetaGame && !discordConfig?.token_configured;
+  // Manual-entry builds (RU shard) have no scraper: show an "Add code" input and
+  // hide the Scrape button. Fall back to the static set before the view loads.
+  const manualSource = data?.manual_source ?? MANUAL_GIFT_CODE_GAME_IDS.has(game);
 
   return (
     <>
@@ -203,6 +222,8 @@ export function GiftCodesContent() {
         />
       ) : null}
 
+      {manualSource ? <ManualCodePanel game={game} onAdded={load} /> : null}
+
       <AppTabs
         variant="section"
         renderPanels={false}
@@ -227,10 +248,11 @@ export function GiftCodesContent() {
 
       {!redeemSupported ? (
         <section className="panel panel--spaced mb-4">
-          <h2 className="m-0">Manual beta apply</h2>
+          <h2 className="m-0">In-game apply</h2>
           <p className="muted m-0">
-            Beta gift codes are applied inside the beta game client for the
-            currently logged-in player.
+            These gift codes can&rsquo;t use the public API — they&rsquo;re typed
+            inside the game client for the player logged in on the device, on the
+            next redeem run.
           </p>
         </section>
       ) : null}
@@ -238,13 +260,15 @@ export function GiftCodesContent() {
       <NextPollTimer game={game} />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button
-          disabled={busy || betaTokenMissing}
-          title={betaTokenMissing ? "A Discord token is required to scrape beta codes" : undefined}
-          onClick={() => runAction("scrape")}
-        >
-          Scrape now
-        </Button>
+        {!manualSource ? (
+          <Button
+            disabled={busy || betaTokenMissing}
+            title={betaTokenMissing ? "A Discord token is required to scrape beta codes" : undefined}
+            onClick={() => runAction("scrape")}
+          >
+            Scrape now
+          </Button>
+        ) : null}
         {redeemSupported ? (
           <Button variant="primary" disabled={busy} onClick={() => runAction("redeem")}>
             Redeem now
@@ -296,6 +320,7 @@ export function GiftCodesContent() {
               ? `Active codes (${data.active.length})`
               : `Expired (${data.expired.length})`
           }
+          onDeleteCode={manualSource ? removeCode : undefined}
         />
       ) : null}
 

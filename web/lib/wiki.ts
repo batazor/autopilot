@@ -36,6 +36,8 @@ export type GiftCodesView = {
   game: string;
   redeem_supported: boolean;
   apply_mode: "api_all_accounts" | "in_game_player";
+  // True when codes have no automatic source and are entered by hand (RU shard).
+  manual_source: boolean;
   codes_path: string;
   devices_path: string;
   parse_error: string | null;

@@ -1,10 +1,11 @@
 enabled: true
-name: 🎁 Redeem beta gift codes
+name: 🎁 Redeem in-game gift codes
 device_level: true
 priority: 60_000
-# Run a few times a day; the exec no-ops when nothing is pending. Only act from
-# a hub screen — the governor avatar opens the profile only there.
+# Run a few times a day; the exec no-ops when nothing is pending or the running
+# build uses the API (canonical wos). Only act from a hub screen — the governor
+# avatar opens the profile only there.
 cron: "0 */6 * * *"
 cond: currentNode == main_city
 steps:
-  - exec: redeem_beta_gift_codes
+  - exec: redeem_in_game_gift_codes
