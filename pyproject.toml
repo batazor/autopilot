@@ -1,6 +1,6 @@
 [project]
 name = "autopilot"
-version = "0.20.0"
+version = "0.22.0"
 description = "Multi-account, game-agnostic Android automation bot (Whiteout Survival, Kingshot)"
 readme = "README.md"
 requires-python = ">=3.13"
