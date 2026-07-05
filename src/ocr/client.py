@@ -50,6 +50,17 @@ def _ocr_tty_yellow_name(name: str) -> str:
     return f"{_OCR_YELLOW}{name}{_OCR_RESET}"
 
 
+def _report_ocr_batch(*, hits: int, misses: int, backend_ms: float | None = None) -> None:
+    """Cache-hit/backend-latency telemetry per batch. Lazy import + swallow-all:
+    OCR must keep working in contexts with no telemetry stack configured."""
+    try:
+        from config.telemetry import report_ocr_batch
+
+        report_ocr_batch(hits=hits, misses=misses, backend_ms=backend_ms)
+    except Exception:
+        logger.debug("ocr telemetry failed", exc_info=True)
+
+
 @dataclass(frozen=True)
 class OCRResult:
     region_id: str
@@ -559,6 +570,7 @@ class OcrClient:
                 miss_keys.append(key)
 
         if not miss_indices:
+            _report_ocr_batch(hits=len(regions), misses=0)
             # All regions served from the in-process patch-hash cache.
             # Verbose at default log levels — use DEBUG (e.g. ``LOGLEVEL=DEBUG``)
             # when investigating cache behavior.
@@ -608,6 +620,11 @@ class OcrClient:
             for idx in rep_indices
         ]
         elapsed_ms = 1000.0 * (time.perf_counter() - t0)
+        _report_ocr_batch(
+            hits=len(regions) - len(miss_indices),
+            misses=len(miss_indices),
+            backend_ms=elapsed_ms,
+        )
 
         # Stitch OCR responses back by ``region_id``. Keeping this explicit
         # preserves the old ordering contract and catches mocked/local backend

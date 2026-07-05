@@ -87,6 +87,27 @@ def decision_signature(decision: Decision) -> str:
     return f"{decision.action}|{decision.target_id}|{decision.reason}"
 
 
+def estimate_from_state(state: dict[str, Any], now: float) -> float | None:
+    """Regen-extrapolated stamina estimate off a decoded player-state hash.
+
+    The raw ``stamina`` field is the *last OCR read* — hours later it undershoots
+    (regen kept ticking), so consumers gating on it starve on stale data. This is
+    the same interpolation :func:`plan` uses (``stamina_at`` read timestamp +
+    regen-to-now, clamped to cap), packaged for other planners (march) so nothing
+    reads the raw field directly. ``None`` when there has never been a read.
+    """
+    budget = load_budget()
+    last = _to_float(state.get("stamina"))
+    read_at = _to_float(state.get("stamina_at"))
+    if read_at is None:
+        read_at = _to_float(state.get("stamina_read_at"))
+    if read_at is None:
+        read_at = now
+    return _estimate_stamina(
+        last, read_at, now, cap=budget.cap, regen_per_hour=budget.regen_per_hour
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class PlanResult:
     """Outcome of one planning pass for a player."""

@@ -35,11 +35,18 @@ class _FakeQueue:
 
 
 class _FakeRedis:
-    def __init__(self, state: dict[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        state: dict[str, str] | None = None,
+        feedback: dict[str, str] | None = None,
+    ) -> None:
         self._state = state or {}
-        self.hgetall_calls = 0
+        self._feedback = feedback or {}
+        self.hgetall_calls = 0   # player-STATE hash reads only (not feedback history)
 
     async def hgetall(self, key: str) -> dict[str, str]:
+        if key.endswith(":action_feedback"):
+            return dict(self._feedback)   # feedback_store history hash
         self.hgetall_calls += 1
         return dict(self._state)
 
@@ -196,6 +203,53 @@ async def test_tick_board_ttl_elapsed_dispatches_intel():
     # refreshed → dispatch (the static 900s cooldown would have blocked this).
     queue = _FakeQueue(last_run=9_900.0)  # 100s since → under the static 900
     redis = _FakeRedis({"stamina": "100", "intel.refresh_in": "60"})
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert [e.task_type for e in result.enqueued] == ["intel_run"]
+
+
+@pytest.mark.asyncio
+async def test_tick_circuit_breaker_holds_repeat_nav_failures():
+    # intel_run failed 3× in a row with the same diagnosed reason within the
+    # breaker window → the candidate is held outright: no dispatch this tick.
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(
+        {"stamina": "100"},
+        feedback={
+            "intel:run": (
+                '{"domain":"intel","attempts":3,"progressed":0,"consecutive_stalls":3,'
+                '"last_ts":9990.0,"last_reason":"nav_error","same_reason_streak":3}'
+            )
+        },
+    )
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert result.enqueued == ()
+    assert queue.calls == []
+
+
+@pytest.mark.asyncio
+async def test_tick_breaker_expired_allows_retry():
+    # Same history, but the last failure was beyond the breaker cooldown →
+    # half-open: the (still soft-backed-off) candidate competes and dispatches.
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(
+        {"stamina": "100"},
+        feedback={
+            "intel:run": (
+                '{"domain":"intel","attempts":3,"progressed":0,"consecutive_stalls":3,'
+                '"last_ts":1000.0,"last_reason":"nav_error","same_reason_streak":3}'
+            )
+        },
+    )
 
     result = await run_march_tick(
         queue=queue, redis=redis, instance_id="i1", player_id="p1",

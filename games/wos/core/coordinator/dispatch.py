@@ -24,6 +24,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .feedback import FeedbackBias, apply_feedback, tuning
+from .feedback_store import load_feedback
 from .march import intel_intent, plan_march, timed_event_intent
 from .model import MARCH
 
@@ -164,12 +166,20 @@ def march_trace_key(player_id: str) -> str:
     return f"wos:player:{player_id}:march_decisions"
 
 
-def _march_reason(dispatch: MarchDispatch, *, idle_slots: int, had_candidates: bool) -> str:
+def _march_reason(
+    dispatch: MarchDispatch,
+    *,
+    idle_slots: int,
+    had_candidates: bool,
+    held: tuple[str, ...] = (),
+) -> str:
     if dispatch.enqueued:
         return "queued " + ",".join(e.domain for e in dispatch.enqueued)
     if idle_slots <= 0:
         return "нет свободных march-слотов"
     if not had_candidates:
+        if held:
+            return "кандидаты удержаны circuit-breaker'ом (" + ",".join(held) + ")"
         return "нет кандидатов (stamina/cooldown/reserve)"
     if dispatch.skipped and all(s.reason == "duplicate" for s in dispatch.skipped):
         return "кандидаты уже в полёте"
@@ -177,13 +187,22 @@ def _march_reason(dispatch: MarchDispatch, *, idle_slots: int, had_candidates: b
 
 
 def march_decision_payload(
-    dispatch: MarchDispatch, *, idle_slots: int, stamina: float | None, had_candidates: bool, now: float
+    dispatch: MarchDispatch,
+    *,
+    idle_slots: int,
+    stamina: float | None,
+    had_candidates: bool,
+    now: float,
+    feedback_bias: FeedbackBias | None = None,
 ) -> dict[str, Any]:
     """JSON-able snapshot of one march tick (shape aligns with stamina/resources)."""
-    return {
+    bias = feedback_bias or FeedbackBias()
+    payload: dict[str, Any] = {
         "ts": now,
         "action": "dispatch" if dispatch.enqueued else "idle",
-        "reason": _march_reason(dispatch, idle_slots=idle_slots, had_candidates=had_candidates),
+        "reason": _march_reason(
+            dispatch, idle_slots=idle_slots, had_candidates=had_candidates, held=bias.held
+        ),
         "target": dispatch.enqueued[0].domain if dispatch.enqueued else "",
         "idle_slots": int(idle_slots),
         "stamina_est": stamina,
@@ -193,12 +212,21 @@ def march_decision_payload(
         ],
         "skipped": [{"domain": s.domain, "reason": s.reason} for s in dispatch.skipped],
     }
+    if bias.stuck or bias.held:
+        payload["feedback"] = {"stuck": list(bias.stuck), "held": list(bias.held)}
+    return payload
 
 
-def _march_signature(dispatch: MarchDispatch, idle_slots: int) -> str:
+def _march_signature(
+    dispatch: MarchDispatch, idle_slots: int, bias: FeedbackBias | None = None
+) -> str:
     enq = ",".join(sorted(e.domain for e in dispatch.enqueued))
     skp = ",".join(sorted(f"{s.domain}:{s.reason}" for s in dispatch.skipped))
-    return f"{'1' if dispatch.enqueued else '0'}|{enq}|{skp}|{'slots' if idle_slots > 0 else 'full'}"
+    fb = ",".join((bias.held + bias.stuck) if bias is not None else ())
+    return (
+        f"{'1' if dispatch.enqueued else '0'}|{enq}|{skp}"
+        f"|{'slots' if idle_slots > 0 else 'full'}|{fb}"
+    )
 
 
 async def write_march_trace(
@@ -210,18 +238,24 @@ async def write_march_trace(
     stamina: float | None,
     had_candidates: bool,
     now: float,
+    feedback_bias: FeedbackBias | None = None,
 ) -> None:
     """Append a march decision to the per-player ring buffer ZSET (signature-gated).
 
     Best-effort and deduped on outcome change — a Redis flap or an unchanged tick
     must never affect dispatch.
     """
-    sig = _march_signature(dispatch, idle_slots)
+    sig = _march_signature(dispatch, idle_slots, feedback_bias)
     if _MARCH_TRACE_SIG.get(player_id) == sig:
         return
     key = march_trace_key(player_id)
     payload = march_decision_payload(
-        dispatch, idle_slots=idle_slots, stamina=stamina, had_candidates=had_candidates, now=now
+        dispatch,
+        idle_slots=idle_slots,
+        stamina=stamina,
+        had_candidates=had_candidates,
+        now=now,
+        feedback_bias=feedback_bias,
     )
     member = json.dumps(payload, separators=(",", ":"))
     try:
@@ -391,7 +425,17 @@ async def run_march_tick(
     """
     if state is None:
         state = await _read_player_state(redis, player_id)
-    stamina = _to_float(state.get("stamina", ""))
+    # Regen-extrapolated estimate, not the raw last OCR read — a reading from
+    # hours ago undershoots by everything regenerated since and starves intel
+    # on phantom stamina shortage. Falls back to the raw field if the budget
+    # config is unreadable.
+    try:
+        from games.wos.core.stamina.adapter import estimate_from_state
+
+        stamina = estimate_from_state(dict(state), now)
+    except Exception:
+        logger.debug("march tick: stamina estimate failed", exc_info=True)
+        stamina = _to_float(state.get("stamina", ""))
     reserve = _intel_reserve(state)
     # Pace blind intel re-runs by the live board-refresh timer ("Refreshes in:
     # HH:MM:SS", stored as seconds by intel_run) — don't re-run until the board
@@ -418,7 +462,12 @@ async def run_march_tick(
         ),
         _romance_intent(state, role=role, boost=(boosts or {}).get("romance_season", 1.0)),
     ]
-    extras = tuple(c for c in candidates if c is not None)
+    # Close the outcome loop: the worker folds each march task's result into the
+    # per-player feedback hash; here it deprioritises stall-streaked candidates
+    # and drops circuit-broken ones (same failure reason ≥3× → held for the
+    # cooldown window) so a broken action stops eating march slots every tick.
+    fb_bias = tuning(await load_feedback(redis, player_id), now=now)
+    extras = tuple(apply_feedback([c for c in candidates if c is not None], fb_bias))
 
     balances: dict[str, int] = {"stamina": int(stamina or 0), **(resource_balances or {})}
     decision = plan_march(
@@ -443,5 +492,6 @@ async def run_march_tick(
         stamina=stamina,
         had_candidates=bool(extras),
         now=now,
+        feedback_bias=fb_bias,
     )
     return dispatch

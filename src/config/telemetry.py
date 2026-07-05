@@ -1,4 +1,4 @@
-"""Per-user telemetry: heartbeat + uptime + workers + restart counter.
+"""Per-user telemetry: heartbeat + uptime + workers + restarts + task/OCR/overlay health.
 
 Sits on top of the OTel setup in :mod:`config.tracing` — that module already
 configures the OTLP HTTP exporter and MeterProvider; this one just defines
@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import socket
 import time
 from typing import TYPE_CHECKING, Any
@@ -154,6 +155,63 @@ def report_restart(name: str, *, attempt: int) -> None:
         _restart_counter().add(1, attributes={"process_name": name})
     except Exception:
         logger.debug("report_restart failed", exc_info=True)
+
+
+# ---------------------------------------------------------------------------
+# Task-failure labelling + OCR health — the regression-detection instruments.
+# ``wos.task.duration`` (config.tracing) already carries scenario + outcome, so
+# per-scenario success rate is derivable; what was missing is the failure
+# *reason* dimension (which scenario breaks and *why*) and any OCR visibility.
+# ---------------------------------------------------------------------------
+
+# Failure reasons are code-like tokens (``match_region_not_found``); anything
+# else (a free-text exception repr) would explode label cardinality — collapse
+# those to one ``error`` bucket.
+_REASON_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,64}$")
+
+
+def safe_reason_label(reason: str) -> str:
+    """A failure reason safe to use as a metric label ("" when empty)."""
+    reason = (reason or "").strip()
+    if not reason:
+        return ""
+    return reason if _REASON_TOKEN_RE.fullmatch(reason) else "error"
+
+
+def _ocr_counter() -> metrics.Counter:
+    c = _counters.get("ocr_regions")
+    if c is None:
+        c = _get_meter().create_counter(
+            name="autopilot.ocr.regions",
+            description="OCR region lookups by cache outcome (hit vs backend call).",
+        )
+        _counters["ocr_regions"] = c
+    return c
+
+
+def _ocr_backend_hist() -> metrics.Histogram:
+    h = _counters.get("ocr_backend")
+    if h is None:
+        h = _get_meter().create_histogram(
+            name="autopilot.ocr.backend_ms",
+            unit="ms",
+            description="Latency of one OCR backend batch (cache misses only).",
+        )
+        _counters["ocr_backend"] = h
+    return h
+
+
+def report_ocr_batch(*, hits: int, misses: int, backend_ms: float | None = None) -> None:
+    """Called by the OCR client per ``ocr_regions`` batch."""
+    try:
+        if hits > 0:
+            _ocr_counter().add(hits, attributes={"cache": "hit"})
+        if misses > 0:
+            _ocr_counter().add(misses, attributes={"cache": "miss"})
+        if backend_ms is not None and backend_ms >= 0:
+            _ocr_backend_hist().record(float(backend_ms))
+    except Exception:
+        logger.debug("report_ocr_batch failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------

@@ -631,6 +631,7 @@ class SchedulerRunner:
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
         # ``_connect`` runs before any tick, so ``_redis`` is always populated here.
         assert self._redis is not None
+        from games.wos.core.readers.persist import overlay_durable_planner_owned
         from games.wos.core.resources.adapter import overlay_durable_troops
 
         states: dict[str, dict[str, object]] = {}
@@ -653,6 +654,11 @@ class SchedulerRunner:
                 # the typed troop pool as 0 and silently block troop actions). Cheap:
                 # a no-op when the mirror is warm. See ``sync_troop_pool``.
                 overlay_durable_troops(player_id, state)
+                # Same self-heal for the investment planners' ``<domain>.owned``
+                # inputs (pets/charms/gear/hero_gear/island): previously only the
+                # botctl diagnostics backfilled these, so after a Redis flush the
+                # autonomous tick planned blind until the next daily reader cron.
+                overlay_durable_planner_owned(player_id, state)
                 # Mirror the durable per-account role (planner.role, set via the farm
                 # UI) into the hot state so the value-greedy planners actually bias by
                 # it — the Redis player hash doesn't carry it. No-op when present.

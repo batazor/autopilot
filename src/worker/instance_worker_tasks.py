@@ -8,6 +8,7 @@ from opentelemetry import trace
 
 from config.log_ansi import scenario_log_label
 from config.log_context import set_log_context
+from config.telemetry import safe_reason_label
 from config.tracing import (
     set_span_attributes,
     task_duration_histogram,
@@ -325,14 +326,23 @@ class InstanceWorkerTasksMixin(_Base):
                 else:
                     _outcome = "success" if _success else "failed"
                 try:
+                    _attrs = {
+                        "instance_id": self._cfg.instance_id,
+                        "task_type": item.task_type,
+                        "scenario": scenario_for_job or item.task_type,
+                        "outcome": _outcome,
+                    }
+                    # WHY a scenario fails, not just that it does — lets Grafana
+                    # split match_region_not_found (re-crop the template) from
+                    # nav errors (fix the graph). Sanitised: free-text exception
+                    # reprs collapse to one ``error`` bucket to cap cardinality.
+                    if _outcome in ("failed", "error"):
+                        _attrs["reason"] = (
+                            safe_reason_label(_reason) or ("error" if _task_error else "failed")
+                        )
                     task_duration_histogram().record(
                         max(0.0, _finished_at - started_at),
-                        attributes={
-                            "instance_id": self._cfg.instance_id,
-                            "task_type": item.task_type,
-                            "scenario": scenario_for_job or item.task_type,
-                            "outcome": _outcome,
-                        },
+                        attributes=_attrs,
                     )
                 except Exception:
                     logger.debug("task duration metric failed", exc_info=True)
@@ -500,6 +510,56 @@ class InstanceWorkerTasksMixin(_Base):
             )
         except Exception:
             logger.debug("queue history update failed", exc_info=True)
+        await self._record_action_feedback(item=item, result=result, error=error, finished_at=finished_at)
+
+    async def _record_action_feedback(
+        self,
+        *,
+        item: QueueItem,
+        result: TaskResult | None,
+        error: str,
+        finished_at: float,
+    ) -> None:
+        """Feed a coordinator-dispatched task's outcome back to the planner.
+
+        The march dispatcher tags its tasks with ``args.march_domain``; folding
+        their success/failure into the per-player feedback hash is what lets the
+        next march tick back off (or circuit-break) an action that keeps failing
+        instead of re-queuing it blind. Success is used as the ``progressed``
+        proxy — the before/after state-diff readers can refine it later.
+        """
+        if self._redis is None or not item.player_id:
+            return
+        args = item.args if isinstance(item.args, dict) else {}
+        march_domain = str(args.get("march_domain") or "").strip()
+        if not march_domain:
+            return
+        try:
+            from games.wos.core.coordinator.feedback import Outcome
+            from games.wos.core.coordinator.feedback_store import record_outcome
+
+            metadata = result.metadata if result is not None else {}
+            success = bool(result.success) if result is not None else (not error)
+            reason = ""
+            if not success:
+                reason = str((metadata or {}).get("reason") or "").strip()
+                if not reason:
+                    # Free-text exceptions would fragment the same-reason streak;
+                    # collapse them to one bucket so the breaker can still trip.
+                    reason = "exception" if error else "failed"
+            await record_outcome(
+                self._redis,
+                item.player_id,
+                Outcome(
+                    key=f"{march_domain}:run",
+                    domain=march_domain,
+                    progressed=success,
+                    ts=finished_at,
+                    reason=reason,
+                ),
+            )
+        except Exception:
+            logger.debug("action feedback record failed", exc_info=True)
 
     async def _reschedule_if_needed(self, item: QueueItem, result: TaskResult | None) -> None:
         if result is None or result.next_run_at is None or self._queue is None:
