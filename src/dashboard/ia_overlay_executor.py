@@ -37,7 +37,32 @@ _EVENTS_MAX = 50
 
 
 class _OverlayPusher(InstanceWorkerOverlayMixin):
-    pass
+    """Duck-typed stand-in for the worker inside the IA analyzer loop.
+
+    The overlay mixin's push path calls ``self._focus_scenario()`` (the
+    focus-mode gate), which lives on the worker's REDIS mixin — not inherited
+    here. Without a local implementation every push raised AttributeError
+    (swallowed by the enqueue guard), so the analyzer silently never pushed.
+    Mirror the worker's read using the ``_redis``/``_cfg`` attributes
+    ``_analyze_instance`` attaches before calling the push path.
+    """
+
+    _redis: Any = None
+    _cfg: Any = None
+
+    async def _focus_scenario(self) -> str:
+        if self._redis is None or self._cfg is None:
+            return ""
+        try:
+            from worker.focus_mode import read_focus_async
+
+            scenario, _player = await read_focus_async(
+                self._redis, self._cfg.instance_id
+            )
+            return scenario
+        except Exception:
+            logger.debug("ia analyzer: focus read failed", exc_info=True)
+            return ""
 
 
 def _make_overlay_pusher() -> _OverlayPusher:

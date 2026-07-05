@@ -802,13 +802,17 @@ async def test_exec_sync_building_name_parses_shelter_instance_number(
 
     player_state = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     instance_state = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
-    assert player_state["buildings.levels.shelter_1"] == "1"
+    # The level is keyed by the CANONICAL registry id — the plate's instance
+    # discriminator (shelter_1) is kept for diagnostics only. Writing the
+    # instance slug created a phantom buildings.levels.shelter_N the build
+    # planner never read (fixed in the build-queue ETA tracker change).
+    assert player_state["buildings.levels.shelter"] == "1"
     assert player_state["building.name.parsed_id"] == "shelter"
     assert player_state["building.name.parsed_instance_id"] == "shelter_1"
     assert instance_state["current_screen"] == "shelter"
     assert instance_state["building.name.parsed_instance_id"] == "shelter_1"
     assert captured["flat"] == {
-        "buildings.levels.shelter_1": 1,
+        "buildings.levels.shelter": 1,
         "buildings.state.text": "Shelter 1 Lv. 1!",
     }
 

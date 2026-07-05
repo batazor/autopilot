@@ -157,7 +157,9 @@ async def test_module_scoped_ia_analyzer_pushes_trials_overlay_task(
     docs = [json.loads(row) for row in rows]
     assert [doc["task_type"] for doc in docs] == ["claim_trials.1"]
     assert docs[0]["task_id"].startswith("ovl:bs1:claim_trials.1:")
-    assert docs[0]["player_id"] == ""
+    # claim_trials.1 is player-bound (no device_level flag): the overlay push
+    # binds the instance's active player, only device-level pushes carry "".
+    assert docs[0]["player_id"] == "765502864"
     assert docs[0]["region"] == "trial.day.1"
     status_raw = await redis.get(ia_overlay_executor.analyzer_status_key("bs1"))  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     status = json.loads(status_raw)

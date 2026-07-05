@@ -97,6 +97,12 @@ async def test_bus_post_to_offline_fid_is_unrouted(redis_async):
 # --- Fleet registry + reverse index ------------------------------------------
 async def test_fleet_reverse_index_round_trip_and_reap(redis_async):
     fleet = Fleet(redis_async)
+    # ``active_player`` on the instance hash is WORKER-owned — the heartbeat
+    # only writes coord fields + the reverse index (see coord/keys.py). Mirror
+    # the worker's own write before each heartbeat, like production does.
+    await redis_async.hset(
+        keys.instance_state_key("dev-a"), keys.FIELD_ACTIVE_PLAYER, "111"
+    )
     await fleet.publish_heartbeat("dev-a", active_player="111", now=1000.0)
 
     view = await fleet.snapshot(["dev-a"], now=1001.0)
@@ -105,6 +111,9 @@ async def test_fleet_reverse_index_round_trip_and_reap(redis_async):
     assert await fleet.resolve_fid("111", now=1001.0) == ("dev-a", True)
 
     # simulate a switch away from 111 → 222 (prev_fid is compare-and-deleted)
+    await redis_async.hset(
+        keys.instance_state_key("dev-a"), keys.FIELD_ACTIVE_PLAYER, "222"
+    )
     await fleet.publish_heartbeat("dev-a", active_player="222", now=1002.0, prev_fid="111")
     assert await fleet.resolve_fid("111", now=1003.0) == (None, False)
     assert await fleet.resolve_fid("222", now=1003.0) == ("dev-a", True)
