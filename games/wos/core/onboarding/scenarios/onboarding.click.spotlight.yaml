@@ -1,0 +1,11 @@
+enabled: true
+name: Onboarding click · Spotlight
+device_level: true
+priority: 90_000
+steps:
+  # Pushed by the onboarding.spotlight.generic dim-overlay rule. The exec
+  # re-detects the tutorial spotlight on a fresh frame (the highlight pulses /
+  # moves) and taps the lit cutout centroid. No region match — detection is
+  # full-frame and locale-agnostic.
+  - exec: click_spotlight
+    approval_region: onboarding_spotlight

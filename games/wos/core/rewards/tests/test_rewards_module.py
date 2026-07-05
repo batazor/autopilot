@@ -132,6 +132,36 @@ def test_reward_ribbon_detector_rejects_top_aligned_onboarding_band() -> None:
     assert strict.present is False
 
 
+def test_reward_ribbon_solidity_cap_rejects_solid_block() -> None:
+    """``max_component_area_ratio`` rejects a near-solid coloured header (the
+    shape of the Dawn Market shop banner) while a default uncapped call still
+    treats it as a ribbon. A genuine title ribbon is a lettered banner whose
+    largest blob fills only ~0.47 of the band, so a 0.70 cap is below the solid
+    block (~0.79 here) yet well above the real ribbon."""
+    img = np.zeros((1280, 720, 3), dtype=np.uint8)
+    y = int(0.14 * img.shape[0])
+    h = int(0.18 * img.shape[0])
+    img[y : y + h, 74:646] = (0, 180, 255)  # one solid orange rectangle
+    bbox = {"x": 0, "y": 14, "width": 100, "height": 18}
+
+    # Identical calls except for the cap, so the cap is the only thing under
+    # test (no y-floor here — the synthetic block hugs the band top).
+    uncapped = detect_reward_ribbon_in_bbox_percent(
+        img, bbox, kind="orange", min_component_height_ratio=0.7
+    )
+    capped = detect_reward_ribbon_in_bbox_percent(
+        img,
+        bbox,
+        kind="orange",
+        min_component_height_ratio=0.7,
+        max_component_area_ratio=0.70,
+    )
+
+    assert uncapped.present is True
+    assert uncapped.component_area_ratio > 0.70
+    assert capped.present is False
+
+
 def test_rewards_analyzer_pushes_exit_scenarios(area_doc: dict) -> None:
     cfg = load_merged_analyze_yaml(REPO_ROOT, module_scope="rewards")
     rules = {r["name"]: r for r in cfg["overlay"]}
@@ -186,6 +216,57 @@ def test_rewards_analyzer_pushes_exit_scenarios(area_doc: dict) -> None:
             "dsl_scenario": None,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_dawn_market_orange_header_is_not_rewards_upgraded(area_doc: dict) -> None:
+    """The Dawn Market shop page wears an orange promo header that clears every
+    ``reward_ribbon`` geometry gate (orange mask ~0.81, component y ~0.07,
+    height ~0.93). At screen-verify priority 4, ``rewards.upgraded`` used to win
+    that frame before ``shop.dawn_market`` (priority 50) was ever evaluated, and
+    the device-level dismiss rule kept tapping "tap anywhere to exit" on a shop.
+
+    Two guards now separate them, and both are pinned here:
+
+    * **node** — ``rewards.upgraded`` screen-verify AND-gates the ribbon with an
+      OCR read of the banner (``contains: "Upgraded"``), which the shop header
+      ("Dawn Market") fails, so the frame falls through to ``shop.dawn_market``.
+    * **device-level dismiss** — the orange ribbon rule caps
+      ``max_component_area_ratio`` at 0.70; the shop header is a near-solid block
+      (~0.83) and is rejected, while the genuine lettered ribbon (~0.47) passes.
+    """
+    fixture = MODULE_DIR / "tests" / "fixtures" / "dawn_market_orange_header.png"
+    frame = cv2.imread(str(fixture), cv2.IMREAD_COLOR)
+    assert frame is not None, fixture
+
+    # Node: the shop page must NOT be misread as a rewards popup.
+    detector = ScreenDetector(get_ocr_client())
+    assert await detector.detect_screen(frame) == "shop.dawn_market"
+
+    # Device-level dismiss: the blind orange-ribbon rule must stay silent here.
+    out = await run_overlay_analysis(
+        frame,
+        repo_root=REPO_ROOT,
+        area_doc=area_doc,
+        current_screen="onboarding",
+        device_level_only=True,
+        module_scope="rewards",
+    )
+    assert out["rewards.upgraded.ribbon.visible"]["matched"] is False
+
+    # Sanity: the genuine upgraded popup still trips both — the cap is wide
+    # enough for the real lettered ribbon, and its title reads "Upgraded".
+    genuine = _load_reference("page.rewards_upgraded.png")
+    assert await detector.detect_screen(genuine) == "rewards.upgraded"
+    genuine_out = await run_overlay_analysis(
+        genuine,
+        repo_root=REPO_ROOT,
+        area_doc=area_doc,
+        current_screen="onboarding",
+        device_level_only=True,
+        module_scope="rewards",
+    )
+    assert genuine_out["rewards.upgraded.ribbon.visible"]["matched"] is True
 
 
 def test_rewards_exit_scenarios_are_device_level() -> None:

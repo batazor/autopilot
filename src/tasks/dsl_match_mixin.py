@@ -407,6 +407,10 @@ class DslMatchMixin(_Base):
             min_patch_bright_ratio = step.get("min_patch_bright_ratio")
             if min_patch_bright_ratio is not None:
                 rule["min_patch_bright_ratio"] = min_patch_bright_ratio
+            # CTA-search geometry tuners. A value on the DSL step wins; when it's
+            # absent the blue/green button evaluators fall back to the area.json
+            # region (the natural home for layout-specific values like a tight
+            # per-row `y_padding_ratio` on stacked RU «Улучшить» pills).
             min_fill_ratio = step.get("min_fill_ratio")
             if min_fill_ratio is not None:
                 rule["min_fill_ratio"] = min_fill_ratio
@@ -416,6 +420,9 @@ class DslMatchMixin(_Base):
             y_padding_ratio = step.get("y_padding_ratio")
             if y_padding_ratio is not None:
                 rule["y_padding_ratio"] = y_padding_ratio
+            min_aspect_ratio = step.get("min_aspect_ratio")
+            if min_aspect_ratio is not None:
+                rule["min_aspect_ratio"] = min_aspect_ratio
             template = str(step.get("template") or "").replace("\\", "/").strip()
             if template:
                 rule["template"] = template

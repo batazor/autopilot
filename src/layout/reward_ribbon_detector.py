@@ -33,12 +33,20 @@ def detect_reward_ribbon_in_bbox_percent(
     min_component_y_ratio: float = 0.0,
     min_component_height_ratio: float = 0.25,
     min_component_area_ratio: float = 0.12,
+    max_component_area_ratio: float | None = None,
 ) -> RewardRibbonStats:
     """Detect the wide reward-title ribbon shape in a broad top-screen band.
 
     The WOS rewards popups reuse a banner with side tails: blue for normal /
     claimed / chapter rewards and orange for upgraded rewards. Text and snow
     particles vary, so this checks saturated ribbon geometry instead of glyphs.
+
+    ``max_component_area_ratio`` is an optional *solidity ceiling*: a genuine
+    title ribbon is a lettered banner whose largest coloured blob fills only
+    ~0.47 of the band, whereas a near-solid coloured header (e.g. the orange
+    Dawn Market shop banner, ~0.83) is not a ribbon. Capping the area ratio
+    rejects those solid blocks while leaving the ribbon itself untouched.
+    ``None`` (the default) disables the cap, so existing callers are unchanged.
     """
     patch, _tl = patch_bgr_from_bbox_percent(image_bgr, bbox)
     ph, pw = int(patch.shape[0]), int(patch.shape[1])
@@ -88,6 +96,7 @@ def detect_reward_ribbon_in_bbox_percent(
         and y_ratio >= min_component_y_ratio
         and height_ratio >= min_component_height_ratio
         and area_ratio >= min_component_area_ratio
+        and (max_component_area_ratio is None or area_ratio <= max_component_area_ratio)
     )
     return RewardRibbonStats(
         bool(present),

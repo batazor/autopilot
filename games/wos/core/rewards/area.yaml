@@ -71,6 +71,7 @@
           "name": "rewards.upgraded.title",
           "action": "exist",
           "threshold": 0.9,
+          "preprocess": "title_line",
           "bbox": {
             "x": 19.44444444444444,
             "y": 16.55343343883013,

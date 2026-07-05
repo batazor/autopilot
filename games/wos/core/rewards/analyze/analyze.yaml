@@ -37,11 +37,16 @@ overlay:
     threshold: 0.35
     # 0.04 floor (top-aligned onboarding-band reject): the genuine upgraded-popup
     # orange ribbon sits at component y_ratio ~0.065 (page.rewards_upgraded.png).
-    # The 0.15 floor below belongs to the BLUE rewards rule — it fends off the
-    # blue Daily-Deals / Welcome-back banners, which have no orange look-alike, so
-    # copying it here wrongly suppressed the real upgraded popup (no exit pushed).
     min_component_y_ratio: 0.04
     min_component_height_ratio: 0.7
+    # 0.70 solidity ceiling: the orange Dawn Market shop header is a near-solid
+    # block (largest orange contour fills ~0.83 of the band) and otherwise clears
+    # every ribbon gate, so this device-level rule kept pushing an exit on the
+    # shop page. A genuine "Rewards Upgraded!" ribbon is a lettered banner whose
+    # largest blob fills only ~0.47, so the cap rejects the solid header without
+    # touching the real popup. (screen_verify gates the *node* via OCR title; this
+    # cap stops the *blind device-level dismiss* from firing on the same header.)
+    max_component_area_ratio: 0.70
     ttl: 5s
     priority: 120_000
     steps:

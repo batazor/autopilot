@@ -184,7 +184,7 @@ def test_production_screen_verify_yaml_contains_hero_recruitment_route_nodes() -
 
     assert "heroes" in names
     assert "hero.recruitment" in names
-    assert hero_rules == [{"match": "heroes.grid", "threshold": 0.9}]
+    assert hero_rules == [{"ocr": "heroes.title", "contains": "Heroes"}]
     assert recruit_rules == [{"ocr": "hero.recruitment.title", "contains": "Recruitment"}]
     assert route == ["shop.dawn_market", "main_city", "heroes", "hero.recruitment"]
 
@@ -315,7 +315,10 @@ def test_production_screen_verify_yaml_contains_deals_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"ocr": "page.common.title", "contains": "Deals", "threshold": 0.8}]
+    # RU «Белая мгла» guess token «Сделки» appended (EN «Deals» kept) — VERIFY LIVE.
+    expected = [
+        {"ocr": "page.common.title", "contains": ["Deals", "Сделки"], "threshold": 0.8}
+    ]
     assert landmarks == expected
     assert rules == expected
 
@@ -328,7 +331,35 @@ def test_production_screen_verify_yaml_contains_vip_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"ocr": "page.common.title", "contains": "VIP", "threshold": 0.8}]
+    # OCR «VIP» (EN) OR a language-independent title template (RU «Белая мгла»
+    # renders the Latin brand «VIP» as the Cyrillic homoglyph «МР» under the
+    # `rus` Tesseract lang, so the OCR rule alone missed and detection fell
+    # through to storehouse — the vip.title template findIcon-matches on both).
+    expected = [
+        {"ocr": "page.common.title", "contains": "VIP", "threshold": 0.8},
+        {"match": "vip.title", "threshold": 0.9},
+    ]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_daily_deals_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        landmarks = screen_graph.screen_landmark_rules("shop.daily_deals")
+        rules = screen_graph.screen_verify_rules("shop.daily_deals")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    # Fully by OCR (no title crop): contains is a case-insensitive OR of full
+    # words «Daily» (EN «Daily Deals») / «Сделки» (RU «Белая мгла» «Сделки дня»).
+    # The page.shop.daily_deals.title region carries preprocess: title_line (the
+    # stylized banner is garbage under plain OCR). RU reads «Сделки» at the wider
+    # bbox from the wos_ru overlay (games/wos/ru/core/shop/area.yaml); the EN
+    # narrow base bbox reads «Daily».
+    expected = [
+        {"ocr": "page.shop.daily_deals.title", "contains": ["Daily", "Сделки"]},
+    ]
     assert landmarks == expected
     assert rules == expected
 
@@ -341,9 +372,10 @@ def test_production_screen_verify_yaml_contains_exploration_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
+    # Title-only identity, locale-robust (RU «Освоение»). The old second rule
+    # AND-gated on an English button crop that never matched the RU «Освоить».
     expected = [
-        {"ocr": "page.common.title", "contains": "Exploration", "threshold": 0.8},
-        {"match": "exploration.to.squad_settings", "threshold": 0.9},
+        {"ocr": "page.common.title", "contains": ["Exploration", "Освоение"], "threshold": 0.8},
     ]
     assert landmarks == expected
     assert rules == expected
@@ -358,7 +390,7 @@ def test_production_screen_verify_yaml_contains_squad_settings_rule() -> None:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [
-        {"ocr": "page.common.title", "contains": "Squad Settings", "threshold": 0.8},
+        {"ocr": "page.common.title", "contains": ["Squad Settings", "Настройки отряда"], "threshold": 0.8},
     ]
     assert landmarks == expected
     assert rules == expected
@@ -385,7 +417,7 @@ def test_production_screen_verify_yaml_contains_exploration_defeat_rule() -> Non
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"ocr": "exploration.defeat.title", "contains": "Defeat"}]
+    expected = [{"ocr": "exploration.defeat.title", "contains": ["Defeat", "Поражение"]}]
     assert landmarks == expected
     assert rules == expected
 
@@ -508,8 +540,9 @@ def test_production_screen_verify_yaml_contains_rewards_rule() -> None:
             "action": "reward_ribbon",
             "type": "blue",
             "threshold": 0.35,
-            "min_component_y_ratio": 0.04,
+            "min_component_y_ratio": 0.15,
             "min_component_height_ratio": 0.7,
+            "min_component_area_ratio": 0.40,
         },
         {"match": "rewards.title.v2", "threshold": 0.9},
     ]
@@ -525,9 +558,15 @@ def test_production_screen_verify_yaml_contains_rewards_upgraded_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
+    # The orange ribbon is AND-gated by an OCR read of the banner title so the
+    # orange Dawn Market shop header (which clears every ribbon metric) no longer
+    # hijacks this priority-4 node from shop.dawn_market. ``match`` + ``ocr`` in
+    # one entry → one landmark group → both must fire.
     expected = [
         {
             "match": "rewards.ribbon",
+            "ocr": "rewards.upgraded.title",
+            "contains": "Upgraded",
             "action": "reward_ribbon",
             "type": "orange",
             "threshold": 0.35,
@@ -572,7 +611,11 @@ def test_production_screen_verify_yaml_contains_heroes_sr_new_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"match": "heroes.sr.new.close", "threshold": 0.9}]
+    # Detected by OCR of the bottom "Tap anywhere to continue" caption, not the
+    # full-frame close template (it degrades under scrcpy H.264 to ~0.84, below
+    # the 0.9 floor, leaving the page UNKNOWN). See games/wos/heroes/heroes/
+    # routes/screen_verify.yaml + read_new_hero_unlock.
+    expected = [{"ocr": "heroes.sr.new.tap_anywhere", "contains": "tap anywhere"}]
     assert landmarks == expected
     assert rules == expected
 

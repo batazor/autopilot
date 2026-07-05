@@ -5,11 +5,17 @@ priority: 100_010
 steps:
   # Chapter / growth panel: claim every completed (green) mission reward plus the
   # bottom chapter-reward "Claim". The list reflows up after each claim, so
-  # re-probe and drain a few rows per run. isSearch finds the button wherever it
-  # lands. Each claim opens a reward popup that hides the next Claim — dismiss it
-  # via the shared `button.tap_anywhere_to_exit` (same pattern the chapter module
-  # uses) before re-probing.
+  # re-probe and drain a few rows per run. Detect the button by GREEN CTA colour
+  # (not an English template) so it works on the RU «Белая мгла» build too — the
+  # green-button finder anchors on the claim column + button size but leaves y
+  # dynamic, so it follows the button wherever it reflows. Each claim opens a
+  # reward popup that hides the next Claim — dismiss it via the shared
+  # `button.tap_anywhere_to_exit` (same pattern the chapter module uses) before
+  # re-probing.
   - while_match: onboarding.button.claim
+    action: cta_button
+    color: green
+    threshold: 0.5
     max: 5
     steps:
       - click: onboarding.button.claim

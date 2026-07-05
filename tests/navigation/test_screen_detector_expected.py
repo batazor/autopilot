@@ -94,6 +94,44 @@ def test_merge_screen_probe_order_prepends_without_duplicates() -> None:
     assert out == ["mail", "loading", "vip"]
 
 
+def test_landmark_ocr_rule_forwards_preprocess(mocker) -> None:
+    """A screen-identity OCR rule may pin ``preprocess`` (e.g. ``title_line`` for
+    the white-outlined RU «Охотничий домик» building plate) so detection reads
+    the styled title cleanly — without changing the shared region's own default.
+    """
+    import navigation.detector as detector_module
+
+    def _rules(screen: str):
+        return {
+            "hunters_hut": [
+                {
+                    "ocr": "building.title",
+                    "contains": ["Hunters", "Охотничий домик"],
+                    "threshold": 0.8,
+                    "preprocess": "title_line",
+                }
+            ],
+            "plain": [
+                {"ocr": "building.title", "contains": "Cookhouse", "threshold": 0.8}
+            ],
+        }.get(screen, [])
+
+    mocker.patch.object(detector_module, "screen_landmark_rules", new=_rules)
+
+    pinned, _ = ScreenDetector._landmark_overlay_rules_for_screen(
+        "hunters_hut", name_prefix="t"
+    )
+    assert pinned[0]["preprocess"] == "title_line"
+    assert pinned[0]["expected"] == ["Hunters", "Охотничий домик"]
+
+    # No ``preprocess`` on the rule → the key is omitted, so the region's own
+    # default (raw) is used. No regression for the other building screens.
+    plain, _ = ScreenDetector._landmark_overlay_rules_for_screen(
+        "plain", name_prefix="t"
+    )
+    assert "preprocess" not in plain[0]
+
+
 @pytest.mark.asyncio
 async def test_detect_screen_uses_ocr_landmarks_without_deduping_expected(
     mocker,
