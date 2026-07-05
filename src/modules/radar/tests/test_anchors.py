@@ -3,12 +3,15 @@ the same corners.json the solver already consumes via load_corner_constraints.""
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from modules.radar.corners import load_corner_constraints, save_anchors
 from modules.radar.stitch_georef import MAP_META_NAME
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 FRAME_W, FRAME_H = 720, 1280
 

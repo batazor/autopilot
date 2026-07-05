@@ -272,8 +272,8 @@ def test_confidence_low_when_rarity_only():
 def test_gear_and_skill_raise_stat_strength():
     # same base stats / star / level — gear + maxed skills (read off the Details screen)
     # lift the no-Power stat estimate.
-    base = dict(id="h", name="H", hero_class="infantry", star=4, level=60,
-                base_attack=3000, base_def=4000, base_health=60000)
+    base = {"id": "h", "name": "H", "hero_class": "infantry", "star": 4, "level": 60,
+            "base_attack": 3000, "base_def": 4000, "base_health": 60000}
     plain = ArenaHero(**base, skill=1)
     geared = ArenaHero(**base, skill=5, gear_avg=16.0)
     assert hero_strength(geared, CFG) > hero_strength(plain, CFG)

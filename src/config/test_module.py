@@ -34,9 +34,11 @@ INFRASTRUCTURE_MODULE_IDS: frozenset[str] = frozenset(
         # cannot get past a network drop or the daily welcome dialog.
         "reconnect",
         "welcome_back",
-        # Identity probe — every account-level task needs ``active_player``,
-        # which only this module can populate.
-        "who_i_am",
+        # NB: ``who_i_am`` (identity probe) is deliberately NOT here. It is
+        # expensive (navigates to chief profile + OCR) and only needed for
+        # account-level work. Device-level locks like ``alliance/helper`` (a
+        # plain icon tap) don't need ``active_player``, so under a single-module
+        # lock the identity probe is blocked along with everything else.
     }
 )
 
@@ -155,11 +157,29 @@ def task_payload_allowed(
     repo_root: Path,
 ) -> bool:
     """Whether a queue payload (`pop_due`/`_collect_ranked_due` row) should run."""
-    if not _normalize(test_module):
+    tm = _normalize(test_module)
+    if not tm:
         return True
-    scenario_key = str(payload.get("dsl_scenario") or "").strip()
+    # Cron/planner rows carry their scenario in ``task_type``; only DSL rows
+    # set ``dsl_scenario``. Checking ``dsl_scenario`` alone let every cron task
+    # (which has none) slip through as if it were unbound framework work — so a
+    # single-module lock did nothing to the crons. Fall back to ``task_type``.
+    scenario_key = str(
+        payload.get("dsl_scenario") or payload.get("task_type") or ""
+    ).strip()
     if not scenario_key:
-        # Framework tasks (who_i_am, overlay_tap, ...) — no module binding.
+        # Genuinely unbound framework work (overlay-derived taps, …).
+        return True
+    # Infrastructure concerns must run even under a single-module lock, or the
+    # bot gets stuck on popups / reconnects / loses its identity probe. Match by
+    # task-type name: who_i_am resolves to the chief_profile module, not the
+    # ``who_i_am`` infra id, so a resolved-module check alone would miss it.
+    base = scenario_key.replace("/", ".").split(".", 1)[0]
+    if scenario_key in INFRASTRUCTURE_MODULE_IDS or base in INFRASTRUCTURE_MODULE_IDS:
         return True
     module_id = module_id_for_scenario_key(repo_root, scenario_key)
-    return is_module_allowed(test_module, module_id)
+    if module_id is None:
+        # A real scenario/cron we can't map to a module: under an active lock,
+        # default-deny instead of leaking it through.
+        return False
+    return is_module_allowed(tm, module_id)
