@@ -1,0 +1,10 @@
+id: heroes-ru-overlay
+title: Heroes (RU overlay)
+description: >
+  RU «Белая мгла» (wos_ru) overlay for the heroes module. Provides ONLY area.yaml
+  region overrides. Loaded only for the wos_ru catalog; overlay regions replace
+  the same-named base region by name (overlay-first merge in layout.area_manifest).
+  No scenarios/analyze of its own — the base games/wos/heroes/heroes module owns those.
+enabled: true
+area: area.yaml
+wiki: false

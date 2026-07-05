@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "_comment": "RU «Белая мгла» overlay: hero-detail regions whose RU text is wider than the EN original. Overlay regions REPLACE the same-named base region (overlay-first merge).",
+  "screens": [
+    {
+      "screen_id": "page.heroes.unit",
+      "ocr": "references/page.heroes.unit.png",
+      "regions": [
+        {
+          "name": "page.heroes.unit.stats",
+          "_comment": "Bottom-left tab reads «Показатели» on RU — a longer word that starts LEFT of the EN 'Stats' bbox (base x14 w28 clips it to '‹азатели', killing the screen detect). Widened window reads 'Показатели' @ conf 0.97 on the live bs5 frame (hero «Джина»).",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 4.0,
+            "y": 95.3,
+            "width": 30.0,
+            "height": 3.6,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

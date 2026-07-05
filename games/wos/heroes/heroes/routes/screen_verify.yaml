@@ -7,13 +7,15 @@ screens:
     # made navigation to the heroes screen fail (verify never passed). The title
     # is stable regardless of which heroes are shown. Mirrors hero.recruitment.
     - ocr: heroes.title
-      contains: "Heroes"
+      # RU «Герои» (bottom-bar label confirmed on bs5; page title assumed same word) — VERIFY LIVE.
+      contains: [Heroes, Герои]
 
   hero.recruitment:
     priority: 30
     rules:
     - ocr: hero.recruitment.title
-      contains: "Recruitment"
+      # RU guess «Наём» — VERIFY LIVE.
+      contains: [Recruitment, Наём]
 
   # Per-hero detail page (reached from the grid). Anchored on the bottom-left
   # "Stats" tab via OCR: the wiki-button template (top-right) degrades under
@@ -26,7 +28,8 @@ screens:
     priority: 35
     rules:
     - ocr: page.heroes.unit.stats
-      contains: "Stats"
+      # RU «Показатели» (bottom-left tab; verified live on bs5 hero card «Джина»).
+      contains: [Stats, Показател]
       threshold: 0.8
 
   # New-hero ("SSR/SR · NEW") unlock celebration page. Anchored on the bottom
@@ -39,4 +42,5 @@ screens:
     priority: 25
     rules:
     - ocr: heroes.sr.new.tap_anywhere
-      contains: "tap anywhere"
+      # RU caption «Нажмите в любом месте…» (token «любом месте», mirrors arena.result) — VERIFY LIVE.
+      contains: ["tap anywhere", "любом месте"]

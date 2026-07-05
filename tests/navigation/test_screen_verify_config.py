@@ -184,8 +184,10 @@ def test_production_screen_verify_yaml_contains_hero_recruitment_route_nodes() -
 
     assert "heroes" in names
     assert "hero.recruitment" in names
-    assert hero_rules == [{"ocr": "heroes.title", "contains": "Heroes"}]
-    assert recruit_rules == [{"ocr": "hero.recruitment.title", "contains": "Recruitment"}]
+    assert hero_rules == [{"ocr": "heroes.title", "contains": ["Heroes", "Герои"]}]
+    assert recruit_rules == [
+        {"ocr": "hero.recruitment.title", "contains": ["Recruitment", "Наём"]}
+    ]
     assert route == ["shop.dawn_market", "main_city", "heroes", "hero.recruitment"]
 
 
@@ -456,13 +458,27 @@ def test_production_screen_verify_yaml_contains_alliance_common_title_rules() ->
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         checks = {
-            "alliance": [{"ocr": "page.common.title", "contains": "Alliance", "threshold": 0.8}],
+            "alliance": [
+                {
+                    "ocr": "page.common.title",
+                    "contains": ["Alliance", "Альянс"],
+                    "threshold": 0.8,
+                }
+            ],
             "alliance.war": [
-                {"ocr": "page.common.title", "contains": "War", "threshold": 0.8},
+                {
+                    "ocr": "page.common.title",
+                    "contains": ["War", "Война"],
+                    "threshold": 0.8,
+                },
                 {"from_screen": ["alliance"]},
             ],
             "alliance.tech": [
-                {"ocr": "page.common.title", "contains": "Tech", "threshold": 0.8},
+                {
+                    "ocr": "page.common.title",
+                    "contains": ["Tech", "Технолог"],
+                    "threshold": 0.8,
+                },
                 {"from_screen": ["alliance"]},
             ],
         }
@@ -511,7 +527,9 @@ def test_production_screen_verify_yaml_contains_survivor_status_tab_rules() -> N
             assert screen_graph.screen_verify_rules(screen) == expected
         # Parent is now OCR (reskin-proof header); sub-tabs above stay on
         # template + tab_active, which is what actually disambiguates them.
-        expected_base = [{"ocr": "survivor_status.title", "contains": "Survivor Status"}]
+        expected_base = [
+            {"ocr": "survivor_status.title", "contains": ["Survivor Status", "выживших"]}
+        ]
         assert screen_graph.screen_landmark_rules("survivor_status") == expected_base
         assert screen_graph.screen_verify_rules("survivor_status") == expected_base
     finally:
@@ -620,7 +638,9 @@ def test_production_screen_verify_yaml_contains_heroes_sr_new_rule() -> None:
     # full-frame close template (it degrades under scrcpy H.264 to ~0.84, below
     # the 0.9 floor, leaving the page UNKNOWN). See games/wos/heroes/heroes/
     # routes/screen_verify.yaml + read_new_hero_unlock.
-    expected = [{"ocr": "heroes.sr.new.tap_anywhere", "contains": "tap anywhere"}]
+    expected = [
+        {"ocr": "heroes.sr.new.tap_anywhere", "contains": ["tap anywhere", "любом месте"]}
+    ]
     assert landmarks == expected
     assert rules == expected
 

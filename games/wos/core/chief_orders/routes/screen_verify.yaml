@@ -3,7 +3,8 @@ screens:
     priority: 50
     rules:
       - ocr: chief_order.title
-        contains: "Chief Order"
+        # RU guess «Приказ вождя» (token «Приказ») — VERIFY LIVE.
+        contains: ["Chief Order", Приказ]
 
   chief_order_enact:
     priority: 55

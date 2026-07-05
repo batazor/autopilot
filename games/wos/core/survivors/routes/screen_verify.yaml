@@ -8,7 +8,8 @@ screens:
     priority: 9
     rules:
     - ocr: survivor_status.title
-      contains: "Survivor Status"
+      # RU guess «Статус выживших» (token «выживших»; chapter tab reads «Выживший» on bs5) — VERIFY LIVE.
+      contains: ["Survivor Status", выживших]
   survivor_status.status:
     priority: 8
     rules:

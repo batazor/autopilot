@@ -13,7 +13,8 @@ screens:
     priority: 20
     rules:
       - ocr: arena.result.exit
-        contains: ["anywhere", "exit"]
+        # RU «Для выхода нажмите в любом месте» (confirmed live on bs5 intel-battle result).
+        contains: ["anywhere", "exit", "выхода", "любом месте"]
 
   # The arena.fight scenario taps through challenge_list -> squad -> fight itself,
   # but both are detectable dialogs over the Arena building, so a scenario that
@@ -25,16 +26,19 @@ screens:
     priority: 24
     rules:
       - ocr: arena.challenge_list.title
-        contains: "Challenge List"
+        # RU guess «Список вызовов» (token «вызов») — VERIFY LIVE.
+        contains: ["Challenge List", вызов]
 
   arena.squad:
     priority: 24
     rules:
       - ocr: arena.squad.title
-        contains: ["Squad", "Settings"]
+        # RU guess «Отряд» — VERIFY LIVE.
+        contains: ["Squad", "Settings", Отряд]
 
   arena:
     priority: 30
     rules:
       - ocr: arena.title
-        contains: ["Arena of Glory", "Glory"]
+        # RU guess «Арена славы» (token «Арена») — VERIFY LIVE.
+        contains: ["Arena of Glory", "Glory", Арена]
