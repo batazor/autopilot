@@ -10,15 +10,15 @@
       "regions": [
         {
           "name": "intel.fight.view",
-          "_comment": "RU «Посмотреть» (View) blue pill, bottom-centre of the target card (~360,889 on «Охота на зверя»/beast + newbie-event panels). Template = screen landmark + tap target. Crop: references/crop/fight_intel.fight.view.png.",
+          "_comment": "RU «Посмотреть» (View) blue pill, bottom-centre of the target card. The pill's vertical position varies by panel kind: ~360,889 on «Охота на зверя»/beast + newbie-event panels, but ~360,938 on «Спасение выживших» (rescue) — the old 63-74% window clipped the template there (score 0.23 → intel.fight never detected after tapping a rescue/camp pin). 60-80% covers every observed variant with the full 62px template inside the ROI. Template = screen landmark + tap target. Crop: references/crop/fight_intel.fight.view.png.",
           "action": "exist",
           "isSearch": true,
           "threshold": 0.7,
           "bbox": {
             "x": 24.0,
-            "y": 63.0,
+            "y": 60.0,
             "width": 52.0,
-            "height": 11.0,
+            "height": 20.0,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -31,6 +31,39 @@
       "ocr": "references/intel.png",
       "_comment": "RU intel-board screen landmark: the «Разведка» title TEMPLATE (white-outlined, intel-specific + stable). The base screen_verify rule `match: intel.title` findIcon resolves this RU crop (intel_intel.title.png) for wos_ru. Needed because the RU title OCRs poorly (white outline → conf ~0.4, partial «Разве») and the old intel.stamina OR-landmark was repurposed to read the «44/90» stamina bar — which broke intel detection. threshold 0.8 (was 0.6): the title crop's light-blue gradient also matches the main_city sky behind the avatar (spurious isSearch peak ~0.66); 0.6 straddled the gate and let the sticky detector pin intel over a real main_city. Real intel scores 1.0, so 0.8 separates cleanly.",
       "regions": [
+        {
+          "name": "intel.claim_all",
+          "_comment": "RU «Получить все» — GREEN pill bottom-centre of the «Разведка» board (EN 'Claim All' is a different-styled button; the EN template scores ~0.44 here, under the 0.9 gate, so passive rewards were never claimed on RU). Crop cut from the live bs5 board (step1_board 2026-07-05), self-match 1.0. isSearch window slightly wider than the base exact window to absorb the pill's position jitter.",
+          "action": "exist",
+          "isSearch": true,
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.0,
+            "y": 82.0,
+            "width": 52.0,
+            "height": 12.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "intel.stamina",
+          "_comment": "RU stamina «9/70» bottom-left of the «Разведка» board. Same bbox as the base region, but the base `fast_line` (raw PSM 7) reads EMPTY under the rus traineddata — the white outlined digits on the bar gradient need contrast enhancement first. `enhance_line` (enhance_for_ocr + PSM 7, no whitelist so the «/» survives for parse_stamina) reads '9/70' at conf 0.97 on the live frame. Verified offline on scratchpad step1_board capture 2026-07-05.",
+          "action": "text",
+          "threshold": 0.7,
+          "type": "string",
+          "preprocess": "enhance_line",
+          "bbox": {
+            "x": 21.666666666666668,
+            "y": 93.515625,
+            "width": 18.333333333333332,
+            "height": 5.15625,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
         {
           "name": "intel.title",
           "action": "exist",
