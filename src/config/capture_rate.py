@@ -31,18 +31,33 @@ MIN_CAPTURE_INTERVAL_S = 0.05
 # that declare ``capture_interval_ms`` (fishing, dreamscape) stream uncapped.
 IDLE_SCRCPY_MAX_FPS = 8
 
+# Deep-idle cap: no task and the same known screen for ``DEEP_IDLE_AFTER_S``
+# (or the instance is operator-paused) — nothing consumes frames beyond the
+# ~0.2–0.4 Hz rolling tick, yet the stream decodes (H.264 + YUV→BGR swscale)
+# every frame it's allowed. Profiled on live workers: decode+convert was the
+# main CPU of a *paused* worker, ~2% of a core each, summed across the fleet.
+# The cap is restored to ``IDLE_SCRCPY_MAX_FPS`` the moment a task starts
+# (``_run_one_queue_item``) so post-tap captures keep their fresh-frame budget.
+DEEP_IDLE_SCRCPY_MAX_FPS = 2
+DEEP_IDLE_AFTER_S = 60.0
+
 
 def scrcpy_max_fps_for_capture_interval(
     capture_interval_override_s: float | None,
+    *,
+    deep_idle: bool = False,
 ) -> int:
     """scrcpy ``max_fps`` for the active scenario (0 = uncapped).
 
     A scenario whose module declares a faster ``capture_interval_ms`` (so
     ``capture_interval_override_s`` is set) needs frames as fast as the device
-    produces them — stream uncapped. Otherwise cap to ``IDLE_SCRCPY_MAX_FPS`` so
-    a static screen isn't decoded at the device's native frame rate.
+    produces them — stream uncapped. Otherwise cap to ``IDLE_SCRCPY_MAX_FPS``
+    (or ``DEEP_IDLE_SCRCPY_MAX_FPS`` on a long-stable idle screen) so a static
+    screen isn't decoded at the device's native frame rate.
     """
-    return 0 if capture_interval_override_s else IDLE_SCRCPY_MAX_FPS
+    if capture_interval_override_s:
+        return 0
+    return DEEP_IDLE_SCRCPY_MAX_FPS if deep_idle else IDLE_SCRCPY_MAX_FPS
 
 
 @lru_cache(maxsize=8)

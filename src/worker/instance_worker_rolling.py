@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from config.capture_rate import (
+    DEEP_IDLE_AFTER_S,
     MIN_CAPTURE_INTERVAL_S,
     scrcpy_max_fps_for_capture_interval,
 )
@@ -34,8 +35,19 @@ _PREVIEW_FORCE_WRITE_S = 5.0
 # nothing to re-grab/decode/analyse on an unchanging screen. Task pickup is a
 # separate loop, so this only relaxes overlay/preview reactivity; a task start,
 # an unknown screen (possible popup), or any screen change snaps back to base.
+# Past ``DEEP_IDLE_AFTER_S`` (config.capture_rate) of the same dwell the tick
+# relaxes further to ``_IDLE_DEEP_MAX_INTERVAL_S`` and the scrcpy stream drops
+# to its deep-idle fps cap — a spontaneous popup on a long-idle screen is
+# noticed within ~5 s, which the queue's own latencies already dwarf.
 _IDLE_BACKOFF_AFTER_S = 5.0
 _IDLE_MAX_INTERVAL_S = 2.5
+_IDLE_DEEP_MAX_INTERVAL_S = 5.0
+
+# Operator-paused instances keep a live preview for the dashboard, but there is
+# no reason to grab/phash/PNG-encode every tick when nobody is looking: refresh
+# on this keepalive cadence (file mtime feeds liveness heuristics), or every
+# tick while the dashboard live-view flag is up.
+_PAUSED_PREVIEW_KEEPALIVE_S = 30.0
 
 
 def _runtime_error_is_adb_signal_exit(exc: BaseException) -> bool:
@@ -284,7 +296,8 @@ class InstanceWorkerRollingMixin(_Base):
             self._bot_actions.set_scrcpy_max_fps(
                 self._cfg.instance_id,
                 scrcpy_max_fps_for_capture_interval(
-                    getattr(self, "_capture_interval_override_s", None)
+                    getattr(self, "_capture_interval_override_s", None),
+                    deep_idle=bool(getattr(self, "_rolling_deep_idle", False)),
                 ),
             )
 
@@ -629,6 +642,7 @@ class InstanceWorkerRollingMixin(_Base):
                 override = getattr(self, "_capture_interval_override_s", None)
                 if override:
                     interval, floor = override, MIN_CAPTURE_INTERVAL_S
+                    self._rolling_deep_idle = False
                 else:
                     base = _rolling_snapshot_interval(cfg_now)
                     interval, floor = base, 0.3
@@ -642,15 +656,35 @@ class InstanceWorkerRollingMixin(_Base):
                     ):
                         self._rolling_prev_screen_seen = cur_screen
                         self._rolling_stable_since_m = now_m
-                    elif (
-                        now_m - getattr(self, "_rolling_stable_since_m", now_m)
-                    ) >= _IDLE_BACKOFF_AFTER_S:
-                        interval = max(base, _IDLE_MAX_INTERVAL_S)
+                        self._rolling_deep_idle = False
+                    else:
+                        dwell = now_m - getattr(self, "_rolling_stable_since_m", now_m)
+                        if dwell >= DEEP_IDLE_AFTER_S:
+                            interval = max(base, _IDLE_DEEP_MAX_INTERVAL_S)
+                            self._rolling_deep_idle = True
+                        elif dwell >= _IDLE_BACKOFF_AFTER_S:
+                            interval = max(base, _IDLE_MAX_INTERVAL_S)
                 await asyncio.sleep(max(floor, interval))
                 if self._stopping:
                     return
                 if self._ui_paused:
-                    await self._device_reference_snapshot_tick(analyze=False)
+                    # Paused: no analysis consumes frames — drop the stream to
+                    # the deep-idle cap (decode+swscale was the whole CPU cost
+                    # of a paused worker) and only refresh the preview when a
+                    # dashboard viewer is attached or the keepalive is due.
+                    with contextlib.suppress(Exception):
+                        self._bot_actions.set_scrcpy_max_fps(
+                            self._cfg.instance_id,
+                            scrcpy_max_fps_for_capture_interval(None, deep_idle=True),
+                        )
+                    now_m = time.monotonic()
+                    last_write = getattr(self, "_rolling_paused_keepalive_m", 0.0)
+                    if (
+                        (now_m - last_write) >= _PAUSED_PREVIEW_KEEPALIVE_S
+                        or await self._screen_stream_viewer_active()
+                    ):
+                        self._rolling_paused_keepalive_m = now_m
+                        await self._device_reference_snapshot_tick(analyze=False)
                     continue
                 await self._device_reference_snapshot_tick()
             except asyncio.CancelledError:

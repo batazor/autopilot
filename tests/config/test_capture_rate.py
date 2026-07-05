@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from config.capture_rate import (
+    DEEP_IDLE_AFTER_S,
+    DEEP_IDLE_SCRCPY_MAX_FPS,
     IDLE_SCRCPY_MAX_FPS,
     MIN_CAPTURE_INTERVAL_S,
     capture_interval_s_for_scenario_key,
@@ -12,14 +14,24 @@ from config.paths import repo_root
 
 
 def test_scrcpy_fps_uncapped_for_fast_scenario() -> None:
-    # A scenario with a capture override (fishing) streams uncapped (0).
+    # A scenario with a capture override (fishing) streams uncapped (0),
+    # regardless of any (stale) deep-idle verdict.
     assert scrcpy_max_fps_for_capture_interval(0.1) == 0
+    assert scrcpy_max_fps_for_capture_interval(0.1, deep_idle=True) == 0
 
 
 def test_scrcpy_fps_idle_cap_for_normal_scenario() -> None:
     # No override (normal autopilot / idle) → low cap.
     assert scrcpy_max_fps_for_capture_interval(None) == IDLE_SCRCPY_MAX_FPS
     assert IDLE_SCRCPY_MAX_FPS > 0
+
+
+def test_scrcpy_fps_deep_idle_cap() -> None:
+    # Long-stable idle screen / paused instance → deepest cap; still >0 so the
+    # preview keepalive and a task's first capture have frames to grab.
+    assert scrcpy_max_fps_for_capture_interval(None, deep_idle=True) == DEEP_IDLE_SCRCPY_MAX_FPS
+    assert 0 < DEEP_IDLE_SCRCPY_MAX_FPS < IDLE_SCRCPY_MAX_FPS
+    assert DEEP_IDLE_AFTER_S > 0
 
 
 def test_fast_modules_declare_capture_interval() -> None:

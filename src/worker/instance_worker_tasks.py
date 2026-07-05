@@ -87,6 +87,21 @@ class InstanceWorkerTasksMixin(_Base):
             set_log_context(player=item.player_id)
         skip_account = getattr(task, "skip_account_check", False)
         self._task_busy.set()
+        # Long deep-idle dwell drops the scrcpy stream to a low fps cap; lift it
+        # NOW (not on the next rolling tick, up to 5 s away) so this task's first
+        # post-tap capture has a fresh-frame budget. No-op unless the cap changed.
+        self._rolling_deep_idle = False
+        try:
+            from config.capture_rate import scrcpy_max_fps_for_capture_interval
+
+            self._bot_actions.set_scrcpy_max_fps(
+                self._cfg.instance_id,
+                scrcpy_max_fps_for_capture_interval(
+                    getattr(self, "_capture_interval_override_s", None)
+                ),
+            )
+        except Exception:
+            logger.debug("task-start scrcpy fps restore failed", exc_info=True)
         started_at = float(time.time())
 
         state_key = f"wos:instance:{self._cfg.instance_id}:state"
