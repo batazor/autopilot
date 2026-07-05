@@ -153,6 +153,18 @@ def test_intel_route_is_reachable_from_world_map() -> None:
     ]
 
 
+def test_intel_fight_view_popup_has_back_exit() -> None:
+    # The intel target-detail modal (fight "A Hero's Journey" + beast "Rookie
+    # Bounty", both detect as intel.fight) must not be a dead-end: it floats over
+    # the world map with no template-matchable back arrow, so it needs a declared
+    # blind page.back exit or it strands every later nav scenario.
+    assert route_taps("intel.fight", "main_world", game="wos") == [["icon.page.back"]]
+    assert route_taps("intel.fight", "main_city", game="wos") == [
+        ["icon.page.back"],
+        ["main_world.to.main_city"],
+    ]
+
+
 @pytest.mark.asyncio
 async def test_claim_all_region_detected_on_claim_reference() -> None:
     area_doc = load_area_doc(REPO_ROOT)
@@ -226,6 +238,22 @@ async def test_explore_button_color_discriminates_blue_vs_attack() -> None:
 
     assert out_explore["intel.explore.is_blue.check"]["matched"] is True
     assert out_attack["intel.explore.is_blue.check"]["matched"] is False
+
+
+def test_deploy_ttl_region_reads_low_confidence_timer() -> None:
+    # The march-deploy timer (heroes.deploy.ttl) OCRs with a leading icon that
+    # caps confidence ~0.5-0.6. The region must use fast_line and a floor below
+    # that, or the TTL is dropped and confirm_intel_march_lease can't record the
+    # intel march-slot lease (the bug fixed 2026-06-28).
+    area_doc = load_area_doc(REPO_ROOT)
+    region = None
+    for screen in area_doc.get("screens", []):
+        for r in screen.get("regions", []):
+            if r.get("name") == "heroes.deploy.ttl":
+                region = r
+    assert region is not None, "heroes.deploy.ttl region missing from area.yaml"
+    assert region.get("preprocess") == "fast_line"
+    assert float(region.get("threshold", 1.0)) <= 0.5
 
 
 def test_refresh_timer_parses_with_prefix() -> None:

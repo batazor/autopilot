@@ -25,5 +25,13 @@ screens:
           - Intel
           - Разведка
         threshold: 0.8
+      # threshold 0.8 (was 0.6): the «Разведка» title crop sits on a light-blue
+      # gradient that also matches the main_city sky (top-left, behind the avatar)
+      # at a spurious peak ~0.66 with isSearch. At 0.6 that straddled the gate, so
+      # the sticky-detect path (_verify_screen, which excludes main_city from
+      # preempting) latched onto intel while the bot was really on main_city and
+      # never recovered. Real intel scores 1.0 here, so 0.8 keeps a wide margin
+      # over the 0.66 false peak. main_city is then free to win on its own
+      # bottom-right «Мир» landmark (main_city.to.world @ ~0.97).
       - match: intel.title
-        threshold: 0.6
+        threshold: 0.8

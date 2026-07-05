@@ -115,6 +115,10 @@ def test_parse_march_ttl_seconds() -> None:
     assert EXEC.parse_march_ttl_seconds("1:21") == 81
     assert EXEC.parse_march_ttl_seconds("81") == 81
     assert EXEC.parse_march_ttl_seconds("") is None
+    # The deploy-screen timer OCRs with a leading icon as a stray char, e.g.
+    # "D 00:00:43" (seen live on bs3). The prefix must be stripped, not fail.
+    assert EXEC.parse_march_ttl_seconds("D 00:00:43") == 43
+    assert EXEC.parse_march_ttl_seconds("D 00:00:46") == 46
 
 
 # --- the exec handler end-to-end against a real frame ------------------------

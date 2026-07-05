@@ -4,3 +4,15 @@ edges:
 
   intel:
     main_world: [icon.page.back]
+
+  # Intel target-detail modal (the View popup). Both the fight skin
+  # ("A Hero's Journey", references/fight.png) and the beast-bounty skin
+  # ("Rookie Bounty") detect as intel.fight via the shared `intel.fight.view`
+  # button. The popup floats over the world map with NO template-matchable back
+  # arrow, so the navigator's visibility-gated page.back fallback never fires —
+  # leaving intel.fight a dead-end that strands every later nav scenario (the
+  # whole fleet's check_main_city / sync_* crons fail with navigation_failed).
+  # Declare the exit so the navigator blind-taps the always-present
+  # icon.page.back zone (no detect gate) to close the modal back to main_world.
+  intel.fight:
+    main_world: [icon.page.back]

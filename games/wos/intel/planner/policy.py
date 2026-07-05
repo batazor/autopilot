@@ -6,7 +6,7 @@ and drops loot whose richness tracks the pin's **colour** (gold > purple > blue)
 and **kind** (the rarer horned-skull / camp pins beat ordinary fight / skull pins).
 
 This mirrors the deterministic colour/kind ordering already used to *pick* a marker
-on screen (``games/wos/intel/exec.py:_pick_marker``), but expressed as continuous
+on screen (``games/wos/intel/detection.py:_pick_marker``), but expressed as continuous
 weights so the planner can *rank a whole batch* by value and spend a stamina budget
 on the best ones first. Pure constants + one value function; no IO, no cv2.
 """

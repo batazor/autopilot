@@ -1,7 +1,7 @@
 """Image-free snapshot of one Intel marker, so the planner stays pure.
 
-The on-screen detection (``games/wos/intel/exec.py:detect_intel_markers``) is cv2-
-coupled and returns ``IntelMarker`` objects. The planner must be unit-testable
+The on-screen detection (``games/wos/intel/detection.py:detect_intel_markers``) is
+cv2-coupled and returns ``IntelMarker`` objects. The planner must be unit-testable
 without images, so it works on this plain :class:`IntelEvent` instead. A live
 reader converts detected markers via :func:`from_marker` before planning.
 """
