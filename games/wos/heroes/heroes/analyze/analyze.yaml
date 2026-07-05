@@ -18,3 +18,23 @@ overlay:
     - page.heroes.unit
   steps:
     - push_scenario: claim_hero_bio
+
+# New-hero unlock celebration page ("SSR/SR · NEW", "Tap anywhere to continue").
+# Keyed off the bottom caption OCR (same anchor screen_verify uses) rather than
+# the full-frame close template, which degrades under scrcpy H.264 (~0.84 live).
+# Fires device-level (the page can appear before identity is known) and reads +
+# records the hero before generic navigation blind-taps the page away. ttl
+# throttles the re-push while read_new_hero_unlock works through stacked pages.
+- name: heroes.sr.new.unlock
+  region: heroes.sr.new.tap_anywhere
+  action: text
+  type: string
+  expected:
+    - tap anywhere
+  threshold: 0.6
+  device_level: true
+  ttl: 5
+  screens:
+    - heroes.sr.new
+  steps:
+    - push_scenario: read_new_hero_unlock

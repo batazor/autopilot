@@ -14,6 +14,7 @@ grid scanner keeps its own module + test file.
 """
 from __future__ import annotations
 
+from games.wos.heroes.heroes.record_new_hero import _exec_record_new_hero
 from games.wos.heroes.heroes.scan_enemy_lineup import _exec_scan_enemy_lineup
 from games.wos.heroes.heroes.scan_hero_details import _exec_scan_hero_details
 from games.wos.heroes.heroes.scan_hero_details_list import _exec_scan_hero_details_list
@@ -25,6 +26,8 @@ DSL_EXEC_HANDLERS = {
     "scan_heroes_grid": _exec_scan_heroes_grid,
     "sync_hero_unit": _exec_sync_hero_unit,
     "sync_hero_roster": _exec_sync_hero_roster,
+    # New-hero unlock page → OCR name → add to roster (then dismiss).
+    "record_new_hero": _exec_record_new_hero,
     "scan_hero_details": _exec_scan_hero_details,
     # Hero Details popup → portrait-id + level/skill/gear (own roster).
     "scan_hero_details_list": _exec_scan_hero_details_list,

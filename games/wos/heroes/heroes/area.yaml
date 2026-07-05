@@ -3,7 +3,43 @@ screens:
 - id: 1300
   screen_id: heroes.sr.new
   ocr: references/heroes.sr.new.png
-  regions: []
+  regions:
+  # New-hero ("SSR/SR — NEW") celebration page. The big white hero name sits
+  # centred below the portrait, above the skill-icon row and "Tap anywhere to
+  # continue". White outlined text on a textured gold backdrop → ``title_line``
+  # (Otsu picks the wrong layer otherwise). Verified live on bs3: reads "Renee"
+  # at conf 0.967. ``read_new_hero_unlock`` OCRs this, maps name → hero id, and
+  # adds the hero to the player's roster before tapping the page away.
+  - name: heroes.sr.new.name
+    action: text
+    type: string
+    threshold: 0.6
+    preprocess: title_line
+    bbox:
+      x: 26.0
+      y: 73.0
+      width: 48.0
+      height: 5.5
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  # Bottom "Tap anywhere to continue" caption — the stable screen anchor. The
+  # full-frame close template degrades under scrcpy H.264 (scores ~0.84 live on
+  # bs3, below the 0.9 verify floor), so screen_verify + the overlay trigger +
+  # the dismiss loop all key off this OCR instead (reads at conf 0.96). Mirrors
+  # the page.heroes.unit "Stats" OCR fix in this same module.
+  - name: heroes.sr.new.tap_anywhere
+    action: text
+    type: string
+    threshold: 0.6
+    bbox:
+      x: 20.0
+      y: 95.0
+      width: 60.0
+      height: 3.5
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
 - id: 41
   screen_id: hero.recruitment
   ocr: references/page.hero.recruitment.png

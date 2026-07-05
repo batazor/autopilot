@@ -58,6 +58,57 @@ def build_roster(
     return roster
 
 
+def _role_map_for(entries: dict[str, Any]) -> dict[str, str]:
+    """``hero_id`` → resource-allocator role, from each hero's static sub_class."""
+    registry = get_hero_registry()
+    role_of: dict[str, str] = {}
+    for hid in entries:
+        hero_def = registry.by_id(hid)
+        sub = (getattr(hero_def, "sub_class", "") or "").strip().lower()
+        role_of[hid] = _SUBCLASS_ROLE.get(sub, _DEFAULT_ROLE)
+    return role_of
+
+
+async def project_roster_to_redis(
+    redis_client: Any | None,
+    player_id: str,
+    instance_id: str,
+) -> list[dict[str, Any]]:
+    """Re-derive ``heroes.roster`` from the player's scanned entries and write it
+    to the Redis player hash (+ instance mirror). Returns the roster list.
+
+    The cheap projection shared by the ``sync_hero_roster`` cron and the
+    ``record_new_hero`` unlock handler — both want the allocator to see the
+    current owned set the instant ``heroes.entries`` changes. Pure read of the
+    SQLite state store, so it is safe to call right after persisting a new entry.
+    Best-effort: a missing player / empty roster / Redis hiccup returns ``[]``
+    rather than raising.
+    """
+    pid = (player_id or "").strip()
+    if not pid:
+        return []
+    try:
+        snap = get_state_store().get_or_create(pid).snapshot()
+    except Exception:
+        logger.exception("project_roster_to_redis: state read failed player=%s", pid)
+        return []
+    entries = dict(snap.heroes.entries) if snap.heroes.entries else {}
+    roster = build_roster(entries, _role_map_for(entries))
+
+    if redis_client is not None:
+        payload = json.dumps(roster, separators=(",", ":"))
+        mapping = {"heroes.roster": payload, "heroes.roster.synced_at": str(time.time())}
+        try:
+            await redis_client.hset(f"wos:player:{pid}:state", mapping=mapping)
+            if instance_id:
+                await redis_client.hset(
+                    f"wos:instance:{instance_id}:state", mapping=mapping
+                )
+        except Exception:
+            logger.exception("project_roster_to_redis: redis write failed player=%s", pid)
+    return roster
+
+
 async def _exec_sync_hero_roster(ctx: DslExecContext) -> None:
     player_id = (ctx.player_id or "").strip()
     if not player_id:
@@ -69,8 +120,7 @@ async def _exec_sync_hero_roster(ctx: DslExecContext) -> None:
     except Exception:
         logger.exception("dsl exec sync_hero_roster: state read failed player=%s", player_id)
         return
-    entries = dict(snap.heroes.entries) if snap.heroes.entries else {}
-    if not entries:
+    if not (snap.heroes.entries or {}):
         logger.info(
             "dsl exec sync_hero_roster: no scanned heroes yet player=%s "
             "(run scan_heroes_grid first)",
@@ -78,24 +128,9 @@ async def _exec_sync_hero_roster(ctx: DslExecContext) -> None:
         )
         return
 
-    registry = get_hero_registry()
-    role_of: dict[str, str] = {}
-    for hid in entries:
-        hero_def = registry.by_id(hid)
-        sub = (getattr(hero_def, "sub_class", "") or "").strip().lower()
-        role_of[hid] = _SUBCLASS_ROLE.get(sub, _DEFAULT_ROLE)
-
-    roster = build_roster(entries, role_of)
-    payload = json.dumps(roster, separators=(",", ":"))
-
-    if ctx.redis_client is not None:
-        mapping = {"heroes.roster": payload, "heroes.roster.synced_at": str(time.time())}
-        try:
-            await ctx.redis_client.hset(f"wos:player:{player_id}:state", mapping=mapping)
-            await ctx.redis_client.hset(f"wos:instance:{ctx.instance_id}:state", mapping=mapping)
-        except Exception:
-            logger.exception("dsl exec sync_hero_roster: redis write failed player=%s", player_id)
-            return
+    roster = await project_roster_to_redis(
+        ctx.redis_client, player_id, ctx.instance_id
+    )
 
     by_role: dict[str, int] = {}
     for h in roster:

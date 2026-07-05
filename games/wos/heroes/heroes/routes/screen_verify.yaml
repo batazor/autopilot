@@ -29,8 +29,14 @@ screens:
       contains: "Stats"
       threshold: 0.8
 
+  # New-hero ("SSR/SR · NEW") unlock celebration page. Anchored on the bottom
+  # "Tap anywhere to continue" caption via OCR: the full-frame close template
+  # degrades under scrcpy H.264 (~0.84 live on bs3, below the 0.9 match floor)
+  # and left the page detected as UNKNOWN, so read_new_hero_unlock never fired.
+  # The caption is identical on every hero's unlock page → stable anchor (conf
+  # 0.96 live). Mirrors the page.heroes.unit "Stats" OCR fix above.
   heroes.sr.new:
     priority: 25
     rules:
-    - match: heroes.sr.new.close
-      threshold: 0.9
+    - ocr: heroes.sr.new.tap_anywhere
+      contains: "tap anywhere"

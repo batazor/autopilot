@@ -1,0 +1,37 @@
+enabled: true
+name: 🎉 Read new hero unlock → add to roster
+
+# The "new hero obtained" celebration page (heroes.sr.new — "SSR/SR · NEW",
+# "Tap anywhere to continue"). Pushed by the heroes overlay rule the instant the
+# screen is detected (games/wos/heroes/heroes/analyze/analyze.yaml). Device-level
+# so it ALWAYS runs to dismiss the page regardless of identity — the hero is
+# attributed to the instance's active player inside record_new_hero, which
+# no-ops the roster write (but still dismisses) when no player is bound.
+device_level: true
+
+# Above generic navigation so the page is read + recorded before anything tries
+# to blind-route it away via the heroes.sr.new -> main_city edge.
+priority: 60000
+
+steps:
+  # Let a cold-started capture (botctl drive spinning up scrcpy) settle past its
+  # first black/stale frame before the first OCR.
+  - wait: 700ms
+
+  # Confirm we're still on a new-hero page via the stable bottom caption — the
+  # full-frame close template degrades under scrcpy H.264 (~0.84 live) so it
+  # can't be the gate. Only read + tap when the caption is present, so we never
+  # blind-tap the screen behind an already-dismissed page. A stacked unlock
+  # (several heroes queued at once) is handled by the overlay rule re-firing on
+  # the next tick once this page is gone.
+  - ocr: heroes.sr.new.tap_anywhere
+    store: sr_new_tap
+    scope: instance
+  - cond: sr_new_tap ~= "tap anywhere"
+    steps:
+      - ocr: heroes.sr.new.name
+        store: heroes.sr.new.name
+        scope: instance
+      - exec: record_new_hero
+      - click: heroes.sr.new.close
+      - wait: 1.2s
