@@ -41,6 +41,36 @@ def _disable_api_startup_gift_code_scrape(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pytest.fixture(autouse=True)
+def _restore_active_game_binding() -> Iterator[None]:
+    """Restore the process-global game/catalog binding after every test.
+
+    Any test that reaches :func:`services.bind_active_game` /
+    :func:`services.bind_active_module_catalog` — e.g. the ADB launch flows,
+    whose ``_remember_game_package`` binds the catalog of whatever package it
+    just "launched" — otherwise leaves the whole session pointed at that
+    catalog (``kingshot``, ``wos_beta``, ...). Every later test that loads the
+    merged area doc / screen graph / scenario registry without an explicit
+    ``game=`` then resolves the wrong catalog and fails on missing regions.
+    """
+    import services
+    from services import _K_ACTIVE_GAME, _K_ACTIVE_MODULE_CATALOG, _state
+
+    before_game = _state.get(_K_ACTIVE_GAME)
+    before_catalog = _state.get(_K_ACTIVE_MODULE_CATALOG)
+    try:
+        yield
+    finally:
+        changed = (
+            _state.get(_K_ACTIVE_GAME) != before_game
+            or _state.get(_K_ACTIVE_MODULE_CATALOG) != before_catalog
+        )
+        if changed:
+            _state.set_(_K_ACTIVE_GAME, before_game)
+            _state.set_(_K_ACTIVE_MODULE_CATALOG, before_catalog)
+            services._invalidate_catalog_dependent_caches()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_state_db(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
     """Point the SQLite state DB at a throwaway file for every test.
 
