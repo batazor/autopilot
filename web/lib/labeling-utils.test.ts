@@ -41,6 +41,12 @@ describe("inferScopeFromRef", () => {
     ).toBe("wos_beta:account/switch");
   });
 
+  it("infers the WOS ru catalog scope from nested ru references", () => {
+    expect(
+      inferScopeFromRef("games/wos/ru/intel/references/crop/fight_intel.fight.view.png"),
+    ).toBe("wos_ru:intel");
+  });
+
   it("keeps legacy modules/ support", () => {
     expect(inferScopeFromRef("modules/vip/references/page.vip.png")).toBe("vip");
   });

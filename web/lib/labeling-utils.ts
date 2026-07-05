@@ -106,8 +106,11 @@ export function resolveImageRef(
  */
 export function inferScopeFromRef(refRel: string): string | null {
   const rel = refRel.replace(/\\/g, "/").trim();
-  const wosBetaModule = rel.match(/^games\/wos\/beta\/(.+)\/references\//);
-  if (wosBetaModule) return `wos_beta:${wosBetaModule[1]}`;
+  // Catalog overlays (games/wos/beta, games/wos/ru) map to their own scope so a
+  // re-skin's crops aren't filed under the base "wos" module (or, worse, given
+  // a bogus "ru/<module>" module id by the generic rule below).
+  const wosOverlayModule = rel.match(/^games\/wos\/(beta|ru)\/(.+)\/references\//);
+  if (wosOverlayModule) return `wos_${wosOverlayModule[1]}:${wosOverlayModule[2]}`;
   const gameModule = rel.match(/^games\/([^/]+)\/(.+)\/references\//);
   if (gameModule) return `${gameModule[1]}:${gameModule[2]}`;
   const m = rel.match(/^modules\/([^/]+)\/references\//);

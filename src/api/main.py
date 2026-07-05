@@ -103,7 +103,6 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     gift_codes,
     inference,
     instances,
-    label_live,
     labeling,
     modules,
     notify,
@@ -191,7 +190,6 @@ app.include_router(farm.router)
 app.include_router(players.router)
 app.include_router(alliances.router)
 app.include_router(labeling.router)
-app.include_router(label_live.router)
 app.include_router(routes.router)
 app.include_router(gift_codes.router)
 app.include_router(wiki.router)
