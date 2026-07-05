@@ -28,6 +28,7 @@ from ocr.preprocess import (
     digits_for_ocr,
     enhance_for_ocr,
 )
+from ocr.word_boxes import WordBox, detect_word_boxes
 from ocr.word_cleaning import clean_word_text
 
 if TYPE_CHECKING:
@@ -238,6 +239,32 @@ class OcrClient:
         thread from async callers.
         """
         return detect_digit_markers(
+            image_bgr,
+            tesseract_cmd=self._tesseract_cmd,
+            lang=self._lang,
+            tessdata_dir=self._tessdata_dir,
+            timeout_s=self._timeout,
+            psm=psm,
+            min_conf=min_conf,
+            upscale=upscale,
+        )
+
+    def detect_word_boxes(
+        self,
+        image_bgr: np.ndarray,
+        *,
+        psm: int = 11,
+        min_conf: float = 0.4,
+        upscale: float = 2.0,
+    ) -> list[WordBox]:
+        """Find every readable word + bbox in a full frame (sparse-text pass).
+
+        Forwards this client's resolved tesseract config to
+        :func:`ocr.word_boxes.detect_word_boxes`. Synchronous and uncached — a
+        one-shot locate-a-button-by-label action, not a hot polling path. Run it
+        in a worker thread from async callers.
+        """
+        return detect_word_boxes(
             image_bgr,
             tesseract_cmd=self._tesseract_cmd,
             lang=self._lang,

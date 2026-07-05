@@ -278,12 +278,17 @@ def _run_tesseract_tsv(
     timeout_s: float,
     psm: int,
     upscale: float,
+    char_whitelist: str | None = DIGITS_CHAR_WHITELIST,
 ) -> tuple[str, int, int]:
-    """Return ``(tsv, orig_w, orig_h)`` from a sparse-text digit OCR pass.
+    """Return ``(tsv, orig_w, orig_h)`` from a sparse-text OCR pass.
 
     Grayscale + cubic upscale only: the markers are small glyphs on busy art, so
     a global threshold (as in ``binary_tile_for_ocr``) would destroy them. The
-    upscale is the highest-leverage knob for small-digit recall.
+    upscale is the highest-leverage knob for small-glyph recall.
+
+    ``char_whitelist`` restricts the recognised alphabet — the digit whitelist
+    for marker detection, or ``None`` to read arbitrary words
+    (:mod:`ocr.word_boxes`).
     """
     if image_bgr is None or image_bgr.size == 0:
         return "", 0, 0
@@ -317,9 +322,9 @@ def _run_tesseract_tsv(
         "1",
         "--psm",
         str(psm),
-        "-c",
-        f"tessedit_char_whitelist={DIGITS_CHAR_WHITELIST}",
     ]
+    if char_whitelist:
+        cmd.extend(["-c", f"tessedit_char_whitelist={char_whitelist}"])
     if tessdata_dir:
         cmd.extend(["--tessdata-dir", tessdata_dir])
     cmd.append("tsv")

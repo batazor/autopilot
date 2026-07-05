@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from tasks.dsl_exec.claim_on_unknown import _exec_claim_on_unknown
 from tasks.dsl_exec.dismiss_popup import _exec_dismiss_popup
 from tasks.dsl_exec.fetch_player import _exec_fetch_player
 from tasks.dsl_exec.red_dots import (
@@ -29,6 +30,7 @@ _CORE_DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "click_next_red_dot_tab": _exec_click_next_red_dot_tab,
     "advance_tab_strip": _exec_click_next_red_dot_tab,
     "put_all_red_dots": _exec_put_all_red_dots,
+    "claim_on_unknown": _exec_claim_on_unknown,
     "dismiss_popup": _exec_dismiss_popup,
     "drain_use_all": _exec_drain_use_all,
 }

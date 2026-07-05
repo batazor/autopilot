@@ -57,6 +57,12 @@ steps:
           - wait: 1s
 
   # Template regions above are safer and produce meaningful approval labels.
-  # Fall back to the game-wide popup detector only when known affordances were
-  # not found.
+  # When none matched, OCR the whole frame for a Claim/Collect button and press
+  # it — this catches reward pages (e.g. Labyrinth Treasure) whose green Claim
+  # button sits *below* the info card, where the detector's card-centre tap
+  # misses. Purchase-guarded: never taps a paid CTA.
+  - exec: claim_on_unknown
+
+  # Finally, fall back to the game-wide popup detector (X / tap-anywhere /
+  # escalate) when no Claim button was found either.
   - exec: dismiss_popup
