@@ -438,7 +438,57 @@ def test_get_adb_status_marks_wos_beta_package(
             "id": "wos",
             "label": "Whiteout Survival",
             "package": "com.xyz.gof",
-            "beta": True,
+            "variant": "beta",
+            "running": True,
+        }
+    ]
+
+
+def test_get_adb_status_marks_wos_ru_package(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Russian "Белая мгла" re-skin is tagged ``ru``, not ``beta``."""
+
+    class Completed:
+        def __init__(self, stdout: str = "", returncode: int = 0) -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = ""
+
+    def fake_run(args, **_kwargs):
+        if args[1:3] == ["devices", "-l"]:
+            return Completed(
+                "List of devices attached\n"
+                "127.0.0.1:5625 device product:bluestacks\n"
+            )
+        if args[1:4] == ["-s", "127.0.0.1:5625", "shell"]:
+            shell_args = args[4:]
+            if shell_args == ["pm", "list", "packages"]:
+                return Completed("package:com.gof.globalru\n")
+            if shell_args == ["pidof", "com.gof.globalru"]:
+                return Completed("1234\n")
+            if shell_args[:2] == ["dumpsys", "activity"]:
+                return Completed("topResumedActivity com.gof.globalru/.MainActivity\n")
+            if shell_args[:2] == ["dumpsys", "window"]:
+                return Completed("")
+        return Completed(returncode=1)
+
+    monkeypatch.setattr(adb_api.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        adb_api,
+        "_probe_default_tcp_adb_targets",
+        lambda *_args, **_kwargs: False,
+    )
+
+    status = adb_api.get_adb_status()
+
+    assert status["live_devices"][0]["detected_games"] == [
+        {
+            "id": "wos",
+            "label": "Whiteout Survival",
+            "package": "com.gof.globalru",
+            "variant": "ru",
             "running": True,
         }
     ]
@@ -488,7 +538,7 @@ def test_get_adb_status_marks_kingshot_beta_package(
             "id": "kingshot",
             "label": "Kingshot",
             "package": "com.abc.defense",
-            "beta": True,
+            "variant": "beta",
             "running": True,
         }
     ]

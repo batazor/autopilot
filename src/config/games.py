@@ -195,6 +195,31 @@ def module_catalog_for_package(game: str, package: str) -> str:
     return game_id
 
 
+def build_variant_tag(game: str, package: str) -> str:
+    """Short display tag for a concrete package's build variant.
+
+    Empty for the canonical package (no badge). For an alias that owns a module
+    catalog overlay, it's the catalog suffix: ``com.gof.globalru`` → ``"ru"``,
+    ``com.xyz.gof`` → ``"beta"``. Any other non-canonical alias (e.g. a beta
+    build with no dedicated catalog, like Kingshot's ``com.abc.defense``) falls
+    back to the generic ``"beta"`` marker.
+
+    This is the display-label counterpart to :func:`module_catalog_for_package`;
+    UI surfaces (the ``/adb`` page, labeling scope) use it so a regional re-skin
+    is never mislabeled as a beta build.
+    """
+    game_id = (game or DEFAULT_GAME).strip()
+    pkg = (package or "").strip()
+    spec = GAMES.get(game_id)
+    if spec is None or not pkg or pkg == spec.package:
+        return ""
+    catalog = module_catalog_for_package(game_id, pkg)
+    prefix = f"{game_id}_"
+    if catalog.startswith(prefix):
+        return catalog[len(prefix):]
+    return "beta"
+
+
 def iter_games(repo_root: Path | None = None) -> tuple[str, ...]:
     """All known game ids, in registry order.
 

@@ -686,7 +686,6 @@ export function BotStartBanner() {
 
   if (effectiveBotRunning) {
     const multi = processes.length > 1;
-    const devicesLabel = deviceChipLabel(adbStatus);
     const selectedPaused = !!currentRow?.paused;
     const pauseBusy = pauseMutation.isPending;
     const pauseDisabled =
@@ -801,9 +800,6 @@ export function BotStartBanner() {
               Up {formatProcessAge(currentProc.started_at)}
             </span>
           ) : null}
-          <span className="nav-bot-banner__chip nav-bot-banner__chip--device">
-            {devicesLabel}
-          </span>
           {currentInstance ? (
             <InstanceStatusChip instanceId={currentInstance} row={currentRow} />
           ) : null}

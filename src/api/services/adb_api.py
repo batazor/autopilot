@@ -21,7 +21,7 @@ from config.devices_db import (
     upsert_device,
 )
 from config.devices_db import set_device_backend as db_set_device_backend
-from config.games import GAMES
+from config.games import GAMES, build_variant_tag
 from config.loader import load_settings
 from config.paths import repo_root
 
@@ -238,7 +238,10 @@ def _detect_known_games(adb_exe: str, serial: str) -> list[dict[str, Any]]:
                     "id": gid,
                     "label": spec.label,
                     "package": package,
-                    "beta": package != spec.package,
+                    # "" for the canonical build, else the catalog suffix
+                    # ("beta", "ru"). Distinguishes the Russian re-skin from a
+                    # beta build instead of tagging every alias "beta".
+                    "variant": build_variant_tag(gid, package),
                     "running": running,
                 }
             )

@@ -33,12 +33,12 @@ export function DetectedGames({ games }: { games?: AdbDetectedGame[] }) {
         <span
           key={`${game.id}-${game.package}`}
           className={`status-pill ${game.running ? "pill-live" : "pill-busy"}`}
-          title={`${game.label} (${game.package}) · ${game.running ? "running" : "installed"}`}
+          title={`${game.label}${game.variant ? ` · ${game.variant.toUpperCase()}` : ""} (${game.package}) · ${game.running ? "running" : "installed"}`}
         >
           <span>{gameBadgeLabel(game)}</span>
-          {game.beta && (
+          {game.variant && (
             <span className="rounded-full border border-current/40 px-1 py-0 text-[9px] font-semibold uppercase opacity-90">
-              beta
+              {game.variant}
             </span>
           )}
         </span>

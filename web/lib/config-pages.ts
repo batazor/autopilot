@@ -51,7 +51,9 @@ export type AdbDetectedGame = {
   id: string;
   label: string;
   package: string;
-  beta: boolean;
+  /** Build-variant badge: "" for the canonical build, else the catalog suffix
+   * ("beta", "ru"). The Russian re-skin reads "ru", not "beta". */
+  variant: string;
   running: boolean;
 };
 

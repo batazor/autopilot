@@ -14,6 +14,7 @@ from config.games import (
     WOS_RU_MODULE_CATALOG,
     GameSpec,
     base_game_for_module_catalog,
+    build_variant_tag,
     default_game,
     game_for_package,
     game_ids_for_packages,
@@ -252,6 +253,20 @@ def test_package_set_helpers_accept_kingshot_beta_package() -> None:
     installed = {"com.android.systemui", "com.abc.defense"}
     assert game_ids_for_packages(installed) == ["kingshot"]
     assert matching_packages_for_game("kingshot", installed) == ("com.abc.defense",)
+
+
+def test_build_variant_tag_distinguishes_re_skins_from_beta() -> None:
+    # Canonical build → no badge.
+    assert build_variant_tag("wos", "com.gof.global") == ""
+    # Catalog-owning aliases read their catalog suffix.
+    assert build_variant_tag("wos", "com.xyz.gof") == "beta"
+    assert build_variant_tag("wos", "com.gof.globalru") == "ru"
+    # An alias with no dedicated catalog falls back to the generic "beta" marker.
+    assert build_variant_tag("kingshot", "com.abc.defense") == "beta"
+    assert build_variant_tag("kingshot", "com.run.tower.defense") == ""
+    # Unknown game / empty package → no badge.
+    assert build_variant_tag("nope", "com.whatever") == ""
+    assert build_variant_tag("wos", "") == ""
 
 
 def test_game_for_package_returns_none_for_unknown_package() -> None:
