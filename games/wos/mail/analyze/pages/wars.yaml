@@ -7,7 +7,9 @@ overlay:
     screens:
       - mail.wars
     steps:
-      - push_scenario: mail.claim.wars
+      - push_scenario:
+          name: mail.claim.wars
+          ttl: 5m
   - name: mail.tab.wars.has_red_dot
     region: mail.tab.wars
     isRedDot: true

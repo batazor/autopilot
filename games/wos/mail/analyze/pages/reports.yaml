@@ -7,7 +7,9 @@ overlay:
     screens:
       - mail.reports
     steps:
-      - push_scenario: mail.claim.reports
+      - push_scenario:
+          name: mail.claim.reports
+          ttl: 5m
   - name: mail.tab.reports.has_red_dot
     region: mail.tab.reports
     isRedDot: true

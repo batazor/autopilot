@@ -88,6 +88,22 @@
           }
         },
         {
+          "name": "page.exploration.victory.title0",
+          "_comment": "HIGHER-variant probe mirroring exploration.defeat.title0: the RU squad-fight result card with upsell rows draws the banner ~60px above the primary bbox.",
+          "action": "text",
+          "threshold": 0.7,
+          "preprocess": "title_line",
+          "bbox": {
+            "x": 22.0,
+            "y": 25.0,
+            "width": 56.0,
+            "height": 7.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "page.exploration.victory.next",
           "action": "exist",
           "threshold": 0.9,
@@ -142,19 +158,35 @@
           }
         },
         {
+          "name": "exploration.defeat.title0",
+          "_comment": "HIGHER-variant probe: the RU squad-fight defeat card ('Поражение!' + 'Получить силу:' upsell rows) draws the banner ~60px ABOVE the primary bbox — title reads garbage and title2 lands on 'Получить силу:'. Measured live on bs5: this bbox reads 'Поражение!' cleanly.",
+          "action": "text",
+          "threshold": 0.7,
+          "preprocess": "title_line",
+          "bbox": {
+            "x": 22.0,
+            "y": 25.0,
+            "width": 56.0,
+            "height": 7.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "button.to_main_city",
+          "_comment": "Locale-free BLIND tap (no isSearch): the EN 'Return to City' crop never matches the RU «Вернуться в город», so the recovery edge off the defeat screen cancelled every tap and who_i_am looped navigation_failed. The bbox is narrowed to the x-overlap of both layouts: the plain result card centres one button (~30-67%), the RU upsell card puts it left (~7-49%) — any point in 34-46% lands on the button in both.",
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
-            "x": 33.067318111196904,
+            "x": 34.0,
             "y": 81.3019213886064,
-            "width": 33.7898389440167,
+            "width": 12.0,
             "height": 4.616779342602974,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "isSearch": true
+          }
         }
       ]
     },

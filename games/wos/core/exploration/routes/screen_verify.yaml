@@ -53,6 +53,10 @@ screens:
     # the primary bbox clips its title to garbage (see the title2 region note).
     - ocr: page.exploration.victory.title2
       contains: [Victory, Победа]
+    # OR-probe for the RU squad-fight card with upsell rows — the banner sits
+    # ~60px HIGHER than the primary bbox (see the title0 region note).
+    - ocr: page.exploration.victory.title0
+      contains: [Victory, Победа]
   exploration.defeat:
     # See exploration.victory — beat the generic arena.result matcher (20).
     priority: 18
@@ -60,4 +64,9 @@ screens:
     - ocr: exploration.defeat.title
       contains: [Defeat, Поражение]
     - ocr: exploration.defeat.title2
+      contains: [Defeat, Поражение]
+    # OR-probe for the RU squad-fight card with upsell rows — the banner sits
+    # ~60px HIGHER (measured live on bs5: 'Поражение!' read cleanly here while
+    # title landed on the plate edge and title2 on the upsell header).
+    - ocr: exploration.defeat.title0
       contains: [Defeat, Поражение]

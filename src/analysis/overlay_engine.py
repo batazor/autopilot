@@ -845,8 +845,15 @@ def _eval_detect_tabs_rule(
         and all(i == active_index for i in red_dot_indices_dt)
     )
     if bool(rule.get("push_red_dot_pages")) and red_dot_pages:
-        inherited_ttl = None
-        if push_tasks_dt:
+        # Per-push throttle. Without one, a red dot the pushed scenario can't
+        # clear (e.g. a rewardless alliance mail) re-pushes its claim scenario
+        # EVERY overlay tick — a push→pop→run hot loop that starves the queue.
+        # Rule-level ``push_ttl`` wins; else inherit the first explicit push
+        # entry's ttl (legacy behaviour for rules that carry ``steps:``).
+        from analysis.overlay_duration import parse_duration_seconds as _parse_ttl
+
+        inherited_ttl = _parse_ttl(rule.get("push_ttl"))
+        if inherited_ttl is None and push_tasks_dt:
             inherited_ttl = push_tasks_dt[0].get("ttl")
         push_tasks_dt = [
             {

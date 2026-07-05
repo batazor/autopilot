@@ -7,7 +7,9 @@ overlay:
     screens:
       - mail.starred
     steps:
-      - push_scenario: mail.claim.starred
+      - push_scenario:
+          name: mail.claim.starred
+          ttl: 5m
   - name: mail.tab.starred.has_red_dot
     region: mail.tab.starred
     isRedDot: true

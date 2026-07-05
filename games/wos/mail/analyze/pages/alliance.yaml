@@ -7,7 +7,9 @@ overlay:
     screens:
       - mail.alliance
     steps:
-      - push_scenario: mail.claim.alliance
+      - push_scenario:
+          name: mail.claim.alliance
+          ttl: 5m
   - name: mail.tab.alliance.has_red_dot
     region: mail.tab.alliance
     isRedDot: true
