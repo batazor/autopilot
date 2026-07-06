@@ -94,7 +94,9 @@ _RU_NAME_TO_CANON = {
     # — power / governance —
     "Печь": "Furnace", "Топка": "Furnace", "Tonka": "Furnace",
     "Посольство": "Embassy",
-    "Лазарет": "Infirmary",
+    # Live «Белая мгла» plate + building panel both read «Больница» (Ур. N),
+    # not the earlier «Лазарет» guess — verified on bs5 2026-07-06. Keep both.
+    "Больница": "Infirmary", "Лазарет": "Infirmary",
     "Командный центр": "Command Center",
     "Склад": "Storehouse", "Хранилище": "Storehouse",
     "Исследовательский центр": "Research Center", "Научный центр": "Research Center",

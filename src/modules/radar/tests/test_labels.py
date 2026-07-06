@@ -98,3 +98,36 @@ class TestMerge:
         b = self._reg(("Barricade", 5000, 5000))  # no shared building
         out = merge_registries([a, b])
         assert {x["name"] for x in out["buildings"]} == {"Furnace"}
+
+
+class TestOcrLanguage:
+    def test_ocr_line_requests_cyrillic(self):
+        """RU-build plates are Cyrillic («Угольный рудник»); the plate OCR must
+        pass rus+eng or the whole RU city registry comes back empty (verified
+        live on bs5 2026-07-06). Guard the -l argument so an eng-only regression
+        is caught without a device."""
+        import inspect
+
+        from modules.radar import labels
+
+        src = inspect.getsource(labels._ocr_line)
+        assert '"rus+eng"' in src or "'rus+eng'" in src, (
+            "radar plate OCR must use rus+eng — eng-only empties the RU registry"
+        )
+
+
+class TestBuildingAliasBridge:
+    def test_ru_hospital_plate_maps_to_infirmary(self):
+        """The live «Белая мгла» Infirmary plate reads «Больница» (not the old
+        «Лазарет» guess); the name→id bridge must resolve it so a scanned RU
+        city places the infirmary. Verified on bs5 2026-07-06."""
+        import services
+
+        services.bind_active_game("wos_ru")
+        from config.building_name_parser import building_by_ocr_name
+        from config.buildings import get_building_registry
+
+        regs = get_building_registry().buildings
+        for plate in ("Больница", "БольНица"):  # clean + OCR-noised
+            b = building_by_ocr_name(plate, regs)
+            assert b is not None and b.id == "infirmary", (plate, getattr(b, "id", None))

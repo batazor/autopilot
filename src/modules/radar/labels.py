@@ -108,7 +108,10 @@ def _ocr_line(crop: np.ndarray, tess: str) -> tuple[str, float]:
         return "", 0.0
     try:
         out = subprocess.run(
-            [tess, "stdin", "stdout", "-l", "eng", "--psm", "7", "tsv"],
+            # rus+eng: RU-build plates are Cyrillic («Угольный рудник») — the
+            # eng-only pass read them as low-confidence garbage and the RU city
+            # yielded an empty registry (verified live on bs5 2026-07-06).
+            [tess, "stdin", "stdout", "-l", "rus+eng", "--psm", "7", "tsv"],
             input=buf.tobytes(),
             capture_output=True,
             check=False,
