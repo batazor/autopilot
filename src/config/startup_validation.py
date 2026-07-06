@@ -383,6 +383,161 @@ def _validate_overlay_runtime_area_manifest(repo_root: Path, issues: list[Startu
             issues.append(StartupValidationIssue("error", source, msg))
 
 
+def _check_rule_template_file(
+    issues: list[StartupValidationIssue],
+    *,
+    repo_root: Path,
+    source: str,
+    rule: dict[str, Any],
+) -> None:
+    """A ``template:`` on an overlay rule must resolve to a real file.
+
+    The overlay engine (`analysis/overlay_engine.py` direct-template branch)
+    resolves ``template:`` as ``repo_root / <path>`` and short-circuits to
+    ``template_outside_repo`` / ``template_load_failed`` when the path escapes
+    the repo or the file is missing — silently, on every tick. A deleted or
+    mistyped crop therefore looks like "the icon is never on screen" instead
+    of an error; catch it at startup.
+    """
+    tpl = str(rule.get("template") or "").replace("\\", "/").strip()
+    if not tpl:
+        return
+    tpl_path = (repo_root / tpl.lstrip("/")).resolve()
+    try:
+        tpl_path.relative_to(repo_root.resolve())
+    except ValueError:
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                source,
+                f"template {tpl!r} escapes the repository — the overlay engine "
+                "rejects it as template_outside_repo on every tick",
+            )
+        )
+        return
+    if not tpl_path.is_file():
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                source,
+                f"template {tpl!r} does not exist on disk — the rule evaluates "
+                "to template_load_failed on every tick and never matches; fix "
+                "the path or re-export the crop",
+            )
+        )
+
+
+def _direct_template_covered_regions(repo_root: Path) -> set[str]:
+    """Region names targeted by an overlay rule with an on-disk ``template:``.
+
+    These regions match through the direct-template branch, which runs before
+    the exported-crop lookup — a missing area crop is harmless for them.
+    """
+    out: set[str] = set()
+    analyze_doc = load_merged_analyze_yaml(repo_root)
+    overlay = analyze_doc.get("overlay")
+    if not isinstance(overlay, list):
+        return out
+    for raw_rule in overlay:
+        if not isinstance(raw_rule, dict):
+            continue
+        tpl = str(raw_rule.get("template") or "").replace("\\", "/").strip()
+        if not tpl or not (repo_root / tpl.lstrip("/")).is_file():
+            continue
+        region = str(raw_rule.get("region") or "").strip()
+        if region:
+            out.add(region)
+    return out
+
+
+def _validate_area_exist_region_sources(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    """Every ``exist`` region needs a template source the matcher can load.
+
+    The findIcon/exist evaluation (`analysis/overlay_engine.py`) resolves the
+    exported crop ``references/crop/<ref_stem>_<region>.png``; when it is
+    missing it auto-exports the patch from the reference screenshot (the
+    screen's ``ocr:`` path). With neither on disk the region silently returns
+    ``missing_crop_png`` (or ``missing_bbox_or_ocr`` when the screen has no
+    ``ocr:`` at all) on every tick — the rule looks healthy in YAML but can
+    never match. Regions covered by a valid direct-template rule are exempt:
+    that branch never touches the crop.
+
+    Warning severity: some of these are parked half-labeled modules; the goal
+    is a loud fleet-health banner, not a bricked startup.
+    """
+    from config.games import iter_games
+    from layout.area_versions import effective_ocr_for_region
+    from layout.crop_paths import exported_crop_png
+
+    covered = _direct_template_covered_regions(repo_root)
+    seen: set[tuple[str, str, str]] = set()
+    for g in iter_games(repo_root):
+        try:
+            from layout.area_manifest import load_area_doc
+
+            area_doc = load_area_doc(repo_root, game=g)
+        except Exception:
+            continue
+        for entry in area_doc.get("screens") or []:
+            if not isinstance(entry, dict):
+                continue
+            screen = str(entry.get("screen_id") or "").strip() or "?"
+            for source_regions in (entry.get("regions"), *(
+                v.get("regions") for v in (entry.get("versions") or []) if isinstance(v, dict)
+            )):
+                if not isinstance(source_regions, list):
+                    continue
+                for reg in source_regions:
+                    if not isinstance(reg, dict):
+                        continue
+                    if str(reg.get("action") or "").strip() != "exist":
+                        continue
+                    name = str(reg.get("name") or "").strip()
+                    if not name or name in covered:
+                        continue
+                    source = f"area:{g}:{screen}"
+                    ref_rel = effective_ocr_for_region(entry, reg)
+                    key = (source, name, ref_rel)
+                    if key in seen:
+                        continue
+                    if not ref_rel:
+                        seen.add(key)
+                        issues.append(
+                            StartupValidationIssue(
+                                "warning",
+                                source,
+                                f"exist region {name!r} has no `ocr:` reference "
+                                "screenshot on its screen entry — the matcher "
+                                "returns missing_bbox_or_ocr on every tick; "
+                                "capture a reference in /labeling or add an "
+                                "`ocr:` path",
+                            )
+                        )
+                        continue
+                    crop = exported_crop_png(repo_root, ref_rel, name)
+                    if crop.is_file() or (repo_root / ref_rel).is_file():
+                        continue
+                    seen.add(key)
+                    try:
+                        crop_rel = crop.relative_to(repo_root).as_posix()
+                    except ValueError:
+                        crop_rel = crop.as_posix()
+                    issues.append(
+                        StartupValidationIssue(
+                            "warning",
+                            source,
+                            f"exist region {name!r} has neither its exported crop "
+                            f"({crop_rel}) nor the reference screenshot "
+                            f"({ref_rel}) on disk — the matcher returns "
+                            "missing_crop_png on every tick; re-capture the "
+                            "reference in /labeling or commit the crop",
+                        )
+                    )
+
+
 def _validate_analyze_manifest(
     repo_root: Path,
     issues: list[StartupValidationIssue],
@@ -423,6 +578,12 @@ def _validate_analyze_manifest(
             source=source,
             field="search_region",
             value=rule.get("search_region"),
+        )
+        _check_rule_template_file(
+            issues,
+            repo_root=repo_root,
+            source=source,
+            rule=rule,
         )
         if _rule_uses_red_dot(rule):
             _check_red_dot_capability(
@@ -1157,6 +1318,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         red_dot_regions=red_dot_regions,
     )
     _validate_overlay_runtime_area_manifest(root, issues)
+    _validate_area_exist_region_sources(root, issues)
     _validate_scenarios(
         root,
         issues,

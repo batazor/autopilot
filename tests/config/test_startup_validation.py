@@ -786,3 +786,228 @@ def test_edge_taps_any_of_flags_unknown_region(tmp_path: Path) -> None:
     assert any(
         "any_of region" in i.message and "play.ghost" in i.message for i in issues
     )
+
+
+def test_startup_validation_reports_missing_overlay_rule_template(
+    tmp_path: Path,
+) -> None:
+    """A ``template:`` pointing at a missing file is a dead rule: the overlay
+    engine returns ``template_load_failed`` on every tick and the icon looks
+    permanently absent. Must fail loud at startup."""
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_area_regions(
+        tmp_path,
+        '{"screens":[{"regions":[{"name":"pets.icon","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
+    )
+    _write_module_overlay(
+        tmp_path,
+        "test",
+        """
+overlay:
+  - name: pets.icon.visible
+    region: pets.icon
+    action: findIcon
+    template: games/wos/core/test/references/gone.png
+""".lstrip(),
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert len(issues) == 1
+    assert issues[0].severity == "error"
+    assert issues[0].source == "analyze:pets.icon.visible"
+    assert "template_load_failed" in issues[0].message
+    assert "gone.png" in issues[0].message
+
+
+def test_startup_validation_accepts_overlay_rule_template_on_disk(
+    tmp_path: Path,
+) -> None:
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_area_regions(
+        tmp_path,
+        '{"screens":[{"regions":[{"name":"pets.icon","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
+    )
+    _write_module_overlay(
+        tmp_path,
+        "test",
+        """
+overlay:
+  - name: pets.icon.visible
+    region: pets.icon
+    action: findIcon
+    template: games/wos/core/test/references/pets_icon.png
+""".lstrip(),
+    )
+    tpl = tmp_path / "games" / "wos" / "core" / "test" / "references" / "pets_icon.png"
+    tpl.parent.mkdir(parents=True, exist_ok=True)
+    tpl.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    assert validate_startup_configs(tmp_path) == []
+
+
+def test_startup_validation_reports_template_escaping_repo(tmp_path: Path) -> None:
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_area_regions(
+        tmp_path,
+        '{"screens":[{"regions":[{"name":"pets.icon","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
+    )
+    _write_module_overlay(
+        tmp_path,
+        "test",
+        """
+overlay:
+  - name: pets.icon.visible
+    region: pets.icon
+    action: findIcon
+    template: ../outside.png
+""".lstrip(),
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert len(issues) == 1
+    assert issues[0].severity == "error"
+    assert "template_outside_repo" in issues[0].message
+
+
+def _write_exist_region_module(
+    tmp_path: Path,
+    *,
+    screen_ocr: str | None,
+    with_reference: bool = False,
+    with_crop: bool = False,
+) -> None:
+    """Seed a module whose area.yaml has one ``exist`` region on one screen."""
+    import json as _json
+
+    screen: dict = {
+        "screen_id": "pets",
+        "regions": [
+            {
+                "name": "pets.icon",
+                "action": "exist",
+                "bbox": {"x": 1, "y": 1, "width": 1, "height": 1},
+            }
+        ],
+    }
+    if screen_ocr:
+        screen["ocr"] = screen_ocr
+    _write_area_regions(tmp_path, _json.dumps({"screens": [screen]}))
+    mod = tmp_path / "games" / "wos" / "core" / "_area_fixture"
+    if with_reference and screen_ocr:
+        ref = mod / screen_ocr
+        ref.parent.mkdir(parents=True, exist_ok=True)
+        ref.write_bytes(b"\x89PNG\r\n\x1a\n")
+    if with_crop and screen_ocr:
+        from pathlib import Path as _P
+
+        crop = mod / "references" / "crop" / f"{_P(screen_ocr).stem}_pets.icon.png"
+        crop.parent.mkdir(parents=True, exist_ok=True)
+        crop.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+
+def test_startup_validation_flags_exist_region_without_crop_or_reference(
+    tmp_path: Path,
+) -> None:
+    """Neither the exported crop nor the reference screenshot exists: the
+    matcher returns ``missing_crop_png`` on every tick (auto-export has no
+    source to crop from). Warning severity — loud banner, not a bricked boot."""
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    _write_exist_region_module(tmp_path, screen_ocr="references/pets.png")
+
+    issues = [
+        i for i in validate_startup_configs(tmp_path) if i.source.startswith("area:")
+    ]
+
+    assert len(issues) == 1
+    assert issues[0].severity == "warning"
+    assert issues[0].source == "area:wos:pets"
+    assert "missing_crop_png" in issues[0].message
+    assert "pets.icon" in issues[0].message
+
+
+def test_startup_validation_flags_exist_region_without_ocr_reference(
+    tmp_path: Path,
+) -> None:
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    _write_exist_region_module(tmp_path, screen_ocr=None)
+
+    issues = [
+        i for i in validate_startup_configs(tmp_path) if i.source.startswith("area:")
+    ]
+
+    assert len(issues) == 1
+    assert issues[0].severity == "warning"
+    assert "missing_bbox_or_ocr" in issues[0].message
+
+
+def test_startup_validation_accepts_exist_region_with_reference_screenshot(
+    tmp_path: Path,
+) -> None:
+    """The reference screenshot alone is enough — the engine auto-exports the
+    crop from it on first evaluation."""
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    _write_exist_region_module(
+        tmp_path, screen_ocr="references/pets.png", with_reference=True
+    )
+
+    issues = [
+        i for i in validate_startup_configs(tmp_path) if i.source.startswith("area:")
+    ]
+    assert issues == []
+
+
+def test_startup_validation_accepts_exist_region_with_exported_crop(
+    tmp_path: Path,
+) -> None:
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    _write_exist_region_module(
+        tmp_path, screen_ocr="references/pets.png", with_crop=True
+    )
+
+    issues = [
+        i for i in validate_startup_configs(tmp_path) if i.source.startswith("area:")
+    ]
+    assert issues == []
+
+
+def test_startup_validation_accepts_exist_region_covered_by_direct_template(
+    tmp_path: Path,
+) -> None:
+    """A valid ``template:`` rule on the region matches through the
+    direct-template branch, which never touches the exported crop — the
+    missing crop is harmless there."""
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_exist_region_module(tmp_path, screen_ocr="references/pets.png")
+    _write_module_overlay(
+        tmp_path,
+        "test",
+        """
+overlay:
+  - name: pets.icon.visible
+    region: pets.icon
+    action: findIcon
+    template: games/wos/core/test/references/pets_icon.png
+""".lstrip(),
+    )
+    tpl = tmp_path / "games" / "wos" / "core" / "test" / "references" / "pets_icon.png"
+    tpl.parent.mkdir(parents=True, exist_ok=True)
+    tpl.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    issues = [
+        i for i in validate_startup_configs(tmp_path) if i.source.startswith("area:")
+    ]
+    assert issues == []
