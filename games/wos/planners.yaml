@@ -58,7 +58,7 @@ planners:
     trace_key: "wos:player:{fid}:stamina_decisions"
     observed_inputs: [stamina]
     freshness_ttl_seconds: 3600       # 1h — stamina regenerates continuously
-    note: "enabled:false как диспатчер — но это источник резерва/бюджета, который march читает (reserve_for). intel_run уже реальный сценарий (не заглушка)."
+    note: "enabled:false как диспатчер — но это источник резерва/бюджета, который march читает (reserve_for). intel_run уже реальный сценарий (не заглушка). Ридер read_stamina (крон */5м): бар на main_city/main_world + OCR на chief_profile/intel."
 
   - name: resources
     title: "Аллокатор общих ресурсов (слоты/войска/герои)"
@@ -222,9 +222,9 @@ planners:
     enabled_key: enabled
     trace_key: ""
     observed_inputs:
-      - "heroes.entries"
+      - "heroes.entries.*"            # nested per-hero keys (heroes.entries.<id>.<field>) in durable SQLite
     freshness_ttl_seconds: 43200      # 12h — heroes.entries from the roster/detail readers
-    note: "Расширение heroes: уровень/EXP (db/hero_xp.yaml) + roadmap по level/star/skill; LEVEL_UP читает heroes.entries.<id>.level."
+    note: "Расширение heroes: уровень/EXP (db/hero_xp.yaml) + roadmap по level/star/skill; LEVEL_UP читает heroes.entries.<id>.level; ридеры sync_hero_roster + scan_hero_details (chevron-walk)."
 
   - name: svs
     title: "Калькулятор очков SvS (prep-фаза)"

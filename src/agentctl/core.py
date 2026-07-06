@@ -948,30 +948,33 @@ import re as _re  # noqa: E402  (local to the reader-health helpers below)
 
 
 def _fact_freshness(flat: dict[str, str], fact: str) -> tuple[float | None, float | None]:
-    """Best-effort ``(synced_at, age_s)`` for a fact from its ``*.synced_at`` mirror.
+    """Best-effort ``(synced_at, age_s)`` for a fact from its timestamp mirror.
 
     Readers that track freshness write ``<root>.synced_at`` (e.g. ``troops``,
-    ``heroes.roster``). We probe the fact path and its parents (so
-    ``troops.infantry.available`` finds ``troops.synced_at``). ``(None, None)``
-    when no reader records a timestamp — itself the signal that this fact's
-    freshness is untracked.
+    ``heroes.roster``); the DSL ``ocr … store: X`` step auto-writes a sibling
+    ``X_at`` instead (e.g. ``stamina_at``). We probe the fact path and its
+    parents for both suffixes (so ``troops.infantry.available`` finds
+    ``troops.synced_at``, and ``stamina`` finds ``stamina_at``). ``(None,
+    None)`` when no reader records a timestamp — itself the signal that this
+    fact's freshness is untracked.
     """
     root = fact.removesuffix(".*")
     parts = root.split(".")
     seen: set[str] = set()
     for i in range(len(parts), 0, -1):
-        cand = ".".join(parts[:i]) + ".synced_at"
-        if cand in seen:
-            continue
-        seen.add(cand)
-        raw = flat.get(cand)
-        if raw is None or not str(raw).strip():
-            continue
-        try:
-            ts = float(raw)
-        except (TypeError, ValueError):
-            continue
-        return ts, round(time.time() - ts, 1)
+        prefix = ".".join(parts[:i])
+        for cand in (f"{prefix}.synced_at", f"{prefix}_at"):
+            if cand in seen:
+                continue
+            seen.add(cand)
+            raw = flat.get(cand)
+            if raw is None or not str(raw).strip():
+                continue
+            try:
+                ts = float(raw)
+            except (TypeError, ValueError):
+                continue
+            return ts, round(time.time() - ts, 1)
     return None, None
 
 
@@ -1015,7 +1018,11 @@ def reader_health(fid: str | None = None, *, instance: str | None = None) -> dic
     facts: dict[str, dict[str, Any]] = {}
     for e in _load_planner_manifest():
         name = str(e.get("name", ""))
-        readers = set(_re.findall(r"sync_[a-z0-9_]+", str(e.get("note", ""))))
+        # Readers follow three naming families: sync_* (durable SQLite readers),
+        # read_* (hot Redis reads like read_stamina), scan_* (grid/detail walks).
+        readers = set(
+            _re.findall(r"(?:sync|read|scan)_[a-z0-9_]+", str(e.get("note", "")))
+        )
         ttl = e.get("freshness_ttl_seconds")
         for inp in e.get("observed_inputs") or []:
             key = str(inp)
