@@ -39,7 +39,9 @@ from dashboard.redis_client import (
     count_queue_tasks_for_instance,
     fetch_queue_history_rows,
     get_instance_state,
+    get_instance_states,
     get_player_state_hash,
+    get_player_state_hashes,
 )
 from dashboard.reference_preview import rolling_live_preview_path
 
@@ -104,11 +106,21 @@ def fleet_revision(client: Any, *, use_cache: bool = True) -> str:
     by_name = {str(d.name): d for d in db_registry.devices}
     pending_digest = compute_pending_queue_digest(client)
     claimed = count_claimed_slots(client)
-    live, paused, busy = fleet.count_live_instances(client, instances)
+    inst_ids = [str(getattr(inst, "instance_id", "")) for inst in instances]
+    states_by_id = get_instance_states(client, inst_ids)
+    live, paused, busy = fleet.count_live_instances(
+        [states_by_id.get(iid, {}) for iid in inst_ids]
+    )
+    all_pids = [
+        str(g.id)
+        for iid in inst_ids
+        if (dev := by_name.get(iid)) is not None
+        for g in dev.all_gamers()
+    ]
+    player_states = get_player_state_hashes(client, all_pids)
     inst_rows: list[dict[str, Any]] = []
-    for inst in instances:
-        iid = str(getattr(inst, "instance_id", ""))
-        row = get_instance_state(client, iid)
+    for iid in inst_ids:
+        row = states_by_id.get(iid, {})
         entry: dict[str, Any] = {
             "instance_id": iid,
             **instance_state_fingerprint(row),
@@ -119,7 +131,7 @@ def fleet_revision(client: Any, *, use_cache: bool = True) -> str:
             players: list[dict[str, str]] = []
             for gamer in dev.all_gamers():
                 pid = str(gamer.id)
-                ps = fleet.read_player_state(client, pid)
+                ps = player_states.get(pid, {})
                 players.append(
                     {
                         "who": pid,

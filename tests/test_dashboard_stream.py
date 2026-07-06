@@ -162,8 +162,12 @@ def test_fleet_revision_changes_when_screen_changes():
         patch("api.services.dashboard_stream.load_settings") as load_s,
         patch("api.services.dashboard_stream.load_devices") as load_d,
         patch(
-            "api.services.dashboard_stream.get_instance_state",
-            side_effect=[state_a, state_b],
+            "api.services.dashboard_stream.get_instance_states",
+            side_effect=[{"inst-1": state_a}, {"inst-1": state_b}],
+        ),
+        patch(
+            "api.services.dashboard_stream.get_player_state_hashes",
+            return_value={},
         ),
         patch(
             "api.services.dashboard_stream.compute_pending_queue_digest",

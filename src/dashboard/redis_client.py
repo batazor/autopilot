@@ -303,31 +303,37 @@ def fetch_queue_explain_rows(
 
 
 def count_queue_tasks(client: redis.Redis) -> int:
-    def _is_queue_zset_key(k: str) -> bool:
-        if not k:
-            return False
-        if ":running" in k or ":idx:" in k:
-            return False
-        try:
-            return str(client.type(k) or "").lower() == "zset"
-        except redis.RedisError:
-            return False
-
-    total = 0
-    for key in client.scan_iter("wos:queue:*"):
-        k = str(key)
-        if not _is_queue_zset_key(k):
-            continue
-        try:
-            total += _r_zcard(client, k)
-        except redis.RedisError:
-            continue
-    return total
+    candidates = [
+        k
+        for k in (str(key) for key in client.scan_iter("wos:queue:*", count=500))
+        if k and ":running" not in k and ":idx:" not in k
+    ]
+    if not candidates:
+        return 0
+    # Pipeline TYPE + ZCARD instead of one round-trip per key — this backs the
+    # fleet overview metric, polled by every open dashboard tab.
+    try:
+        pipe = client.pipeline(transaction=False)
+        for k in candidates:
+            pipe.type(k)
+        zset_keys = [
+            k
+            for k, t in zip(candidates, pipe.execute(), strict=True)
+            if str(t or "").lower() == "zset"
+        ]
+        if not zset_keys:
+            return 0
+        pipe = client.pipeline(transaction=False)
+        for k in zset_keys:
+            pipe.zcard(k)
+        return sum(int(n or 0) for n in pipe.execute())
+    except redis.RedisError:
+        return 0
 
 
 def count_claimed_slots(client: redis.Redis) -> int:
     n = 0
-    for _ in client.scan_iter("wos:claimed:*"):
+    for _ in client.scan_iter("wos:claimed:*", count=500):
         n += 1
     return n
 
@@ -805,6 +811,52 @@ def get_instance_state(client: redis.Redis, instance_id: str) -> dict[str, str]:
     if not raw:
         return {}
     return {str(k): str(v) if v is not None else "" for k, v in raw.items()}
+
+
+def get_instance_states(
+    client: redis.Redis, instance_ids: list[str]
+) -> dict[str, dict[str, str]]:
+    """Pipelined ``get_instance_state`` for the whole fleet — one round-trip."""
+    ids = [i for i in (str(x or "").strip() for x in instance_ids) if i]
+    if not ids:
+        return {}
+    pipe = client.pipeline(transaction=False)
+    for iid in ids:
+        pipe.hgetall(f"wos:instance:{iid}:state")
+    out: dict[str, dict[str, str]] = {}
+    for iid, raw in zip(ids, pipe.execute(), strict=True):
+        out[iid] = {
+            str(k): str(v) if v is not None else "" for k, v in (raw or {}).items()
+        }
+    return out
+
+
+def get_player_state_hashes(
+    client: redis.Redis, player_ids: list[str]
+) -> dict[str, dict[str, str]]:
+    """Pipelined ``wos:player:<id>:state`` reads — one round-trip for all players.
+
+    Mirrors the single-read semantics of ``read_player_state`` (errors → ``{}``).
+    """
+    pids = [p for p in (str(x or "").strip() for x in player_ids) if p]
+    if not pids:
+        return {}
+    try:
+        pipe = client.pipeline(transaction=False)
+        for pid in pids:
+            pipe.hgetall(f"wos:player:{pid}:state")
+        results = pipe.execute()
+    except Exception:
+        return {pid: {} for pid in pids}
+    out: dict[str, dict[str, str]] = {}
+    for pid, raw in zip(pids, results, strict=True):
+        out[pid] = {
+            (k.decode() if isinstance(k, bytes) else str(k)): (
+                v.decode() if isinstance(v, bytes) else str(v)
+            )
+            for k, v in (raw or {}).items()
+        }
+    return out
 
 
 def get_player_state_hash(client: redis.Redis, player_id: str) -> dict[str, str]:

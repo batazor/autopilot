@@ -63,6 +63,20 @@ export function useFarmState() {
 
   useEffect(() => {
     let cancelled = false;
+    refreshAccounts();
+    fetch("/api/farm/roles")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setRoles(d.roles ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshAccounts]);
+
+  useEffect(() => {
+    let cancelled = false;
     const poll = () => {
       fetch("/api/farm/registration/status")
         .then((r) => r.json())
@@ -75,19 +89,15 @@ export function useFarmState() {
         .catch(() => {});
     };
     poll();
-    refreshAccounts();
-    fetch("/api/farm/roles")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setRoles(d.roles ?? []);
-      })
-      .catch(() => {});
-    const t = setInterval(poll, 2000);
+    // Fast cadence only while a registration drive is actually running; the
+    // idle page doesn't need a 2s status hammer. Flipping `running` re-arms
+    // the interval at the right speed.
+    const t = setInterval(poll, registrationRunning ? 2000 : 10_000);
     return () => {
       cancelled = true;
       clearInterval(t);
     };
-  }, [refreshAccounts]);
+  }, [registrationRunning]);
 
   const post = async (url: string, body?: unknown) => {
     setError(null);

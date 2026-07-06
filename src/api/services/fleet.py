@@ -12,7 +12,8 @@ from config.loader import InstanceConfig, load_settings
 from dashboard.redis_client import (
     count_claimed_slots,
     count_queue_tasks,
-    get_instance_state,
+    get_instance_states,
+    get_player_state_hashes,
 )
 
 
@@ -131,28 +132,14 @@ def _format_age(unix_ts: object) -> str:
     return f"{int(delta // 86400)}d ago"
 
 
-def read_player_state(client: redis.Redis, pid: str) -> dict[str, str]:
-    try:
-        raw = client.hgetall(f"wos:player:{pid}:state") or {}
-    except Exception:
-        return {}
-    return {
-        (k.decode() if isinstance(k, bytes) else str(k)): (
-            v.decode() if isinstance(v, bytes) else str(v)
-        )
-        for k, v in raw.items()
-    }
-
-
 def _player_sub_row(
-    client: redis.Redis,
+    state: dict[str, str],
     instance_id: str,
     player_id: str,
     *,
     active_players: set[str],
     game: str,
 ) -> dict[str, Any]:
-    state = read_player_state(client, player_id)
     ig_id = (state.get("player_id") or "").strip()
     conf_s = (state.get("player_id_confidence") or "").strip()
     try:
@@ -180,22 +167,32 @@ def build_fleet_rows(
     client: redis.Redis,
     instances: list[InstanceConfig],
     db_registry: DeviceRegistry,
+    *,
+    states_by_id: dict[str, dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     by_name = {str(d.name): d for d in db_registry.devices}
+    inst_ids = [str(getattr(inst, "instance_id", "")) for inst in instances]
+    if states_by_id is None:
+        states_by_id = get_instance_states(client, inst_ids)
     active_players: set[str] = set()
-    inst_ids: list[str] = []
-    states: list[dict[str, str]] = []
-    for inst in instances:
-        iid = str(getattr(inst, "instance_id", ""))
-        inst_ids.append(iid)
-        row = get_instance_state(client, iid)
-        states.append(row)
-        ap = (row.get("active_player") or "").strip()
+    for iid in inst_ids:
+        ap = (states_by_id.get(iid, {}).get("active_player") or "").strip()
         if ap and ap != "—":
             active_players.add(ap)
 
+    # One pipelined read for every player hash on the page (a device can carry
+    # dozens of farm accounts — previously one HGETALL round-trip each).
+    all_pids: list[str] = []
+    for iid in inst_ids:
+        dev = by_name.get(iid)
+        if dev is not None:
+            for profile in dev.profiles:
+                all_pids.extend(str(g.id) for g in profile.gamers)
+    player_states = get_player_state_hashes(client, all_pids)
+
     rows: list[dict[str, Any]] = []
-    for iid, row in zip(inst_ids, states, strict=True):
+    for iid in inst_ids:
+        row = states_by_id.get(iid, {})
         sub_rows: list[dict[str, Any]] = []
         dev = by_name.get(iid)
         if dev is not None:
@@ -207,7 +204,7 @@ def build_fleet_rows(
                     pid = str(gamer.id)
                     sub_rows.append(
                         _player_sub_row(
-                            client,
+                            player_states.get(pid, {}),
                             iid,
                             pid,
                             active_players=active_players,
@@ -232,14 +229,10 @@ def build_fleet_rows(
     return rows
 
 
-def count_live_instances(
-    client: redis.Redis,
-    instances: list[InstanceConfig],
-) -> tuple[int, int, int]:
+def count_live_instances(states: list[dict[str, str]]) -> tuple[int, int, int]:
+    """Live/paused/busy tallies over pre-fetched instance state rows."""
     live = paused = busy = 0
-    for inst in instances:
-        iid = getattr(inst, "instance_id", "")
-        row = get_instance_state(client, iid)
+    for row in states:
         if row.get("paused") == "1":
             paused += 1
         if fleet_status(row) == "live":
@@ -256,8 +249,16 @@ def build_overview(client: redis.Redis) -> dict[str, Any]:
     n_inst = len(instances)
     q = count_queue_tasks(client)
     claimed = count_claimed_slots(client)
-    live, paused, busy = count_live_instances(client, instances)
-    fleet = build_fleet_rows(client, instances, db_registry) if instances else []
+    inst_ids = [str(getattr(inst, "instance_id", "")) for inst in instances]
+    states_by_id = get_instance_states(client, inst_ids)
+    live, paused, busy = count_live_instances(
+        [states_by_id.get(iid, {}) for iid in inst_ids]
+    )
+    fleet = (
+        build_fleet_rows(client, instances, db_registry, states_by_id=states_by_id)
+        if instances
+        else []
+    )
     return {
         "metrics": {
             "instances": n_inst,
