@@ -303,7 +303,6 @@ class InstanceWorkerRollingMixin(_Base):
 
         cfg = self._settings.worker
         task_busy = self._task_busy.is_set()
-        active_player = await _read_active_player(self._cfg.instance_id, self._redis)
         navigating = task_busy and await _read_navigating(
             self._cfg.instance_id, self._redis
         )
@@ -508,14 +507,12 @@ class InstanceWorkerRollingMixin(_Base):
 
         cfg = self._settings.worker
         task_busy = self._task_busy.is_set()
-        active_player = await _read_active_player(self._cfg.instance_id, self._redis)
         analysis_started = time.monotonic()
         current_screen: str | None = None
-        device_level_only = _rolling_overlay_device_level_only(
-            active_player=active_player,
-            cfg=cfg,
-            task_busy=task_busy,
-        )
+        # Computed for real after avatar identity below; only the early-error
+        # metric label sees this placeholder. active_player is read once there
+        # (post-identity) instead of twice per tick.
+        device_level_only = False
         outcome = "ok"
         try:
             current_screen = await self._detect_current_screen_on_frame(image_bgr)

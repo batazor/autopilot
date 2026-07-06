@@ -79,6 +79,33 @@ def escalated_push_ttl(base_ttl_s: int, streak: int, *, cap_s: int = _PUSH_TTL_E
         return int(cap_s)
     return min(int(cap_s), int(base_ttl_s) * (2**exponent))
 
+
+# Lua twin of ``escalated_push_ttl`` so the whole acquire runs in ONE Redis
+# round-trip instead of four (SET NX EX → INCR → EXPIRE → EXPIRE) — this sits
+# on the per-matched-rule overlay hot path. Keep the math in sync with the
+# Python function above (tests cover both through the same scenarios).
+# KEYS[1]=throttle key, KEYS[2]=streak key; ARGV[1]=base ttl s, ARGV[2]=cap s.
+# Returns {acquired, streak, effective_ttl}.
+_PUSH_TTL_ACQUIRE_LUA = """
+local base = tonumber(ARGV[1])
+if not redis.call('SET', KEYS[1], '1', 'NX', 'EX', base) then
+  return {0, 0, 0}
+end
+local streak = redis.call('INCR', KEYS[2])
+local cap = tonumber(ARGV[2])
+local exponent = math.max(0, streak - 1)
+local eff = cap
+if exponent <= 24 then
+  eff = math.min(cap, base * 2 ^ exponent)
+end
+eff = math.floor(eff)
+if eff ~= base then
+  redis.call('EXPIRE', KEYS[1], eff)
+end
+redis.call('EXPIRE', KEYS[2], eff * 2)
+return {1, streak, eff}
+"""
+
 # ``pushScenario.name`` placeholders. Right now only ``${hero_id}`` is wired
 # up — extracted from a ``page.heroes.<id>`` current_screen. Add new pattern /
 # extractor pairs here when another per-entity overlay rule needs the same
@@ -777,28 +804,27 @@ class InstanceWorkerOverlayMixin(_Base):
                         continue
                     acquired = True
                     try:
-                        acquired = bool(
-                            await self._redis.set(
-                                throttle_key, "1", nx=True, ex=int(ttl_s)
-                            )
+                        # Outcome-aware escalation (see escalated_push_ttl):
+                        # stretch the window we just took by the streak of
+                        # consecutive windows that ended with the trigger
+                        # still firing. One Lua call = one round-trip for
+                        # SET NX + INCR + both EXPIREs.
+                        script = getattr(self, "_push_ttl_acquire_script", None)
+                        if script is None:
+                            script = self._redis.register_script(_PUSH_TTL_ACQUIRE_LUA)
+                            self._push_ttl_acquire_script = script
+                        res = await script(
+                            keys=[throttle_key, f"{throttle_key}:streak"],
+                            args=[int(ttl_s), _PUSH_TTL_ESCALATION_CAP_S],
                         )
-                        if acquired:
-                            # Outcome-aware escalation (see escalated_push_ttl):
-                            # stretch the window we just took by the streak of
-                            # consecutive windows that ended with the trigger
-                            # still firing.
-                            streak_key = f"{throttle_key}:streak"
-                            streak = int(await self._redis.incr(streak_key))
-                            eff_ttl = escalated_push_ttl(int(ttl_s), streak)
-                            if eff_ttl != int(ttl_s):
-                                await self._redis.expire(throttle_key, eff_ttl)
-                                logger.info(
-                                    "push_ttl: escalated scenario=%s streak=%d ttl=%ds",
-                                    t,
-                                    streak,
-                                    eff_ttl,
-                                )
-                            await self._redis.expire(streak_key, eff_ttl * 2)
+                        acquired = bool(res and int(res[0]))
+                        if acquired and int(res[2]) != int(ttl_s):
+                            logger.info(
+                                "push_ttl: escalated scenario=%s streak=%d ttl=%ds",
+                                t,
+                                int(res[1]),
+                                int(res[2]),
+                            )
                     except Exception:
                         logger.debug(
                             "push_ttl: SET NX EX failed; allowing push",
