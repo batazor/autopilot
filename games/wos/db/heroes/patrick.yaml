@@ -1,5 +1,6 @@
 id: patrick
 name: Patrick
+aliases: ["Патрик"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/patrick/
 rarity: Epic
 class: Lancer

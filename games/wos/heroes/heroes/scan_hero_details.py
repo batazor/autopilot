@@ -21,6 +21,8 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
+from games.wos.heroes.heroes.hero_name_match import transliterate_ru
+
 from config.building_name_parser import normalise_building_lookup_text as _norm
 from config.heroes import get_hero_registry
 from config.paths import repo_root
@@ -122,13 +124,23 @@ def _resolve_hid(name: str, registry: Any, owned: set[str]) -> str:
     if raw in owned:
         return raw
 
+    # RU-build cards read Cyrillic («Патрик») — try the transliterated key too.
+    translit = _norm(transliterate_ru(raw))
+
     def _match(pool: tuple[Any, ...] | list[Any]) -> str:
         choices: dict[str, str] = {}
         for h in pool:
             choices[_norm(h.name)] = h.id
             choices[_norm(h.id)] = h.id
-        hit = difflib.get_close_matches(raw, list(choices), n=1, cutoff=_NAME_MATCH_CUTOFF)
-        return choices[hit[0]] if hit else ""
+            for alias in getattr(h, "aliases", ()) or ():
+                alias_key = _norm(alias)
+                if alias_key:
+                    choices[alias_key] = h.id
+        for key in (raw, translit) if translit != raw else (raw,):
+            hit = difflib.get_close_matches(key, list(choices), n=1, cutoff=_NAME_MATCH_CUTOFF)
+            if hit:
+                return choices[hit[0]]
+        return ""
 
     heroes = tuple(getattr(registry, "heroes", ()) or ())
     owned_pool = tuple(h for h in heroes if h.id in owned)
@@ -221,6 +233,15 @@ async def _exec_scan_hero_details(ctx: DslExecContext) -> None:
             )).text or ""
             digits = "".join(c for c in lt if c.isdigit())
             level = int(digits) if digits else None
+            # A drifted bbox glues in a neighbouring number (troop capacity,
+            # convoys) — «6 015»→9010-style garbage. No hero level is >500;
+            # treat implausible reads as unread rather than persisting them.
+            if level is not None and not (1 <= level <= 500):
+                logger.info(
+                    "dsl exec scan_hero_details: implausible level %r for %s — dropped",
+                    level, hid,
+                )
+                level = None
 
         snap = store.snapshot()
         entry: dict[str, Any] = dict(snap.heroes.entries.get(hid, {})) if snap.heroes.entries else {}

@@ -1,5 +1,6 @@
 id: jessie
 name: Jessie
+aliases: ["Джесси"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/jessie/
 rarity: Epic
 class: Lancer

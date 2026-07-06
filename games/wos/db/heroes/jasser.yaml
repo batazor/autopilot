@@ -1,5 +1,6 @@
 id: jasser
 name: Jasser
+aliases: ["Джассер"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/jasser/
 rarity: Epic
 class: Marksmen

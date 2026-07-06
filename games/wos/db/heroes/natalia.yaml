@@ -1,5 +1,6 @@
 id: natalia
 name: Natalia
+aliases: ["Наталия"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/natalia/
 rarity: Legendary
 class: Infantry

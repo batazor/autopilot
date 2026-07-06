@@ -1,5 +1,6 @@
 id: gina
 name: Gina
+aliases: ["Джина"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/gina/
 rarity: Epic
 class: Marksmen

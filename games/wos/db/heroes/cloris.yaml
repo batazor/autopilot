@@ -1,5 +1,6 @@
 id: cloris
 name: Cloris
+aliases: ["Клорис"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/cloris-2/
 rarity: Rare
 class: Marksmen

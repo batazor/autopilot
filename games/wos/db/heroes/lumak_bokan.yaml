@@ -1,5 +1,6 @@
 id: lumak_bokan
 name: Lumak Bokan
+aliases: ["Лумак Бокан"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/lumak-bokan/
 rarity: Epic
 class: Lancer

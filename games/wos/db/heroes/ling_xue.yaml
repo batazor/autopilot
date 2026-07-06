@@ -1,5 +1,6 @@
 id: ling_xue
 name: Ling Xue
+aliases: ["Лин Сюэ"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/ling-shuang/
 rarity: Epic
 class: Lancer

@@ -1,5 +1,6 @@
 id: charlie
 name: Charlie
+aliases: ["Чарли"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/charlie/
 rarity: Rare
 class: Lancer

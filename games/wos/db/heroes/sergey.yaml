@@ -1,5 +1,6 @@
 id: sergey
 name: Sergey
+aliases: ["Сергей"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/sergey/
 rarity: Epic
 class: Infantry

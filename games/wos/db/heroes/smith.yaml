@@ -1,5 +1,6 @@
 id: smith
 name: Smith
+aliases: ["Смит"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/smith/
 rarity: Rare
 class: Infantry

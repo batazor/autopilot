@@ -1,5 +1,6 @@
 id: eugene
 name: Eugene
+aliases: ["Юджин"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/eugene/
 rarity: Rare
 class: Infantry

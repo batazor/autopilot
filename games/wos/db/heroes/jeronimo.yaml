@@ -1,5 +1,6 @@
 id: jeronimo
 name: Jeronimo
+aliases: ["Джеронимо"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/jeronimo/
 rarity: Legendary
 class: Infantry

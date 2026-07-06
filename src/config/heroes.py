@@ -41,6 +41,9 @@ class HeroDef:
     hero_class: str = ""
     sub_class: str = ""
     skills: tuple[dict[str, str], ...] = ()
+    # Localized display names as OCR reads them off the device (e.g. the RU
+    # build's «Патрик»). Indexed by hero_name_match alongside name/id.
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -94,6 +97,13 @@ def load_heroes(repo_root: Path | None = None) -> HeroRegistry:
                     if isinstance(s, dict)
                 )
 
+            aliases_raw = raw.get("aliases", [])
+            aliases: tuple[str, ...] = ()
+            if isinstance(aliases_raw, list):
+                aliases = tuple(
+                    str(a).strip() for a in aliases_raw if str(a).strip()
+                )
+
             heroes.append(
                 HeroDef(
                     id=hid,
@@ -103,6 +113,7 @@ def load_heroes(repo_root: Path | None = None) -> HeroRegistry:
                     hero_class=str(raw.get("class") or ""),
                     sub_class=str(raw.get("sub_class") or ""),
                     skills=skills,
+                    aliases=aliases,
                 )
             )
 

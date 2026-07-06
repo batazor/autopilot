@@ -1,5 +1,6 @@
 id: zinman
 name: Zinman
+aliases: ["Зинман"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/zinman/
 rarity: Legendary
 class: Marksmen

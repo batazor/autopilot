@@ -1,5 +1,6 @@
 id: molly
 name: Molly
+aliases: ["Молли"]   # RU build («Белая мгла») card title
 wiki_url: https://www.whiteoutsurvival.wiki/heroes/molly/
 rarity: Legendary
 class: Lancer

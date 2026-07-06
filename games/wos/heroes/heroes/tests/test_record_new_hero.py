@@ -99,3 +99,54 @@ def test_merge_tolerates_non_dict_prev():
     assert entry["name"] == "Ahmose"
     assert entry["available"] is True
     assert entry["unlocked_at"] == 42.0
+
+
+# --- RU build («Белая мгла») name resolution -------------------------------
+# Verbatim OCR reads collected off bs5 detail cards (2026-07-06), including the
+# real noise: Д→Л misreads («Лжина», «Лжассер») and a glued prefix
+# («ЛИжеронимо»).
+RU_REG = HeroRegistry(
+    heroes=(
+        HeroDef(id="patrick", name="Patrick", aliases=("Патрик",)),
+        HeroDef(id="gina", name="Gina", aliases=("Джина",)),
+        HeroDef(id="jasser", name="Jasser", aliases=("Джассер",)),
+        HeroDef(id="jeronimo", name="Jeronimo", aliases=("Джеронимо",)),
+        HeroDef(id="eugene", name="Eugene", aliases=("Юджин",)),
+        HeroDef(id="seo_yoon", name="Seo-yoon", aliases=("Со Юн",)),
+        HeroDef(id="lumak_bokan", name="Lumak & Bokan", aliases=("Лумак Бокан",)),
+        HeroDef(id="ling_xue", name="Ling Xue", aliases=("Лин Сюэ",)),
+    )
+)
+
+
+def test_ru_alias_exact_reads_resolve():
+    for raw, hid in (
+        ("Патрик", "patrick"),
+        ("Юджин", "eugene"),          # transliteration alone can't bridge this
+        ("Со Юн", "seo_yoon"),
+        ("Лумак Бокан", "lumak_bokan"),
+        ("Лин Сюэ", "ling_xue"),
+    ):
+        got, score = match_hero_id(raw, RU_REG)
+        assert got == hid, (raw, got, score)
+        assert score == 1.0
+
+
+def test_ru_noisy_reads_fuzzy_resolve_via_alias():
+    # Real bs5 OCR noise: Д misread as Л, glued 'ЛИ' prefix.
+    for raw, hid in (
+        ("Лжина", "gina"),
+        ("Лжассер", "jasser"),
+        ("ЛИжеронимо", "jeronimo"),
+    ):
+        got, score = match_hero_id(raw, RU_REG)
+        assert got == hid, (raw, got, score)
+        assert score >= 0.6
+
+
+def test_ru_translit_fallback_without_alias():
+    # A hero with no aliases entry still resolves via RU→Latin transliteration.
+    reg = HeroRegistry(heroes=(HeroDef(id="patrick", name="Patrick"),))
+    got, score = match_hero_id("Патрик", reg)
+    assert got == "patrick"
+    assert score >= 0.6
