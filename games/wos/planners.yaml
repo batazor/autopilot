@@ -37,6 +37,18 @@ planners:
     observed_inputs: []          # runs even partially-blind (gather fallback fills slots)
     note: "Единственный LIVE планировщик: заполняет свободные march-слоты каждый тик; intel паузится живым board-TTL (intel.refresh_in). Учится на исходах: провалы задач стекают в wos:player:{fid}:action_feedback (стек → backoff ×0.3; 3 провала с одной причиной подряд → circuit-breaker на 1ч, виден в трейсе как feedback.held)."
 
+  - name: cycle
+    title: "Единый dev-арбитр (plan_cycle тик)"
+    domain: DEV
+    wired: scheduler
+    config: games/wos/core/coordinator/cycle.yaml
+    enabled_key: enabled
+    trace_key: "wos:player:{fid}:cycle_decisions"
+    observed_inputs:
+      - "buildings.levels.*"
+    freshness_ttl_seconds: 86400
+    note: "Автономный plan_cycle раз в 10 мин: building+research арбитраж с биасами (календарь/экономика/safety/feedback), полный трейс решений. dispatch: false — trace-only до живой валидации; потом арбитр начнёт сам ставить plan_tick-сценарии."
+
   - name: stamina
     title: "Бюджет выносливости"
     domain: STAMINA

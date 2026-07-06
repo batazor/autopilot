@@ -849,6 +849,7 @@ class SchedulerRunner:
         await self._run_stamina_planner(player_states, player_instance_map, now)
         await self._run_resource_planner(player_states, player_instance_map, now)
         await self._run_march_planner(player_states, player_instance_map, now)
+        await self._run_cycle_planner(player_states, player_instance_map, now)
         await self._run_fleet_coordinator(now)
 
     async def _run_fleet_coordinator(self, now: float) -> None:
@@ -1137,6 +1138,52 @@ class SchedulerRunner:
             except Exception:
                 logger.warning(
                     "march planner failed for player=%s", player_id, exc_info=True
+                )
+
+    async def _run_cycle_planner(
+        self,
+        player_states: dict[str, dict[str, object]],
+        player_instance_map: dict[str, str],
+        now: float,
+    ) -> None:
+        """Unified development arbitration per player (see coordinator.cycle_tick).
+
+        The tick throttles itself per player (``cycle.yaml interval_s``), traces
+        every decision to a ring buffer, and only enqueues work when
+        ``dispatch: true``. Runs AFTER march so a future unified pass can fold
+        MARCH candidates in. Each player is isolated by try/except.
+        """
+        assert self._queue is not None and self._redis is not None
+        from games.wos.core.coordinator.cycle_tick import load_cycle_config, run_cycle_tick
+        from games.wos.core.coordinator.feedback_store import load_feedback
+
+        try:
+            cfg = load_cycle_config()     # mtime-cached; no disk read per tick
+        except Exception:
+            logger.warning("cycle config load failed", exc_info=True)
+            return
+        if not cfg.enabled:
+            return
+
+        for player_id, state in player_states.items():
+            instance_id = player_instance_map.get(player_id, "")
+            if not instance_id:
+                continue
+            try:
+                feedback_state = await load_feedback(self._redis, player_id)
+                await run_cycle_tick(
+                    redis=self._redis,
+                    queue=self._queue,
+                    instance_id=instance_id,
+                    player_id=player_id,
+                    state=state,
+                    now=now,
+                    feedback_state=feedback_state,
+                    config=cfg,
+                )
+            except Exception:
+                logger.warning(
+                    "cycle planner failed for player=%s", player_id, exc_info=True
                 )
 
     async def _drain_wake_queue(self) -> bool:

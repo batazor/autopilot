@@ -69,6 +69,29 @@ _TASK_REGISTRY: dict[str, type] = {}
 # Redis hash for UI/monitoring.
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
 
+# Idle go-home nudge (see InstanceWorker._maybe_go_home_when_idle): after this
+# long with an empty queue the worker parks itself back on main_city. Low
+# priority so real work always wins; throttled so the nudge fires at most once
+# per window even if navigation keeps failing.
+_IDLE_GO_HOME_AFTER_S = 300.0
+_IDLE_GO_HOME_THROTTLE_S = 600
+_IDLE_GO_HOME_PRIORITY = 8_000
+
+
+def should_go_home(current_screen: str) -> bool:
+    """Whether an idle worker on ``current_screen`` should navigate to main_city.
+
+    Pure so tests can pin the policy. Empty screen = detection hasn't resolved
+    (recovery is the popup/unknown-screen machinery's job, and the queue gate
+    would park a node scenario anyway); main_city/main_world = already home —
+    the world map is a first-class hub with its own overlay rules, marching off
+    it to the city would fight intel/march flows.
+    """
+    screen = (current_screen or "").strip()
+    if not screen:
+        return False
+    return screen not in ("main_city", "main_world")
+
 
 def _is_adb_offline_error(exc: BaseException) -> bool:
     """``AdbController`` raises ``RuntimeError`` with this shape on offline serials."""
@@ -223,6 +246,9 @@ class InstanceWorker(
         self._current_task_started_m: float | None = None
         self._stuck_task_watchdog_task: asyncio.Task[None] | None = None
         self._heartbeat_task: asyncio.Task[None] | None = None
+        # Monotonic instant the queue first came up empty (None while working).
+        # Drives the idle go-home nudge (see _maybe_go_home_when_idle).
+        self._idle_since_m: float | None = None
         # Scenario key of the task ``_current_task_handle`` is running. Read by
         # the overlay push path so a device-level push doesn't preempt a task
         # that's already running the same scenario.
@@ -436,6 +462,64 @@ class InstanceWorker(
         self._task_abort_reschedule = bool(reschedule)
         handle.cancel()
         return True
+
+    async def _maybe_go_home_when_idle(self) -> None:
+        """Idle for a while off the hub → nudge the bot back to main_city.
+
+        A finished task leaves the bot wherever its last step ran (a mail tab,
+        a result card); with an empty queue nothing ever navigates away, so the
+        bot camps there for hours. main_city is where detection is most
+        reliable and where most overlay push rules live, so idling there keeps
+        the autonomous loop productive. Uses the existing ``check_main_city``
+        scenario (pure node navigation, device-level, deduped against its own
+        cron) at a low priority so any real work that appears still wins the
+        pop; a Redis SET NX throttle keeps the nudge to once per window even
+        across worker restarts.
+        """
+        now_m = time.monotonic()
+        if self._idle_since_m is None:
+            self._idle_since_m = now_m
+            return
+        if now_m - self._idle_since_m < _IDLE_GO_HOME_AFTER_S:
+            return
+        if self._ui_paused or self._redis is None or self._queue is None:
+            return
+        try:
+            raw = await self._redis.hget(
+                _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+                "current_screen",
+            )
+            screen = (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
+        except Exception:
+            return
+        if not should_go_home(screen):
+            return
+        try:
+            throttle_key = f"wos:instance:{self._cfg.instance_id}:idle_home_ttl"
+            acquired = bool(
+                await self._redis.set(
+                    throttle_key, "1", nx=True, ex=_IDLE_GO_HOME_THROTTLE_S
+                )
+            )
+            if not acquired:
+                return
+            await self._queue.schedule(
+                task_id=f"idle_home:{self._cfg.instance_id}:{int(time.time())}",
+                player_id="",
+                task_type="check_main_city",
+                priority=_IDLE_GO_HOME_PRIORITY,
+                run_at=time.time(),
+                instance_id=self._cfg.instance_id,
+                skip_if_duplicate=True,
+            )
+            logger.info(
+                "[idle] %s: queue empty %.0fs on %r — going home to main_city",
+                self._cfg.instance_id,
+                now_m - self._idle_since_m,
+                screen,
+            )
+        except Exception:
+            logger.debug("idle go-home enqueue failed", exc_info=True)
 
     async def _run_heartbeat_loop(self) -> None:
         """Publish ``last_seen_at`` + the fleet heartbeat every 2s, task-independent.
@@ -1118,6 +1202,7 @@ class InstanceWorker(
 
                     item = await self._pop_next_task()
                     if item is None:
+                        await self._maybe_go_home_when_idle()
                         # Block up to 2s but wake immediately when the UI pushes a
                         # command (e.g. debug "Run scenario now" sends ``wake``) OR
                         # the coordination layer posts a directive to this instance.
@@ -1141,6 +1226,7 @@ class InstanceWorker(
                         else:
                             await asyncio.sleep(2.0)
                         continue
+                    self._idle_since_m = None
                     item = await self._resolve_queue_item_player(item)
 
                     task = self._build_task(item)

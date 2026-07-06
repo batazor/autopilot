@@ -56,6 +56,29 @@ _REPO_ROOT = repo_root()
 _IDLE_TAB_RED_DOT_LOG_TTL_SECONDS = 15.0
 _IDLE_TAB_RED_DOT_LAST_LOG: dict[tuple[str, str, str, str, str, str], float] = {}
 
+# Outcome-aware push suppression: a trigger the pushed scenario cannot clear
+# (e.g. a rewardless mail's red dot — the claim runs ok but the badge stays)
+# re-pushes every ``ttl`` forever. Each consecutive throttle window that ends
+# with the trigger still firing doubles the next window, capped here. The
+# streak marker expires after 2x the current window, so a trigger that
+# actually goes away (no pushes for a while) resets the backoff naturally.
+_PUSH_TTL_ESCALATION_CAP_S = 2 * 3600
+
+
+def escalated_push_ttl(base_ttl_s: int, streak: int, *, cap_s: int = _PUSH_TTL_ESCALATION_CAP_S) -> int:
+    """The effective throttle window for the ``streak``-th consecutive push.
+
+    streak=1 (first push, or trigger came back after a quiet spell) → base;
+    each further consecutive push doubles the window up to ``cap_s``.
+    """
+    if base_ttl_s <= 0:
+        return 0
+    exponent = max(0, int(streak) - 1)
+    # Avoid huge intermediate ints on a corrupt counter.
+    if exponent > 24:
+        return int(cap_s)
+    return min(int(cap_s), int(base_ttl_s) * (2**exponent))
+
 # ``pushScenario.name`` placeholders. Right now only ``${hero_id}`` is wired
 # up — extracted from a ``page.heroes.<id>`` current_screen. Add new pattern /
 # extractor pairs here when another per-entity overlay rule needs the same
@@ -759,6 +782,23 @@ class InstanceWorkerOverlayMixin(_Base):
                                 throttle_key, "1", nx=True, ex=int(ttl_s)
                             )
                         )
+                        if acquired:
+                            # Outcome-aware escalation (see escalated_push_ttl):
+                            # stretch the window we just took by the streak of
+                            # consecutive windows that ended with the trigger
+                            # still firing.
+                            streak_key = f"{throttle_key}:streak"
+                            streak = int(await self._redis.incr(streak_key))
+                            eff_ttl = escalated_push_ttl(int(ttl_s), streak)
+                            if eff_ttl != int(ttl_s):
+                                await self._redis.expire(throttle_key, eff_ttl)
+                                logger.info(
+                                    "push_ttl: escalated scenario=%s streak=%d ttl=%ds",
+                                    t,
+                                    streak,
+                                    eff_ttl,
+                                )
+                            await self._redis.expire(streak_key, eff_ttl * 2)
                     except Exception:
                         logger.debug(
                             "push_ttl: SET NX EX failed; allowing push",

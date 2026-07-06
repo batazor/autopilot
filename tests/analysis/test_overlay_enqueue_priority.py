@@ -304,6 +304,73 @@ async def test_push_ttl_throttles_repeat_push_per_player(redis_async: object) ->
 
 
 @pytest.mark.asyncio
+async def test_push_ttl_escalates_while_trigger_persists(redis_async: object) -> None:
+    """A trigger the scenario can't clear doubles its throttle window each round.
+
+    Round 1 takes the base window (300s). When the window expires and the rule
+    still fires (rewardless-mail red dot), round 2 must take ~600s — and the
+    streak marker must outlive the window so round 3 keeps escalating.
+    """
+    worker = _Worker()
+    worker._redis = redis_async  # type: ignore[assignment]
+
+    results = {
+        "page.worker.add.visible": {
+            "matched": True,
+            "region": "page.worker.add",
+            "pushScenario": [{"name": "assign_worker", "priority": 80_000, "ttl": 300}],
+        },
+    }
+
+    await worker._schedule_overlay_matches(results, active_player="p1")
+    key = "wos:player:p1:push_ttl:assign_worker"
+    assert 0 < await redis_async.ttl(key) <= 300  # type: ignore[attr-defined]
+
+    # The window expired (trigger still on screen) → next push escalates 2x.
+    await redis_async.delete(key)  # type: ignore[attr-defined]
+    await worker._schedule_overlay_matches(results, active_player="p1")
+    assert 300 < await redis_async.ttl(key) <= 600  # type: ignore[attr-defined]
+    assert [c["task_type"] for c in worker._queue.calls] == [
+        "assign_worker",
+        "assign_worker",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_push_ttl_escalation_resets_after_quiet_spell(redis_async: object) -> None:
+    """Trigger gone → no pushes → streak marker expires → backoff starts over."""
+    from worker.instance_worker_overlay import escalated_push_ttl
+
+    worker = _Worker()
+    worker._redis = redis_async  # type: ignore[assignment]
+
+    results = {
+        "page.worker.add.visible": {
+            "matched": True,
+            "region": "page.worker.add",
+            "pushScenario": [{"name": "assign_worker", "priority": 80_000, "ttl": 300}],
+        },
+    }
+
+    await worker._schedule_overlay_matches(results, active_player="p1")
+    key = "wos:player:p1:push_ttl:assign_worker"
+    # Simulate the quiet spell: both the window and the streak marker lapsed.
+    await redis_async.delete(key)  # type: ignore[attr-defined]
+    await redis_async.delete(f"{key}:streak")  # type: ignore[attr-defined]
+
+    await worker._schedule_overlay_matches(results, active_player="p1")
+    assert 0 < await redis_async.ttl(key) <= 300  # type: ignore[attr-defined]
+
+    # Pure escalation math: base, 2x, 4x … capped at 2h.
+    assert escalated_push_ttl(300, 1) == 300
+    assert escalated_push_ttl(300, 2) == 600
+    assert escalated_push_ttl(300, 5) == 4800
+    assert escalated_push_ttl(300, 6) == 7200   # 9600 → cap
+    assert escalated_push_ttl(300, 99) == 7200  # corrupt counter → cap, no overflow
+    assert escalated_push_ttl(0, 3) == 0
+
+
+@pytest.mark.asyncio
 async def test_push_ttl_absent_does_not_throttle(redis_async: object) -> None:
     worker = _Worker()
     worker._redis = redis_async  # type: ignore[assignment]

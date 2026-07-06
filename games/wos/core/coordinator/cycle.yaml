@@ -1,0 +1,11 @@
+# Autonomous development-cycle tick (see cycle_tick.py).
+#
+# enabled: the tick runs and TRACES its arbitration per player (ring buffer
+#   wos:player:{fid}:cycle_decisions — botctl-грade explainability).
+# dispatch: false ships trace-only — validate live traces first, then flip to
+#   let the arbiter enqueue its top commits (building/research plan_tick
+#   scenarios; dedup + their own idempotence keep the domain crons safe).
+# WOS_CYCLE_ENABLED=false is the per-deployment kill switch.
+enabled: true
+interval_s: 600
+dispatch: false
