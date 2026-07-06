@@ -756,7 +756,13 @@ class ScrcpyClient:
         with contextlib.suppress(Exception):
             if self._proc is not None:
                 self._proc.terminate()
-                self._proc.wait(timeout=2)
+                try:
+                    self._proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    # SIGTERM ignored (server wedged mid-I/O): escalate rather
+                    # than dropping the Popen and leaking a live host process.
+                    self._proc.kill()
+                    self._proc.wait(timeout=1)
         self._proc = None
         with contextlib.suppress(Exception):
             _run_adb(

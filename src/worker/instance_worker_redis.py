@@ -40,10 +40,22 @@ class InstanceWorkerRedisMixin(_Base):
 
         settings = self._settings
         if self._redis is None:
+            from redis.asyncio.retry import Retry
+            from redis.backoff import ExponentialBackoff
+            from redis.exceptions import ConnectionError as RedisConnectionError
+            from redis.exceptions import TimeoutError as RedisTimeoutError
+
             url = settings.redis.url
+            # Retry transient connection drops in-place instead of failing the
+            # in-flight command: a Redis restart otherwise surfaces as a burst
+            # of ConnectionErrors through whatever tick/task happened to be
+            # talking to it (the pool itself reconnects fine on the NEXT call).
+            # Bounded: 3 attempts, exponential backoff capped at 1s.
             self._redis = aioredis.from_url(
                 url,
                 socket_connect_timeout=5.0,
+                retry=Retry(ExponentialBackoff(cap=1.0, base=0.05), retries=3),
+                retry_on_error=[RedisConnectionError, RedisTimeoutError],
             )
             instrument_redis_client(self._redis, component="worker")
             await ping_async_redis_or_exit(self._redis, url=url)
