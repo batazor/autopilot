@@ -50,6 +50,12 @@ _MARKER_TEMPLATES: tuple[_MarkerTemplate, ...] = (
     _MarkerTemplate("beast", "beast", _CROP_DIR / "main_special_intel.fight_v2.png"),
 )
 _TEMPLATE_KIND_BY_NAME: dict[str, str] = {t.name: t.kind for t in _MARKER_TEMPLATES}
+
+# Kinds that dispatch WITHOUT consuming a march-queue slot (rescue/gather
+# camps resolve outside the queue — operator-confirmed game rule). Everything
+# else (fight/skull/beast) opens a deploy and needs a free slot.
+DEPLOYLESS_KINDS: frozenset[str] = frozenset({"camp"})
+
 _MARKER_KIND_PRIORITY = {
     # Within the same color tier, prefer the rarer/special intel types first.
     "skull_horned": 0,

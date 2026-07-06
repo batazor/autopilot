@@ -484,6 +484,34 @@ async def run_march_tick(
         player_id=player_id,
         now=now,
     )
+    # Camp pins dispatch WITHOUT a march-queue slot (operator-confirmed), so a
+    # zero-slot tick must not starve intel entirely: when every queue is busy
+    # but intel is otherwise eligible (cooldown + stamina, feedback not
+    # circuit-broken — it survived apply_feedback above), enqueue a camp-only
+    # intel pass directly. The tap-gate inside intel_run restricts the pick to
+    # deployless kinds when it sees zero free slots, so this can never spend a
+    # queue it doesn't have.
+    if idle_slots <= 0 and any(c.key == "intel:run" for c in extras):
+        try:
+            camp_ok = await queue.schedule(
+                task_id=f"march:{instance_id}:intel_camp:{int(now)}",
+                player_id=player_id,
+                task_type="intel_run",
+                priority=80_060,
+                run_at=now,
+                instance_id=instance_id,
+                skip_if_duplicate=True,
+            )
+            if camp_ok:
+                logger.info(
+                    "march tick: zero slots — dispatched camp-only intel pass "
+                    "instance=%s player=%s",
+                    instance_id, player_id,
+                )
+        except Exception:
+            logger.exception(
+                "march tick: camp-only intel enqueue failed instance=%s", instance_id
+            )
     await write_march_trace(
         redis,
         player_id,

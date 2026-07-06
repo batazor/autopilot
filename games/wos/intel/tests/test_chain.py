@@ -98,12 +98,20 @@ async def test_skips_when_leases_fill_capacity(monkeypatch) -> None:
         "_ledger_key",
         lambda player_id: f"wos:player:{player_id}:resources:reservations",
     )
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        return True
+
+    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
     ctx = _ctx(redis)
 
     await chain.queue_next_intel_run(ctx)
 
-    assert ctx.result["action"] == "skipped"
-    assert ctx.result["reason"] == "no_free_march_slot"
+    # Zero free slots no longer ends the chain: camp pins dispatch without a
+    # march queue (operator-confirmed), so the next pass still runs — as a
+    # camp-only window (the tap-gate restricts kinds when it sees no slots).
+    assert ctx.result["action"] == "queued"
+    assert ctx.result["chain_window"] == "camp_only"
     assert ctx.result["held_slots"] == 2
 
 
@@ -129,12 +137,18 @@ async def test_capacity_fact_overrides_default(monkeypatch) -> None:
             }
         }
     )
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        return True
+
+    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
     ctx = _ctx(redis)
 
     await chain.queue_next_intel_run(ctx)
 
-    assert ctx.result["action"] == "skipped"
-    assert ctx.result["reason"] == "no_free_march_slot"
+    # Capacity fact honoured (1 slot, occupied) → camp-only chain window.
+    assert ctx.result["action"] == "queued"
+    assert ctx.result["chain_window"] == "camp_only"
     assert ctx.result["capacity"] == 1
 
 

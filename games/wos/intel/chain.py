@@ -101,14 +101,12 @@ async def queue_next_intel_run(ctx: DslExecContext) -> None:
     except (TypeError, ValueError):
         stamina = None
 
-    if free < 1:
-        ctx.result.update({"action": "skipped", "reason": "no_free_march_slot", **detail})
-        logger.info(
-            "dsl exec queue_next_intel_run: no free march slot player=%s detail=%s",
-            ctx.player_id,
-            detail,
-        )
-        return
+    # Zero free slots does NOT end the chain: camp pins dispatch without a
+    # march-queue slot (operator-confirmed), so the next pass can still harvest
+    # them — its tap-gate restricts the pick to deployless kinds and a pass
+    # that finds none simply completes without re-reaching this exec, keeping
+    # the chain bounded by fresh camps + stamina.
+    camp_only = free < 1
     # Unknown stamina (read failed) → chain anyway: the next run re-reads it on
     # the board and its planner makes the real call.
     if stamina is not None and stamina < cost:
@@ -137,6 +135,7 @@ async def queue_next_intel_run(ctx: DslExecContext) -> None:
             "action": "queued" if ok else "enqueue_failed",
             "scenario": _INTEL_SCENARIO,
             "free_slots": free,
+            **({"chain_window": "camp_only"} if camp_only else {}),
             **detail,
         }
     )

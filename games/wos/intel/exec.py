@@ -22,9 +22,13 @@ from typing import TYPE_CHECKING
 # pulls in are imported as proper ``games.wos.intel.*`` package modules.
 from games.wos.intel import started as started_mem
 from games.wos.intel.chain import (
+    free_march_slots,
+)
+from games.wos.intel.chain import (
     queue_next_intel_run as _exec_queue_next_intel_run,
 )
 from games.wos.intel.detection import (
+    DEPLOYLESS_KINDS,
     IntelMarker,
     _pick_marker,
     detect_fight_markers,
@@ -132,6 +136,25 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
         markers, started, radius=started_radius
     )
 
+    # Camp pins (rescue/gather camps) dispatch WITHOUT taking a march-queue
+    # slot — deploy pins (fight/skull/beast) need one. With every queue busy,
+    # restrict the pick to slot-free kinds instead of skipping the run: camps
+    # stay harvestable at any time (operator-confirmed game rule).
+    slot_filter = ""
+    if ctx.redis_client is not None and ctx.player_id:
+        try:
+            free_slots, _slot_detail = await free_march_slots(
+                ctx.redis_client, ctx.player_id, now=time.time()
+            )
+        except Exception:
+            logger.debug("tap_intel_fight: slot read failed", exc_info=True)
+            free_slots = None
+        if free_slots is not None and free_slots < 1:
+            deployless = [m for m in fresh if m.kind in DEPLOYLESS_KINDS]
+            if len(deployless) != len(fresh):
+                slot_filter = "camp_only_no_slots"
+            fresh = deployless
+
     stamina = await read_player_stamina(ctx)
     explicit_reserve = ctx.args.get("reserve")
     reserve = (
@@ -156,7 +179,8 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
         if not markers:
             action = reason = "not_found"
         elif not fresh:
-            action = reason = "all_in_progress"
+            action = "all_in_progress"
+            reason = "no_deployless_pins" if slot_filter else "all_in_progress"
         else:
             action = "skipped"
             reason = plan_trace.get("reason")
@@ -169,6 +193,7 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
                 "detected": len(markers),
                 "suppressed": len(suppressed),
                 "started_active": len(started),
+                **({"slot_filter": slot_filter} if slot_filter else {}),
             }
         )
         logger.info(
