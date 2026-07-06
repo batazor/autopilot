@@ -67,3 +67,29 @@ def test_tab_config_maps_geometry_and_key_suffix():
     assert _TAB_CONFIG["wilderness"] == (_NAME_TOPS_SUB, "wilderness")
     # The sub-header tabs push the grid strictly lower than the All tab.
     assert _NAME_TOPS_SUB[0] > _NAME_TOPS[0]
+
+
+# Verbatim OCR reads from bs5 (RU «Белая мгла» build), Troops Preview "All" tab,
+# 2026-07-06 — the type word is Cyrillic and may sit on the second line or be
+# garbled ('Боичи пехотинец'); counts carry OCR noise ('Е 230', ')2 800').
+LIVE_CELLS_RU = [
+    "‚ Закаленный\nпехотинец\nЕ 230",
+    "‚ Закаленный\n| копейщик\n310",
+    "| | Опытный копейщик\n617",
+    "Опытный стрелок\n500",
+    "|Боичи пехотинец\n2 576",
+    "Бывалый копейщик\n1872",
+    "| Бывалый стрелок\n2 568",
+    "Обученный\n‚пехотинец\n3 282",
+    "` Обученный копейщи\n3 624",
+    "Обученный стрелок\n)2 800",
+    "' Пехотинец-новичок\n6666",
+]
+
+
+def test_parse_cells_ru_build_reads_types_and_counts():
+    assert parse_troop_cells(LIVE_CELLS_RU) == {
+        "infantry": 6666,
+        "lancer": 3624,
+        "marksman": 2800,
+    }

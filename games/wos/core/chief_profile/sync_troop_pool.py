@@ -53,7 +53,21 @@ _UPSCALE = 4
 
 # Title landmark — confirms we're on Troops Preview before writing, so a genuinely
 # empty Wilderness tab records 0 instead of being mistaken for a navigation miss.
-_TITLE = (4.0, 0.8, 40.0, 4.5)
+# 60% wide: the RU title «Предпросмотр войск» overflows the old 40% box and OCR'd
+# as a truncated 'Предпросмот|' with the gate word cut off (verified on bs5).
+_TITLE = (4.0, 0.8, 60.0, 4.5)
+
+# Gate words per build: EN "Troops Preview" / RU «Предпросмотр войск».
+_TITLE_KEYS: tuple[str, ...] = ("troops", "войск")
+
+# RU card names carry the type as a Cyrillic word anywhere in the name
+# (e.g. «Закаленный пехотинец», «Пехотинец-новичок», «Опытный копейщик»,
+# «Бывалый стрелок») — substring match beats fuzzy here (verified on bs5).
+_RU_TYPE_KEYS: tuple[tuple[str, str], ...] = (
+    ("пехот", "infantry"),
+    ("копейщ", "lancer"),
+    ("стрел", "marksman"),
+)
 
 # ``tab:`` step arg → (grid geometry, state-key suffix). City = troops at home =
 # the allocator's "available"; All = total; Wilderness = deployed in the field.
@@ -72,11 +86,21 @@ def _parse_cell(text: str) -> tuple[str | None, int]:
     digits would poison a whole-text match. Count is the largest number anywhere in
     the cell (the card has exactly one).
     """
-    lines = [ln for ln in (text or "").splitlines() if ln.strip()]
-    name = lines[0] if lines else ""
-    hit = fuzzy_match(re.sub(r"[^a-z ]", "", name.lower()), list(TROOP_TYPES), threshold=0.45)
-    typ = hit.candidate if hit else None
-    nums = [int(re.sub(r"[^0-9]", "", n)) for n in re.findall(r"[0-9][0-9,]{1,}", text or "")]
+    lowered = (text or "").lower()
+    typ = next((t for key, t in _RU_TYPE_KEYS if key in lowered), None)
+    if typ is None:
+        lines = [ln for ln in (text or "").splitlines() if ln.strip()]
+        name = lines[0] if lines else ""
+        hit = fuzzy_match(re.sub(r"[^a-z ]", "", name.lower()), list(TROOP_TYPES), threshold=0.45)
+        typ = hit.candidate if hit else None
+    # Count digit groups per line: EN uses comma thousands («12,345»), RU uses
+    # space/NBSP («2 800») — join within a line, never across lines.
+    nums = [
+        int(digits)
+        for ln in (text or "").splitlines()
+        for tok in re.findall(r"\d(?:[\d,  ]*\d)?", ln)
+        if len(digits := re.sub(r"[^0-9]", "", tok)) >= 2
+    ]
     return typ, (max(nums) if nums else 0)
 
 
@@ -119,7 +143,8 @@ async def _exec_sync_troop_pool(ctx: DslExecContext) -> None:
         Region(int(tx / 100 * w), int(ty / 100 * h), int(tw / 100 * w), int(th / 100 * h)),
         region_id="troops_preview.title",
     )
-    if "troops" not in (title.text or "").lower():
+    title_l = (title.text or "").lower()
+    if not any(key in title_l for key in _TITLE_KEYS):
         logger.info(
             "dsl exec sync_troop_pool: not on Troops Preview (title=%r) tab=%s player=%s",
             (title.text or "").strip(), tab, player_id,
