@@ -54,6 +54,7 @@
           "name": "button.tap_anywhere_to_exit",
           "_comment": "Locale-free BLIND tap (no isSearch): the tap-anywhere hint is TEXT — on RU builds it reads «Для выхода нажмите в любом месте», so an EN-matched tap was cancelled and the navigator stranded on the result card. Tapping anywhere works by definition; no match needed. Width 70%: the RU hint overflows the old 37.6% box and OCR'd as 'хода нажмите в любо!' — truncated past every expected key (verified live on bs5 2026-07-06).",
           "action": "text",
+          "static": true,
           "threshold": 0.7,
           "bbox": {
             "x": 15.0,

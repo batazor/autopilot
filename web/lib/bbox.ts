@@ -18,6 +18,8 @@ export type EditorRegion = {
   overlay_auxiliary?: boolean;
   has_red_dot?: boolean;
   isSearch?: boolean;
+  /** Fixed zone: engine skips search/crop resolution and blind-taps the bbox. */
+  static?: boolean;
   type?: string;
   tap_hold_ms?: number;
 };

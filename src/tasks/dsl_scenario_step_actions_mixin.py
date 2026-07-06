@@ -578,7 +578,7 @@ class DslScenarioStepActionsMixin(_Base):
             dur_s = _parse_wait_seconds(raw_dur)
             if dur_s > 0:
                 duration_ms = int(round(dur_s * 1000.0))
-        pt = self._point_for_region_action(reg, bbox, dev_w, dev_h)
+        pt = self._point_for_region_action(reg, bbox, dev_w, dev_h, region_def=reg_doc)
         ok = False
         with suppress(Exception):
             ok = bool(

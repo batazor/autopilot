@@ -537,10 +537,13 @@ class DslScenarioInlineMixin(_Base):
         # Search regions move on screen. Run an implicit `match:` first so
         # `_point_for_region_action` taps the found location instead of the
         # stale bbox center. Skip if the caller already matched this region.
+        # ``static: true`` regions opt out entirely: the zone never moves, so
+        # no capture/template lookup happens — the tap goes into the bbox.
         already_matched = (
             self._last_match is not None and self._last_match.region == region
         )
-        if not already_matched and bool(pair[1].get("isSearch")):
+        region_static = bool(pair[1].get("static"))
+        if not already_matched and not region_static and bool(pair[1].get("isSearch")):
             # Forward optional gating from the click step so users can write
             # ``click: foo / threshold: 0.95 / min_match_saturation: 40`` and have
             # the implicit search honor those constraints. ``isRedDot`` and other
@@ -557,7 +560,9 @@ class DslScenarioInlineMixin(_Base):
             )
             self._implicit_match_for_region = region
 
-        pt = self._point_for_region_action(region, pair[1]["bbox"], dev_w, dev_h)
+        pt = self._point_for_region_action(
+            region, pair[1]["bbox"], dev_w, dev_h, region_def=pair[1]
+        )
         # The flag is per-tap; clear after consumption so a subsequent
         # explicit ``match:`` controls behaviour again.
         if self._implicit_match_for_region == region:
@@ -609,7 +614,12 @@ class DslScenarioInlineMixin(_Base):
         bbox: dict[str, Any],
         dev_w: int,
         dev_h: int,
+        region_def: dict[str, Any] | None = None,
     ) -> Point:
+        # ``static: true`` regions are a fixed zone by contract — ignore match
+        # and queue-item coordinates entirely and tap inside the labeled bbox.
+        if region_def is not None and bool(region_def.get("static")):
+            return bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
         # Prefer coordinates from the latest in-scenario overlay probe (`match` / `while_match`).
         # Queue items may carry `tap_x_pct`/`tap_y_pct` from when overlay enqueued `pushScenario`;
         # those can be a different peak or an older frame than the capture used for this click.

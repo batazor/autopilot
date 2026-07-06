@@ -74,6 +74,7 @@ export function LabelingRegionsPanel({
         const flags = [
           r.overlay_auxiliary ? "aux" : null,
           r.has_red_dot ? "dot" : null,
+          r.static ? "static" : null,
           r.tap_hold_ms && r.tap_hold_ms > 0 ? `hold ${r.tap_hold_ms}ms` : null,
         ]
           .filter(Boolean)
@@ -93,6 +94,7 @@ export function LabelingRegionsPanel({
       const merged = { ...r, ...patch, id: patch.name ?? r.id };
       if (!patch.has_red_dot && "has_red_dot" in patch) delete merged.has_red_dot;
       if (!patch.isSearch && "isSearch" in patch) delete merged.isSearch;
+      if (!patch.static && "static" in patch) delete merged.static;
       if (!patch.overlay_auxiliary && "overlay_auxiliary" in patch)
         delete merged.overlay_auxiliary;
       if ("tap_hold_ms" in patch && !(Number(patch.tap_hold_ms ?? 0) > 0))
@@ -245,6 +247,14 @@ export function LabelingRegionsPanel({
                 patchSelected({ isSearch: checked ? true : false })
               }
               label="Search full frame"
+            />
+            <AppCheckbox
+              fieldClassName="labeling-check meta"
+              checked={Boolean(selected.static)}
+              onChange={(checked) =>
+                patchSelected({ static: checked ? true : false })
+              }
+              label="Static zone (blind tap)"
             />
             <AppCheckbox
               fieldClassName="labeling-check meta"

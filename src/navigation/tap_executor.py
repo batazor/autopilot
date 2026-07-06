@@ -162,7 +162,9 @@ class TapExecutor:
         if not isinstance(bbox, dict):
             logger.warning("Navigator: region %r missing bbox", region_name)
             return False
-        if bool(reg.get("isSearch")):
+        # ``static: true`` wins over ``isSearch``: the zone never moves, so no
+        # capture/findIcon resolution — tap the labeled bbox directly.
+        if bool(reg.get("isSearch")) and not bool(reg.get("static")):
             match = self._match_search_region_for_tap(
                 instance_id,
                 str(reg.get("name") or region_name),

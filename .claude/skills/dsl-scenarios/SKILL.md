@@ -109,6 +109,8 @@ For conditional branching, use composite `cond:` blocks (below) — there is no 
 ```
 Zero iterations after initial-probe retries → soft-fail + reschedule. Default is **non-strict** (steps are OR-semantics across the scenario) — non-strict is the default, so never write `strict: false`. Don't add `strict: true` reflexively.
 
+**Static zones** — a region whose position never moves (bottom bars, fixed buttons, "tap anywhere" strips) gets `"static": true` in `area.yaml`: `click:` / navigation taps go blind into the bbox — no capture, no template/OCR resolution; `static` wins over `isSearch` and over stale queue-item tap coordinates. Don't gate such taps with `match:`/OCR at all (localized text buttons break template crops for zero benefit). Ask "does this zone move?" — if not, mark it static and just click.
+
 **Match-step modifiers** (on both `match:` and `while_match:`):
 - `threshold: 0.95` — template-match score; default `0.9`. Tighten for crowded screens.
 - `min_match_saturation: 48` — reject low-saturation matches (kills grey-on-grey false positives).

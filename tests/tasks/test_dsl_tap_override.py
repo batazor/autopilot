@@ -79,6 +79,80 @@ async def test_dsl_click_uses_overlay_tap_override(
 
 
 @pytest.mark.asyncio
+async def test_dsl_click_static_region_blind_taps_bbox(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """``static: true`` regions are a fixed zone: no implicit search, no
+    queue-item tap override — the tap always lands inside the labeled bbox."""
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "mail").mkdir(parents=True)
+    (scenario_root / "mail" / "claim_all.yaml").write_text(
+        yaml.dump(
+            {
+                "enabled": True,
+                "name": "Claim all",
+                "device_level": True,
+                "steps": [{"click": "claim_all_btn"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text(
+        yaml.dump(
+            {
+                "screens": [
+                    {
+                        "id": 1,
+                        "ocr": "references/x.png",
+                        "regions": [
+                            {
+                                "name": "claim_all_btn",
+                                "action": "exist",
+                                "threshold": 0.9,
+                                # static wins over isSearch — no findIcon pass.
+                                "static": True,
+                                "isSearch": True,
+                                "bbox": {"x": 10, "y": 10, "width": 10, "height": 10},
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    async def _fail_eval(*_a: Any, **_kw: Any) -> Any:
+        msg = "static region must not run an implicit search"
+        raise AssertionError(msg)
+
+    actions = make_actions(resolution=(1000, 1000))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "evaluate_overlay_rules_async", new=_fail_eval)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="claim_all",
+        redis_client=redis_async,  # type: ignore[arg-type]
+        # Stale queue-item coordinates far outside the bbox — must be ignored.
+        tap_region="claim_all_btn",
+        tap_x_pct=50.0,
+        tap_y_pct=70.0,
+    )
+
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    pt = actions.tap.call_args_list[0][0][1]
+    # bbox 10..20% of a 720x1280 device → x∈[72,144], y∈[128,256].
+    assert 72 <= pt.x <= 144
+    assert 128 <= pt.y <= 256
+
+
+@pytest.mark.asyncio
 async def test_dsl_click_forwards_min_match_saturation_to_implicit_match(
     tmp_path: Path,
     mocker,

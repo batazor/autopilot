@@ -146,8 +146,9 @@
         },
         {
           "name": "mail.claim.all",
-          "_comment": "Locale-free BLIND tap (no isSearch): the button is localized text (EN 'Read & Claim All', RU «Прочесть и получить всё») but its zone is static — tap the bbox center, no template/OCR gate.",
+          "_comment": "Localized text button (EN 'Read & Claim All', RU «Прочесть и получить всё») in a fixed zone — static: engine blind-taps the bbox, no crop/search.",
           "action": "exist",
+          "static": true,
           "threshold": 0.9,
           "bbox": {
             "x": 56.33204633204633,
