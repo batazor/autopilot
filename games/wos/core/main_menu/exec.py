@@ -66,7 +66,26 @@ def _parse_marching_count(text: str) -> tuple[int, int]:
 
 
 def _is_idle_text(text: str) -> bool:
-    return "idle" in (text or "").lower()
+    # EN "Idle" / RU «Свободно» (verified live on bs5 wos_ru).
+    t = (text or "").lower()
+    return "idle" in t or "свободно" in t
+
+
+def _is_locked_text(text: str) -> bool:
+    """Row is a LOCKED march queue — not part of the player's capacity.
+
+    RU rows read «Открыть» (unlockable) / «Нельзя использовать» (hard-locked);
+    EN builds label them "Unlock" / "Cannot be used".
+    """
+    t = (text or "").lower()
+    return any(k in t for k in ("открыть", "нельзя использ", "unlock", "cannot be used"))
+
+
+# A free queue row often carries ONLY its queue name («Очередь марша 2» /
+# "March Queue 2") — the idle marker sits on a separate line the title bbox
+# doesn't cover. A row whose label is just the queue name and has no timer is
+# idle, not an active march.
+_QUEUE_NAME_RE = re.compile(r"^\s*(очередь\s+марша|march\s+queue)\s*\d*\s*$", re.IGNORECASE)
 
 
 async def _resolve_sync_target(
@@ -276,8 +295,17 @@ async def _exec_sync_main_menu_marching_status(ctx: DslExecContext) -> None:
         label = (title or title_text or "").strip()
         row_text = (status or status_text or label or timer_text).strip()
         remaining_s = _parse_remaining_seconds(raw_seconds, timer_text)
-        is_idle = _is_idle_text(row_text) and remaining_s is None
-        is_active = bool(label) or remaining_s is not None
+        combined = " ".join(x for x in (label, row_text, timer_text) if x)
+        # Locked queues («Открыть» / «Нельзя использовать») are not capacity.
+        if _is_locked_text(combined):
+            continue
+        queue_name_only = bool(label) and bool(_QUEUE_NAME_RE.match(label))
+        is_idle = remaining_s is None and (
+            _is_idle_text(combined) or queue_name_only
+        )
+        is_active = not is_idle and (
+            remaining_s is not None or (bool(label) and not queue_name_only)
+        )
         if not (is_idle or is_active):
             continue
 
@@ -303,6 +331,16 @@ async def _exec_sync_main_menu_marching_status(ctx: DslExecContext) -> None:
         ctx.result.update({"reason": "no_rows_recognized"})
         return
 
+    # Row-derived counts beat the header text: usable rows (idle + marching)
+    # ARE the player's capacity — locked queues were skipped above, and the
+    # header bbox has misread on the RU build (verified live on bs5: 2 usable
+    # + 4 locked rows while the header parse said 6).
+    row_active = sum(
+        1 for s in slots.values()
+        if isinstance(s, dict) and s.get("status") == "marching"
+    )
+    capacity = len(slots)
+    active_count = row_active
     if capacity <= 0:
         capacity = _MARCH_SLOT_COUNT
     updates: dict[str, object] = {

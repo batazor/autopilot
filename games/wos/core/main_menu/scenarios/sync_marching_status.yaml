@@ -2,9 +2,19 @@ enabled: true
 name: "Sync march queue status"
 priority: 70_000
 
+# The march-slot ledger (marches.capacity/active_count) is the MARCH
+# coordinator's slot input — keep it fresh autonomously, twice an hour.
+cron: "7,37 * * * *"
+cond: "active_player != null"
+
 node: main_menu
 
 steps:
+  # The march queue lives on the «Глушь»/Wilderness tab; the panel opens on
+  # «Город»/City, whose building rows would otherwise be read as marches
+  # (verified live on bs5). Blind tab tap — position is fixed on both builds.
+  - click: main_menu/wilderness
+  - wait: 800ms
   - ocr: main_menu.marching.count
     type: string
     store: main_menu.marching.count

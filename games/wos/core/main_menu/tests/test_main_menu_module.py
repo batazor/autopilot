@@ -1033,3 +1033,111 @@ async def test_exec_tap_main_menu_panel_row_taps_matching_row_button(
 
 async def _noop_async() -> None:
     return None
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_marching_status_ru_locked_rows_not_capacity(
+    redis_async: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RU panel corpus (verbatim bs5 reads, 2026-07-06): free rows carry only
+    the queue name («Очередь марша 1», the «Свободно» line sits outside the
+    title bbox), locked rows read «Открыть» / «Нельзя использовать» and must
+    not count as capacity; the header bbox misreads on RU — capacity comes
+    from the usable rows."""
+    mod = _load_exec_module()
+    updates: dict[str, object] = {}
+
+    class _PlayerStore:
+        def update_from_flat(self, flat: dict[str, object]) -> None:
+            updates.update(flat)
+
+    class _StateStore:
+        def get_or_create(self, player_id: str) -> _PlayerStore:
+            return _PlayerStore()
+
+    async def _publish(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
+    monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:p1:state",
+        mapping={
+            "main_menu.marching.count": "6",             # RU header misread
+            "main_menu.marching.slot.1.title": "Очередь марша 1",
+            "main_menu.marching.slot.2.title": "Очередь марша 2",
+            "main_menu.marching.slot.3.status": "Очередь марша 3\nОткрыть",
+            "main_menu.marching.slot.4.status": "Очередь марша 4\nНельзя использовать",
+            "main_menu.marching.slot.5.status": "Очередь марша 5\nНельзя использовать)",
+            "main_menu.marching.slot.6.status": "Очередь марша 6\nНельзя использовать",
+        },
+    )
+
+    ctx = DslExecContext(
+        redis_client=redis_async,
+        player_id="p1",
+        instance_id="bs5",
+        args={},
+        result={},
+    )
+    await mod.DSL_EXEC_HANDLERS["sync_main_menu_marching_status"](ctx)
+
+    assert ctx.result["action"] == "stored"
+    assert updates["marches.capacity"] == 2      # only the usable rows
+    assert updates["marches.active_count"] == 0  # both are free
+    slots = updates["marches.slots"]
+    assert isinstance(slots, dict)
+    assert set(slots) == {"1", "2"}              # locked rows skipped
+    assert slots["1"]["status"] == "idle"
+    assert slots["2"]["status"] == "idle"
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_marching_status_ru_active_march_row(
+    redis_async: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An RU row with a real march label + timer still reads as marching."""
+    mod = _load_exec_module()
+    updates: dict[str, object] = {}
+
+    class _PlayerStore:
+        def update_from_flat(self, flat: dict[str, object]) -> None:
+            updates.update(flat)
+
+    class _StateStore:
+        def get_or_create(self, player_id: str) -> _PlayerStore:
+            return _PlayerStore()
+
+    async def _publish(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
+    monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:p1:state",
+        mapping={
+            "main_menu.marching.slot.1.title": "Сбор: Угольная шахта",
+            "main_menu.marching.slot.1.remaining_s": "754",
+            "main_menu.marching.slot.1.remaining_s_text": "00:12:34",
+            "main_menu.marching.slot.2.title": "Очередь марша 2",
+            "main_menu.marching.slot.3.status": "Очередь марша 3\nОткрыть",
+        },
+    )
+
+    ctx = DslExecContext(
+        redis_client=redis_async,
+        player_id="p1",
+        instance_id="bs5",
+        args={},
+        result={},
+    )
+    await mod.DSL_EXEC_HANDLERS["sync_main_menu_marching_status"](ctx)
+
+    assert updates["marches.capacity"] == 2
+    assert updates["marches.active_count"] == 1
+    slots = updates["marches.slots"]
+    assert slots["1"]["status"] == "marching"
+    assert slots["1"]["label"] == "Сбор: Угольная шахта"
+    assert slots["2"]["status"] == "idle"
