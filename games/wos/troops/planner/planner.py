@@ -149,7 +149,7 @@ def plan_next(
         if stat is None:
             continue
         deficit = tgt.get(troop, 0.0) - (shares.get(troop, 0.0) if shares else 0.0)
-        cost, time_s = tier_cost_time(tier, batch=batch, table=cost_table)
+        cost, time_s = tier_cost_time(tier, batch=batch, troop_type=troop, table=cost_table)
         candidates.append(TrainCandidate(
             troop_type=troop, tier=tier, fc=fc_lvl,
             name=getattr(stat, "name", ""), power=int(getattr(stat, "power", 0)),
@@ -158,7 +158,9 @@ def plan_next(
 
     step = candidates[0] if candidates else None       # most-deficient trainable camp
     if step is not None and step.tier > 1:             # surface the cheaper promote path
-        pcost, ptime = promote_cost_time(step.tier, batch=batch, table=cost_table)
+        pcost, ptime = promote_cost_time(
+            step.tier, batch=batch, troop_type=step.troop_type, table=cost_table
+        )
         if pcost:
             candidates.append(replace(step, kind=PROMOTE, cost=pcost, time_s=ptime))
     return TrainingPlan(step, SELECTED if step else NONE, tuple(candidates))

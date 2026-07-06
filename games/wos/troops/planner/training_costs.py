@@ -1,18 +1,20 @@
 """Troop training cost + time per tier — the wostools-calculator MODEL, re-encoded.
 
-Loads ``games/wos/db/troop_training.yaml`` (per-tier named-resource cost + time;
-shared across the three troop types). Pure, lru-cached, same shape as
+Loads ``games/wos/db/troop_training.yaml``: per-tier training time (shared by
+all three troop types) plus per-type cost — infantry / lancer / marksman pay
+different resource mixes at the same tier, so rows carry a ``by_type`` map and
+the accessors take a ``troop_type``. Pure, lru-cached, same shape as
 :mod:`core.building.fc_costs` / :mod:`core.resources.troop_stats`. Promotion
 (T_n → T_{n+1}) is the per-tier *difference*, so no separate data is needed.
 
-Ships against a STUB data file (the numbers aren't published in fetchable form);
-every accessor degrades to empty/zero when a tier is missing, so the planner keeps
-today's behaviour until the table is filled.
+Every accessor degrades to empty/zero when a tier is missing, so the planner
+keeps its no-data behaviour on a truncated table.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from dataclasses import field as dataclasses_field
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -53,11 +55,21 @@ class TrainTier:
     tier: int
     cost: Mapping[str, int]          # per ONE troop: meat / wood / coal / iron
     time_s: int                      # per ONE troop
+    by_type: Mapping[str, Mapping[str, int]] = dataclasses_field(default_factory=dict)
+
+    def cost_for(self, troop_type: str = "") -> Mapping[str, int]:
+        """Cost for ``troop_type`` (falls back to the shared ``cost`` row)."""
+        return self.by_type.get(str(troop_type or "").strip()) or self.cost
 
 
 @lru_cache(maxsize=2)
 def load_training_costs(path: str | Path | None = None) -> dict[int, TrainTier]:
-    """Parse the training table → ``tier → TrainTier`` (empty when the stub is empty)."""
+    """Parse the training table → ``tier → TrainTier`` (empty on a truncated file).
+
+    ``by_type`` rows carry the per-type cost; the shared ``cost`` (used when a
+    caller doesn't say which troop type) defaults to the infantry column when
+    the row only has ``by_type``.
+    """
     p = Path(path) if path else DEFAULT_TRAINING_PATH
     doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     out: dict[int, TrainTier] = {}
@@ -65,10 +77,17 @@ def load_training_costs(path: str | Path | None = None) -> dict[int, TrainTier]:
         if not isinstance(row, dict) or "tier" not in row:
             continue
         tier = int(row["tier"])
+        by_type = {
+            str(t): {str(k): int(v) for k, v in (c or {}).items()}
+            for t, c in (row.get("by_type") or {}).items()
+            if isinstance(c, dict)
+        }
+        cost = {str(k): int(v) for k, v in (row.get("cost") or {}).items()}
         out[tier] = TrainTier(
             tier=tier,
-            cost={str(k): int(v) for k, v in (row.get("cost") or {}).items()},
+            cost=cost or by_type.get("infantry", {}),
             time_s=parse_duration(row.get("time")),
+            by_type=by_type,
         )
     return out
 
@@ -78,22 +97,32 @@ def _scale(cost: Mapping[str, int], n: int) -> dict[str, int]:
 
 
 def tier_cost_time(
-    tier: int, *, batch: int = 1, table: Mapping[int, TrainTier] | None = None
+    tier: int,
+    *,
+    batch: int = 1,
+    troop_type: str = "",
+    table: Mapping[int, TrainTier] | None = None,
 ) -> tuple[dict[str, int], int]:
     """Fresh-training ``(cost, time_s)`` for ``batch`` troops at ``tier``.
 
-    ``({}, 0)`` when the tier has no data (stub) — the planner then behaves as before.
+    ``troop_type`` picks the per-type cost column (infantry / lancer /
+    marksman); omitted → the shared/base cost. ``({}, 0)`` when the tier has
+    no data — the planner then behaves as before.
     """
     tbl = table if table is not None else load_training_costs()
     tt = tbl.get(int(tier))
     if tt is None:
         return {}, 0
     n = max(0, int(batch))
-    return _scale(tt.cost, n), tt.time_s * n
+    return _scale(tt.cost_for(troop_type), n), tt.time_s * n
 
 
 def promote_cost_time(
-    tier: int, *, batch: int = 1, table: Mapping[int, TrainTier] | None = None
+    tier: int,
+    *,
+    batch: int = 1,
+    troop_type: str = "",
+    table: Mapping[int, TrainTier] | None = None,
 ) -> tuple[dict[str, int], int]:
     """Promotion ``(cost, time_s)`` to raise ``batch`` troops from ``tier-1`` to
     ``tier`` — the per-tier *difference* (the cheaper path vs fresh training).
@@ -106,10 +135,10 @@ def promote_cost_time(
     if cur is None:
         return {}, 0
     prev = tbl.get(int(tier) - 1)
-    pcost = prev.cost if prev else {}
+    pcost = prev.cost_for(troop_type) if prev else {}
     ptime = prev.time_s if prev else 0
     n = max(0, int(batch))
-    diff = {k: max(0, v - pcost.get(k, 0)) * n for k, v in cur.cost.items()}
+    diff = {k: max(0, v - pcost.get(k, 0)) * n for k, v in cur.cost_for(troop_type).items()}
     return diff, max(0, cur.time_s - ptime) * n
 
 
@@ -118,6 +147,7 @@ def train_eta(
     count: int,
     *,
     speed_pct: float = 0.0,
+    troop_type: str = "",
     table: Mapping[int, TrainTier] | None = None,
 ) -> tuple[int, dict[str, int]]:
     """``(total_time_s, total_cost)`` to train ``count`` troops at ``tier``.
@@ -131,4 +161,4 @@ def train_eta(
     if tt is None or count <= 0:
         return 0, {}
     n = int(count)
-    return apply_speed(tt.time_s * n, speed_pct), _scale(tt.cost, n)
+    return apply_speed(tt.time_s * n, speed_pct), _scale(tt.cost_for(troop_type), n)

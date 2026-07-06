@@ -718,7 +718,12 @@ def post_training(body: TroopsBody) -> dict[str, Any]:
         speed = active_city_buffs(_hero_catalog(), body.owned_heroes).get("training", 0.0)
         out["training_speed_pct"] = speed
         if plan.step is not None and body.target_count:
-            time_s, cost = train_eta(plan.step.tier, body.target_count, speed_pct=speed)
+            time_s, cost = train_eta(
+                plan.step.tier,
+                body.target_count,
+                speed_pct=speed,
+                troop_type=plan.step.troop_type,
+            )
             if time_s or cost:                          # omit when the tier has no data yet
                 out["eta"] = {"count": body.target_count, "time_s": time_s, "cost": cost}
         return out

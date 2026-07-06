@@ -1,24 +1,87 @@
-# Troop training cost + time per tier (T1..T11), to be re-encoded as game FACTS.
+# Troop training cost + time per tier (T1..T11) — game FACTS.
 #
-# In Whiteout Survival the training COST and TIME are IDENTICAL across the three
-# troop types (infantry / lancer / marksman) at a given tier — only combat stats
-# differ — so rows are keyed by `tier` alone. (If a future tier ever diverges, add
-# an optional `by_type: {infantry: {...}, ...}` override on that row.)
-#   tier  — camp troop level 1..11 (T1 Rookie … T11 Helios)
-#   cost  — per ONE troop: meat / wood / coal / iron (iron + coal bottleneck high tiers)
-#   time  — per ONE troop, "HH:MM:SS" / "Xd" / "Xd HH:MM:SS"
-# Promotion (T_n → T_{n+1}) pays only the DIFFERENCE — derived from these per-tier
-# costs by games/wos/troops/planner/training_costs.py (no separate data needed).
+# Cost is per ONE troop and — contrary to the original stub's assumption —
+# DIFFERS by troop type (infantry is meat-heavy, marksman wood-heavy, lancer
+# in between), so each row carries a `by_type` map. Training TIME is identical
+# across the three types at a given tier, so `time` stays per-row.
+#   tier    — camp troop level 1..11 (T1 Rookie … T11 Helios)
+#   time    — per ONE troop, "HH:MM:SS"
+#   by_type — per-type cost per ONE troop: meat / wood / coal / iron
+# Promotion (T_n → T_{n+1}) pays only the DIFFERENCE — derived from these
+# per-tier costs by games/wos/troops/planner/training_costs.py (no separate
+# data needed).
 #
-# STUB — the per-tier numbers are not published in a fetchable static form (the
-# wostools / onechilledgamer calculators hide them behind JS; the community data
-# repos carry combat stats only). Fill `tiers` from the in-game training screen (or
-# a working calculator); until then the planner falls back to no-cost / no-ETA, so
-# nothing regresses. Row format:
-#   - {tier: 1, cost: {meat: 0, wood: 0, coal: 0, iron: 0}, time: "00:00:05"}
-#
-# Read by games/wos/troops/planner/training_costs.py.
-tiers: []
+# Source: cross-verified 2026-07-06 against two independent community
+# calculators — onechilledgamer.com/whiteout-survival-troop-cost-calculator
+# (inline `troopData`) and woscalculator.com/scripts/troops.js — which agree
+# on every value (woscalculator stores time in decimal minutes; converted).
+tiers:
+  - tier: 1
+    time: "00:00:12"
+    by_type:
+      infantry: { meat: 36, wood: 27, coal: 7, iron: 2 }
+      lancer:   { meat: 32, wood: 30, coal: 7, iron: 2 }
+      marksman: { meat: 23, wood: 34, coal: 6, iron: 2 }
+  - tier: 2
+    time: "00:00:17"
+    by_type:
+      infantry: { meat: 58, wood: 44, coal: 10, iron: 3 }
+      lancer:   { meat: 51, wood: 48, coal: 10, iron: 3 }
+      marksman: { meat: 36, wood: 54, coal: 9, iron: 4 }
+  - tier: 3
+    time: "00:00:24"
+    by_type:
+      infantry: { meat: 92, wood: 69, coal: 17, iron: 4 }
+      lancer:   { meat: 81, wood: 76, coal: 16, iron: 4 }
+      marksman: { meat: 58, wood: 86, coal: 15, iron: 5 }
+  - tier: 4
+    time: "00:00:32"
+    by_type:
+      infantry: { meat: 120, wood: 90, coal: 21, iron: 5 }
+      lancer:   { meat: 105, wood: 99, coal: 21, iron: 5 }
+      marksman: { meat: 75, wood: 111, coal: 19, iron: 6 }
+  - tier: 5
+    time: "00:00:44"
+    by_type:
+      infantry: { meat: 156, wood: 117, coal: 27, iron: 6 }
+      lancer:   { meat: 136, wood: 129, coal: 27, iron: 7 }
+      marksman: { meat: 97, wood: 144, coal: 24, iron: 8 }
+  - tier: 6
+    time: "00:01:00"
+    by_type:
+      infantry: { meat: 186, wood: 140, coal: 33, iron: 7 }
+      lancer:   { meat: 163, wood: 154, coal: 32, iron: 8 }
+      marksman: { meat: 117, wood: 173, coal: 29, iron: 10 }
+  - tier: 7
+    time: "00:01:23"
+    by_type:
+      infantry: { meat: 279, wood: 210, coal: 49, iron: 11 }
+      lancer:   { meat: 244, wood: 231, coal: 48, iron: 11 }
+      marksman: { meat: 175, wood: 258, coal: 44, iron: 14 }
+  - tier: 8
+    time: "00:01:53"
+    by_type:
+      infantry: { meat: 558, wood: 419, coal: 98, iron: 21 }
+      lancer:   { meat: 488, wood: 461, coal: 95, iron: 22 }
+      marksman: { meat: 349, wood: 516, coal: 87, iron: 28 }
+  - tier: 9
+    time: "00:02:11"
+    by_type:
+      infantry: { meat: 1394, wood: 1046, coal: 244, iron: 51 }
+      lancer:   { meat: 1220, wood: 1151, coal: 237, iron: 55 }
+      marksman: { meat: 872, wood: 1290, coal: 217, iron: 70 }
+  - tier: 10
+    time: "00:02:32"
+    by_type:
+      infantry: { meat: 2788, wood: 2091, coal: 488, iron: 102 }
+      lancer:   { meat: 2440, wood: 2301, coal: 474, iron: 109 }
+      marksman: { meat: 1740, wood: 2579, coal: 433, iron: 140 }
+  - tier: 11
+    time: "00:03:00"
+    by_type:
+      infantry: { meat: 6970, wood: 5228, coal: 1220, iron: 253 }
+      lancer:   { meat: 6099, wood: 5751, coal: 1185, iron: 271 }
+      marksman: { meat: 4357, wood: 6448, coal: 1081, iron: 349 }
 
 # Optional — troops trained per batch at each camp building level (camp + Camp
 # Expansion research gated). Lets the planner cost a realistic batch, not one troop.
