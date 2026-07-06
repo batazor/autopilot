@@ -18,6 +18,7 @@ from config.paths import repo_root
 from config.redis_health import ping_async_redis_or_exit
 from dsl.cron_specs import (
     iter_cron_yaml_files_for_repo,
+    load_root_mapping,
     resolve_cron_priority,
     resolve_cron_task_type,
 )
@@ -527,15 +528,12 @@ class SchedulerRunner:
             if fs:
                 focused_instances.add(inst.instance_id)
 
-        import yaml
-
         for yml in cron_ymls:
-            try:
-                raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
-            except Exception:
-                logger.exception("Cron spec load failed: %s", yml)
-                continue
-            if not isinstance(raw, dict):
+            raw = load_root_mapping(yml)
+            if raw is None:
+                # iter_cron_yaml_files_for_repo just parsed this file, so a None
+                # here means it vanished/broke between the two reads — rare.
+                logger.warning("Cron spec load failed: %s", yml)
                 continue
             enabled = bool(raw.get("enabled", True))
             if not enabled:

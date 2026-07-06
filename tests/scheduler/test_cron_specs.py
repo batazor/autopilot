@@ -103,3 +103,29 @@ def test_scheduler_shares_cron_resolvers_with_dsl() -> None:
 
     assert cs_prio is sr_prio
     assert cs_task is sr_task
+
+
+def test_load_root_mapping_caches_by_mtime(tmp_path: Path) -> None:
+    """Repeated reads of an unchanged file are served from cache; rewriting the
+    file (new mtime/size) invalidates the entry. The scheduler calls this for
+    every scenario YAML every 30s tick — without the cache that is a full-tree
+    ``yaml.safe_load`` per tick."""
+    import os
+
+    from dsl.cron_specs import load_root_mapping
+
+    p = tmp_path / "spec.yaml"
+    p.write_text("cron: '*/5 * * * *'\ntask: foo\n", encoding="utf-8")
+
+    first = load_root_mapping(p)
+    assert first == {"cron": "*/5 * * * *", "task": "foo"}
+    # Same stat signature → same cached object, no re-parse.
+    assert load_root_mapping(p) is first
+
+    p.write_text("cron: '0 * * * *'\ntask: bar\nextra: 1\n", encoding="utf-8")
+    os.utime(p, ns=(1, 1))  # force a distinct mtime even on coarse clocks
+    second = load_root_mapping(p)
+    assert second == {"cron": "0 * * * *", "task": "bar", "extra": 1}
+
+    p.unlink()
+    assert load_root_mapping(p) is None

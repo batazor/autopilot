@@ -5,15 +5,13 @@ determined only by the presence of ``cron`` in the parsed root mapping.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from functools import lru_cache
+from pathlib import Path
 
 import yaml
 
 from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from dsl.registry import iter_scenario_yaml_files
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def resolve_cron_priority(raw: object) -> int:
@@ -85,8 +83,27 @@ def iter_scenarios_yaml_paths_for_repo(
 
 
 def load_root_mapping(path: Path) -> dict[str, object] | None:
+    """Parsed root mapping of a scenario YAML, mtime-cached.
+
+    The scheduler re-lists cron specs every tick and the UI walks every
+    scenario file per request — without the cache that is a full
+    ``yaml.safe_load`` of the whole scenario tree each time. Callers treat the
+    returned dict as read-only (it is shared across cache hits).
+    """
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        st = path.stat()
+    except OSError:
+        return None
+    return _load_root_mapping_cached(str(path), st.st_mtime_ns, st.st_size)
+
+
+@lru_cache(maxsize=4096)
+def _load_root_mapping_cached(
+    path_s: str, mtime_ns: int, size: int
+) -> dict[str, object] | None:
+    _ = (mtime_ns, size)
+    try:
+        raw = yaml.safe_load(Path(path_s).read_text(encoding="utf-8"))
     except OSError:
         return None
     except yaml.YAMLError:
