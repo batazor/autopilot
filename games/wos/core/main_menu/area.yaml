@@ -125,48 +125,6 @@
           }
         },
         {
-          "name": "main_menu.to.infantry",
-          "action": "click",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 52.77777777777778,
-            "y": 26.953125,
-            "width": 7.083333333333333,
-            "height": 4.609375,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "main_menu.to.lancer",
-          "action": "click",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 52.77777777777778,
-            "y": 32.734375,
-            "width": 7.083333333333333,
-            "height": 4.609375,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "main_menu.to.marksman",
-          "action": "click",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 52.77777777777778,
-            "y": 38.359375,
-            "width": 7.083333333333333,
-            "height": 4.609375,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
           "name": "main_menu.research.slot.status",
           "action": "text",
           "type": "string",

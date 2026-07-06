@@ -26,9 +26,30 @@ edges:
 
   main_menu:
     main_city: [icon.page.back]
-    infantry: [main_menu.to.infantry]
-    lancer: [main_menu.to.lancer]
-    marksman: [main_menu.to.marksman]
+    # Troop camps route through the SAME scroll-find resolver as research below —
+    # the old fixed regions (main_menu.to.infantry/lancer/marksman) were anchored
+    # to the panel's early layout and now land on the build-queue rows above the
+    # Training section (verified live on bs5 2026-07-06: the training rows sit ~15%
+    # lower once two build queues are active). The resolver OCRs each row's title
+    # (_ROW_TITLE_MAP already carries the RU keys «пехота»/«копейщики»/«стрелки»)
+    # and taps its own Go arrow, so it is layout-independent. The Go button lands
+    # on the camp's action popup / centred building — the camp screen verifies via
+    # from_screen: main_menu (troops/*/routes/screen_verify.yaml).
+    infantry:
+      resolver: main_menu_panel_row
+      section: training
+      row: infantry
+      approval_region: main_menu.panel.training.infantry
+    lancer:
+      resolver: main_menu_panel_row
+      section: training
+      row: lancer
+      approval_region: main_menu.panel.training.lancer
+    marksman:
+      resolver: main_menu_panel_row
+      section: training
+      row: marksman
+      approval_region: main_menu.panel.training.marksman
     # The city building list is the radar-free way into the main buildings, but it
     # is a variable-length scroll list — a fixed tap coord misses (the row's Y
     # shifts with how many sections sit above it). Route into a building by

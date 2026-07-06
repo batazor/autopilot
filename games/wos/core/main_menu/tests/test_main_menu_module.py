@@ -38,9 +38,15 @@ def test_edge_taps_enter_and_leave_main_menu() -> None:
     assert edges["main_city"]["main_menu"] == ["main_city.to.main_menu"]
     assert edges["main_world"]["main_menu"] == ["main_city.to.main_menu"]
     assert edges["main_menu"]["main_city"] == ["icon.page.back"]
-    assert edges["main_menu"]["infantry"] == ["main_menu.to.infantry"]
-    assert edges["main_menu"]["lancer"] == ["main_menu.to.lancer"]
-    assert edges["main_menu"]["marksman"] == ["main_menu.to.marksman"]
+    # Troop camps route through the scroll-find resolver (the old fixed
+    # main_menu.to.* regions drifted onto the build-queue rows once two build
+    # queues sit above Training — verified live on bs5). Same mechanism as
+    # research_center.building below.
+    for camp, slug in (("infantry", "infantry"), ("lancer", "lancer"), ("marksman", "marksman")):
+        spec = edges["main_menu"][camp]
+        assert spec["resolver"] == "main_menu_panel_row"
+        assert spec["section"] == "training"
+        assert spec["row"] == slug
 
 
 def test_area_declares_training_timer_and_transition_regions() -> None:
@@ -56,7 +62,10 @@ def test_area_declares_training_timer_and_transition_regions() -> None:
         status = regions[f"main_menu.training.{troop_type}.status"]
         assert status["action"] == "text"
         assert status["type"] == "string"
-        assert regions[f"main_menu.to.{troop_type}"]["action"] == "click"
+        # main_menu.to.<troop> click regions were removed — camp navigation now
+        # goes through the scroll-find resolver (fixed coords drifted onto the
+        # build-queue rows); the timer/status readers above stay.
+        assert f"main_menu.to.{troop_type}" not in regions
 
 
 def test_area_declares_wilderness_march_regions() -> None:
@@ -151,17 +160,18 @@ def test_screen_graph_exposes_main_menu_node() -> None:
     screen_graph.invalidate_edge_taps_cache()
     screen_graph.invalidate_screen_verify_config()
 
-    static, _dynamic, _graph = screen_graph.graph_for_game("wos")
+    static, dynamic, _graph = screen_graph.graph_for_game("wos")
     assert static[("main_city", "main_menu")] == ["main_city.to.main_menu"]
     assert static[("main_menu", "main_city")] == ["icon.page.back"]
-    assert static[("main_menu", "infantry")] == ["main_menu.to.infantry"]
-    assert static[("main_menu", "lancer")] == ["main_menu.to.lancer"]
-    assert static[("main_menu", "marksman")] == ["main_menu.to.marksman"]
+    # Troop camps are DYNAMIC edges now (scroll-find resolver), not static taps.
+    assert ("main_menu", "infantry") not in static
+    for camp in ("infantry", "lancer", "marksman"):
+        spec = dynamic[("main_menu", camp)]
+        assert spec["resolver"] == "main_menu_panel_row"
+        assert spec["section"] == "training"
+        assert spec["row"] == camp
     assert screen_graph.route_taps("main_city", "main_menu") == [
         ["main_city.to.main_menu"]
-    ]
-    assert screen_graph.route_taps("main_menu", "infantry") == [
-        ["main_menu.to.infantry"]
     ]
     assert screen_graph.screen_verify_rules("main_menu") == [
         {"from_screen": ["main_city", "main_world"]}
