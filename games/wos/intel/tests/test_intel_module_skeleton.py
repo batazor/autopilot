@@ -95,7 +95,12 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     # modal wait tolerates the timeout and the modal flow is cond-gated below.
     assert steps[4]["wait_screen"]["any"] == ["intel.fight"]
     assert steps[4]["wait_screen"]["optional"] is True
-    modal_branch = steps[5]
+    # A tapped pin may be a completed mission — its rewards popup is dismissed
+    # (non-strict) before the fight branch (verified live on bs5 2026-07-06).
+    rewards_dismiss = steps[5]
+    assert rewards_dismiss["while_match"] == "button.tap_anywhere_to_exit"
+    assert "нажмите" in rewards_dismiss["expected"]
+    modal_branch = steps[6]
     assert modal_branch["cond"] == "currentNode == intel.fight"
     modal_steps = modal_branch["steps"]
     assert modal_steps[0] == {"click": "intel.fight.view"}
@@ -109,7 +114,7 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     # Optional: rescue targets dispatch instantly — no deploy screen appears.
     assert modal_steps[4]["wait_screen"]["any"] == ["heroes.deploy", "squad_settings"]
     assert modal_steps[4]["wait_screen"]["optional"] is True
-    deploy_branch = steps[6]
+    deploy_branch = steps[7]
     assert deploy_branch["cond"] == "currentNode == heroes.deploy"
     assert deploy_branch["steps"] == [
         {"click": "heroes.deploy.equalize"},
@@ -130,13 +135,20 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
         # Multi-march chain: spend the next free slot in the same board window.
         {"exec": "queue_next_intel_run"},
     ]
-    squad_branch = steps[7]
+    squad_branch = steps[8]
     assert squad_branch["cond"] == "currentNode == squad_settings"
     squad_steps = squad_branch["steps"]
-    assert {"click": "squad_settings.quick_deploy"} in squad_steps
-    assert {"click": "squad_settings.fight"} in squad_steps
+    # Power gate first: read the VS strip, retreat from unwinnable pins; the
+    # deploy flow is gated on its stored decision.
+    assert squad_steps[0]["exec"] == "intel_power_gate"
+    assert squad_steps[0]["max_ratio"] == 0.8
+    fight_flow = squad_steps[1]
+    assert fight_flow["cond"] == 'intel.power_gate == "fight"'
+    inner = fight_flow["steps"]
+    assert {"click": "squad_settings.quick_deploy"} in inner
+    assert {"click": "squad_settings.fight"} in inner
     # Both dispatch branches end with the multi-march chain exec.
-    assert squad_steps[-1] == {"exec": "queue_next_intel_run"}
+    assert inner[-1] == {"exec": "queue_next_intel_run"}
     assert not any("push_scenario" in str(step) for step in steps)
 
 
@@ -480,3 +492,23 @@ def test_pick_marker_prioritizes_type_before_score_inside_color() -> None:
     )
 
     assert mod._pick_marker([gold_regular, gold_special], "best_score") is gold_special
+
+
+def test_power_gate_decision() -> None:
+    import importlib.util as _ilu
+
+    spec = _ilu.spec_from_file_location("intel_exec", MODULE_DIR / "exec.py")
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    decide = mod.decide_power_gate
+
+    # Live bs5 case: 784k vs 75k → clear fight.
+    assert decide(784_720, 75_063, max_ratio=0.8) == "fight"
+    # Enemy at parity → flee (0.8 margin).
+    assert decide(100_000, 100_000, max_ratio=0.8) == "flee"
+    # Enemy just under the margin → fight.
+    assert decide(100_000, 80_000, max_ratio=0.8) == "fight"
+    assert decide(100_000, 80_001, max_ratio=0.8) == "flee"
+    # Unreadable powers preserve the pre-gate behaviour.
+    assert decide(0, 50_000, max_ratio=0.8) == "fight"
+    assert decide(50_000, 0, max_ratio=0.8) == "fight"

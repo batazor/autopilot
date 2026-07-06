@@ -30,6 +30,5 @@ edges:
   arena.challenge_list:
     arena:
       - type: system_back
-  arena.squad:
-    arena:
-      - type: system_back
+  # arena.squad node removed (duplicate of the shared squad_settings — see
+  # routes/screen_verify.yaml); squad_settings carries its own escape edges.

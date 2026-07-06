@@ -29,12 +29,15 @@ screens:
         # RU guess «Список вызовов» (token «вызов») — VERIFY LIVE.
         contains: ["Challenge List", вызов]
 
-  arena.squad:
-    priority: 24
-    rules:
-      - ocr: arena.squad.title
-        # RU guess «Отряд» — VERIFY LIVE.
-        contains: ["Squad", "Settings", Отряд]
+  # arena.squad REMOVED (2026-07-06): its reference (references/squad.png) is
+  # the GENERIC Squad Settings screen — same title plate, VS powers and
+  # Quick Deploy / Fight buttons as the world-map deploy screen. The duplicate
+  # node (priority 24, «Отряд» guess) shadowed ``squad_settings`` and stranded
+  # intel_run's deploy branch on the RU build (verified live on bs5). The
+  # screen now detects as the shared ``squad_settings`` node (exploration
+  # module, RU keys correct); arena.fight matches its own regions
+  # (arena.squad.title / arena.squad.fight) directly, so that flow keeps
+  # working, and squad_settings carries its own escape edges.
 
   arena:
     priority: 30

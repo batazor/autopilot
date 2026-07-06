@@ -108,6 +108,25 @@ async def _exec_read_stamina_bar(ctx: DslExecContext) -> None:
         return
 
     cap = _budget_cap((ctx.args or {}).get("cap"))
+    # Prefer the player's real max as read off the intel/profile screen
+    # («38/70» → stamina_max=70): the static budget cap is a fleet-wide
+    # default and overshoots badly on low-VIP accounts (bar said 200 while
+    # the intel screen read 38/70 — verified live on bs5 2026-07-06). A
+    # 3-5x phantom stamina estimate makes the MARCH tick dispatch intel runs
+    # the budget then declines on-screen.
+    if ctx.redis_client is not None and ctx.player_id:
+        try:
+            raw_max = await ctx.redis_client.hget(
+                f"wos:player:{ctx.player_id}:state", "stamina_max"
+            )
+            real_max = int(
+                (raw_max.decode() if isinstance(raw_max, bytes) else str(raw_max or "")).strip()
+                or 0
+            )
+            if real_max > 0:
+                cap = real_max
+        except Exception:
+            logger.debug("stamina bar: stamina_max read failed", exc_info=True)
     stamina = round(ratio * cap)
     if ctx.redis_client is None or not ctx.player_id:
         ctx.result.update({"action": "no_target", "stamina": stamina})

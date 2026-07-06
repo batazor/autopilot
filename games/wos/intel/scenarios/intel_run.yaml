@@ -26,7 +26,7 @@ steps:
           - click: button.click_to_continue
           - wait: 500ms
       - while_match: button.tap_anywhere_to_exit
-        expected: ["tap anywhere"]
+        expected: ["tap anywhere", "для выхода", "нажмите", "любом месте"]
         max: 1
         steps:
           - click: button.tap_anywhere_to_exit
@@ -48,6 +48,18 @@ steps:
       max: 5
       interval: 500ms
       optional: true
+
+  # The tapped pin may be a COMPLETED mission instead of a fight: the tap then
+  # claims it and opens the «Награды» rewards popup («Для выхода нажмите в
+  # любом месте») — verified live on bs5 2026-07-06, where the run used to end
+  # leaving the popup stranded over the board. Dismiss it; non-strict, so a
+  # real fight modal (no popup) falls straight through to the fight branch.
+  - while_match: button.tap_anywhere_to_exit
+    expected: ["tap anywhere", "для выхода", "нажмите", "любом месте"]
+    max: 1
+    steps:
+      - click: button.tap_anywhere_to_exit
+      - wait: 800ms
 
   - cond: currentNode == intel.fight
     steps:
@@ -102,45 +114,54 @@ steps:
 
   - cond: currentNode == squad_settings
     steps:
-      - click: squad_settings.quick_deploy
-      - wait: 200ms
-      - click: squad_settings.fight
-      - wait: 2s
-
-      - while_match: page.squad_fight.auto
-        max: 1
+      # POWER GATE (autonomy safety): read the VS strip and retreat from
+      # unwinnable pins instead of feeding the army into them (dead troops →
+      # hospital → hours of healing downtime). On «flee» the exec itself backs
+      # out of the squad screen; the deploy steps below are gated on the
+      # decision it stores. Calibrated live on bs5 2026-07-06 (784k vs 75k).
+      - exec: intel_power_gate
+        max_ratio: 0.8
+      - cond: intel.power_gate == "fight"
         steps:
-          - click: page.squad_fight.auto
-          - wait: 1s
-
-      - while_match: page.squad_fight.speed
-        max: 1
-        steps:
-          - click: page.squad_fight.speed
-
-      - wait_screen:
-          any: [exploration.victory, exploration.defeat]
-          max: 90
-          interval: 2s
-
-      - cond: currentNode == exploration.victory
-        steps:
-          - click: page.exploration.victory.next
-          - wait_screen:
-              any: [squad_settings, intel, main_city]
-              max: 8
-              interval: 500ms
-          - cond: currentNode == squad_settings
-            steps:
-              - click: icon.page.back
-              - wait: 1s
-
-      - cond: currentNode == exploration.defeat
-        steps:
-          - click: button.to_main_city
+          - click: squad_settings.quick_deploy
+          - wait: 200ms
+          - click: squad_settings.fight
           - wait: 2s
 
-      # Multi-march: the auto-battle freed its slot on resolve — chase the next
-      # affordable event in the same visit (same bounded chain as the deploy
-      # branch).
-      - exec: queue_next_intel_run
+          - while_match: page.squad_fight.auto
+            max: 1
+            steps:
+              - click: page.squad_fight.auto
+              - wait: 1s
+
+          - while_match: page.squad_fight.speed
+            max: 1
+            steps:
+              - click: page.squad_fight.speed
+
+          - wait_screen:
+              any: [exploration.victory, exploration.defeat]
+              max: 90
+              interval: 2s
+
+          - cond: currentNode == exploration.victory
+            steps:
+              - click: page.exploration.victory.next
+              - wait_screen:
+                  any: [squad_settings, intel, main_city]
+                  max: 8
+                  interval: 500ms
+              - cond: currentNode == squad_settings
+                steps:
+                  - click: icon.page.back
+                  - wait: 1s
+
+          - cond: currentNode == exploration.defeat
+            steps:
+              - click: button.to_main_city
+              - wait: 2s
+
+          # Multi-march: the auto-battle freed its slot on resolve — chase the next
+          # affordable event in the same visit (same bounded chain as the deploy
+          # branch).
+          - exec: queue_next_intel_run

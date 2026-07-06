@@ -376,9 +376,122 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
     )
 
 
+# Squad Settings VS strip: own power left of the VS badge, enemy right of it.
+# Percent bboxes calibrated on live bs5 (RU) frames AND the EN arena squad
+# reference — identical layout on both builds; ``fast_digits`` on the cropped
+# plate reads cleanly where the generic pass returns icon noise. The own box
+# starts at 17.5% to skip the fist icon, which otherwise swallows a digit
+# («784 720» → 78720, verified live).
+_POWER_OWN_BBOX = (17.5, 8.8, 27.5, 3.6)
+_POWER_ENEMY_BBOX = (55.0, 8.8, 32.0, 3.6)
+# Fight only when the enemy is at most this fraction of our power. Squad
+# Settings shows raw power, which overweights walls of low-tier troops, so the
+# default keeps a healthy margin.
+_POWER_GATE_DEFAULT_RATIO = 0.8
+
+
+def decide_power_gate(own: int, enemy: int, *, max_ratio: float) -> str:
+    """Pure gate decision: ``fight`` / ``flee`` / ``fight`` when unreadable.
+
+    Unreadable (either power ≤ 0) defaults to ``fight`` — that preserves the
+    pre-gate behaviour instead of silently starving intel on an OCR hiccup;
+    the margin in ``max_ratio`` is the actual safety mechanism.
+    """
+    if own <= 0 or enemy <= 0:
+        return "fight"
+    return "fight" if enemy <= own * max_ratio else "flee"
+
+
+async def _exec_intel_power_gate(ctx: DslExecContext) -> None:
+    """Read the Squad Settings VS powers and decide fight vs retreat.
+
+    Writes ``intel.power_gate`` (``fight``/``flee``) + the raw numbers to the
+    player hash — the scenario gates the deploy steps on that field. On
+    ``flee`` this exec also backs out of the squad screen (system back), so an
+    autonomous run never feeds the army into an unwinnable pin (the failure
+    mode: dead troops → hospital → hours of healing downtime).
+    """
+    from layout.types import Region
+    from services import get_ocr_client
+
+    max_ratio = float(ctx.args.get("max_ratio") or _POWER_GATE_DEFAULT_RATIO)
+    actions = dsl_runtime.bot_actions()
+    ocr = get_ocr_client()
+    # DECISION-CRITICAL read → lossless adb screencap, not the scrcpy stream:
+    # H.264 compression mangles the small power digits (live bs5: «784 720»
+    # read as 7720 and «75 063» as 750635 off the stream; both read clean off
+    # a PNG frame). One extra screencap per fight is worth a correct gate.
+    try:
+        image = await asyncio.to_thread(actions.capture_screen_bgr_adb, ctx.instance_id)
+    except Exception:
+        logger.debug("intel power gate: adb capture failed, falling back", exc_info=True)
+        try:
+            image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+        except Exception:
+            logger.exception("intel power gate: capture failed instance=%s", ctx.instance_id)
+            image = None
+
+    own = enemy = 0
+    if image is not None:
+        h, w = image.shape[:2]
+
+        async def read_power(bbox: tuple[float, float, float, float]) -> int:
+            x, y, ww, hh = bbox
+            x0, y0 = int(x / 100.0 * w), int(y / 100.0 * h)
+            x1, y1 = int((x + ww) / 100.0 * w), int((y + hh) / 100.0 * h)
+            crop = image[y0:y1, x0:x1]
+            if crop.size == 0:
+                return 0
+            try:
+                res = await ocr.ocr_region(
+                    crop,
+                    Region(0, 0, crop.shape[1], crop.shape[0]),
+                    preprocess="fast_digits",
+                )
+            except Exception:
+                logger.exception("intel power gate: ocr failed instance=%s", ctx.instance_id)
+                return 0
+            digits = "".join(c for c in (getattr(res, "text", "") or "") if c.isdigit())
+            return int(digits) if digits else 0
+
+        own = await read_power(_POWER_OWN_BBOX)
+        enemy = await read_power(_POWER_ENEMY_BBOX)
+
+    decision = decide_power_gate(own, enemy, max_ratio=max_ratio)
+
+    if ctx.redis_client is not None and ctx.player_id:
+        try:
+            await ctx.redis_client.hset(
+                f"wos:player:{ctx.player_id}:state",
+                mapping={
+                    "intel.power_gate": decision,
+                    "intel.power_gate.own": str(own),
+                    "intel.power_gate.enemy": str(enemy),
+                    "intel.power_gate.at": str(time.time()),
+                },
+            )
+        except Exception:
+            logger.exception("intel power gate: hset failed player=%s", ctx.player_id)
+
+    if decision == "flee":
+        try:
+            await asyncio.to_thread(actions.system_back, ctx.instance_id)
+        except Exception:
+            logger.exception("intel power gate: back-out failed instance=%s", ctx.instance_id)
+
+    ctx.result.update(
+        {"action": decision, "own_power": own, "enemy_power": enemy, "max_ratio": max_ratio}
+    )
+    logger.info(
+        "dsl exec intel_power_gate: decision=%s own=%d enemy=%d ratio_cap=%.2f instance=%s",
+        decision, own, enemy, max_ratio, ctx.instance_id,
+    )
+
+
 DSL_EXEC_HANDLERS = {
     "confirm_intel_march_lease": _exec_confirm_intel_march_lease,
     "queue_next_intel_run": _exec_queue_next_intel_run,
     "tap_intel_fight": _exec_tap_intel_fight,
     "read_intel_stamina": _exec_read_intel_stamina,
+    "intel_power_gate": _exec_intel_power_gate,
 }
