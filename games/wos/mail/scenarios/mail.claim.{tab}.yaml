@@ -5,59 +5,29 @@ priority: 80_000
 node: mail.${tab}
 
 steps:
-  - while_match: mail.gift
-    min_match_saturation: 48
-    max: 6
-    steps:
-      - click: mail.gift
-      - wait: 2s
-
-      - loop:
-          max: 2
-          steps:
-            - while_match: button.claim.big
-              max: 1
-              retry:
-                attempts: 3
-                interval: 400ms
-              steps:
-                - click: button.claim.big
-                - wait: 0.8s
-                - break: loop
-            - while_match: button.claim
-              max: 1
-              retry:
-                attempts: 4
-                interval: 400ms
-              steps:
-                - click: button.claim
-                - wait: 0.8s
-                - break: loop
-            - while_match: button.go.big
-              max: 1
-              steps:
-                - click: button.go.big
-                - wait: 0.8s
-                - break: loop
-            - swipe_direction:
-                direction: up
-                delta: 450
-                duration_ms: 650
-            - wait: 0.5s
-
-      - while_match: icon.page.back
-        max: 1
-        steps:
-          - click: icon.page.back
-          - wait: 0.8s
-
+  # One tap on the bottom-right «Прочитать все» / "Read & Claim All" claims the
+  # whole tab — no per-mail walk. The reference crop is EN-only text, so gate by
+  # OCR (action: text) instead of the template: works on EN and RU builds alike.
+  # Tapping it on a rewardless tab still marks everything read, which clears the
+  # tab red dot and stops the overlay re-push loop.
   - while_match: mail.claim.all
-    max: 1
+    action: text
+    # RU button OCRs as «Прочесть и получить всё» (verified live on bs5).
+    expected: ["Read & Claim All", "Claim All", "Прочесть и получить", "Прочитать все"]
+    threshold: 0.7
+    max: 2
+    retry:
+      attempts: 3
+      interval: 400ms
     steps:
       - click: mail.claim.all
-      - wait: 1s
-      - while_match: button.claim
-        max: 10
+      - wait: 1.5s
+      # Claimed-rewards summary card — the hint text is localized («Для выхода
+      # нажмите в любом месте»), the region itself is a locale-free blind tap.
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere", "нажмите в любом месте"]
+        threshold: 0.7
+        max: 3
         steps:
-          - click: button.claim
+          - click: button.tap_anywhere_to_exit
           - wait: 0.5s

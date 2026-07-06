@@ -7,122 +7,43 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'max': 6,
-        'min_match_saturation': 48,
-        'steps': list([
-          dict({
-            'click': 'mail.gift',
-          }),
-          dict({
-            'wait': '2s',
-          }),
-          dict({
-            'loop': dict({
-              'max': 2,
-              'steps': list([
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 3,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim.big',
-                }),
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 4,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim',
-                }),
-                dict({
-                  'max': 1,
-                  'steps': list([
-                    dict({
-                      'click': 'button.go.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.go.big',
-                }),
-                dict({
-                  'swipe_direction': dict({
-                    'delta': 450,
-                    'direction': 'up',
-                    'duration_ms': 650,
-                  }),
-                }),
-                dict({
-                  'wait': '0.5s',
-                }),
-              ]),
-            }),
-          }),
-          dict({
-            'max': 1,
-            'steps': list([
-              dict({
-                'click': 'icon.page.back',
-              }),
-              dict({
-                'wait': '0.8s',
-              }),
-            ]),
-            'while_match': 'icon.page.back',
-          }),
+        'action': 'text',
+        'expected': list([
+          'Read & Claim All',
+          'Claim All',
+          'Прочитать все',
         ]),
-        'while_match': 'mail.gift',
-      }),
-      dict({
-        'max': 1,
+        'max': 2,
+        'retry': dict({
+          'attempts': 3,
+          'interval': '400ms',
+        }),
         'steps': list([
           dict({
             'click': 'mail.claim.all',
           }),
           dict({
-            'wait': '1s',
+            'wait': '1.5s',
           }),
           dict({
-            'max': 10,
+            'expected': list([
+              'tap anywhere',
+              'нажмите в любом месте',
+            ]),
+            'max': 3,
             'steps': list([
               dict({
-                'click': 'button.claim',
+                'click': 'button.tap_anywhere_to_exit',
               }),
               dict({
                 'wait': '0.5s',
               }),
             ]),
-            'while_match': 'button.claim',
+            'threshold': 0.7,
+            'while_match': 'button.tap_anywhere_to_exit',
           }),
         ]),
+        'threshold': 0.7,
         'while_match': 'mail.claim.all',
       }),
     ]),
@@ -136,122 +57,43 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'max': 6,
-        'min_match_saturation': 48,
-        'steps': list([
-          dict({
-            'click': 'mail.gift',
-          }),
-          dict({
-            'wait': '2s',
-          }),
-          dict({
-            'loop': dict({
-              'max': 2,
-              'steps': list([
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 3,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim.big',
-                }),
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 4,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim',
-                }),
-                dict({
-                  'max': 1,
-                  'steps': list([
-                    dict({
-                      'click': 'button.go.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.go.big',
-                }),
-                dict({
-                  'swipe_direction': dict({
-                    'delta': 450,
-                    'direction': 'up',
-                    'duration_ms': 650,
-                  }),
-                }),
-                dict({
-                  'wait': '0.5s',
-                }),
-              ]),
-            }),
-          }),
-          dict({
-            'max': 1,
-            'steps': list([
-              dict({
-                'click': 'icon.page.back',
-              }),
-              dict({
-                'wait': '0.8s',
-              }),
-            ]),
-            'while_match': 'icon.page.back',
-          }),
+        'action': 'text',
+        'expected': list([
+          'Read & Claim All',
+          'Claim All',
+          'Прочитать все',
         ]),
-        'while_match': 'mail.gift',
-      }),
-      dict({
-        'max': 1,
+        'max': 2,
+        'retry': dict({
+          'attempts': 3,
+          'interval': '400ms',
+        }),
         'steps': list([
           dict({
             'click': 'mail.claim.all',
           }),
           dict({
-            'wait': '1s',
+            'wait': '1.5s',
           }),
           dict({
-            'max': 10,
+            'expected': list([
+              'tap anywhere',
+              'нажмите в любом месте',
+            ]),
+            'max': 3,
             'steps': list([
               dict({
-                'click': 'button.claim',
+                'click': 'button.tap_anywhere_to_exit',
               }),
               dict({
                 'wait': '0.5s',
               }),
             ]),
-            'while_match': 'button.claim',
+            'threshold': 0.7,
+            'while_match': 'button.tap_anywhere_to_exit',
           }),
         ]),
+        'threshold': 0.7,
         'while_match': 'mail.claim.all',
       }),
     ]),
@@ -265,122 +107,43 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'max': 6,
-        'min_match_saturation': 48,
-        'steps': list([
-          dict({
-            'click': 'mail.gift',
-          }),
-          dict({
-            'wait': '2s',
-          }),
-          dict({
-            'loop': dict({
-              'max': 2,
-              'steps': list([
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 3,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim.big',
-                }),
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 4,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim',
-                }),
-                dict({
-                  'max': 1,
-                  'steps': list([
-                    dict({
-                      'click': 'button.go.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.go.big',
-                }),
-                dict({
-                  'swipe_direction': dict({
-                    'delta': 450,
-                    'direction': 'up',
-                    'duration_ms': 650,
-                  }),
-                }),
-                dict({
-                  'wait': '0.5s',
-                }),
-              ]),
-            }),
-          }),
-          dict({
-            'max': 1,
-            'steps': list([
-              dict({
-                'click': 'icon.page.back',
-              }),
-              dict({
-                'wait': '0.8s',
-              }),
-            ]),
-            'while_match': 'icon.page.back',
-          }),
+        'action': 'text',
+        'expected': list([
+          'Read & Claim All',
+          'Claim All',
+          'Прочитать все',
         ]),
-        'while_match': 'mail.gift',
-      }),
-      dict({
-        'max': 1,
+        'max': 2,
+        'retry': dict({
+          'attempts': 3,
+          'interval': '400ms',
+        }),
         'steps': list([
           dict({
             'click': 'mail.claim.all',
           }),
           dict({
-            'wait': '1s',
+            'wait': '1.5s',
           }),
           dict({
-            'max': 10,
+            'expected': list([
+              'tap anywhere',
+              'нажмите в любом месте',
+            ]),
+            'max': 3,
             'steps': list([
               dict({
-                'click': 'button.claim',
+                'click': 'button.tap_anywhere_to_exit',
               }),
               dict({
                 'wait': '0.5s',
               }),
             ]),
-            'while_match': 'button.claim',
+            'threshold': 0.7,
+            'while_match': 'button.tap_anywhere_to_exit',
           }),
         ]),
+        'threshold': 0.7,
         'while_match': 'mail.claim.all',
       }),
     ]),
@@ -394,122 +157,43 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'max': 6,
-        'min_match_saturation': 48,
-        'steps': list([
-          dict({
-            'click': 'mail.gift',
-          }),
-          dict({
-            'wait': '2s',
-          }),
-          dict({
-            'loop': dict({
-              'max': 2,
-              'steps': list([
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 3,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim.big',
-                }),
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 4,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim',
-                }),
-                dict({
-                  'max': 1,
-                  'steps': list([
-                    dict({
-                      'click': 'button.go.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.go.big',
-                }),
-                dict({
-                  'swipe_direction': dict({
-                    'delta': 450,
-                    'direction': 'up',
-                    'duration_ms': 650,
-                  }),
-                }),
-                dict({
-                  'wait': '0.5s',
-                }),
-              ]),
-            }),
-          }),
-          dict({
-            'max': 1,
-            'steps': list([
-              dict({
-                'click': 'icon.page.back',
-              }),
-              dict({
-                'wait': '0.8s',
-              }),
-            ]),
-            'while_match': 'icon.page.back',
-          }),
+        'action': 'text',
+        'expected': list([
+          'Read & Claim All',
+          'Claim All',
+          'Прочитать все',
         ]),
-        'while_match': 'mail.gift',
-      }),
-      dict({
-        'max': 1,
+        'max': 2,
+        'retry': dict({
+          'attempts': 3,
+          'interval': '400ms',
+        }),
         'steps': list([
           dict({
             'click': 'mail.claim.all',
           }),
           dict({
-            'wait': '1s',
+            'wait': '1.5s',
           }),
           dict({
-            'max': 10,
+            'expected': list([
+              'tap anywhere',
+              'нажмите в любом месте',
+            ]),
+            'max': 3,
             'steps': list([
               dict({
-                'click': 'button.claim',
+                'click': 'button.tap_anywhere_to_exit',
               }),
               dict({
                 'wait': '0.5s',
               }),
             ]),
-            'while_match': 'button.claim',
+            'threshold': 0.7,
+            'while_match': 'button.tap_anywhere_to_exit',
           }),
         ]),
+        'threshold': 0.7,
         'while_match': 'mail.claim.all',
       }),
     ]),
@@ -523,122 +207,43 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'max': 6,
-        'min_match_saturation': 48,
-        'steps': list([
-          dict({
-            'click': 'mail.gift',
-          }),
-          dict({
-            'wait': '2s',
-          }),
-          dict({
-            'loop': dict({
-              'max': 2,
-              'steps': list([
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 3,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim.big',
-                }),
-                dict({
-                  'max': 1,
-                  'retry': dict({
-                    'attempts': 4,
-                    'interval': '400ms',
-                  }),
-                  'steps': list([
-                    dict({
-                      'click': 'button.claim',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.claim',
-                }),
-                dict({
-                  'max': 1,
-                  'steps': list([
-                    dict({
-                      'click': 'button.go.big',
-                    }),
-                    dict({
-                      'wait': '0.8s',
-                    }),
-                    dict({
-                      'break': 'loop',
-                    }),
-                  ]),
-                  'while_match': 'button.go.big',
-                }),
-                dict({
-                  'swipe_direction': dict({
-                    'delta': 450,
-                    'direction': 'up',
-                    'duration_ms': 650,
-                  }),
-                }),
-                dict({
-                  'wait': '0.5s',
-                }),
-              ]),
-            }),
-          }),
-          dict({
-            'max': 1,
-            'steps': list([
-              dict({
-                'click': 'icon.page.back',
-              }),
-              dict({
-                'wait': '0.8s',
-              }),
-            ]),
-            'while_match': 'icon.page.back',
-          }),
+        'action': 'text',
+        'expected': list([
+          'Read & Claim All',
+          'Claim All',
+          'Прочитать все',
         ]),
-        'while_match': 'mail.gift',
-      }),
-      dict({
-        'max': 1,
+        'max': 2,
+        'retry': dict({
+          'attempts': 3,
+          'interval': '400ms',
+        }),
         'steps': list([
           dict({
             'click': 'mail.claim.all',
           }),
           dict({
-            'wait': '1s',
+            'wait': '1.5s',
           }),
           dict({
-            'max': 10,
+            'expected': list([
+              'tap anywhere',
+              'нажмите в любом месте',
+            ]),
+            'max': 3,
             'steps': list([
               dict({
-                'click': 'button.claim',
+                'click': 'button.tap_anywhere_to_exit',
               }),
               dict({
                 'wait': '0.5s',
               }),
             ]),
-            'while_match': 'button.claim',
+            'threshold': 0.7,
+            'while_match': 'button.tap_anywhere_to_exit',
           }),
         ]),
+        'threshold': 0.7,
         'while_match': 'mail.claim.all',
       }),
     ]),

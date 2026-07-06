@@ -1,6 +1,6 @@
 id: mail
 title: Mail
-description: Mail-screen automation - drain gift mails and bulk Claim All across every tab.
+description: Mail-screen automation - one "Read & Claim All" tap per tab (no per-mail walk).
 scenarios: scenarios
 analyze: analyze/analyze.yaml
 wiki: false
