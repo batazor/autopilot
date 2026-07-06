@@ -82,6 +82,9 @@ class _RedisProxy:
     def hgetall(self, key: str) -> dict[str, str]:
         return {str(k): str(v) for k, v in (self._r.hgetall(key) or {}).items()}
 
+    def hget(self, key: str, field: str) -> str | None:
+        return self._r.hget(key, field)
+
     def hset(self, key: str, mapping: dict[str, str]) -> int:
         return int(self._r.hset(key, mapping=mapping))
 
@@ -906,3 +909,65 @@ def test_require_approval_ignores_stale_abort(
 
     assert ok is True
     assert req_id is not None
+
+
+# --- Per-domain trust: whitelisted scenarios bypass the approval gate --------
+
+
+def test_scenario_is_trusted_exact_and_prefix() -> None:
+    trusted = {"intel_run", "mail.claim.*"}
+    assert tap._scenario_is_trusted("intel_run", trusted)
+    assert tap._scenario_is_trusted("mail.claim.starred", trusted)
+    assert not tap._scenario_is_trusted("intel_run_extra", trusted)
+    assert not tap._scenario_is_trusted("arena.fight", trusted)
+    assert not tap._scenario_is_trusted("", trusted)
+    assert not tap._scenario_is_trusted("intel_run", set())
+
+
+def test_trusted_scenario_auto_approves(
+    monkeypatch: Any,
+    redis_sync: Any,
+) -> None:
+    """Click-approval stays ON, but a whitelisted scenario's taps pass without
+    an operator decision (per-domain trust for autonomous loops)."""
+    r = _RedisProxy(redis_sync)
+    _patch_redis(monkeypatch, r)
+    redis_sync.set("wos:ui:click_approval:trusted_scenarios", "intel_run mail.claim.*")
+    redis_sync.hset("wos:instance:bs_t:state", "current_scenario", "intel_run")
+
+    ok, req_id = tap._require_approval("bs_t", {"type": "tap"})
+
+    assert ok is True
+    assert req_id is None
+    # No pending request was published — the gate short-circuited.
+    assert redis_sync.get("wos:ui:click_approval:current:bs_t") is None
+
+
+def test_untrusted_scenario_still_gated(
+    monkeypatch: Any,
+    redis_sync: Any,
+) -> None:
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    _patch_redis(monkeypatch, r)
+    redis_sync.set("wos:ui:click_approval:trusted_scenarios", "intel_run")
+    redis_sync.hset("wos:instance:bs_t2:state", "current_scenario", "arena.fight")
+
+    ok, req_id = tap._require_approval("bs_t2", {"type": "tap"})
+
+    # Approved only because the proxy auto-approves the published request —
+    # i.e. the gate DID publish one (no bypass).
+    assert ok is True
+    assert req_id is not None
+
+
+def test_per_instance_trust_extension(
+    monkeypatch: Any,
+    redis_sync: Any,
+) -> None:
+    r = _RedisProxy(redis_sync)
+    _patch_redis(monkeypatch, r)
+    redis_sync.set("wos:ui:click_approval:trusted_scenarios:bs_t3", "read_stamina")
+    redis_sync.hset("wos:instance:bs_t3:state", "current_scenario", "read_stamina")
+
+    ok, req_id = tap._require_approval("bs_t3", {"type": "tap"})
+    assert (ok, req_id) == (True, None)

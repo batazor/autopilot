@@ -112,6 +112,59 @@ def click_approval_enabled(instance_id: str) -> bool:
     return raw not in _CLICK_APPROVAL_DISABLED
 
 
+_TRUSTED_SCENARIOS_KEY = "wos:ui:click_approval:trusted_scenarios"
+
+
+def trusted_scenarios(instance_id: str) -> set[str]:
+    """Scenario keys whose taps are auto-approved even in click-approval mode.
+
+    Per-domain trust: the operator keeps global click-approval ON (every tap
+    gated) but whitelists specific well-understood scenarios — e.g. the intel
+    loop — so they run autonomously. Stored as comma/space-separated names in
+    ``wos:ui:click_approval:trusted_scenarios`` (fleet-wide) plus an optional
+    per-instance ``…:<instance_id>`` extension. A trailing ``*`` matches a
+    prefix family (``mail.claim.*``). Empty (default) = no change: everything
+    stays gated.
+    """
+    names: set[str] = set()
+    for key in (_TRUSTED_SCENARIOS_KEY, f"{_TRUSTED_SCENARIOS_KEY}:{instance_id}"):
+        raw_val: object = _r_get(key)
+        raw = (
+            raw_val.decode() if isinstance(raw_val, bytes) else str(raw_val or "")
+        ).strip()
+        if not raw:
+            continue
+        names.update(n.strip() for n in raw.replace(",", " ").split() if n.strip())
+    return names
+
+
+def _scenario_is_trusted(scenario: str, trusted: set[str]) -> bool:
+    s = (scenario or "").strip()
+    if not s or not trusted:
+        return False
+    for t in trusted:
+        if t.endswith("*"):
+            if s.startswith(t[:-1]):
+                return True
+        elif s == t:
+            return True
+    return False
+
+
+def current_scenario_trusted(instance_id: str) -> tuple[bool, str]:
+    """``(trusted, scenario)`` for the instance's currently-running scenario."""
+    trusted = trusted_scenarios(instance_id)
+    if not trusted:
+        return False, ""
+    try:
+        raw = _redis().hget(f"wos:instance:{instance_id}:state", "current_scenario")
+        scenario = (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
+    except Exception:
+        logger.debug("trusted-scenario read failed for %s", instance_id, exc_info=True)
+        return False, ""
+    return _scenario_is_trusted(scenario, trusted), scenario
+
+
 def abort_pending_approval(instance_id: str, reason: str = "aborted_for_restart") -> None:
     """Signal any in-flight ``_require_approval`` busy-wait for ``instance_id`` to give up.
 
@@ -400,6 +453,16 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
       this path must still honor approve (poll ``response_key`` before inferring reject).
     """
     if not click_approval_enabled(instance_id):
+        return True, None
+
+    # Per-domain trust: a whitelisted scenario's taps auto-approve while
+    # everything else stays operator-gated (see :func:`trusted_scenarios`).
+    is_trusted, trusted_scenario = current_scenario_trusted(instance_id)
+    if is_trusted:
+        logger.info(
+            "click approval: auto-approved (trusted scenario %r) instance=%s",
+            trusted_scenario, instance_id,
+        )
         return True, None
 
     # Captured before any blocking wait so an abort signal stamped at any point
