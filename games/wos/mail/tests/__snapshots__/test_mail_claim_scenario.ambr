@@ -7,44 +7,16 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'action': 'text',
-        'expected': list([
-          'Read & Claim All',
-          'Claim All',
-          'Прочитать все',
-        ]),
-        'max': 2,
-        'retry': dict({
-          'attempts': 3,
-          'interval': '400ms',
-        }),
-        'steps': list([
-          dict({
-            'click': 'mail.claim.all',
-          }),
-          dict({
-            'wait': '1.5s',
-          }),
-          dict({
-            'expected': list([
-              'tap anywhere',
-              'нажмите в любом месте',
-            ]),
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'button.tap_anywhere_to_exit',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'threshold': 0.7,
-            'while_match': 'button.tap_anywhere_to_exit',
-          }),
-        ]),
-        'threshold': 0.7,
-        'while_match': 'mail.claim.all',
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1.5s',
+      }),
+      dict({
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1s',
       }),
     ]),
   })
@@ -57,44 +29,16 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'action': 'text',
-        'expected': list([
-          'Read & Claim All',
-          'Claim All',
-          'Прочитать все',
-        ]),
-        'max': 2,
-        'retry': dict({
-          'attempts': 3,
-          'interval': '400ms',
-        }),
-        'steps': list([
-          dict({
-            'click': 'mail.claim.all',
-          }),
-          dict({
-            'wait': '1.5s',
-          }),
-          dict({
-            'expected': list([
-              'tap anywhere',
-              'нажмите в любом месте',
-            ]),
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'button.tap_anywhere_to_exit',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'threshold': 0.7,
-            'while_match': 'button.tap_anywhere_to_exit',
-          }),
-        ]),
-        'threshold': 0.7,
-        'while_match': 'mail.claim.all',
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1.5s',
+      }),
+      dict({
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1s',
       }),
     ]),
   })
@@ -107,44 +51,16 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'action': 'text',
-        'expected': list([
-          'Read & Claim All',
-          'Claim All',
-          'Прочитать все',
-        ]),
-        'max': 2,
-        'retry': dict({
-          'attempts': 3,
-          'interval': '400ms',
-        }),
-        'steps': list([
-          dict({
-            'click': 'mail.claim.all',
-          }),
-          dict({
-            'wait': '1.5s',
-          }),
-          dict({
-            'expected': list([
-              'tap anywhere',
-              'нажмите в любом месте',
-            ]),
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'button.tap_anywhere_to_exit',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'threshold': 0.7,
-            'while_match': 'button.tap_anywhere_to_exit',
-          }),
-        ]),
-        'threshold': 0.7,
-        'while_match': 'mail.claim.all',
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1.5s',
+      }),
+      dict({
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1s',
       }),
     ]),
   })
@@ -157,44 +73,16 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'action': 'text',
-        'expected': list([
-          'Read & Claim All',
-          'Claim All',
-          'Прочитать все',
-        ]),
-        'max': 2,
-        'retry': dict({
-          'attempts': 3,
-          'interval': '400ms',
-        }),
-        'steps': list([
-          dict({
-            'click': 'mail.claim.all',
-          }),
-          dict({
-            'wait': '1.5s',
-          }),
-          dict({
-            'expected': list([
-              'tap anywhere',
-              'нажмите в любом месте',
-            ]),
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'button.tap_anywhere_to_exit',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'threshold': 0.7,
-            'while_match': 'button.tap_anywhere_to_exit',
-          }),
-        ]),
-        'threshold': 0.7,
-        'while_match': 'mail.claim.all',
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1.5s',
+      }),
+      dict({
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1s',
       }),
     ]),
   })
@@ -207,44 +95,16 @@
     'priority': 80000,
     'steps': list([
       dict({
-        'action': 'text',
-        'expected': list([
-          'Read & Claim All',
-          'Claim All',
-          'Прочитать все',
-        ]),
-        'max': 2,
-        'retry': dict({
-          'attempts': 3,
-          'interval': '400ms',
-        }),
-        'steps': list([
-          dict({
-            'click': 'mail.claim.all',
-          }),
-          dict({
-            'wait': '1.5s',
-          }),
-          dict({
-            'expected': list([
-              'tap anywhere',
-              'нажмите в любом месте',
-            ]),
-            'max': 3,
-            'steps': list([
-              dict({
-                'click': 'button.tap_anywhere_to_exit',
-              }),
-              dict({
-                'wait': '0.5s',
-              }),
-            ]),
-            'threshold': 0.7,
-            'while_match': 'button.tap_anywhere_to_exit',
-          }),
-        ]),
-        'threshold': 0.7,
-        'while_match': 'mail.claim.all',
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1.5s',
+      }),
+      dict({
+        'click': 'mail.claim.all',
+      }),
+      dict({
+        'wait': '1s',
       }),
     ]),
   })

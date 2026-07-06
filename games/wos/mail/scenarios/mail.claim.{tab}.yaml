@@ -5,29 +5,15 @@ priority: 80_000
 node: mail.${tab}
 
 steps:
-  # One tap on the bottom-right «Прочитать все» / "Read & Claim All" claims the
-  # whole tab — no per-mail walk. The reference crop is EN-only text, so gate by
-  # OCR (action: text) instead of the template: works on EN and RU builds alike.
-  # Tapping it on a rewardless tab still marks everything read, which clears the
-  # tab red dot and stops the overlay re-push loop.
-  - while_match: mail.claim.all
-    action: text
-    # RU button OCRs as «Прочесть и получить всё» (verified live on bs5).
-    expected: ["Read & Claim All", "Claim All", "Прочесть и получить", "Прочитать все"]
-    threshold: 0.7
-    max: 2
-    retry:
-      attempts: 3
-      interval: 400ms
-    steps:
-      - click: mail.claim.all
-      - wait: 1.5s
-      # Claimed-rewards summary card — the hint text is localized («Для выхода
-      # нажмите в любом месте»), the region itself is a locale-free blind tap.
-      - while_match: button.tap_anywhere_to_exit
-        expected: ["tap anywhere", "нажмите в любом месте"]
-        threshold: 0.7
-        max: 3
-        steps:
-          - click: button.tap_anywhere_to_exit
-          - wait: 0.5s
+  # Static zone (bottom-right of the bar) — BLIND tap, no OCR / template gate:
+  # the label is localized text (EN "Read & Claim All", RU «Прочесть и получить
+  # всё») but the zone never moves. One tap claims the whole tab and marks
+  # rewardless mail read (clearing the tab red dot that fed the re-push loop);
+  # on an empty tab it lands on background and is a no-op.
+  - click: mail.claim.all
+  - wait: 1.5s
+  # If a claimed-rewards card popped, this second tap lands "anywhere" on the
+  # card and dismisses it; otherwise it re-taps the same static zone (no-op or
+  # a second claim batch).
+  - click: mail.claim.all
+  - wait: 1s
