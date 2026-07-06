@@ -8,6 +8,15 @@ import type { EditorRegion, PercentBBox } from "@/lib/bbox";
 
 const ACTIONS = ["exist", "text", "color_check", "click"] as const;
 const OCR_TYPES = ["integer", "string", "boolean", "time"] as const;
+
+// Mutually exclusive zone-resolution modes (isSearch / static can't coexist):
+// fixed = match/tap the labeled bbox; search = findIcon over the full frame;
+// static = blind tap into the bbox, no capture or template resolution at all.
+const ZONE_MODES = [
+  { value: "fixed", label: "Fixed bbox" },
+  { value: "search", label: "Search full frame" },
+  { value: "static", label: "Static (blind tap)" },
+] as const;
 const COLOR_TYPES = ["red", "blue", "gray", "green"] as const;
 
 const CROP_PREVIEW_MAX_HEIGHT = 220;
@@ -240,22 +249,20 @@ export function LabelingRegionsPanel({
               }
               label="Has red dot"
             />
-            <AppCheckbox
-              fieldClassName="labeling-check meta"
-              checked={Boolean(selected.isSearch)}
-              onChange={(checked) =>
-                patchSelected({ isSearch: checked ? true : false })
-              }
-              label="Search full frame"
-            />
-            <AppCheckbox
-              fieldClassName="labeling-check meta"
-              checked={Boolean(selected.static)}
-              onChange={(checked) =>
-                patchSelected({ static: checked ? true : false })
-              }
-              label="Static zone (blind tap)"
-            />
+            <label className="meta">
+              zone
+              <AppListbox
+                value={selected.static ? "static" : selected.isSearch ? "search" : "fixed"}
+                onChange={(v) =>
+                  patchSelected({
+                    isSearch: v === "search",
+                    static: v === "static",
+                  })
+                }
+                options={ZONE_MODES.map((m) => ({ value: m.value, label: m.label }))}
+                minWidth={190}
+              />
+            </label>
             <AppCheckbox
               fieldClassName="labeling-check meta"
               checked={Boolean(selected.overlay_auxiliary)}

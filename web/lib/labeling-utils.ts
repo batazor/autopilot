@@ -131,8 +131,9 @@ export function apiToEditorRegions(raw: Record<string, unknown>[]): EditorRegion
     };
     if (r.overlay_auxiliary) out.overlay_auxiliary = true;
     if (r.has_red_dot) out.has_red_dot = true;
-    if (r.isSearch) out.isSearch = true;
+    // Mutually exclusive zone modes — static wins (mirrors engine precedence).
     if (r.static) out.static = true;
+    else if (r.isSearch) out.isSearch = true;
     if (r.type) out.type = String(r.type);
     const hold = Number(r.tap_hold_ms ?? 0);
     if (Number.isFinite(hold) && hold > 0) out.tap_hold_ms = Math.round(hold);
@@ -150,8 +151,9 @@ export function editorToApiRegions(regions: EditorRegion[]): Record<string, unkn
     };
     if (r.overlay_auxiliary) out.overlay_auxiliary = true;
     if (r.has_red_dot) out.has_red_dot = true;
-    if (r.isSearch) out.isSearch = true;
+    // Mutually exclusive zone modes — static wins (mirrors engine precedence).
     if (r.static) out.static = true;
+    else if (r.isSearch) out.isSearch = true;
     if (r.type && r.action !== "exist") out.type = r.type;
     const hold = Number(r.tap_hold_ms ?? 0);
     if (Number.isFinite(hold) && hold > 0) out.tap_hold_ms = Math.round(hold);

@@ -434,10 +434,39 @@ def strip_exist_region_types(doc: dict[str, Any]) -> int:
     return removed
 
 
+def strip_search_on_static_regions(doc: dict[str, Any]) -> int:
+    """Drop ``isSearch`` from ``static`` regions — the flags are mutually
+    exclusive (a fixed zone is never search-resolved; engine precedence is
+    static-wins, this keeps stored docs unambiguous)."""
+    removed = 0
+    for screen in doc.get("screens") or []:
+        if not isinstance(screen, dict):
+            continue
+        region_groups: list[Any] = [screen.get("regions")]
+        versions = screen.get("versions")
+        if isinstance(versions, list):
+            region_groups.extend(
+                version.get("regions")
+                for version in versions
+                if isinstance(version, dict)
+            )
+        for regions in region_groups:
+            if not isinstance(regions, list):
+                continue
+            for region in regions:
+                if not isinstance(region, dict):
+                    continue
+                if region.get("static") and "isSearch" in region:
+                    region.pop("isSearch", None)
+                    removed += 1
+    return removed
+
+
 def save_json(path: Path, doc: AreaDocDict) -> int:
     """Write ``area.json`` / module ``area.yaml`` (``version`` + ``screens``)."""
     doc_dict = cast("dict[str, Any]", doc)
     strip_exist_region_types(doc_dict)
+    strip_search_on_static_regions(doc_dict)
     removed = dedupe_redundant_version_regions(doc_dict)
     validate_unique_region_names(doc_dict)
     validate_versions(doc_dict)
