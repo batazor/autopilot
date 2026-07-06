@@ -61,12 +61,35 @@ def _validate_cond_ast(tree: ast.AST) -> None:
             )
 
 
+def _cond_referenced_keys(tree: ast.AST) -> frozenset[str]:
+    """State keys the expression can read: bare names + ``_state["a.b.c"]`` slices."""
+    keys: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id != "_state":
+            keys.add(node.id)
+        elif (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "_state"
+            and isinstance(node.slice, ast.Constant)
+            and isinstance(node.slice.value, str)
+        ):
+            keys.add(node.slice.value)
+    return frozenset(keys)
+
+
 @lru_cache(maxsize=512)
-def _compile_cond_cached(rewritten: str) -> Any:
-    """Parse + validate + compile a cond expression; cache the code object."""
+def _compile_cond_cached(rewritten: str) -> tuple[Any, frozenset[str]]:
+    """Parse + validate + compile a cond expression; cache code + referenced keys.
+
+    The referenced-key set lets ``eval_cond`` coerce only the handful of state
+    fields the expression actually reads — a player flat-state dict can hold
+    thousands of keys, and coercing all of them per rule per overlay tick was
+    the dominant cost of cond evaluation.
+    """
     tree = ast.parse(rewritten, mode="eval")
     _validate_cond_ast(tree)
-    return compile(tree, "<cond>", "eval")
+    return compile(tree, "<cond>", "eval"), _cond_referenced_keys(tree)
 
 VERSION_ID_RE = re.compile(r"^v\d+$")
 _VERSION_ID_LOOSE_RE = re.compile(r"^[Vv]?(\d+)$")
@@ -161,11 +184,13 @@ def eval_cond(expr: str, state_flat: dict[str, Any]) -> bool:
         return False
     rewritten = _rewrite_dotted_idents(expr_str)
     try:
-        code = _compile_cond_cached(rewritten)
+        code, referenced = _compile_cond_cached(rewritten)
     except SyntaxError as exc:
         logger.warning("eval_cond rejected for %r: %s", expr_str, exc)
         return False
-    coerced_state = {k: _coerce_cond_value(v) for k, v in state_flat.items()}
+    coerced_state = {
+        k: _coerce_cond_value(state_flat[k]) for k in referenced if k in state_flat
+    }
     try:
         result = eval(
             code,

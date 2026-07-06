@@ -73,6 +73,46 @@ def test_eval_cond_missing_bare_identifier_is_silent_false(caplog) -> None:
     assert "eval_cond failed" not in caplog.text
 
 
+def test_eval_cond_coerces_only_referenced_keys() -> None:
+    """Coercion must not walk the whole state dict — a developed account's flat
+    state holds thousands of keys and eval_cond runs per rule per overlay tick.
+    Only fields the expression references may be touched."""
+    from layout.area_versions import _coerce_cond_value, _cond_referenced_keys
+
+    touched: list[str] = []
+
+    class _Tracking(str):
+        __slots__ = ()
+
+    real_coerce = _coerce_cond_value
+
+    def _spy(value):
+        if isinstance(value, _Tracking):
+            touched.append(str(value))
+        return real_coerce(value)
+
+    import layout.area_versions as av
+
+    state = {
+        "buildings.furnace.level": "5",
+        "unrelated.key.one": _Tracking("1"),
+        "unrelated.key.two": _Tracking("2"),
+    }
+    orig = av._coerce_cond_value
+    av._coerce_cond_value = _spy
+    try:
+        assert eval_cond("buildings.furnace.level >= 4", state) is True
+    finally:
+        av._coerce_cond_value = orig
+    assert touched == []
+
+    # Key extraction covers both dotted (_state subscript) and bare names.
+    import ast
+
+    tree = ast.parse('_state["a.b"] > 1 and flag', mode="eval")
+    assert _cond_referenced_keys(tree) == {"a.b", "flag"}
+
+
 # ---- pick_active_version --------------------------------------------------
 
 
