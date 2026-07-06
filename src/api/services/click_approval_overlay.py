@@ -262,6 +262,21 @@ def _preview_path_for_source(
     return None, ""
 
 
+def preview_path_for_source(
+    *,
+    instance_id: str,
+    payload: dict[str, Any] | None,
+    source: str,
+) -> Path | None:
+    """Disk path of the preview the image endpoint would serve (or ``None``)."""
+    path, _rel = _preview_path_for_source(
+        instance_id=instance_id,
+        payload=payload,
+        source=source,
+    )
+    return path
+
+
 def load_preview_metadata(
     *,
     instance_id: str,

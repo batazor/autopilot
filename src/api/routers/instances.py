@@ -4,14 +4,15 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response  # noqa: TC002 — FastAPI resolves the return annotation at runtime
 from pydantic import BaseModel
 
 from adb.serial import canonical_adb_serial
 from api.deps import get_redis
 from api.services import instance_detail as detail
 from api.services.dashboard_stream import instance_revision
+from api.services.http_cache import conditional_png_response
 from api.services.instances import list_instance_ids
 from config.devices import invalidate_device_registry
 from config.test_module import (
@@ -19,6 +20,7 @@ from config.test_module import (
     set_instance_test_module,
 )
 from dashboard.dashboard_events import publish_dashboard_event, publish_device_reconcile
+from dashboard.reference_preview import rolling_live_preview_path
 
 router = APIRouter(prefix="/api/instances", tags=["instances"])
 
@@ -184,20 +186,13 @@ def get_instance(
 
 
 @router.get("/{instance_id}/preview")
-def get_instance_preview(instance_id: str) -> Response:
+def get_instance_preview(instance_id: str, request: Request) -> Response:
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
-    png, _ = detail.load_preview_png(instance_id)
-    if png is None:
+    resp = conditional_png_response(rolling_live_preview_path(instance_id), request)
+    if resp is None:
         raise HTTPException(status_code=404, detail="no preview image available")
-    # The worker rewrites this PNG every ~1s; the dashboard pulls a fresh URL on
-    # the same cadence. Tell intermediate caches and the browser not to hold a
-    # copy or the UI shows a stale frame after the cache-buster lines up again.
-    return Response(
-        content=png,
-        media_type="image/png",
-        headers={"Cache-Control": "no-store, max-age=0"},
-    )
+    return resp
 
 
 @router.post("/{instance_id}/commands")

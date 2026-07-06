@@ -4,14 +4,15 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response  # noqa: TC002 — FastAPI resolves the return annotation at runtime
 from pydantic import BaseModel, Field
 
 from api.deps import get_redis
 from api.services import click_approval_store as store
 from api.services import notifications_api
-from api.services.click_approval_overlay import load_preview_bytes
+from api.services.click_approval_overlay import preview_path_for_source
+from api.services.http_cache import conditional_png_response
 from api.services.instances import list_instance_ids
 
 router = APIRouter(prefix="/api", tags=["click-approvals"])
@@ -70,24 +71,22 @@ def get_click_approval_status(
 @router.get("/instances/{instance_id}/click-approval/image")
 def get_click_approval_image(
     instance_id: str,
+    request: Request,
     client: RedisDep,
     source: Literal["capture", "live"] = Query(default="capture"),
 ) -> Response:
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
     payload = store.get_pending(client, instance_id)
-    png, _, _ = load_preview_bytes(
+    path = preview_path_for_source(
         instance_id=instance_id,
         payload=payload,
         source=source,
     )
-    if png is None:
+    resp = conditional_png_response(path, request)
+    if resp is None:
         raise HTTPException(status_code=404, detail="no preview image available")
-    return Response(
-        content=png,
-        media_type="image/png",
-        headers={"Cache-Control": "no-store, max-age=0"},
-    )
+    return resp
 
 
 @router.post("/instances/{instance_id}/click-approval/decision")

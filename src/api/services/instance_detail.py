@@ -18,7 +18,7 @@ from dashboard.redis_client import (
     get_instance_state,
     push_instance_command,
 )
-from dashboard.reference_preview import load_rolling_instance_preview, rolling_live_preview_path
+from dashboard.reference_preview import rolling_live_preview_path
 from dashboard.scenario_keys import runnable_scenario_keys
 
 
@@ -142,11 +142,6 @@ def build_instance_detail(client: redis.Redis, instance_id: str) -> dict[str, An
         "test_module": (row.get("test_module") or "").strip(),
         "state": row,
     }
-
-
-def load_preview_png(instance_id: str) -> tuple[bytes | None, float | None]:
-    img_bytes, _, mtime = load_rolling_instance_preview(instance_id)
-    return img_bytes, mtime
 
 
 def push_command(client: redis.Redis, instance_id: str, cmd: dict[str, Any]) -> None:
