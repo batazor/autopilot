@@ -316,9 +316,14 @@ def test_screen_graph_exposes_troop_nodes() -> None:
     screen_graph.invalidate_edge_taps_cache()
     screen_graph.invalidate_screen_verify_config()
 
-    static, _dynamic, _graph = screen_graph.graph_for_game("wos")
+    static, dynamic, _graph = screen_graph.graph_for_game("wos")
     for troop_type in TROOP_TYPES:
-        assert static[("main_menu", troop_type)] == [f"main_menu.to.{troop_type}"]
+        # main_menu → camp goes through the scroll-find panel-row resolver (the
+        # old main_menu.to.<troop> fixed regions drifted and were removed).
+        spec = dynamic[("main_menu", troop_type)]
+        assert spec["resolver"] == "main_menu_panel_row"
+        assert spec["section"] == "training"
+        assert spec["row"] == troop_type
         assert static[(troop_type, "main_menu")] == ["icon.page.back"]
 
 
