@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "_comment": "Exit-game confirm dialog (system modal). Detection landmark is exit_confirm.body — the unique body text «Выйти из игры?» / 'Exit the game?'; the shared «Подтверждение» title is NOT a reliable signal (every confirm dialog wears it). Button bboxes are fixed by the dialog layout (measured on bs5, 720×1280): cancel = orange left, confirm = blue right (DO-NOT-TAP), close = ✕ top-right. The body template crop is supplied per-build: RU crop in games/wos/ru/core/exit_confirm; EN crop TODO from an English device.",
+  "_comment": "Exit-game confirm dialog (system modal). Detection landmark is exit_confirm.body — the unique body text «Выйти из игры?» / 'Exit the game?'; the shared «Подтверждение» title is NOT a reliable signal (every confirm dialog wears it). Button bboxes are fixed by the dialog layout (measured on bs5, 720×1280): cancel = orange left, confirm = blue right (DO-NOT-TAP), close = ✕ top-right — all three are static: true tap zones (engine blind-taps the bbox, no crop/search). The body template crop is supplied per-build: RU crop in games/wos/ru/core/exit_confirm; EN crop TODO from an English device.",
   "screens": [
     {
       "screen_id": "exit_confirm",
@@ -24,6 +24,7 @@
           "name": "exit_confirm.cancel",
           "_comment": "«Отмена» — orange button, bottom-left. The cancel tap target. click: exit_confirm.cancel taps this bbox centre.",
           "action": "exist",
+          "static": true,
           "threshold": 0.9,
           "bbox": {
             "x": 10.833,
@@ -39,6 +40,7 @@
           "name": "exit_confirm.confirm",
           "_comment": "«Подтвердить» — blue button, bottom-right. DO NOT TAP: this quits the game. Defined only to document the layout and keep it distinct from cancel.",
           "action": "exist",
+          "static": true,
           "threshold": 0.9,
           "bbox": {
             "x": 52.778,
@@ -54,6 +56,7 @@
           "name": "exit_confirm.close",
           "_comment": "✕ close button, top-right of the panel. Cancels the exit (same effect as «Отмена»); kept as an alternative edge tap.",
           "action": "exist",
+          "static": true,
           "threshold": 0.9,
           "bbox": {
             "x": 87.778,

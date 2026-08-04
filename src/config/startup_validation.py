@@ -463,7 +463,8 @@ def _validate_area_exist_region_sources(
     ``missing_crop_png`` (or ``missing_bbox_or_ocr`` when the screen has no
     ``ocr:`` at all) on every tick — the rule looks healthy in YAML but can
     never match. Regions covered by a valid direct-template rule are exempt:
-    that branch never touches the crop.
+    that branch never touches the crop. ``static: true`` zones are exempt too:
+    the engine blind-taps the bbox by contract and never loads a template.
 
     Warning severity: some of these are parked half-labeled modules; the goal
     is a loud fleet-health banner, not a bricked startup.
@@ -494,6 +495,8 @@ def _validate_area_exist_region_sources(
                     if not isinstance(reg, dict):
                         continue
                     if str(reg.get("action") or "").strip() != "exist":
+                        continue
+                    if bool(reg.get("static")):
                         continue
                     name = str(reg.get("name") or "").strip()
                     if not name or name in covered:
