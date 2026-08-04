@@ -1,0 +1,15 @@
+# «Вылечить раненых» (Heal Injured) — the Infirmary heal screen.
+#
+# Registers `infirmary.heal` as a verifiable FSM screen so the heal-tail
+# scenario (`node: infirmary.heal`) can run there and the navigator knows the
+# exit. Anchored on the title OCR — the title renders identically on the
+# wounded and empty («Раненых нет. Все в порядке!») states.
+screens:
+  infirmary.heal:
+    priority: 6
+    rules:
+      - ocr: page.infirmary.heal.title
+        contains:
+          - Вылечить
+          - Heal
+        threshold: 0.8

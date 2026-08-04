@@ -1,0 +1,6 @@
+edges:
+  # Full-screen page with a standard top-left back arrow. Entry is NOT a graph
+  # edge — the cron wrapper drives the camera there via navigate_to_building
+  # (radar city map) and the building panel's «Вылечить» ring slot.
+  infirmary.heal:
+    main_city: [icon.page.back]

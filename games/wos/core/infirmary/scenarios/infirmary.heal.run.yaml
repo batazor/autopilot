@@ -1,0 +1,32 @@
+# The heal tail: runs ON the «Вылечить раненых» screen (the cron wrapper
+# heal_wounded navigates here; driving this directly with the screen open is
+# the dev/test path). Reads the wounded count, starts the free heal when the
+# «Вылечить» button is present (its label OCR is the wounded>0 gate — the
+# empty state renders nothing in that zone), and backs out to main_city.
+name: "🏥 Infirmary: start heal (on-screen tail)"
+enabled: true
+priority: 60_000
+node: infirmary.heal
+
+steps:
+  - ocr: infirmary.wounded_count
+    type: string
+    store: infirmary.wounded
+
+  - while_match: infirmary.heal.start
+    expected: ["Вылечить", "Heal"]
+    max: 1
+    steps:
+      - click: infirmary.heal.start
+      - wait: 1s
+      # Starting a heal can drop a confirmation/help toast; the standard
+      # dismissals are cheap no-ops when absent.
+      - while_match: button.tap_anywhere_to_exit
+        expected: ["tap anywhere", "для выхода", "нажмите", "любом месте"]
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 500ms
+
+  - click: icon.page.back
+  - wait: 1s

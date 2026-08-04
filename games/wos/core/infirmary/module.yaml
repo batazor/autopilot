@@ -1,0 +1,8 @@
+id: infirmary
+title: "Infirmary (Медпункт)"
+description: >
+  Heal wounded troops after combat (intel/lighthouse fights, defenses). Navigates
+  to the Infirmary via the radar city map, opens the «Вылечить раненых» screen,
+  reads the wounded count and starts the free heal. Closes the intel loop's known
+  gap: fights leave wounded that previously sat unhealed.
+enabled: true

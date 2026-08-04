@@ -1,0 +1,43 @@
+# Cron wrapper: drive the camera to the Infirmary (radar city map), open the
+# heal screen and hand off to the on-screen tail. Post-combat wounded (intel /
+# lighthouse fights, defenses) otherwise sit unhealed for hours.
+#
+# Entry has two shapes, both handled:
+#   wounded > 0 — tapping the building (navigate open:true) opens the heal
+#                 screen DIRECTLY (the bandage bubble);
+#   wounded = 0 — the tap opens the building panel ring instead; the static
+#                 «Вылечить» ring slot then opens the (empty) heal screen and
+#                 the tail exits cleanly without tapping anything.
+name: "🏥 Heal wounded (infirmary)"
+device_level: true
+enabled: true
+priority: 60_000
+cron: "13 * * * *"
+max_reschedule_delay: 2h
+cond: currentNode == main_city
+
+steps:
+  - exec: dismiss_popup
+
+  - exec: navigate_to_building
+    building: infirmary
+    open: true
+
+  - cond: nav.ok ~= "1"
+    steps:
+      - wait: 1s
+      # Direct landing (wounded present): building tap opened the heal screen.
+      - wait_screen:
+          any: [infirmary.heal]
+          max: 3
+          interval: 500ms
+          optional: true
+      # Panel landing (no direct heal): tap the ring's «Вылечить» slot.
+      - cond: currentNode != infirmary.heal
+        steps:
+          - click: infirmary.panel.heal
+          - wait_screen:
+              any: [infirmary.heal]
+              max: 6
+              interval: 500ms
+      - push_scenario: infirmary.heal.run
