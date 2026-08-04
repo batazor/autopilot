@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchClickApprovalStatus,
   fetchAdbStatus,
@@ -40,6 +40,13 @@ import { AppListbox } from "@/components/headless";
 import { Icon } from "@/components/ui/Icon";
 
 const BOT_POLL_MS = 4000;
+// Steady-state interval. The banner sits in the sidebar of EVERY page, so its
+// polls dominate idle API traffic (/api/dev/bot + /api/overview every 4s).
+// Real-time freshness comes from the dashboard event stream below; polling
+// only covers gaps (API restart, missed events) and local supervisor state —
+// so once bot status and fleet agree, back off. Any mutation or disagreement
+// (start/stop in flight, workers still booting) restores the fast cadence.
+const BOT_POLL_IDLE_MS = 15000;
 const BOT_STATUS_QUERY_KEY = ["botStartBanner"] as const;
 const BOT_FLEET_QUERY_KEY = ["botStartBannerFleet"] as const;
 const FLEET_INSTANCES_QUERY_KEY = ["fleetInstances"] as const;
@@ -162,15 +169,18 @@ function runningDetectedGame(games: AdbDetectedGame[]): string {
 function useDeviceSwitcher() {
   const router = useRouter();
   const pathname = usePathname();
+  // Slow flat poll: the instance/game lists change only on device config
+  // edits — the "fleet" event topic and the game mutation invalidate them
+  // promptly, so the interval is just a safety net.
   const instancesQuery = useQuery<string[]>({
     queryKey: FLEET_INSTANCES_QUERY_KEY,
     queryFn: fetchInstances,
-    refetchInterval: BOT_POLL_MS,
+    refetchInterval: BOT_POLL_IDLE_MS,
   });
   const gamesQuery = useQuery<Record<string, string>>({
     queryKey: FLEET_INSTANCE_GAMES_QUERY_KEY,
     queryFn: fetchInstanceGames,
-    refetchInterval: BOT_POLL_MS,
+    refetchInterval: BOT_POLL_IDLE_MS,
   });
   const instances = instancesQuery.data ?? [];
   const games = gamesQuery.data ?? {};
@@ -421,16 +431,20 @@ export function BotStartBanner() {
   // more than one is alive (dev rotation, stuck terminate, etc.).
   const [carouselIdx, setCarouselIdx] = useState(0);
 
+  // Adaptive cadence (see BOT_POLL_IDLE_MS): the decision needs BOTH queries'
+  // data plus mutation state, so it lives in a ref that each render updates
+  // below and the interval callbacks read on every scheduling.
+  const pollMsRef = useRef(BOT_POLL_MS);
   const query = useQuery<BannerStatus>({
     queryKey: BOT_STATUS_QUERY_KEY,
     queryFn: fetchBannerStatus,
-    refetchInterval: BOT_POLL_MS,
+    refetchInterval: () => pollMsRef.current,
   });
 
   const fleetQuery = useQuery<OverviewView>({
     queryKey: BOT_FLEET_QUERY_KEY,
     queryFn: fetchOverview,
-    refetchInterval: BOT_POLL_MS,
+    refetchInterval: () => pollMsRef.current,
   });
 
   const approvalQuery = useQuery<ClickApprovalStatus>({
@@ -556,6 +570,16 @@ export function BotStartBanner() {
     return status === "live" || status === "paused";
   });
   const effectiveBotRunning = !!botStatus?.running || fleetRunning;
+  // Fast poll while anything is in flight or the two status sources disagree
+  // (supervisor up but workers still booting / draining); idle cadence once
+  // the picture is steady.
+  const bannerTransitioning =
+    !query.data ||
+    startMutation.isPending ||
+    stopMutation.isPending ||
+    pauseMutation.isPending ||
+    !!botStatus?.running !== fleetRunning;
+  pollMsRef.current = bannerTransitioning ? BOT_POLL_MS : BOT_POLL_IDLE_MS;
   const effectiveMode = botStatus?.running ? botStatus.mode : fleetRunning ? "fleet" : null;
 
   const bannerTopics = currentInstance
