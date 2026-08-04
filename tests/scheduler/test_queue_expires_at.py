@@ -13,7 +13,7 @@ import time
 import pytest
 
 from config.loader import get_settings
-from scheduler.queue import RedisQueue
+from scheduler.queue import QUEUE_STALE_MAX_OVERDUE_S, RedisQueue
 
 
 def _queue_key(instance_id: str) -> str:
@@ -96,3 +96,80 @@ async def test_pop_due_expired_item_does_not_shadow_next_candidate(
     assert item is not None
     assert item.task_type == "who_i_am"
     assert await r.zcard(_queue_key("bs1")) == 0, "expired sibling must be purged"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_pop_due_drops_item_overdue_beyond_implicit_window(
+    redis_async: object,
+) -> None:
+    """No explicit ``expires_at``: overdue > QUEUE_STALE_MAX_OVERDUE_S → drop.
+
+    Models the post-downtime boot — a cron copy enqueued weeks ago must be
+    discarded, not replayed (the scheduler re-publishes it fresh next tick).
+    """
+    r = redis_async
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+
+    await q.schedule(
+        task_id="t-ancient",
+        player_id="",
+        task_type="who_i_am",
+        priority=80_000,
+        run_at=time.time() - QUEUE_STALE_MAX_OVERDUE_S - 3600.0,
+        instance_id="bs1",
+        skip_if_duplicate=False,
+    )
+
+    item = await q.pop_due("bs1", current_screen="main_city")
+    assert item is None, "task overdue beyond the implicit window must be dropped"
+    assert await r.zcard(_queue_key("bs1")) == 0, "drop must remove it from the ZSET"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_pop_due_runs_item_overdue_within_implicit_window(
+    redis_async: object,
+) -> None:
+    """No explicit ``expires_at``: a few hours overdue still runs (pause/resume)."""
+    r = redis_async
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+
+    await q.schedule(
+        task_id="t-overdue-ok",
+        player_id="",
+        task_type="who_i_am",
+        priority=80_000,
+        run_at=time.time() - 3600.0,
+        instance_id="bs1",
+        skip_if_duplicate=False,
+    )
+
+    item = await q.pop_due("bs1", current_screen="main_city")
+    assert item is not None
+    assert item.task_type == "who_i_am"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_pop_due_explicit_expiry_outlives_implicit_window(
+    redis_async: object,
+) -> None:
+    """An explicit ``expires_at`` stays authoritative even past the implicit window."""
+    r = redis_async
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+
+    await q.schedule(
+        task_id="t-long-lived",
+        player_id="",
+        task_type="who_i_am",
+        priority=80_000,
+        run_at=time.time() - QUEUE_STALE_MAX_OVERDUE_S - 3600.0,
+        instance_id="bs1",
+        skip_if_duplicate=False,
+        expires_at=time.time() + 3600.0,
+    )
+
+    item = await q.pop_due("bs1", current_screen="main_city")
+    assert item is not None, "explicit expires_at must override the implicit window"
+    assert item.task_type == "who_i_am"

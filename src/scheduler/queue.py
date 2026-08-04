@@ -60,6 +60,16 @@ QUEUE_DUE_PARSE_MAX = 512
 # Keep the per-pop ranking log compact while still showing enough runner-ups to
 # explain "why did task X beat task Y?" without needing a live debugger.
 QUEUE_POP_LOG_CANDIDATE_LIMIT = 5
+# Implicit expiry for items without an explicit ``expires_at``: once a task is
+# overdue (``now - run_at``) beyond this window it is dropped at pop time
+# instead of executed. Guards the post-downtime boot: after weeks of the worker
+# being off, the queue is a museum of June crons/overlay pushes that would all
+# fire at once. Dropping is safe for every regenerating producer — the
+# scheduler re-publishes a dropped cron on its next ~30s tick with
+# ``run_at=now`` (the stale copy was what blocked ``has_pending_duplicate``),
+# and overlay/notify/planner pushes re-fire from live detection. Only an
+# operator push older than this window is truly lost, which is the intent.
+QUEUE_STALE_MAX_OVERDUE_S = 86400.0
 
 
 def _recent_runs_key(instance_id: str) -> str:
@@ -232,6 +242,9 @@ class RedisQueue:
         ``expires_at`` (unix ts) marks the item stale: once the deadline passes,
         ``pop_due`` / ``peek_top_due`` drop it from the ZSET instead of running
         it (e.g. daily-mission tasks that lose relevance at the game-day reset).
+        Items without an explicit deadline get an implicit one —
+        ``run_at + QUEUE_STALE_MAX_OVERDUE_S`` — so a worker booting after long
+        downtime discards the accumulated backlog instead of replaying it.
 
         By default, the duplicate signature includes ``region``.
         Set ``dedup_ignore_region=True`` to deduplicate by (instance_id, player_id, task_type)
@@ -683,9 +696,19 @@ class RedisQueue:
                 exp_at = float(data.get("expires_at") or 0.0)
             except (TypeError, ValueError):
                 exp_at = 0.0
+            if exp_at <= 0.0:
+                # No explicit deadline — apply the implicit max-overdue window
+                # anchored on ``run_at`` (see ``QUEUE_STALE_MAX_OVERDUE_S``).
+                try:
+                    item_run_at = float(data.get("run_at") or 0.0)
+                except (TypeError, ValueError):
+                    item_run_at = 0.0
+                if item_run_at > 0.0:
+                    exp_at = item_run_at + QUEUE_STALE_MAX_OVERDUE_S
             if 0.0 < exp_at <= now:
                 # Stale item (e.g. a daily-mission push past the game-day
-                # reset) — queue for removal after the walk, don't run it.
+                # reset, or any task overdue beyond the implicit window) —
+                # queue for removal after the walk, don't run it.
                 expired.append((raw, data, exp_at))
                 continue
             pid = str(data.get("player_id", ""))
