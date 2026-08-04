@@ -620,13 +620,47 @@ def fetch_queue_history_rows(
     try:
         raw_items = _r_lrange(client, _history_key(instance_id), 0, max(0, int(limit) - 1))
     except redis.RedisError:
-        return []
+        raw_items = []
     rows: list[QueueHistoryRow] = []
     for payload in raw_items:
         row = _parse_history_row(str(payload))
         if row is not None:
             rows.append(row)
+    if len(rows) < int(limit):
+        rows = _top_up_history_from_sqlite(rows, instance_id=instance_id, limit=limit)
     return rows
+
+
+def _top_up_history_from_sqlite(
+    rows: list[QueueHistoryRow], *, instance_id: str, limit: int
+) -> list[QueueHistoryRow]:
+    """Fill up to ``limit`` from the durable SQLite mirror.
+
+    Redis history is capped (50 rows / 7d TTL) and evaporates over downtime;
+    the mirror keeps 30 days. Redis rows stay first-class — mirror rows only
+    top up the tail, deduplicated by task_id.
+    """
+    try:
+        from config.task_history_db import fetch_task_history_dicts
+
+        # Over-fetch by the rows we already hold so dedup can't leave a gap.
+        dicts = fetch_task_history_dicts(instance_id, limit=int(limit) + len(rows))
+    except Exception:
+        return rows
+    if not dicts:
+        return rows
+    seen = {r.task_id for r in rows if r.task_id}
+    merged = list(rows)
+    for d in dicts:
+        if len(merged) >= int(limit):
+            break
+        row = _parse_history_row(json.dumps(d, ensure_ascii=False, default=str))
+        if row is None or (row.task_id and row.task_id in seen):
+            continue
+        seen.add(row.task_id)
+        merged.append(row)
+    merged.sort(key=lambda r: r.finished_at, reverse=True)
+    return merged
 
 
 def remove_queue_task(client: redis.Redis, task_id: str) -> bool:

@@ -513,6 +513,13 @@ class InstanceWorkerTasksMixin(_Base):
                 "trace_id": trace_id,
                 "span_id": span_id,
             }
+            # Durable shadow first: SQLite survives Redis flushes/downtime and
+            # the helper swallows its own errors, so the Redis path is untouched.
+            import asyncio
+
+            from config.task_history_db import record_task_history
+
+            await asyncio.to_thread(record_task_history, row)
             key = _history_key_for_instance(self._cfg.instance_id)
             await self._redis.lpush(key, json.dumps(row, ensure_ascii=False, default=str))  # type: ignore[union-attr]
             await self._redis.ltrim(key, 0, 49)  # type: ignore[union-attr]
