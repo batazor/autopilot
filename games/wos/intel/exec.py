@@ -498,6 +498,25 @@ async def _exec_intel_power_gate(ctx: DslExecContext) -> None:
         except Exception:
             logger.exception("intel power gate: hset failed player=%s", ctx.player_id)
 
+    # The deploy steps are gated by ``cond: intel.power_gate == "fight"`` and
+    # DSL conds evaluate against the SQLite state store (``_state_flat``), NOT
+    # the Redis player hash — the Redis write above is dashboard/debug only.
+    # Without this store write the fight branch never fires and the run
+    # strands the device on squad_settings with a staged, unfired squad
+    # (live bs4 2026-08-05). Decision only: the raw numbers stay in Redis —
+    # nesting ``intel.power_gate.own`` under the string-valued
+    # ``intel.power_gate`` would clash in the nested store.
+    if ctx.player_id:
+        try:
+            from config.state_store import get_state_store
+
+            store = get_state_store().get_or_create(str(ctx.player_id))
+            store.update_from_flat({"intel.power_gate": decision})
+        except Exception:
+            logger.exception(
+                "intel power gate: state store write failed player=%s", ctx.player_id
+            )
+
     if decision == "flee":
         try:
             await asyncio.to_thread(actions.system_back, ctx.instance_id)

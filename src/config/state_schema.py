@@ -393,6 +393,12 @@ class GamerState(BaseModel):
     # read (reader-authoritative). Free-form per the planner DSL, hence a plain
     # dict. Declared (not just ``extra``) so ``store.set("planner", …)`` works.
     planner: dict[str, object] = Field(default_factory=dict)
+    # Intel/lighthouse run-time facts (power-gate decision, board state) written
+    # by intel execs. Declared for the same reason as ``planner``: ``extra:
+    # allow`` alone doesn't let ``_set_nested`` create the container, so
+    # ``store.update_from_flat({"intel.power_gate": …})`` would drop the write —
+    # and DSL conds (``intel.power_gate == "fight"``) read THIS store.
+    intel: dict[str, object] = Field(default_factory=dict)
 
     model_config = {"extra": "allow"}
 
