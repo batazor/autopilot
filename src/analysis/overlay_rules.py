@@ -226,7 +226,7 @@ async def overlay_rule_cond_allows(
             state_flat=state_flat,
         )
     if state_flat is not None:
-        from layout.area_versions import eval_cond
+        from dsl.cond_eval import eval_cond
 
         return eval_cond(expr, state_flat)
     return False

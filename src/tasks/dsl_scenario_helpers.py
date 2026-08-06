@@ -409,7 +409,7 @@ async def _dsl_cond_allows_step(
     # ``eval_cond`` swallows runtime errors and returns ``False`` so a stale or
     # broken expression cannot crash the worker — the scenario simply skips.
     if state_flat is not None:
-        from layout.area_versions import eval_cond as _eval_state_expr
+        from dsl.cond_eval import eval_cond as _eval_state_expr
 
         return _eval_state_expr(s, state_flat)
     logger.warning("dsl_scenario: unsupported cond syntax %r — skipping step", s)

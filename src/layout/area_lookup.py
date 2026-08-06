@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from typing import Any
 
-from layout.area_versions import pick_active_version, resolve_region_with_version
+from layout.area_versions import resolve_region_by_name
 
 # id(area_doc) -> {region_name | alias -> screen_entry}. Region names are
 # globally unique across screens, so a single dict gives us O(1) routing from
@@ -39,21 +39,8 @@ def _region_to_screen_index(area_doc: dict[str, Any]) -> dict[str, dict[str, Any
                         _register(alias, entry)
 
     screens = [e for e in (area_doc.get("screens") or []) if isinstance(e, dict)]
-
-    # Two passes so a base region always out-ranks a version-gated one for the
-    # same name. A region that is a base region in one screen but lives only in
-    # ``versions[].regions`` of an earlier screen must resolve to the base
-    # entry: state-less lookups (no active player, or a player whose state fails
-    # the version ``cond``) can only see base regions, so binding the name to a
-    # version-only entry would report it "unknown" even though a screen elsewhere
-    # exposes it unconditionally (e.g. ``main_city.to.exploration``).
     for entry in screens:
         _register_regions(entry, entry.get("regions"))
-    for entry in screens:
-        for ver in entry.get("versions") or []:
-            if not isinstance(ver, dict):
-                continue
-            _register_regions(entry, ver.get("regions"))
 
     _REGION_TO_SCREEN_CACHE[key] = idx
     _REGION_TO_SCREEN_CACHE.move_to_end(key)
@@ -92,27 +79,20 @@ def screen_region_by_name(
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
     """Return ``(screen_entry, region_dict)`` for a region ``name``.
 
-    Region names are globally unique in ``area.json``. ``screen_id`` is accepted
-    for backwards-compatible call sites, but intentionally ignored: node context
-    must not change what a region name resolves to.
-
-    With ``state_flat`` provided, the lookup honors the screen-entry's
-    ``versions`` metadata: the first version whose ``cond`` is truthy activates,
-    its ``regions[]`` overrides win over the base, and a name in
-    ``versions[].removed`` is treated as absent.
-
-    With ``state_flat=None`` the lookup matches only against the base
-    ``regions[]`` (default-version semantics).
+    Region names are globally unique in ``area.json``. ``screen_id`` and
+    ``state_flat`` are accepted for backwards-compatible call sites, but
+    intentionally ignored: neither node context nor player state changes what a
+    region name resolves to.
     """
     key = str(region_name or "").strip()
     if not key:
         return None
     _ = screen_id
+    _ = state_flat
     entry = _region_to_screen_index(area_doc).get(key)
     if entry is None:
         return None
-    active = pick_active_version(entry, state_flat) if state_flat is not None else None
-    reg = resolve_region_with_version(entry, key, active)
+    reg = resolve_region_by_name(entry, key)
     if reg is None:
         return None
     return entry, reg

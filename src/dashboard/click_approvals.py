@@ -20,7 +20,7 @@ from layout.area_manifest import (
 from layout.area_manifest import (
     load_area_doc as _load_merged_area_doc,
 )
-from layout.area_versions import effective_ocr_for_region, region_version_of
+from layout.area_versions import effective_ocr_for_region
 
 _AREA_DOC_TTL_S = 60.0
 _area_doc_cache: dict[tuple[str, AreaManifestFingerprint], tuple[float, dict[str, Any]]] = {}
@@ -103,10 +103,6 @@ def labeling_query_params_for_area_region(
         params["module"] = module_scope
     if resolved_region:
         params["region"] = resolved_region
-
-    vid = region_version_of(entry, reg)
-    if vid:
-        params["version"] = vid
     return params
 
 

@@ -10,7 +10,7 @@ import re
 import time
 from typing import Any
 
-from layout.area_versions import compile_cond
+from dsl.cond_eval import compile_cond
 from modules.broadcast import db, keys, seed
 from modules.broadcast.engine import cron_interval_seconds, event_slug_from_cond
 from modules.broadcast.models import (

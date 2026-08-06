@@ -48,9 +48,7 @@ def _area_region_names(area_doc: dict[str, Any]) -> set[str]:
     for screen in area_doc.get("screens") or []:
         if not isinstance(screen, dict):
             continue
-        for source in (screen.get("regions"), *(
-            v.get("regions") for v in (screen.get("versions") or []) if isinstance(v, dict)
-        )):
+        for source in (screen.get("regions"),):
             if not isinstance(source, list):
                 continue
             for reg in source:
@@ -74,9 +72,7 @@ def _area_regions_with_red_dot_capability(area_doc: dict[str, Any]) -> set[str]:
     for screen in area_doc.get("screens") or []:
         if not isinstance(screen, dict):
             continue
-        for source in (screen.get("regions"), *(
-            v.get("regions") for v in (screen.get("versions") or []) if isinstance(v, dict)
-        )):
+        for source in (screen.get("regions"),):
             if not isinstance(source, list):
                 continue
             for reg in source:
@@ -104,9 +100,7 @@ def _area_regions_text_action_with_search_sibling(area_doc: dict[str, Any]) -> s
     for screen in area_doc.get("screens") or []:
         if not isinstance(screen, dict):
             continue
-        for source in (screen.get("regions"), *(
-            v.get("regions") for v in (screen.get("versions") or []) if isinstance(v, dict)
-        )):
+        for source in (screen.get("regions"),):
             if not isinstance(source, list):
                 continue
             for reg in source:
@@ -486,9 +480,7 @@ def _validate_area_exist_region_sources(
             if not isinstance(entry, dict):
                 continue
             screen = str(entry.get("screen_id") or "").strip() or "?"
-            for source_regions in (entry.get("regions"), *(
-                v.get("regions") for v in (entry.get("versions") or []) if isinstance(v, dict)
-            )):
+            for source_regions in (entry.get("regions"),):
                 if not isinstance(source_regions, list):
                     continue
                 for reg in source_regions:

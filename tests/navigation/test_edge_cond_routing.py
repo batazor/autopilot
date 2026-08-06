@@ -84,7 +84,7 @@ edges:
     )
     _isolate(mocker, cfg)
     try:
-        from layout.area_versions import eval_cond
+        from dsl.cond_eval import eval_cond
 
         conds = screen_graph.edge_conds_for_game("t")
 

@@ -1,25 +1,19 @@
-"""area.json helpers: region-name validation, version-aware lookup, dedup.
+"""area.json helpers: region-name validation and lookup.
 
-Schema after the v3 refactor:
-- Each screen entry has a base ``regions[]`` list.
-- Optional ``versions[]`` declares visual variants. Each version has its own
-  ``regions[]`` (overrides + version-only additions) and an optional
-  ``removed[]`` list of base region names that are absent in that version.
-- A name may repeat between base and version regions (override) but must be
-  unique within a single block.
+Each screen entry has a single ``regions[]`` list; region names (plus aliases)
+are globally unique across the document.
 """
 from __future__ import annotations
 
 import math
 from typing import Any
 
+from dsl.cond_eval import compile_cond
 from layout.area_versions import (
     VERSION_ID_RE,
-    compile_cond,
     get_version_block,
     iter_all_regions,
-    pick_active_version,
-    resolve_region_with_version,
+    resolve_region_by_name,
 )
 
 
@@ -59,7 +53,7 @@ def region_names_for(reg: dict[str, Any]) -> list[str]:
 
 
 def collect_region_name_counts(doc: dict[str, Any]) -> dict[str, int]:
-    """Count non-empty region names across all screen entries (base + every version block).
+    """Count non-empty region names across all screen entries.
 
     Used by autocompletes that want every name a use case might reference.
     """
@@ -69,30 +63,16 @@ def collect_region_name_counts(doc: dict[str, Any]) -> dict[str, int]:
             continue
         for name in _region_names_in(entry.get("regions")):
             counts[name] = counts.get(name, 0) + 1
-        for ver in entry.get("versions") or []:
-            if not isinstance(ver, dict):
-                continue
-            for name in _region_names_in(ver.get("regions")):
-                counts[name] = counts.get(name, 0) + 1
     return counts
 
 
 def validate_unique_region_names(doc: dict[str, Any]) -> None:
-    """Raise ValueError if any single block (base or one version) has duplicate names.
-
-    Names are allowed to repeat ACROSS blocks (a version override re-declares a
-    base name on purpose) but never within one ``regions[]`` list.
-    """
+    """Raise ValueError if any screen entry has duplicate region names."""
     for entry in doc.get("screens") or []:
         if not isinstance(entry, dict):
             continue
         entry_label = f"screen id={entry.get('id')!r} screen_id={entry.get('screen_id')!r}"
         _check_unique_within(entry.get("regions"), f"{entry_label} base")
-        for ver in entry.get("versions") or []:
-            if not isinstance(ver, dict):
-                continue
-            vid = str(ver.get("id", "") or "").strip() or "?"
-            _check_unique_within(ver.get("regions"), f"{entry_label} version {vid!r}")
 
 
 def _check_unique_within(regions: Any, scope: str) -> None:
@@ -187,20 +167,15 @@ def region_bbox_for_name(
     name: str,
     state_flat: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Return the bbox dict for a region by name.
-
-    With ``state_flat`` provided, lookup honors version selection: the first
-    version whose ``cond`` evaluates truthy wins, ``removed[]`` makes the region
-    absent, and version ``regions[]`` overrides win over base.
-    """
+    """Return the bbox dict for a region by name (``state_flat`` is ignored)."""
+    _ = state_flat
     key = str(name or "").strip()
     if not key:
         return None
     for entry in doc.get("screens") or []:
         if not isinstance(entry, dict):
             continue
-        active = pick_active_version(entry, state_flat) if state_flat is not None else None
-        reg = resolve_region_with_version(entry, key, active)
+        reg = resolve_region_by_name(entry, key)
         if reg is None:
             continue
         bbox = reg.get("bbox")
@@ -349,7 +324,6 @@ __all__ = [
     "iter_all_regions",
     "region_bbox_for_name",
     "region_names_for",
-    "resolve_region_with_version",
     "validate_unique_region_names",
     "validate_versions",
 ]

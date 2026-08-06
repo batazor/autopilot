@@ -33,7 +33,6 @@ def test_load_area_doc_aggregates_module_area_manifests(tmp_path: Path) -> None:
                 {
                     "id": "vip",
                     "ocr": "references/page.vip.png",
-                    "versions": [{"id": "v2", "ocr": "references/page.vip.v2.png"}],
                     "regions": [{"name": "vip.claim", "bbox": {}}],
                 }
             ]
@@ -59,7 +58,6 @@ def test_load_area_doc_aggregates_module_area_manifests(tmp_path: Path) -> None:
     by_id = {s["id"]: s for s in screens}
     assert set(by_id) == {"vip", "mail"}
     assert by_id["vip"]["ocr"] == "games/wos/vip/references/page.vip.png"
-    assert by_id["vip"]["versions"][0]["ocr"] == "games/wos/vip/references/page.vip.v2.png"
 
 
 def test_load_area_doc_merges_wos_beta_overlay_catalog(tmp_path: Path) -> None:

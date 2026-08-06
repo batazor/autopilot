@@ -164,7 +164,7 @@ class Navigator:
         if not conds:
             return None
         flat = state_flat or {}
-        from layout.area_versions import eval_cond
+        from dsl.cond_eval import eval_cond
 
         def _allowed(src: str, dst: str) -> bool:
             cond = conds.get((src, dst))

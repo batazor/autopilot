@@ -12,7 +12,7 @@ from analysis.overlay_rules import (
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
-from layout.area_versions import effective_ocr_for_region, region_version_of
+from layout.area_versions import effective_ocr_for_region
 from layout.blue_button_detector import BLUE_MIN_ASPECT_RATIO, find_blue_buttons
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
@@ -370,7 +370,6 @@ def _eval_find_icon_rule(
             min_patch_bright_ratio=min_patch_bright_ratio,
             region_name=region_name,
             resolved_region_name=resolved_region_name,
-            resolved_version=region_version_of(entry, reg),
             match_x_pct=mx_pct,
             match_y_pct=my_pct,
             tap_delta=None,
@@ -492,7 +491,6 @@ def _eval_find_icon_rule(
                 min_patch_bright_ratio=min_patch_bright_ratio,
                 region_name=region_name,
                 resolved_region_name=resolved_region_name,
-                resolved_version=region_version_of(entry, reg),
                 match_x_pct=mx_pct,
                 match_y_pct=my_pct,
                 tap_delta=tap_delta,
@@ -620,7 +618,6 @@ def _eval_find_icon_rule(
                 min_patch_bright_ratio=min_patch_bright_ratio,
                 region_name=region_name,
                 resolved_region_name=resolved_region_name,
-                resolved_version=region_version_of(entry, reg),
                 match_x_pct=mx_pct,
                 match_y_pct=my_pct,
                 tap_delta=tap_delta,
@@ -668,7 +665,6 @@ def _eval_find_icon_rule(
         min_patch_bright_ratio=min_patch_bright_ratio,
         region_name=region_name,
         resolved_region_name=resolved_region_name,
-        resolved_version=region_version_of(entry, reg),
         match_x_pct=mx_pct,
         match_y_pct=my_pct,
         tap_delta=tap_delta_1,

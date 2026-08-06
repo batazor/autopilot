@@ -377,16 +377,6 @@ def filter_area_doc_for_context(doc: dict[str, Any], ctx: WikiModuleContext) -> 
         ocr = str(screen.get("ocr") or "")
         if ocr_path_belongs_to_context(ocr, ctx):
             kept.append(screen)
-            continue
-        versions = screen.get("versions")
-        if not isinstance(versions, list):
-            continue
-        for ver in versions:
-            if not isinstance(ver, dict):
-                continue
-            if ocr_path_belongs_to_context(str(ver.get("ocr") or ""), ctx):
-                kept.append(screen)
-                break
     out["screens"] = kept
     return out
 
@@ -414,7 +404,4 @@ def collect_reference_rels_from_doc(doc: dict[str, Any], ctx: WikiModuleContext)
         if not isinstance(screen, dict):
             continue
         add_ocr(str(screen.get("ocr") or ""))
-        for ver in screen.get("versions") or []:
-            if isinstance(ver, dict):
-                add_ocr(str(ver.get("ocr") or ""))
     return refs

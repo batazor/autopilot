@@ -56,15 +56,6 @@ def _normalize_module_area_doc(
         ocr = screen.get("ocr")
         if isinstance(ocr, str):
             screen["ocr"] = _module_repo_rel(repo_root, module_root, ocr)
-        versions = screen.get("versions")
-        if not isinstance(versions, list):
-            continue
-        for version in versions:
-            if not isinstance(version, dict):
-                continue
-            version_ocr = version.get("ocr")
-            if isinstance(version_ocr, str):
-                version["ocr"] = _module_repo_rel(repo_root, module_root, version_ocr)
     return out
 
 

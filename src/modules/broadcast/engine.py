@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from layout.area_versions import eval_cond
+from dsl.cond_eval import eval_cond
 
 from .models import TRIGGER_CRON, TRIGGER_EVENT, BroadcastMessage
 
