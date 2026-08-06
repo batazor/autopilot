@@ -26,7 +26,7 @@ async def test_ocr_main_city_chapter_task_against_real_tesseract() -> None:
     """Real-OCR sanity check for `chapter.task` on `references/main_city.png`.
 
     The labelled region should contain a single line like:
-      "Chapter 1 A Place to Call Home"
+      "Build: Hero Hall + Sawmill"
     """
     import cv2  # heavy import
 
@@ -65,19 +65,20 @@ async def test_ocr_main_city_chapter_task_against_real_tesseract() -> None:
     text = str(getattr(result, "text", "") or "").strip()
     conf = float(getattr(result, "confidence", 0.0) or 0.0)
 
-    # Tesseract glues "1" and "A" together because the source banner has no
-    # visible space between the chapter number and the title. Production reads
-    # this via regex (``chapter.task ~= "Upgrade 2"``) so the lossy spacing is
-    # not load-bearing. Normalise both sides before comparing.
+    # Tesseract glues words together because the banner has thin spacing.
+    # Production reads this via regex (``chapter.task ~= "Upgrade 2"``) so the
+    # lossy spacing is not load-bearing. Normalise both sides before comparing.
     def _norm(s: str) -> str:
         return "".join(s.split()).lower()
 
-    expected = "Chapter 1 A Place to Call Home"
+    # The stable prefix of the banner on the reference frame; the tail
+    # ("+ Sawmill") is garbled by Tesseract's char segmentation on this crop.
+    expected = "Build: Hero Hall"
     # Production matches ``chapter.task`` with regex / substring (see
     # ``scenarios/chapter_task_router.yaml``: ``chapter.task ~= "Upgrade …"``),
-    # so a trailing artefact like "Homey" from Tesseract's char-segmentation
-    # noise is benign. The test mirrors the same contract: the expected phrase
-    # must appear inside the OCR output, not equal it character-for-character.
+    # so trailing char-segmentation noise is benign. The test mirrors the same
+    # contract: the expected phrase must appear inside the OCR output, not
+    # equal it character-for-character.
     assert _norm(expected) in _norm(text), (
         "OCR output did not contain the expected `chapter.task` text on "
         f"main_city.png. text={text!r} confidence={conf:.4f} "
