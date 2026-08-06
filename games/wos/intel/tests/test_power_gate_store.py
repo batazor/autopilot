@@ -39,13 +39,15 @@ class _GateActions:
     """Capture fails → powers unreadable → decision defaults to ``fight``."""
 
     def capture_screen_bgr_adb(self, _instance_id: str) -> Any:
-        raise RuntimeError("no adb in test")
+        msg = "no adb in test"
+        raise RuntimeError(msg)
 
     def capture_screen_bgr(self, _instance_id: str) -> Any:
         return None
 
     def system_back(self, _instance_id: str) -> None:
-        raise AssertionError("fight decision must not back out")
+        msg = "fight decision must not back out"
+        raise AssertionError(msg)
 
 
 @pytest.mark.asyncio
