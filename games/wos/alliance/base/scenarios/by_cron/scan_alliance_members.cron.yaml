@@ -1,4 +1,8 @@
-enabled: true
+# Autonomous daily scan DISABLED (operator call 2026-08-06): roster analytics
+# is not on the bot's critical path, and the scan drags the worker off
+# main_city for minutes. The on-demand scan_alliance_members scenario stays
+# enabled — the dashboard "Scan" button still works.
+enabled: false
 name: "Alliance: scan members (cron)"
 priority: 35_000
 

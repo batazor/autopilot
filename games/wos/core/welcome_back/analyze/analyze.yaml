@@ -1,10 +1,19 @@
 overlay:
+  # Locale-proof: OCR the green button's own label (EN "Confirm" / RU
+  # «Подтвердить») and tap that same region — the overlay inline hot path only
+  # supports clicking the rule's own region. The old findIcon crop carried the
+  # ENGLISH label, so the RU build never confirmed the popup. The region is
+  # static (fixed dialog layout), so the tap is a blind center tap.
+  # «одтверд» — case/first-letter-tolerant fragment of «Подтвердить».
   - name: welcome_back.confirm.visible
     region: button.confirm.green
-    action: findIcon
+    action: text
+    expected:
+      - Confirm
+      - одтверд
+    threshold: 0.5
     device_level: true
     priority: 120_000
-    threshold: 0.9
     ttl: 5s
     steps:
       - click: button.confirm.green

@@ -12,7 +12,8 @@ screens:
     # OR-fallback for the RU «Белая мгла» build: the template above crops the
     # ENGLISH "Welcome back!" text, so on RU the reconnect popup was UNDETECTABLE
     # (fell through to `rewards` via the loose blue ribbon) and the welcome-back
-    # flow never confirmed. RU guess «С возвращением» — VERIFY LIVE on the next
-    # real offline-income popup.
+    # flow never confirmed. Stem «возвращени» — live OCR reads the title as
+    # «возвращение!» (drops the trailing «м», verified on bs3 2026-08-06), so
+    # the full word never matches.
     - ocr: text.welcome_back
-      contains: [Welcome, возвращением]
+      contains: [Welcome, возвращени]
