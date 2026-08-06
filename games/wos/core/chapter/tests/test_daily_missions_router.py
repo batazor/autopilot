@@ -61,11 +61,13 @@ def test_router_maps_every_mission_against_the_real_registry() -> None:
         assert {"resource": res} in gather_args
     assert {} in gather_args  # "Gather 1 time(s)"
 
+    # Arena Challenge routes to the daily free-challenge spend.
+    assert by_scenario["arena.fight"] == [{}]
+
     # Recognised-but-unautomated → reported, never pushed.
     assert "sync_research_status" not in by_scenario
     joined = " ".join(unautomated).lower()
     assert "research" in joined
-    assert "arena" in joined
 
 
 def test_router_ignores_ocr_noise_between_lines() -> None:

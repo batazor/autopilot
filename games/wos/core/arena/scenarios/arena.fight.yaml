@@ -2,19 +2,30 @@ enabled: true
 name: "Arena: spend daily free challenges"
 priority: 70_000
 
-# Bound to the Arena of Glory screen. NOTE: navigation INTO the Arena building
-# is not wired yet (no labelled city entry / edge tap), so this runs only once
-# the bot is already on the Arena of Glory screen. Reaching it from main_city is
-# the open follow-up; the fight loop below is the valuable, reusable part.
-node: arena
+# Daily spend inside the HIGHER reward window (00:00-22:00 UTC+8 == host local;
+# see arena/reward_window.py). Free challenges reset at 24:00, so any hour
+# before 22:00 collects the full day's worth.
+cron: "0 10 * * *"
+max_reschedule_delay: 2h
+
+# Starts from the city: open_arena_via_city (City panel → OCR Marksman row →
+# swipe + tap centre; same OCR-anchored path the defense scout uses, verified
+# E2E on bs3) lands on the Arena of Glory ranking screen.
+node: main_city
 
 steps:
-  # Ranking screen → open the Challenge List.
+  - exec: open_arena_via_city
+  - wait: 1.5s
+
+  # Hard gate: we must be on the Arena of Glory ranking screen now — a miss
+  # aborts the run and the scheduler retries within max_reschedule_delay.
   - match: arena.title
     threshold: 0.7
-    steps:
-      - click: arena.challenge
-      - wait: 2s
+    retry: { attempts: 3, interval: 1s }
+
+  # Ranking screen → open the Challenge List.
+  - click: arena.challenge
+  - wait: 2s
 
   # OPTIONAL: buy extra challenge attempts with gems before fighting.
   # The "+" by "Daily challenges: N" opens a buy dialog; one tap on the gem

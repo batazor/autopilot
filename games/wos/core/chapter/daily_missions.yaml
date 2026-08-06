@@ -79,5 +79,5 @@ missions:
     scenario: null
     category: research
   - pattern: 'Arena\s+Challenge'
-    scenario: null
+    scenario: arena.fight
     category: arena
