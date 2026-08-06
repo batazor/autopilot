@@ -24,7 +24,6 @@ const CROP_PREVIEW_MAX_HEIGHT = 220;
 type Props = {
   regions: EditorRegion[];
   selectedId: string | null;
-  activeVersion: string | null;
   refRel?: string | null;
   imageNonce?: number | string;
   onSelect: (id: string | null) => void;
@@ -60,7 +59,6 @@ function cropPreviewStyle(
 export function LabelingRegionsPanel({
   regions,
   selectedId,
-  activeVersion,
   refRel,
   imageNonce,
   onSelect,
@@ -144,12 +142,6 @@ export function LabelingRegionsPanel({
     <details className="labeling-panel-block" open>
       <summary className="labeling-panel-block__title">Region properties</summary>
       <div className="labeling-panel-block__body">
-        {activeVersion ? (
-          <p className="meta labeling-regions-hint">
-            Editing version <code>{activeVersion}</code> — overrides in{" "}
-            <code>versions[{activeVersion}].regions[]</code>.
-          </p>
-        ) : null}
 
         <button type="button" className="btn-primary labeling-add-region" onClick={onAddRegion}>
           Add region

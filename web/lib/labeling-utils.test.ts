@@ -17,7 +17,6 @@ function ref(rel: string): LabelingReferenceMeta {
     title: rel,
     screen_id: "",
     region_count: 0,
-    active_version: null,
   };
 }
 

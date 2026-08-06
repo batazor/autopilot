@@ -25,7 +25,6 @@ function refMeta(partial: Partial<LabelingReferenceMeta>): LabelingReferenceMeta
     title: "x",
     screen_id: "",
     region_count: 0,
-    active_version: null,
     unassigned: false,
     ...partial,
   };

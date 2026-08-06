@@ -24,7 +24,6 @@ export function syntheticReferenceMeta(refRel: string): LabelingReferenceMeta {
     title: name,
     screen_id: "",
     region_count: 0,
-    active_version: null,
     unassigned: true,
   };
 }
@@ -229,7 +228,6 @@ export type RefDirTreeNode = {
 export function referenceSelectLabel(r: LabelingReferenceMeta): string {
   const parts = [r.name];
   if (r.region_count > 0) parts.push(`${r.region_count} reg`);
-  if (r.active_version) parts.push(`v:${r.active_version}`);
   if (r.unassigned) parts[0] = `⚠ ${r.name}`;
   if (isPendingCapture(r.rel)) parts.push("⏳ pending");
   const sid = r.screen_id.trim();
@@ -430,8 +428,6 @@ export function suggestBasename(
   if (!sid) return null;
   const slug = sid.replace(/\./g, "_");
   const inst = instanceId.trim();
-  let raw = inst ? `${inst}_${slug}` : slug;
-  const ver = doc?.active_version?.trim();
-  if (ver && ver !== "default") raw = `${raw}_${ver}`;
+  const raw = inst ? `${inst}_${slug}` : slug;
   return raw.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_|_$/g, "") || null;
 }

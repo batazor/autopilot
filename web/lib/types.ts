@@ -623,12 +623,6 @@ export type RoutesScreenZones = {
   unmapped: Array<{ to: string; region: string; status: string }>;
 };
 
-export type LabelingVersionMeta = {
-  id: string;
-  cond: string;
-  ocr: string | null;
-};
-
 export type LabelingScopeOption = {
   key: string;
   title: string;
@@ -646,7 +640,6 @@ export type LabelingReferenceMeta = {
   title: string;
   screen_id: string;
   region_count: number;
-  active_version: string | null;
   unassigned: boolean;
 };
 
@@ -666,8 +659,6 @@ export type LabelingDocument = {
   screen_id: string;
   entry_id: number | null;
   regions: Record<string, unknown>[];
-  versions: LabelingVersionMeta[];
-  active_version: string | null;
   is_pending: boolean;
   basename: string;
   area_path: string;
@@ -675,7 +666,6 @@ export type LabelingDocument = {
   scope?: string;
   module_key?: string;
   module_title?: string;
-  redirect_version?: string | null;
 };
 
 export type LabelingRegionDiff = {
@@ -1042,7 +1032,6 @@ export type AreaRegionProbeResult = {
     matched?: boolean;
     region?: string;
     resolved_region?: string;
-    resolved_version?: string;
     action?: string;
     search_region?: string;
     score?: number;

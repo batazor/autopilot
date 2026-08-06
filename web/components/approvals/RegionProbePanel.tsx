@@ -142,12 +142,6 @@ export function RegionProbePanel({
               </MetricGrid>
               <p className="meta">
                 Region: <code>{resolvedRegion}</code>
-                {result.resolved_version ? (
-                  <>
-                    {" "}
-                    · version: <code>{String(result.resolved_version)}</code>
-                  </>
-                ) : null}
                 {" "}
                 · search: <code>{searchRegion}</code>
               </p>

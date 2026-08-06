@@ -1144,12 +1144,9 @@ export function labelingBundleUrl(refRel: string, scope: string): string {
 export async function fetchLabelingDocument(
   refRel: string,
   scope: string,
-  version?: string | null,
 ): Promise<LabelingDocument> {
-  const extra: Record<string, string> = {};
-  if (version) extra.version = version;
   return apiFetch<LabelingDocument>(
-    `/api/labeling/references/${labelingRefPath(refRel)}${labelingScopeQuery(scope, extra)}`,
+    `/api/labeling/references/${labelingRefPath(refRel)}${labelingScopeQuery(scope)}`,
   );
 }
 
@@ -1206,14 +1203,12 @@ export async function saveLabelingRegions(
   refRel: string,
   scope: string,
   regions: Record<string, unknown>[],
-  version?: string | null,
   screenId?: string | null,
 ): Promise<LabelingSaveRegionsResult> {
   return apiFetch<LabelingSaveRegionsResult>(
     `/api/labeling/references/${labelingRefPath(refRel)}${labelingScopeQuery(scope)}`,
     jsonInit("PUT", {
       regions,
-      version: version ?? null,
       screen_id: screenId ?? null,
     }),
   );
@@ -1354,70 +1349,6 @@ export async function renameLabelingReference(
   scope: string,
 ): Promise<{ ok: boolean; ref: string; message: string }> {
   return apiFetch(`/api/labeling/rename${labelingScopeQuery(scope)}`, jsonInit("POST", { ref: refRel, basename, instance_id: instanceId }));
-}
-
-export async function suggestLabelingVersionId(
-  refRel: string,
-  scope: string,
-): Promise<{ suggested_id: string }> {
-  return apiFetch(
-    `/api/labeling/versions/suggest${labelingScopeQuery(scope, { ref: refRel })}`,
-  );
-}
-
-export async function addLabelingVersion(
-  refRel: string,
-  versionId: string,
-  cond: string,
-  scope: string,
-): Promise<{ ok: boolean; version_id: string }> {
-  return apiFetch(`/api/labeling/versions${labelingScopeQuery(scope)}`, jsonInit("POST", { ref: refRel, version_id: versionId, cond }));
-}
-
-export async function updateLabelingVersionCond(
-  refRel: string,
-  versionId: string,
-  cond: string,
-  scope: string,
-): Promise<void> {
-  await apiFetch(
-    `/api/labeling/versions/${encodeURIComponent(versionId)}${labelingScopeQuery(scope)}`,
-    jsonInit("PATCH", { ref: refRel, cond }),
-  );
-}
-
-export async function deleteLabelingVersion(
-  refRel: string,
-  versionId: string,
-  scope: string,
-): Promise<void> {
-  await apiFetch(
-    `/api/labeling/versions/${encodeURIComponent(versionId)}${labelingScopeQuery(scope, { ref: refRel })}`,
-    { method: "DELETE" },
-  );
-}
-
-export async function syncLabelingVersionRegions(
-  refRel: string,
-  versionId: string,
-  scope: string,
-): Promise<{ added: number; skipped: number }> {
-  return apiFetch(
-    `/api/labeling/versions/${encodeURIComponent(versionId)}/sync-regions${labelingScopeQuery(scope)}`,
-    jsonInit("POST", { ref: refRel }),
-  );
-}
-
-export async function bindLabelingVersionOcr(
-  refRel: string,
-  versionId: string,
-  ocr: string | null,
-  scope: string,
-): Promise<void> {
-  await apiFetch(
-    `/api/labeling/versions/${encodeURIComponent(versionId)}/ocr${labelingScopeQuery(scope)}`,
-    jsonInit("PUT", { ref: refRel, ocr }),
-  );
 }
 
 export async function fetchGiftCodes(

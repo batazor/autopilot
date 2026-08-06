@@ -8,7 +8,6 @@ import { LabelingImportConflictDialog } from "@/components/labeling/LabelingImpo
 import { LabelingReferencePanel } from "@/components/labeling/LabelingReferencePanel";
 import { LabelingRegionsPanel } from "@/components/labeling/LabelingRegionsPanel";
 import { LabelingStaleCropsBanner } from "@/components/labeling/LabelingStaleCropsBanner";
-import { LabelingVersionsPanel } from "@/components/labeling/LabelingVersionsPanel";
 import { LabelingWorkflowStrip } from "@/components/labeling/LabelingWorkflowStrip";
 import { AppConfirmDialog, AppListbox } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
@@ -17,12 +16,9 @@ import { PageLoading } from "@/components/ui/Spinner";
 import { useInstances } from "@/lib/hooks";
 import { instanceSelectPlaceholder } from "@/lib/fleet-select";
 import {
-  addLabelingVersion,
   applyLabelingBundle,
-  bindLabelingVersionOcr,
   captureLabelingScreenshot,
   deleteLabelingReference,
-  deleteLabelingVersion,
   discardLabelingCapture,
   exportLabelingCrops,
   fetchLabelingDocument,
@@ -39,9 +35,6 @@ import {
   renameLabelingReference,
   saveLabelingRegions,
   setActiveGame,
-  suggestLabelingVersionId,
-  syncLabelingVersionRegions,
-  updateLabelingVersionCond,
 } from "@/lib/api";
 import type { EditorRegion } from "@/lib/bbox";
 import {
@@ -102,7 +95,6 @@ function describeRefreshError(e: unknown, instanceId: string): string {
 function LabelingPageInner() {
   const { showSuccess } = useFeedback();
   const params = useSearchParams();
-  const versionParam = params.get("version") ?? "";
   const moduleParam = params.get("module") ?? "";
 
   const [game, setGameState] = useState<string>(() =>
@@ -144,16 +136,13 @@ function LabelingPageInner() {
   const [refFilter, setRefFilter] = useState("");
   const [imageNonce, setImageNonce] = useState(0);
   const [basename, setBasename] = useState("");
-  const [newVersionId, setNewVersionId] = useState("v2");
-  const [newVersionCond, setNewVersionCond] = useState("");
-  const [editVersionCond, setEditVersionCond] = useState("");
   const [staleCrops, setStaleCrops] = useState<{
     count: number;
     stale: LabelingStaleCrop[];
   }>({ count: 0, stale: [] });
   const [refreshPending, setRefreshPending] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
-    "discard" | "delete-version" | "delete-reference" | null
+    "discard" | "delete-reference" | null
   >(null);
   const [screenIdOptions, setScreenIdOptions] = useState<string[]>([]);
   const [importSource, setImportSource] = useState<LabelingBundleImport | null>(null);
@@ -176,7 +165,6 @@ function LabelingPageInner() {
     moduleScopeRef.current = moduleScope;
   }, [moduleScope]);
 
-  const activeVersion = versionParam.trim() || null;
   // The fetched doc lags behind `refRel` during async loads and is left over
   // after a failed load. Only trust doc-derived display fields when the doc
   // actually belongs to the current selection, otherwise we'd show the prior
@@ -301,13 +289,11 @@ function LabelingPageInner() {
   }, [moduleScope, params, refRel, reloadRefs]);
 
   const updateUrl = useCallback(
-    (rel: string, version: string | null, module?: string) => {
+    (rel: string, module?: string) => {
       const url = new URL(window.location.href);
       if (rel) url.searchParams.set("ref", rel);
       else url.searchParams.delete("ref");
       url.searchParams.set("module", module ?? moduleScopeRef.current);
-      if (version) url.searchParams.set("version", version);
-      else url.searchParams.delete("version");
       window.history.replaceState(null, "", url.pathname + url.search);
     },
     [],
@@ -327,7 +313,6 @@ function LabelingPageInner() {
       url.searchParams.set("module", nextScope);
       if (meta?.default_ref) url.searchParams.set("ref", meta.default_ref);
       else url.searchParams.delete("ref");
-      url.searchParams.delete("version");
       window.history.replaceState(null, "", url.pathname + url.search);
     },
     [scopes],
@@ -357,19 +342,18 @@ function LabelingPageInner() {
       url.searchParams.set("game", value);
       url.searchParams.delete("module");
       url.searchParams.delete("ref");
-      url.searchParams.delete("version");
       window.history.replaceState(null, "", url.pathname + url.search);
     },
     [game],
   );
 
   const selectRef = useCallback(
-    (rel: string, version?: string | null) => {
+    (rel: string) => {
       selectedRefOverride.current = rel;
       setRefRel(rel);
-      updateUrl(rel, version ?? activeVersion);
+      updateUrl(rel);
     },
-    [activeVersion, updateUrl],
+    [updateUrl],
   );
 
   useEffect(() => {
@@ -378,26 +362,18 @@ function LabelingPageInner() {
     }
   }, [params]);
 
-  const setActiveVersion = useCallback(
-    (version: string | null) => {
-      updateUrl(refRel, version);
-    },
-    [refRel, updateUrl],
-  );
-
   const clearDocState = useCallback(() => {
     setDoc(null);
     setRegions([]);
     setScreenId("");
     setBasename("");
-    setEditVersionCond("");
     setSelectedId(null);
     setDirty(false);
     setScreenDirty(false);
   }, []);
 
   const loadDoc = useCallback(
-    async (rel: string, version?: string | null) => {
+    async (rel: string) => {
       if (!rel || !moduleScope) return;
       // Guard against out-of-order responses: rapid ref switching can leave a
       // slow earlier fetch resolving after a newer one. Only the latest load
@@ -405,12 +381,8 @@ function LabelingPageInner() {
       const seq = ++loadSeqRef.current;
       const isStale = () => seq !== loadSeqRef.current;
       try {
-        const d = await fetchLabelingDocument(rel, moduleScope, version);
+        const d = await fetchLabelingDocument(rel, moduleScope);
         if (isStale()) return;
-        if (d.redirect_version) {
-          selectRef(d.ref, d.redirect_version);
-          return;
-        }
         setDoc(d);
         const seed = importSeedRef.current;
         if (seed && seed.ref === rel) {
@@ -428,9 +400,6 @@ function LabelingPageInner() {
           setScreenDirty(false);
         }
         setBasename(d.basename || "");
-        setEditVersionCond(
-          d.versions.find((v) => v.id === d.active_version)?.cond ?? "",
-        );
         setSelectedId(null);
         setError(null);
       } catch (e) {
@@ -442,7 +411,7 @@ function LabelingPageInner() {
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectRef, moduleScope, clearDocState],
+    [moduleScope, clearDocState],
   );
 
   useEffect(() => {
@@ -458,10 +427,9 @@ function LabelingPageInner() {
       .get("module")
       ?.trim();
     if (urlModule && urlModule !== moduleScope) return;
-    loadDoc(refRel, activeVersion);
+    loadDoc(refRel);
   }, [
     refRel,
-    activeVersion,
     moduleScope,
     scopesReady,
     loadDoc,
@@ -492,7 +460,7 @@ function LabelingPageInner() {
       await runBusy(async () => {
         const out = await importLabelingPng(instanceId, moduleScope, file);
         await reloadRefs(moduleScope);
-        selectRef(out.ref, null);
+        selectRef(out.ref);
         setImageNonce((n) => n + 1);
         showSuccess(`Imported ${out.ref}`);
       });
@@ -517,7 +485,7 @@ function LabelingPageInner() {
           screenId: out.screen_id,
         };
         await reloadRefs(moduleScope);
-        selectRef(out.ref, null);
+        selectRef(out.ref);
         setImageNonce((n) => n + 1);
         setImportSource(out);
         const warn = out.warnings?.length ? ` (${out.warnings.join("; ")})` : "";
@@ -547,7 +515,7 @@ function LabelingPageInner() {
         });
         setConflict(null);
         await reloadRefs(moduleScope);
-        selectRef(res.ref, null);
+        selectRef(res.ref);
         setImageNonce((n) => n + 1);
         await reloadStale(moduleScope);
         const cropN = res.crops_written_count ?? 0;
@@ -566,13 +534,12 @@ function LabelingPageInner() {
         refRel,
         moduleScope,
         editorToApiRegions(regions),
-        activeVersion,
         screenId,
       );
       setDirty(false);
       setScreenDirty(false);
       setImportSource(null);
-      await loadDoc(refRel, activeVersion);
+      await loadDoc(refRel);
       await reloadStale(moduleScope);
       const cropN = saved.crops_written_count ?? 0;
       const cropPart =
@@ -595,7 +562,7 @@ function LabelingPageInner() {
     await runBusy(async () => {
       const out = await captureLabelingScreenshot(instanceId, moduleScope);
       await reloadRefs(moduleScope);
-      selectRef(out.ref, null);
+      selectRef(out.ref);
       setImageNonce((n) => n + 1);
       showSuccess(`Captured ${out.ref}`);
     });
@@ -616,7 +583,7 @@ function LabelingPageInner() {
     try {
       await refreshLabelingReference(refRel, instanceId, moduleScope);
       setImageNonce((n) => n + 1);
-      await loadDoc(refRel, activeVersion);
+      await loadDoc(refRel);
       showSuccess(`Refreshed ${displayRef}`);
     } catch (e) {
       setError(describeRefreshError(e, instanceId));
@@ -637,10 +604,10 @@ function LabelingPageInner() {
       await discardLabelingCapture(refRel, moduleScope);
       const list = await reloadRefs(moduleScope);
       const next = nextRefAfterRemoval(list);
-      if (next) selectRef(next, null);
+      if (next) selectRef(next);
       else {
         setRefRel("");
-        updateUrl("", null);
+        updateUrl("");
       }
       showSuccess("Discarded pending capture");
     });
@@ -665,10 +632,10 @@ function LabelingPageInner() {
       const out = await deleteLabelingReference(target, moduleScope);
       const list = await reloadRefs(moduleScope);
       const next = nextRefAfterRemoval(list);
-      if (next) selectRef(next, null);
+      if (next) selectRef(next);
       else {
         setRefRel("");
-        updateUrl("", null);
+        updateUrl("");
       }
       const cropPart = out.crops_removed.length
         ? ` · ${out.crops_removed.length} crop(s) removed`
@@ -704,7 +671,7 @@ function LabelingPageInner() {
           },
         );
         await reloadRefs(moduleScope);
-        selectRef(out.ref, null);
+        selectRef(out.ref);
         setImageNonce((n) => n + 1);
         showSuccess(out.message || `Published ${out.ref}`);
       } else {
@@ -715,84 +682,11 @@ function LabelingPageInner() {
           moduleScope,
         );
         await reloadRefs(moduleScope);
-        selectRef(out.ref, activeVersion);
+        selectRef(out.ref);
         showSuccess(out.message || `Renamed to ${out.ref}`);
       }
     });
   };
-
-  const onAddVersion = async () => {
-    if (!refRel || busy) return;
-    await runBusy(async () => {
-      await addLabelingVersion(
-        refRel,
-        newVersionId.trim(),
-        newVersionCond.trim(),
-        moduleScope,
-      );
-      await loadDoc(refRel, activeVersion);
-      showSuccess(`Added version ${newVersionId}`);
-      const sug = await suggestLabelingVersionId(refRel, moduleScope);
-      setNewVersionId(sug.suggested_id);
-      setNewVersionCond("");
-    });
-  };
-
-  const onSaveVersionCond = async () => {
-    if (!refRel || !activeVersion || busy) return;
-    await runBusy(async () => {
-      await updateLabelingVersionCond(
-        refRel,
-        activeVersion,
-        editVersionCond.trim(),
-        moduleScope,
-      );
-      await loadDoc(refRel, activeVersion);
-      showSuccess(`Saved cond for ${activeVersion}`);
-    });
-  };
-
-  const onDeleteVersion = () => {
-    if (!refRel || !activeVersion || busy) return;
-    setConfirmAction("delete-version");
-  };
-
-  const runDeleteVersion = async () => {
-    if (!refRel || !activeVersion) return;
-    const version = activeVersion;
-    setConfirmAction(null);
-    await runBusy(async () => {
-      await deleteLabelingVersion(refRel, version, moduleScope);
-      setActiveVersion(null);
-      await loadDoc(refRel, null);
-      showSuccess(`Deleted version ${version}`);
-    });
-  };
-
-  const onSyncVersionRegions = async () => {
-    if (!refRel || !activeVersion || busy) return;
-    await runBusy(async () => {
-      const out = await syncLabelingVersionRegions(refRel, activeVersion, moduleScope);
-      await loadDoc(refRel, activeVersion);
-      showSuccess(`Synced ${out.added} region(s) (${out.skipped} skipped)`);
-    });
-  };
-
-  const onBindVersionToCanvas = async () => {
-    if (!refRel || !activeVersion || busy) return;
-    await runBusy(async () => {
-      await bindLabelingVersionOcr(refRel, activeVersion, displayRef, moduleScope);
-      await loadDoc(refRel, activeVersion);
-      showSuccess(`Bound ${displayRef} to version ${activeVersion}`);
-    });
-  };
-
-  useEffect(() => {
-    if (!refRel || isPending) return;
-    suggestLabelingVersionId(refRel, moduleScope)
-      .then((s) => setNewVersionId(s.suggested_id))
-      .catch(() => {});
-  }, [refRel, isPending, doc?.versions?.length, moduleScope]);
 
   return (
     <>
@@ -807,9 +701,6 @@ function LabelingPageInner() {
             )}
             {isPending ? (
               <span className="status-pill status-pending">Pending capture</span>
-            ) : null}
-            {activeVersion ? (
-              <span className="status-pill status-running">{activeVersion}</span>
             ) : null}
           </>
         }
@@ -1018,7 +909,6 @@ function LabelingPageInner() {
             <p className="meta labeling-canvas-meta">
               {displayRef}
               {doc.screen_id ? ` · screen: ${doc.screen_id}` : ""}
-              {activeVersion ? ` · editing ${activeVersion}` : ""}
               {" · "}
               {regions.length} region(s)
             </p>
@@ -1035,7 +925,7 @@ function LabelingPageInner() {
               refRel={refRel}
               filter={refFilter}
               onFilterChange={setRefFilter}
-              onSelect={(rel) => selectRef(rel, null)}
+              onSelect={(rel) => selectRef(rel)}
               basename={basename}
               onBasenameChange={setBasename}
               isPending={isPending}
@@ -1049,34 +939,11 @@ function LabelingPageInner() {
             <LabelingRegionsPanel
               regions={regions}
               selectedId={selectedId}
-              activeVersion={activeVersion}
               refRel={refRel || null}
               imageNonce={imageNonce}
               onSelect={setSelectedId}
               onRegionsChange={setRegions}
               onDirty={() => setDirty(true)}
-            />
-          </LabelingCard>
-
-          <LabelingCard>
-            <LabelingVersionsPanel
-              versions={doc?.versions ?? []}
-              activeVersion={activeVersion}
-              isPending={isPending}
-              busy={busy}
-              hasEntry={Boolean(doc?.entry_id)}
-              editVersionCond={editVersionCond}
-              newVersionId={newVersionId}
-              newVersionCond={newVersionCond}
-              onEditCondChange={setEditVersionCond}
-              onNewIdChange={setNewVersionId}
-              onNewCondChange={setNewVersionCond}
-              onVersionSelect={setActiveVersion}
-              onSaveCond={onSaveVersionCond}
-              onSyncRegions={onSyncVersionRegions}
-              onBindCanvas={onBindVersionToCanvas}
-              onDeleteVersion={onDeleteVersion}
-              onAddVersion={onAddVersion}
             />
           </LabelingCard>
 
@@ -1136,18 +1003,6 @@ function LabelingPageInner() {
         busy={busy}
       >
         Delete unsaved capture <code>{refRel}</code>? This cannot be undone.
-      </AppConfirmDialog>
-
-      <AppConfirmDialog
-        open={confirmAction === "delete-version"}
-        onClose={() => setConfirmAction(null)}
-        onConfirm={runDeleteVersion}
-        title="Delete version?"
-        confirmLabel="Delete version"
-        variant="danger"
-        busy={busy}
-      >
-        Delete version <code>{activeVersion}</code> and its region overrides?
       </AppConfirmDialog>
 
       <AppConfirmDialog

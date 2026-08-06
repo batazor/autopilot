@@ -12,7 +12,6 @@ function meta(overrides: Partial<LabelingReferenceMeta>): LabelingReferenceMeta 
     title: "Heroes",
     screen_id: "heroes",
     region_count: 1,
-    active_version: null,
     unassigned: false,
     ...overrides,
   };
