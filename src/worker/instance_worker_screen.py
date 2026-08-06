@@ -267,16 +267,6 @@ class InstanceWorkerScreenMixin(_Base):
         if current_screen:
             return False
 
-        # Onboarding gate: during the scripted first-run tutorial an UNKNOWN
-        # screen is a tutorial panel / build screen the overlay rules must
-        # *drive* (Claim/Go/Build/hand-pointer), not a modal to dismiss. The
-        # popup classifier also false-positives some of these as a captcha,
-        # which short-circuits the whole tick and stalls the flow. Defer the
-        # entire popup path to the device-level onboarding rules. Same furnace<5
-        # gate as ``_maybe_dismiss_unknown_popup``.
-        if await self._in_onboarding_phase():
-            return False
-
         try:
             state = await self._popup_detector.detect(image_bgr)
         except Exception:
@@ -394,17 +384,6 @@ class InstanceWorkerScreenMixin(_Base):
             attributes={"instance_id": self._cfg.instance_id, "kind": kind.value, "outcome": outcome},
         )
 
-    async def _in_onboarding_phase(self) -> bool:
-        """True while the scripted first-run tutorial is still running.
-
-        Delegates to the shared signal: onboarding lasts until the Sawmill is
-        recorded in instance state (``buildings.levels.sawmill``). See
-        :mod:`worker.onboarding_phase`.
-        """
-        from worker.onboarding_phase import onboarding_active
-
-        return await onboarding_active(self._redis, self._cfg.instance_id)
-
     async def _maybe_dismiss_unknown_popup(
         self,
         overlay_results: dict[str, object],
@@ -437,18 +416,6 @@ class InstanceWorkerScreenMixin(_Base):
         # Focus mode: run only the pinned scenario — don't enqueue the
         # unknown-screen dismiss recovery (the focus filter would drop it anyway).
         if await self._focus_scenario():
-            return
-        # Onboarding gate: while furnace < 5 the tutorial is still running and the
-        # unknown screen is expected — dismissing here would tap forced-tap /
-        # hand-pointer steps and break the scripted flow. The onboarding furnace
-        # reader writes ``buildings.furnace.level`` into instance state during the
-        # tutorial; only arm the dismisser once it reaches 5. Gating at this push
-        # point (not via a scenario cond) keeps dismiss out of the queue entirely.
-        if await self._in_onboarding_phase():
-            logger.debug(
-                "dismiss_unknown_popup: deferred — onboarding (furnace<5) instance=%s",
-                self._cfg.instance_id,
-            )
             return
         lock_key = (
             f"wos:instance:{self._cfg.instance_id}:dismiss_unknown_popup_lock"

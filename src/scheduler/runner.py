@@ -176,33 +176,6 @@ class SchedulerRunner:
         s = raw.decode() if isinstance(raw, bytes) else str(raw)
         return s.strip()
 
-    async def _instance_furnace_level(self, instance_id: str) -> int:
-        """Furnace level from instance state (written by the onboarding reader).
-
-        Used to keep onboarding-sensitive crons (``min_furnace_level:``) out of
-        the queue while the tutorial is still running. Missing/unparseable → 0.
-        """
-        assert self._redis is not None
-        raw = await self._redis.hget(
-            f"wos:instance:{instance_id}:state", "buildings.furnace.level"
-        )
-        s = (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
-        try:
-            return int(s) if s else 0
-        except ValueError:
-            return 0
-
-    async def _instance_has_active_player(self, instance_id: str) -> bool:
-        """Whether ``who_i_am`` has resolved a player for this instance.
-
-        A resolved ``active_player`` means the tutorial is done (``who_i_am`` is
-        itself gated until furnace >= 5), so it's a reliable "past onboarding"
-        signal even when the furnace-level reader hasn't populated the level.
-        """
-        assert self._redis is not None
-        raw = await self._redis.hget(f"wos:instance:{instance_id}:state", "active_player")
-        return bool((raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip())
-
     @staticmethod
     def _cron_next_run_at(expr: str, *, after: float) -> float | None:
         """Next fire time (epoch seconds) strictly after ``after`` for any standard
@@ -549,10 +522,6 @@ class SchedulerRunner:
             prio = resolve_cron_priority(raw.get("priority"))
             name = str(raw.get("name") or "").strip() or yml.stem
             when_current_screen = str(raw.get("when_current_screen") or "").strip().lower()
-            try:
-                min_furnace_level = int(raw.get("min_furnace_level") or 0)
-            except (TypeError, ValueError):
-                min_furnace_level = 0
             if not expr or not task_type:
                 continue
 
@@ -585,21 +554,6 @@ class SchedulerRunner:
                     else:
                         if current_screen.lower() != when_current_screen:
                             continue
-                # Onboarding gate: keep this cron out of the queue while the
-                # tutorial is still running. Furnace level is the primary signal,
-                # but its reader isn't always populated (reads 0), so ALSO treat a
-                # resolved active_player as "past onboarding" — who_i_am only runs
-                # once the tutorial is done. Without this, a developed account
-                # whose furnace level isn't in state stays gated forever and never
-                # gets its return-home cron, stranding the bot on whatever screen a
-                # no-node read cron leaves it. Gating at the publish point (not a
-                # scenario cond) avoids enqueue+bail spam for a device-level cron.
-                if (
-                    min_furnace_level > 0
-                    and not await self._instance_has_active_player(inst.instance_id)
-                    and await self._instance_furnace_level(inst.instance_id) < min_furnace_level
-                ):
-                    continue
                 player_ids = player_ids_for_device_candidates(
                     inst.bluestacks_window_title,
                     inst.instance_id,

@@ -414,7 +414,7 @@ async def test_overlay_set_node_writes_current_screen_to_instance_state(redis_as
 
 
 # A real device-level scenario, so ``dsl_scenario_yaml_device_level`` is True.
-_DEVICE_LEVEL_SCENARIO = "onboarding.click.skip_button"
+_DEVICE_LEVEL_SCENARIO = "dismiss_unknown_popup"
 
 
 def _running(worker: _Worker, task_type: str | None) -> list[str]:

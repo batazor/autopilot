@@ -77,7 +77,7 @@ class InstanceWorkerRedisMixin(_Base):
         # uptime instead of resetting to "0s" every time we reconnect.
         # Restore the last-identified player from the durable device registry as a
         # boot-time hint: it gives ``_seed_startup_tasks`` a non-empty
-        # ``active_player`` so it can seed ``check_main_city`` (its onboarding gate
+        # ``active_player`` so it can seed ``check_main_city`` (its identity gate
         # skips on ""). It does NOT skip ``who_i_am`` — the boot identity probe is
         # forced (``force=True``) and clears this value to re-verify identity as
         # the mandatory first action. Falls back to "" when nothing was ever
@@ -339,9 +339,9 @@ class InstanceWorkerRedisMixin(_Base):
         mandatory first action on every start: even when ``_connect`` restored a
         durable ``active_player`` from the prior session, that value is cleared
         here so the device — not a possibly-stale durable id — decides who is
-        logged in. The loading / focus / onboarding gates below still apply (we
-        genuinely can't read the chief profile then); only the
-        "already identified, skip" short-circuit is bypassed.
+        logged in. The loading / focus gates below still apply (we genuinely
+        can't read the chief profile then); only the "already identified, skip"
+        short-circuit is bypassed.
         """
         if getattr(self, "_stopping", False) or getattr(self, "_ui_paused", False):
             return
@@ -378,21 +378,6 @@ class InstanceWorkerRedisMixin(_Base):
         if ap and not force:
             return
 
-        # Onboarding gate: the chief profile (and a readable player id) isn't
-        # available until the tutorial is done. Defer until the Sawmill is built
-        # (``buildings.levels.sawmill`` in instance state) — the onboarding
-        # build-recorder writes it. Gating here — not via a scenario cond —
-        # keeps who_i_am out of the queue entirely during onboarding instead of
-        # enqueuing it every tick only to bail with ``scenario_cond_false``.
-        from worker.onboarding_phase import onboarding_active
-
-        if current_screen != "main_city" and await onboarding_active(r, inst):
-            logger.debug(
-                "identity probe: deferred — onboarding (no sawmill yet) instance=%s",
-                inst,
-            )
-            return
-
         running_key = f"wos:queue:running:{inst}"
         try:
             raw_run = await r.get(running_key)
@@ -422,10 +407,7 @@ class InstanceWorkerRedisMixin(_Base):
             # ``cond: active_player == ""`` actually runs and the probe re-reads
             # the id off the device — guarding against a durable value left over
             # from a different account/build (e.g. an account switch or the RU
-            # "Белая мгла" build). Cleared only HERE — after the onboarding gate,
-            # which keys off ``active_player``: clearing earlier would read as
-            # onboarding on a non-main_city boot screen (e.g. ``main_menu``) and
-            # defer the probe. Mirrors the game-relaunch clear in
+            # "Белая мгла" build). Mirrors the game-relaunch clear in
             # ``_restart_instance``; the durable ``last_active_player`` is kept and
             # gets overwritten by the fresh OCR read.
             try:

@@ -29,26 +29,6 @@ def test_core_building_module_overlay_rule_present_in_merged_manifest() -> None:
     assert "build_button.visible" in names
 
 
-def test_core_onboarding_module_overlay_rules_enabled_in_merged_manifest() -> None:
-    doc = load_merged_analyze_yaml(REPO_ROOT)
-    names = _rule_names(doc)
-
-    # Enabled step by step from analyze.yaml.off: skip + hand-pointer cues.
-    for enabled in (
-        "skip_button.visible",
-        "hand_pointer.visible",
-        "hand_pointer_small.visible",
-        "hand_pointer_small_reverse.visible",
-        "hand_pointer_build.visible",
-    ):
-        assert enabled in names
-
-    # tap_anywhere_to_exit stays off here — it's already covered by
-    # dismiss_unknown_popup and many other scenarios.
-    assert "onboarding.tap_anywhere_to_exit.visible" not in names
-    assert "tap_anywhere_to_exit.visible" not in names
-
-
 def test_alliance_module_overlay_rule_present_in_merged_manifest() -> None:
     doc = load_merged_analyze_yaml(REPO_ROOT)
     names = _rule_names(doc)

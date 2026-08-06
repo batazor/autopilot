@@ -1,6 +1,6 @@
 id: chapter
 title: Chapter
-enabled: true
+enabled: false
 description: >-
   Story chapter screen — the "Chapter" panel reachable from both hubs
   (main_city and main_world) via the bottom-left chapter button. A routing

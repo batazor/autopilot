@@ -7,7 +7,6 @@ import pytest
 
 import worker.instance_worker as instance_worker
 from scheduler.queue import QueueItem
-from worker.onboarding_phase import ONBOARDING_EXIT_FIELD
 
 
 class _FakeQueue:
@@ -51,29 +50,10 @@ def _identity_probe_worker(redis_async: Any, *, current_screen: str = "chapter")
 
 
 @pytest.mark.asyncio
-async def test_who_i_am_enqueue_deferred_during_onboarding(redis_async: Any) -> None:
-    """The identity probe stays out of the queue before Sawmill is built:
-    gating at the push point, not via a scenario cond, avoids enqueue+bail spam."""
+async def test_who_i_am_enqueued_when_active_player_missing(redis_async: Any) -> None:
+    """No ``active_player`` → the identity probe enqueues ``who_i_am`` from any
+    known screen."""
     worker = _identity_probe_worker(redis_async)
-
-    # Sawmill unknown (not built / not recorded yet) → deferred.
-    await worker._maybe_enqueue_who_i_am_when_active_player_missing()
-    assert worker._queue.calls == []
-
-    # Still onboarding (Sawmill recorded as not built) → deferred.
-    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
-        "wos:instance:bs1:state", mapping={ONBOARDING_EXIT_FIELD: "0"}
-    )
-    await worker._maybe_enqueue_who_i_am_when_active_player_missing()
-    assert worker._queue.calls == []
-
-
-@pytest.mark.asyncio
-async def test_who_i_am_enqueue_when_main_city_even_without_sawmill_mirror(
-    redis_async: Any,
-) -> None:
-    """Main city is enough to run the identity probe if the Sawmill mirror was missed."""
-    worker = _identity_probe_worker(redis_async, current_screen="main_city")
 
     await worker._maybe_enqueue_who_i_am_when_active_player_missing()
     assert [c["task_type"] for c in worker._queue.calls] == ["who_i_am"]
@@ -82,16 +62,13 @@ async def test_who_i_am_enqueue_when_main_city_even_without_sawmill_mirror(
 
 
 @pytest.mark.asyncio
-async def test_who_i_am_enqueue_when_past_onboarding(redis_async: Any) -> None:
-    """Built Sawmill with no active player → identity probe enqueues ``who_i_am``."""
-    worker = _identity_probe_worker(redis_async)
-    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
-        "wos:instance:bs1:state", mapping={ONBOARDING_EXIT_FIELD: "1"}
-    )
+async def test_who_i_am_deferred_while_loading(redis_async: Any) -> None:
+    """The loading screen is the one state where the probe stays out of the
+    queue — the chief profile genuinely can't be read yet."""
+    worker = _identity_probe_worker(redis_async, current_screen="loading")
 
     await worker._maybe_enqueue_who_i_am_when_active_player_missing()
-    assert [c["task_type"] for c in worker._queue.calls] == ["who_i_am"]
-    assert worker._queue.calls[0]["player_id"] == ""
+    assert worker._queue.calls == []
 
 
 @pytest.mark.asyncio
@@ -119,13 +96,7 @@ async def test_who_i_am_forced_first_at_boot_reverifies_identified_account(
 ) -> None:
     """Boot (``force=True``): ``who_i_am`` is the mandatory first action even when a
     durable ``active_player`` was restored — the stale id is cleared so the
-    scenario's ``cond: active_player == ""`` runs and the device re-confirms it.
-
-    Deliberately on a NON-``main_city`` screen with no Sawmill mirror: the only
-    onboarding-exit signal is the restored ``active_player``. This guards the
-    clear ordering — the id must be dropped only *after* the onboarding gate
-    (which keys off ``active_player``), else clearing first reads as onboarding
-    on a boot screen like ``main_menu`` and the probe is wrongly deferred."""
+    scenario's ``cond: active_player == ""`` runs and the device re-confirms it."""
     worker = _identity_probe_worker(redis_async, current_screen="main_menu")
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", mapping={"active_player": "401227964"}
@@ -215,10 +186,10 @@ class _FakeRedisState:
 
 
 @pytest.mark.asyncio
-async def test_startup_seed_skipped_during_onboarding() -> None:
-    """While ``active_player`` is "" (in-game onboarding/login phase), the boot
-    seed must NOT publish ``check_main_city`` — navigating home fights the
-    tutorial. Mirrors the cron's ``min_furnace_level`` gate."""
+async def test_startup_seed_skipped_while_unidentified() -> None:
+    """While ``active_player`` is "" (login phase, identity not yet resolved),
+    the boot seed must NOT publish ``check_main_city`` — ``who_i_am`` owns
+    navigation until the account is identified."""
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1")
     worker._settings = SimpleNamespace(worker=SimpleNamespace())

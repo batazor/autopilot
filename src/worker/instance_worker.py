@@ -115,8 +115,8 @@ def _is_adb_offline_error(exc: BaseException) -> bool:
 # already-identified account. ``check_main_city`` is seeded at low priority as a
 # navigation fallback: ``who_i_am`` re-pushes it once identity resolves, but the
 # seed guarantees a route home if the probe can't read the id. The seed is
-# skipped while ``active_player`` is "" (in-game onboarding/login phase) so it
-# can't fight the tutorial — see the gate in ``_seed_startup_tasks`` (which still
+# skipped while ``active_player`` is "" (login phase) so it can't fight the
+# identity probe — see the gate in ``_seed_startup_tasks`` (which still
 # sees the durable id restored by ``_connect``, before the forced probe clears
 # it). The seed is device_level (see ``check_main_city.yaml``) so it works
 # without re-resolving ``active_player``; priority 10 keeps it below identity.
@@ -976,13 +976,10 @@ class InstanceWorker(
                 "Startup seed: skipped (focus mode) for %s", self._cfg.instance_id
             )
             return
-        # Onboarding gate: the seed only matters for an *already identified*
-        # account (``active_player`` restored from the durable store), where
-        # ``who_i_am`` is skipped and nothing else would route us home until the
-        # 5-min cron. During in-game onboarding ``active_player`` is "" (login
-        # phase), so seeding ``check_main_city`` here would fight the tutorial.
-        # The cron path is gated by ``min_furnace_level``; this is the matching
-        # gate for the boot path, which runs before furnace level is in state.
+        # Identity gate: the seed only matters for an *already identified*
+        # account (``active_player`` restored from the durable store). While
+        # ``active_player`` is "" (login phase) ``who_i_am`` owns navigation —
+        # seeding ``check_main_city`` on top of it would just fight the probe.
         if self._redis is not None:
             try:
                 raw_ap = await self._redis.hget(
@@ -997,8 +994,8 @@ class InstanceWorker(
                 active_player = ""
             if not active_player:
                 logger.info(
-                    "Startup seed: skipped (active_player empty — onboarding/login "
-                    "phase) for %s",
+                    "Startup seed: skipped (active_player empty — login phase) "
+                    "for %s",
                     self._cfg.instance_id,
                 )
                 return
@@ -1126,7 +1123,7 @@ class InstanceWorker(
                 # ``force=True`` re-verifies identity even when a durable
                 # ``active_player`` was restored, so a stale/switched account can't
                 # drive account-bound work. Runs after ``_seed_startup_tasks`` so
-                # the seed's onboarding gate still sees the restored id, then the
+                # the seed's identity gate still sees the restored id, then the
                 # probe (priority 101_000) executes ahead of the seeded
                 # ``check_main_city`` and re-pushes it once identity resolves.
                 await self._maybe_enqueue_who_i_am_when_active_player_missing(force=True)

@@ -8,6 +8,6 @@ description: >
   chapter.new is re-positioned with a RU scroll-banner crop, which re-enables the
   chapter.badge.visible red-dot rule on RU. Base games/wos/core/chapter owns
   scenarios/analyze.
-enabled: true
+enabled: false
 area: area.yaml
 wiki: false

@@ -273,38 +273,6 @@ async def test_dismiss_unknown_popup_enqueues_when_unknown_for_10s_and_no_matche
 
 
 @pytest.mark.asyncio
-async def test_dismiss_unknown_popup_deferred_during_onboarding(
-    redis_async: object,
-) -> None:
-    """While furnace < 5 (onboarding) the dismisser is not enqueued — the unknown
-    screen is the tutorial and dismissing would fight the scripted flow."""
-    import time as _t
-
-    detector = _FakeDetector(ScreenName.MAIL)
-    worker = _worker(detector, redis_async)
-    scheduled: list[dict] = []
-
-    class _FakeQueue:
-        async def schedule(self, **kwargs):
-            scheduled.append(kwargs)
-            return True
-
-    worker._queue = _FakeQueue()
-    worker._unknown_since = _t.monotonic() - 11.0
-
-    # Furnace unknown (no reader yet) → deferred.
-    await worker._maybe_dismiss_unknown_popup({}, current_screen=None)
-    assert scheduled == []
-
-    # Still onboarding (furnace 4) → deferred.
-    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
-        "wos:instance:bs1:state", mapping={"buildings.furnace.level": "4"}
-    )
-    await worker._maybe_dismiss_unknown_popup({}, current_screen=None)
-    assert scheduled == []
-
-
-@pytest.mark.asyncio
 async def test_dismiss_unknown_popup_skipped_when_a_global_rule_matched(
     redis_async: object,
 ) -> None:

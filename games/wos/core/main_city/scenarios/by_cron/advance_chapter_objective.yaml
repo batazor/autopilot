@@ -1,5 +1,7 @@
 name: "🧭 Idle: route Chapter objective (build/upgrade/route)"
-enabled: true
+# Chapter flow is temporarily off (module games/wos/core/chapter is disabled);
+# this cron depends on its route_chapter_objective exec.
+enabled: false
 
 # Idle fallback: when the instance has no real work queued and sits on the hub,
 # follow the game's own "what to do next" pointer — the bottom-left Chapter
@@ -14,10 +16,6 @@ enabled: true
 # idiom of check_main_city.yaml.
 cron: "*/4 * * * *"
 priority: 25_000
-
-# Onboarding gate (mirror check_main_city): below furnace 5 the Chapter IS the
-# tutorial — let onboarding drive it instead of fighting it.
-min_furnace_level: 5
 
 node: main_city
 

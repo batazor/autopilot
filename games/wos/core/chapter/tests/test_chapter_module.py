@@ -33,6 +33,15 @@ from services import get_ocr_client
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[3]
 
+# These checks replay the module through the merged registry (analyze rules,
+# routes, cron discovery), which only sees enabled modules — while the module
+# is switched off they cannot pass by design.
+_MANIFEST = yaml.safe_load((MODULE_DIR / "module.yaml").read_text())
+pytestmark = pytest.mark.skipif(
+    not _MANIFEST.get("enabled", True),
+    reason="chapter module is disabled (module.yaml enabled: false)",
+)
+
 
 @pytest.fixture(scope="module")
 def area_doc() -> dict:

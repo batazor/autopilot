@@ -5,10 +5,7 @@ priority: 101_000
 device_level: true
 # Identity is gated at the enqueue trigger
 # (``_maybe_enqueue_who_i_am_when_active_player_missing``): it only queues this
-# scenario while ``active_player`` is empty and either Sawmill has been recorded
-# as built (past onboarding), or the worker is already back on main_city. Gating
-# there keeps who_i_am out of the queue during early onboarding instead of
-# enqueuing it every tick only to bail.
+# scenario while ``active_player`` is empty.
 cond: active_player == ""
 
 node: chief_profile
