@@ -1,4 +1,4 @@
-enabled: true
+enabled: false
 name: "🏗️ Build queue 1 · plan → navigate → upgrade"
 priority: 80_000
 

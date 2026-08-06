@@ -19,7 +19,6 @@ from layout.crop_paths import exported_crop_png
 from layout.green_button_detector import find_green_buttons
 from layout.red_dot_detector import has_red_dot_in_bbox_percent  # noqa: F401
 from layout.reward_ribbon_detector import detect_reward_ribbon_in_bbox_percent
-from layout.spotlight_detector import SpotlightConfig, detect_tutorial_spotlight
 from layout.tab_active_detector import (
     TAB_ACTIVE_MAX_MEAN_SATURATION,
     TAB_ACTIVE_MIN_MEAN_VALUE,
@@ -1469,65 +1468,6 @@ def _eval_cta_button_rule(
     return out
 
 
-def _eval_dim_overlay_rule(
-    rule: dict[str, Any],
-    compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    set_node_s: str | None,
-    priority: int | None,
-) -> dict[str, Any]:
-    """Evaluate the generic tutorial dim-overlay / spotlight rule.
-
-    Full-frame detector (no ``region`` required): a uniformly dim scrim
-    enclosing one compact, sharp-rimmed bright cutout. ``matched`` only gates
-    the push — the pushed exec re-detects on a fresh frame (the highlight
-    pulses and moves between tutorial steps) before tapping, so the tap
-    coordinate here is advisory only. Thresholds are overridable on the rule
-    for live tuning.
-    """
-    base = SpotlightConfig()
-
-    def _f(key: str, default: float) -> float:
-        try:
-            return float(rule.get(key, default))
-        except (TypeError, ValueError):
-            return default
-
-    def _i(key: str, default: int) -> int:
-        try:
-            return int(rule.get(key, default))
-        except (TypeError, ValueError):
-            return default
-
-    cfg = SpotlightConfig(
-        v_scrim=_i("v_scrim", base.v_scrim),
-        v_bright=_i("v_bright", base.v_bright),
-        rim_step_min=_f("rim_step_min", base.rim_step_min),
-        scrim_floor=_f("scrim_floor", base.scrim_floor),
-        confidence_threshold=_f("threshold", base.confidence_threshold),
-    )
-    hit = detect_tutorial_spotlight(image_bgr, cfg)
-    h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
-    return {
-        "matched": bool(hit.matched),
-        "score": round(float(hit.confidence), 4),
-        "threshold": cfg.confidence_threshold,
-        "action": "dim_overlay",
-        "region": compiled.region_name or "onboarding.spotlight",
-        "reason": hit.reason,
-        "scrim_frac": round(float(hit.scrim_frac), 4),
-        "rim_step": round(float(hit.rim_step), 1),
-        "has_caption": bool(hit.has_caption),
-        "blob_count": int(hit.blob_count),
-        "cutout_bbox": list(hit.cutout_bbox),
-        "tap_x_pct": (100.0 * hit.cx / w) if hit.cx >= 0 and w else None,
-        "tap_y_pct": (100.0 * hit.cy / h) if hit.cy >= 0 and h else None,
-        "set_node": set_node_s,
-        "priority": priority,
-    }
-
-
 def _eval_reward_ribbon_rule(
     rule: dict[str, Any],
     compiled: Any,
@@ -1806,15 +1746,6 @@ async def evaluate_overlay_rules_async(
                 image_bgr=image_bgr,
                 area_doc=area_doc,
                 state_flat=state_flat,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-        if action in ("dim_overlay", "spotlight"):
-            out[logical_name] = _eval_dim_overlay_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
                 set_node_s=set_node_s,
                 priority=priority,
             )

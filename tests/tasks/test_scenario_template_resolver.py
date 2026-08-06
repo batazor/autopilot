@@ -122,27 +122,6 @@ def test_iter_resolved_keys_uses_navigation_nodes_for_tab_templates() -> None:
     assert _tmpl.resolve(REPO_ROOT, "mail.claim.inbox") is None
 
 
-def test_template_resolves_known_onboarding_pointer() -> None:
-    resolved = _tmpl.resolve(REPO_ROOT, "onboarding.click.hand_pointer_small_reverse")
-    assert resolved is not None
-    assert resolved.path.name == "onboarding.click.{pointer}.yaml"
-    assert resolved.context == {
-        "pointer": "hand_pointer_small_reverse",
-        "pointer_name": "Small reverse hand pointer",
-    }
-
-
-def test_template_rejects_unknown_onboarding_pointer() -> None:
-    assert _tmpl.resolve(REPO_ROOT, "onboarding.click.not_a_pointer") is None
-
-
-def test_load_doc_substitutes_onboarding_pointer(snapshot) -> None:
-    loaded = _tmpl.load_doc(REPO_ROOT, "onboarding.click.hand_pointer")
-    assert loaded is not None
-    _path, doc = loaded
-    assert doc == snapshot
-
-
 def test_template_resolves_known_trials_day() -> None:
     resolved = _tmpl.resolve(REPO_ROOT, "claim_trials.3")
     assert resolved is not None
@@ -204,14 +183,13 @@ def test_scenario_root_scan_walks_fs_once_across_many_resolves(monkeypatch) -> N
 
     monkeypatch.setattr(Path, "rglob", _spy_rglob)
 
-    # Resolve a mix of literal + template keys spanning hero / tab / pointer.
+    # Resolve a mix of literal + template keys spanning hero / tab / day.
     keys = [
         "mail.claim.system",
         "level_up_ahmose",
         "level_up_bahiti",
         "level_up_doesnotexist",
         "backpack.tab.resources",
-        "onboarding.click.hand_pointer",
         "claim_trials.3",
         "event.trials",
     ]

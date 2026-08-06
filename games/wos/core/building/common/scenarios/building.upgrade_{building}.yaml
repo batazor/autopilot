@@ -1,4 +1,4 @@
-enabled: true
+enabled: false
 name: 🏗️ Building upgrade · ${building_name}
 
 # Target-driven variant of ``building.upgrade``: bound to one concrete building

@@ -31,17 +31,11 @@ import yaml
 # Extend when a new substitution axis lands. Each axis must:
 #   * appear as ``{axis}`` in template filenames,
 #   * resolve to one or more ``${...}`` body placeholders via ``_axis_context``.
-_AXES = ("hero", "tab", "pointer", "day", "building")
+_AXES = ("hero", "tab", "day", "building")
 _FILENAME_PLACEHOLDER_RE = re.compile(r"\{(" + "|".join(_AXES) + r")\}")
 # Hero ids in the heroes wiki index are lowercase ASCII + underscores.
 _AXIS_VALUE_RE = r"[a-z0-9_]+"
 _NODE_TEMPLATE_RE = re.compile(r"^\s*node:\s*(.+?)\s*$", re.MULTILINE)
-_POINTERS = {
-    "hand_pointer": "Hand pointer",
-    "hand_pointer_small": "Small hand pointer",
-    "hand_pointer_small_reverse": "Small reverse hand pointer",
-    "hand_pointer_build": "Build hand pointer",
-}
 _TRIAL_DAYS = {str(i): f"Day {i}" for i in range(1, 6)}
 
 
@@ -172,11 +166,6 @@ def _axis_context(repo_root: Path, axis: str, value: str) -> dict[str, str] | No
         if name is None:
             return None
         return {"hero_id": value, "hero_name": name}
-    if axis == "pointer":
-        name = _POINTERS.get(value)
-        if name is None:
-            return None
-        return {"pointer": value, "pointer_name": name}
     if axis == "day":
         name = _TRIAL_DAYS.get(value)
         if name is None:
@@ -471,22 +460,6 @@ def iter_resolved_keys(repo_root: Path) -> list[ResolvedKey]:
                             key=concrete_key,
                             path=p,
                             context={"tab": tab, "tab_name": tab_name},
-                        )
-                    )
-            elif axes == ["pointer"]:
-                for pointer, pointer_name in _POINTERS.items():
-                    concrete_key = p.stem.replace("{pointer}", pointer)
-                    if concrete_key in seen:
-                        continue
-                    seen.add(concrete_key)
-                    out.append(
-                        ResolvedKey(
-                            key=concrete_key,
-                            path=p,
-                            context={
-                                "pointer": pointer,
-                                "pointer_name": pointer_name,
-                            },
                         )
                     )
             elif axes == ["day"]:
