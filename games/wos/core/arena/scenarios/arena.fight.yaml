@@ -17,11 +17,16 @@ steps:
   - exec: open_arena_via_city
   - wait: 1.5s
 
-  # Hard gate: we must be on the Arena of Glory ranking screen now — a miss
-  # aborts the run and the scheduler retries within max_reschedule_delay.
-  - match: arena.title
-    threshold: 0.7
-    retry: { attempts: 3, interval: 1s }
+  # Hard gate: the SCREEN DETECTOR must confirm the Arena of Glory ranking
+  # screen (OCR-verified node, see routes/screen_verify.yaml) — a template
+  # match on arena.title at a loose threshold false-positived on main_city
+  # (seen live on bs3) and let the whole fight flow run against the wrong
+  # screen. Timeout aborts the run; the scheduler retries within
+  # max_reschedule_delay.
+  - wait_screen:
+      any: [arena]
+      max: 10
+      interval: 1s
 
   # Ranking screen → open the Challenge List.
   - click: arena.challenge

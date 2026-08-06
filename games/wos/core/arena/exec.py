@@ -214,6 +214,10 @@ async def _exec_arena_pick_and_open(ctx: DslExecContext) -> None:
 # Only the Marksman-row lookup needs vision; the rest are calibrated gestures.
 
 _PANEL_TOGGLE = Point(19, 550)         # main_city City-list toggle (main_city.to.main_menu)
+_PANEL_CITY_TAB = Point(116, 270)      # «Город» tab — the panel reopens on whichever
+                                       # tab was active last (e.g. «Глушь» march queues,
+                                       # seen live on bs3), and the Marksman row only
+                                       # exists on the City tab.
 _MARKSMAN_NAV_X_FRAC = 0.40            # tap the row card body → navigate to the camp
 _ARENA_SWIPE_FROM = Point(540, 640)    # half-screen flick left …
 _ARENA_SWIPE_TO = Point(180, 640)      # … brings the Arena building to centre
@@ -260,6 +264,12 @@ async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
         ctx.result.update({"action": "panel_not_opened"})
         return
     await asyncio.sleep(1.3)
+
+    # 1b. Force the «Город» tab — the panel remembers the last active tab.
+    await asyncio.to_thread(
+        actions.tap, inst, _PANEL_CITY_TAB, approval_source="open_arena_via_city:city_tab"
+    )
+    await asyncio.sleep(0.8)
 
     # 2. Locate the (dynamic) Marksman row by OCR.
     found = await _find_marksman_cy(actions, ocr, inst)
