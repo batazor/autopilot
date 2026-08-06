@@ -41,6 +41,18 @@ def _disable_api_startup_gift_code_scrape(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pytest.fixture(autouse=True)
+def _ignore_operator_instance_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests must not see the operator's local ``WOS_INSTANCES`` allowlist.
+
+    The repo-root ``.env`` (auto-loaded into the process env) may pin the
+    fleet to a single instance for local runs; ``load_settings`` would then
+    filter test-created devices out and unrelated tests fail on empty
+    ``settings.instances``.
+    """
+    monkeypatch.delenv("WOS_INSTANCES", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _restore_active_game_binding() -> Iterator[None]:
     """Restore the process-global game/catalog binding after every test.
 
