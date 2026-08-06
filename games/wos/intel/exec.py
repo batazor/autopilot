@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 # ``importlib.spec_from_file_location`` (by the exec registry and the tests), so
 # it has no parent package and relative imports would fail. The submodules it
 # pulls in are imported as proper ``games.wos.intel.*`` package modules.
+from games.wos.intel import board_cache
 from games.wos.intel import started as started_mem
 from games.wos.intel.chain import (
     free_march_slots,
@@ -51,6 +52,7 @@ from games.wos.intel.state import (
     intel_reserve,
     parse_stamina,
     read_player_stamina,
+    read_player_state_field,
 )
 
 from tasks import dsl_runtime
@@ -72,6 +74,35 @@ __all__ = [
     "parse_march_ttl_seconds",
     "select_planned_marker",
 ]
+
+
+async def _save_board_snapshot(
+    ctx: DslExecContext,
+    *,
+    detected: int,
+    fresh_count: int,
+    tapped: bool,
+) -> int:
+    """Remember this pass's board state (returns the recorded ``viable_left``).
+
+    TTL follows the «Refreshes in» timer the same run just OCR'd into player
+    state, capped at 15 min (:mod:`board_cache`).
+    """
+    viable_left = board_cache.viable_left_after(fresh_count, tapped=tapped)
+    refresh_raw = await read_player_state_field(ctx, "intel.refresh_in")
+    try:
+        refresh_s: float | None = float(refresh_raw) if refresh_raw else None
+    except (TypeError, ValueError):
+        refresh_s = None
+    await board_cache.save_board(
+        ctx.redis_client,
+        ctx.player_id,
+        detected=detected,
+        viable_left=viable_left,
+        refresh_in_s=refresh_s,
+        now=time.time(),
+    )
+    return viable_left
 
 
 async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
@@ -135,6 +166,10 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
     fresh, suppressed = started_mem.partition_markers(
         markers, started, radius=started_radius
     )
+    # Board-cache input: actionable pins BEFORE the slot filter — a fight pin
+    # blocked only by "no free slot right now" still makes a later visit
+    # worthwhile, so it must count toward the remembered board state.
+    fresh_pre_slot_filter = len(fresh)
 
     # Camp pins (rescue/gather camps) dispatch WITHOUT taking a march-queue
     # slot — deploy pins (fight/skull/beast) need one. With every queue busy,
@@ -184,6 +219,12 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
         else:
             action = "skipped"
             reason = plan_trace.get("reason")
+        board_left = await _save_board_snapshot(
+            ctx,
+            detected=len(markers),
+            fresh_count=fresh_pre_slot_filter,
+            tapped=False,
+        )
         ctx.result.update(
             {
                 **plan_trace,
@@ -193,6 +234,7 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
                 "detected": len(markers),
                 "suppressed": len(suppressed),
                 "started_active": len(started),
+                "board_viable_left": board_left,
                 **({"slot_filter": slot_filter} if slot_filter else {}),
             }
         )
@@ -244,9 +286,17 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
             ttl=started_ttl,
         )
 
+    board_left = await _save_board_snapshot(
+        ctx,
+        detected=len(markers),
+        fresh_count=fresh_pre_slot_filter,
+        tapped=bool(tapped),
+    )
+
     ctx.result.update(
         {
             "action": "tapped" if tapped else "tap_blocked",
+            "board_viable_left": board_left,
             "tap_x": point.x,
             "tap_y": point.y,
             "score": marker.score,

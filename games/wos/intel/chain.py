@@ -23,6 +23,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from games.wos.core.resources import adapter as resource_adapter
+from games.wos.intel.board_cache import board_exhausted
 from games.wos.intel.planner import DEFAULT_COST_PER_EVENT
 from games.wos.intel.state import as_float_arg, as_int_arg, decode_redis_text
 
@@ -113,6 +114,13 @@ async def queue_next_intel_run(ctx: DslExecContext) -> None:
         ctx.result.update(
             {"action": "skipped", "reason": "insufficient_stamina", **detail}
         )
+        return
+
+    # Board memory: the pass that just ran recorded how many actionable pins
+    # remain. Zero → end the chain HERE instead of paying one more full
+    # navigate + claim + detect round trip just to discover the empty board.
+    if await board_exhausted(ctx.redis_client, ctx.player_id):
+        ctx.result.update({"action": "skipped", "reason": "board_exhausted", **detail})
         return
 
     from tasks.dsl_scenario_helpers import _enqueue_scenario

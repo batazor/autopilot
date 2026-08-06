@@ -22,6 +22,10 @@ from tasks.dsl_exec.context import DslExecContext
 class _FakeRedis:
     def __init__(self, hashes: dict[str, dict[str, Any]] | None = None) -> None:
         self.hashes = hashes or {}
+        self.strings: dict[str, str] = {}
+
+    async def get(self, key: str) -> str | None:
+        return self.strings.get(key)
 
     async def hgetall(self, key: str) -> dict[str, Any]:
         return dict(self.hashes.get(key, {}))
@@ -171,4 +175,51 @@ async def test_unknown_stamina_still_chains(monkeypatch) -> None:
     await chain.queue_next_intel_run(ctx)
 
     assert ctx.result["action"] == "queued"
+    assert len(pushed) == 1
+
+
+@pytest.mark.asyncio
+async def test_chain_ends_on_exhausted_board_snapshot(monkeypatch) -> None:
+    """A fresh board snapshot with zero viable pins ends the chain without the
+    terminating wasted visit (no re-enqueue)."""
+    redis = _FakeRedis({"wos:player:p1:state": {"stamina": "25"}})
+    redis.strings["wos:player:p1:intel:board"] = json.dumps(
+        {"viable_left": 0, "detected": 2, "captured_at": time.time()}
+    )
+    pushed: list[dict[str, Any]] = []
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        pushed.append(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        "tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue
+    )
+
+    ctx = _ctx(redis)
+    await chain.queue_next_intel_run(ctx)
+
+    assert pushed == []
+    assert ctx.result["action"] == "skipped"
+    assert ctx.result["reason"] == "board_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_chain_still_runs_with_viable_board_snapshot(monkeypatch) -> None:
+    redis = _FakeRedis({"wos:player:p1:state": {"stamina": "25"}})
+    redis.strings["wos:player:p1:intel:board"] = json.dumps(
+        {"viable_left": 3, "detected": 4, "captured_at": time.time()}
+    )
+    pushed: list[dict[str, Any]] = []
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        pushed.append(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        "tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue
+    )
+
+    await chain.queue_next_intel_run(_ctx(redis))
+
     assert len(pushed) == 1

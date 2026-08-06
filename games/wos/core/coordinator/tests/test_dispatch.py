@@ -39,10 +39,15 @@ class _FakeRedis:
         self,
         state: dict[str, str] | None = None,
         feedback: dict[str, str] | None = None,
+        strings: dict[str, str] | None = None,
     ) -> None:
         self._state = state or {}
         self._feedback = feedback or {}
+        self._strings = strings or {}
         self.hgetall_calls = 0   # player-STATE hash reads only (not feedback history)
+
+    async def get(self, key: str) -> str | None:
+        return self._strings.get(key)
 
     async def hgetall(self, key: str) -> dict[str, str]:
         if key.endswith(":action_feedback"):
@@ -178,6 +183,53 @@ async def test_tick_skips_during_cooldown():
 
     assert result.enqueued == ()
     assert queue.calls == []
+
+
+@pytest.mark.asyncio
+async def test_tick_skips_intel_when_board_snapshot_exhausted():
+    """A fresh board snapshot with zero viable pins suppresses the blind intel
+    candidate entirely — no visit to a board known to be empty."""
+    import json as _json
+
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(
+        {"stamina": "100"},
+        strings={
+            "wos:player:p1:intel:board": _json.dumps(
+                {"viable_left": 0, "detected": 3, "captured_at": 9_000.0}
+            )
+        },
+    )
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert result.enqueued == ()
+    assert queue.calls == []
+
+
+@pytest.mark.asyncio
+async def test_tick_dispatches_intel_when_board_snapshot_has_pins():
+    import json as _json
+
+    queue = _FakeQueue(last_run=None)
+    redis = _FakeRedis(
+        {"stamina": "100"},
+        strings={
+            "wos:player:p1:intel:board": _json.dumps(
+                {"viable_left": 2, "detected": 3, "captured_at": 9_000.0}
+            )
+        },
+    )
+
+    result = await run_march_tick(
+        queue=queue, redis=redis, instance_id="i1", player_id="p1",
+        now=10_000.0, idle_slots=1,
+    )
+
+    assert [e.task_type for e in result.enqueued] == ["intel_run"]
 
 
 @pytest.mark.asyncio

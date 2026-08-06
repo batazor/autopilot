@@ -447,12 +447,26 @@ async def run_march_tick(
     secs_since = await _seconds_since_last_intel(
         queue, instance_id=instance_id, player_id=player_id, now=now
     )
+    # Board memory: the last intel pass recorded how many actionable pins were
+    # left (games.wos.intel.board_cache, TTL = board refresh capped at 15 min).
+    # A fresh "exhausted" snapshot means a visit is a guaranteed no-op — skip
+    # the intel candidate entirely until the board repopulates. Absent/expired
+    # snapshot → unknown board → the blind intent behaves exactly as before.
+    try:
+        from games.wos.intel.board_cache import board_exhausted
+
+        intel_board_empty = await board_exhausted(redis, player_id)
+    except Exception:
+        logger.debug("march tick: board cache read failed", exc_info=True)
+        intel_board_empty = False
 
     # MARCH-spending candidates whose eligibility isn't a live board read:
     # the blind intel run + any time-limited events (Romance Season, …). They
     # compete with gather inside plan_march; coordinate() fills the idle slots.
     candidates = [
-        intel_intent(
+        None
+        if intel_board_empty
+        else intel_intent(
             stamina=stamina,
             seconds_since_last_run=secs_since,
             reserve=reserve,
