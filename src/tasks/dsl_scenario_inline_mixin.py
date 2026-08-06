@@ -16,7 +16,7 @@ import cv2
 from config.log_ansi import scenario_log_label as _scen
 from config.paths import repo_root as default_repo_root
 from layout.area_lookup import screen_region_by_name
-from layout.area_versions import effective_ocr_for_region
+from layout.area_regions import effective_ocr_for_region
 from layout.bbox_percent import bbox_percent_random_point_to_device_point
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png

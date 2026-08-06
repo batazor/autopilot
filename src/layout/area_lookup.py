@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from typing import Any
 
-from layout.area_versions import resolve_region_by_name
+from layout.area_regions import resolve_region_by_name
 
 # id(area_doc) -> {region_name | alias -> screen_entry}. Region names are
 # globally unique across screens, so a single dict gives us O(1) routing from

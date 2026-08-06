@@ -491,36 +491,3 @@ def test_save_labeling_regions_from_all_scope_writes_module_area(
     area = yaml.safe_load((mod / "area.yaml").read_text(encoding="utf-8"))
     assert area["screens"][0]["ocr"] == "references/icefire.png"
     assert area["screens"][0]["regions"][0]["name"] == "icefire.banner.title"
-
-
-def test_add_and_save_version_regions(labeling_repo: Path) -> None:
-    from api.services import labeling as labeling_mod
-    from api.services.labeling import add_version, get_labeling_document, save_labeling_regions
-
-    ads_root = labeling_repo / "games" / "wos" / "ads"
-    (ads_root / "references").mkdir(parents=True)
-    (ads_root / "module.yaml").write_text(
-        "id: ads\ntitle: Ads\narea: area.yaml\nreferences: references\n",
-        encoding="utf-8",
-    )
-    (ads_root / "area.yaml").write_text('{"version": 2, "screens": []}\n', encoding="utf-8")
-
-    ref_rel = "games/wos/ads/references/page.png"
-    (labeling_repo / ref_rel).write_bytes(b"x")
-    labeling_mod.save_labeling_regions(
-        ref_rel,
-        [{"name": "base", "action": "exist", "bbox": {"x": 0, "y": 0, "width": 10, "height": 10}}],
-        scope="ads",
-    )
-    add_version(ref_rel, "v2", "heroes.norah.level >= 6", scope="ads")
-    save_labeling_regions(
-        ref_rel,
-        [{"name": "v2btn", "action": "exist", "bbox": {"x": 5, "y": 5, "width": 5, "height": 5}}],
-        version="v2",
-        scope="ads",
-    )
-    doc = get_labeling_document(ref_rel, version="v2", scope="ads")
-    assert doc["active_version"] == "v2"
-    assert doc["regions"][0]["name"] == "v2btn"
-    base = get_labeling_document(ref_rel, scope="ads")
-    assert base["regions"][0]["name"] == "base"

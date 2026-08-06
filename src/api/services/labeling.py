@@ -23,7 +23,6 @@ from config.reference_naming import (
 )
 from dashboard.area_doc import (
     _doc_with_repo_relative_ocr,
-    _sync_default_regions_into_version,
     detect_screen_id_from_png_path,
     ensure_entry_for_reference_path,
     export_all_region_crops_for_area_doc,
@@ -42,13 +41,6 @@ from dashboard.reference_preview import (
     list_reference_pngs,
     move_temporal_to_reference_basename,
     rename_reference_to_basename,
-)
-from layout.area_versions import (
-    VERSION_ID_RE,
-    compile_cond,
-    get_version_block,
-    next_version_id,
-    normalize_version_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -246,100 +238,21 @@ def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
     Path(tmp).replace(path)
 
 
-def _resolve_edit_version(entry: dict[str, Any], version_raw: str | None) -> str | None:
-    if not version_raw or str(version_raw).strip().lower() in {"", "default"}:
-        return None
-    vid = normalize_version_id(str(version_raw))
-    if vid is None:
-        return None
-    declared = {
-        str(v.get("id", "") or "").strip()
-        for v in entry.get("versions") or []
-        if isinstance(v, dict)
-    }
-    for raw_id in declared:
-        if normalize_version_id(raw_id) == vid:
-            return raw_id
-    return None
-
-
-def _regions_for_edit(entry: dict[str, Any], version_id: str | None) -> list[dict[str, Any]]:
-    if version_id:
-        ver = get_version_block(entry, version_id)
-        if ver is not None:
-            raw = ver.get("regions")
-            if isinstance(raw, list):
-                return [r for r in raw if isinstance(r, dict)]
-            return []
+def _entry_regions(entry: dict[str, Any]) -> list[dict[str, Any]]:
     raw_regs = entry.get("regions")
     if isinstance(raw_regs, list):
         return [r for r in raw_regs if isinstance(r, dict)]
     return []
 
 
-def _set_regions_for_edit(
-    entry: dict[str, Any],
-    version_id: str | None,
-    regions: list[dict[str, Any]],
-) -> None:
-    if version_id:
-        ver = get_version_block(entry, version_id)
-        if ver is None:
-            msg = f"version not found: {version_id}"
-            raise ValueError(msg)
-        ver["regions"] = regions
-        return
-    entry["regions"] = regions
-
-
-def _display_ref_for_entry(ref_rel: str, entry: dict[str, Any], version_id: str | None) -> str:
-    if version_id:
-        ver = get_version_block(entry, version_id)
-        if ver is not None:
-            ocr = str(ver.get("ocr") or "").replace("\\", "/").strip().lstrip("/")
-            if ocr:
-                return ocr
-    return ref_rel.replace("\\", "/").strip().lstrip("/")
-
-
-def _resolve_version_ref_redirect(
-    area_doc: dict[str, Any],
-    ref_rel: str,
-) -> tuple[str, str | None]:
-    """Map a version-specific ``ocr`` PNG to base ref + version id."""
-    cand = ref_rel.replace("\\", "/").strip().lstrip("/")
-    screens = area_doc.get("screens") if isinstance(area_doc, dict) else None
-    if not isinstance(screens, list):
-        return ref_rel, None
-    for entry in screens:
-        if not isinstance(entry, dict):
-            continue
-        for ver in entry.get("versions") or []:
-            if not isinstance(ver, dict):
-                continue
-            ver_ocr = str(ver.get("ocr") or "").replace("\\", "/").strip().lstrip("/")
-            if not ver_ocr or ver_ocr != cand:
-                continue
-            base_ocr = str(entry.get("ocr") or "").replace("\\", "/").strip().lstrip("/")
-            vid = str(ver.get("id") or "").strip()
-            if base_ocr and vid:
-                return base_ocr, vid
-    return ref_rel, None
-
-
 def get_labeling_document(
     ref_rel: str,
     *,
-    version: str | None = None,
     scope: str = CORE_MODULE_KEY,
 ) -> dict[str, Any]:
     env = ls.scope_env(scope)
     ref_rel = ref_rel.replace("\\", "/").strip().lstrip("/")
     area_doc = ls.load_area_doc(env)
-    base_ref, redirect_vid = _resolve_version_ref_redirect(area_doc, ref_rel)
-    if redirect_vid and not version:
-        ref_rel = base_ref
-        version = redirect_vid
 
     abs_png = (env.repo_root / ref_rel).resolve()
     if not abs_png.is_file():
@@ -351,35 +264,19 @@ def get_labeling_document(
     regions: list[dict[str, Any]] = []
     screen_id = ""
     entry_id: int | None = None
-    versions_meta: list[dict[str, Any]] = []
-    active_version: str | None = None
-    entry: dict[str, Any] | None = None
     if found is not None:
         entry_id, entry = found
         screen_id = str(entry.get("screen_id") or "")
-        active_version = _resolve_edit_version(entry, version)
-        regions = _regions_for_edit(entry, active_version)
-        versions_meta.extend(
-            {
-                "id": str(v.get("id", "") or "").strip(),
-                "cond": str(v.get("cond", "") or ""),
-                "ocr": str(v.get("ocr", "") or "").strip() or None,
-            }
-            for v in entry.get("versions") or []
-            if isinstance(v, dict)
-        )
+        regions = _entry_regions(entry)
 
-    display_ref = _display_ref_for_entry(ref_rel, entry or {}, active_version)
     basename_stem = reference_basename_stem(ls.rel_under_ref_root(ref_rel, env))
 
     return {
         "ref": ref_rel,
-        "display_ref": display_ref,
+        "display_ref": ref_rel,
         "screen_id": screen_id,
         "entry_id": entry_id,
         "regions": regions,
-        "versions": versions_meta,
-        "active_version": active_version,
         "is_pending": ls.is_pending_temporal_ref(ref_rel, env),
         "basename": basename_stem,
         "area_path": (
@@ -389,7 +286,6 @@ def get_labeling_document(
         "scope": normalize_module_scope(scope),
         "module_key": env.ctx.storage_key,
         "module_title": env.ctx.title,
-        "redirect_version": redirect_vid,
     }
 
 
@@ -397,7 +293,6 @@ def save_labeling_regions(
     ref_rel: str,
     regions: list[dict[str, Any]],
     *,
-    version: str | None = None,
     screen_id: str | None = None,
     scope: str = CORE_MODULE_KEY,
 ) -> dict[str, Any]:
@@ -418,11 +313,10 @@ def save_labeling_regions(
     found = ls.entry_for_ref(doc, ref_rel, env)
     if found is None:
         sid_clean = (screen_id or "").strip()
-        if not regions and not sid_clean and not version:
+        if not regions and not sid_clean:
             return {
                 "ok": True,
                 "region_count": 0,
-                "active_version": None,
                 "screen_id": "",
                 "region_renames_synced": [],
                 "crops_written_count": 0,
@@ -443,12 +337,8 @@ def save_labeling_regions(
         entry = screens[idx]
     else:
         idx, entry = found
-    active_version = _resolve_edit_version(entry, version) if found else None
-    if version and active_version is None and found is not None:
-        msg = f"unknown version: {version}"
-        raise ValueError(msg)
 
-    old_regions = _regions_for_edit(entry, active_version)
+    old_regions = _entry_regions(entry)
     rename_pairs = detect_region_renames(old_regions, regions)
     synced_renames: list[dict[str, Any]] = []
     regions_to_save = list(regions)
@@ -472,7 +362,7 @@ def save_labeling_regions(
         )
         synced_renames.append(sync)
 
-    _set_regions_for_edit(entry, active_version, regions_to_save)
+    entry["regions"] = regions_to_save
     if screen_id is not None:
         entry["screen_id"] = str(screen_id).strip()
     screens[idx] = entry
@@ -482,7 +372,6 @@ def save_labeling_regions(
     return {
         "ok": True,
         "region_count": len(regions_to_save),
-        "active_version": active_version,
         "screen_id": str(entry.get("screen_id") or ""),
         "region_renames_synced": synced_renames,
         **crop_meta,
@@ -802,195 +691,6 @@ def rename_reference(
         msg_sync = f"area.json sync failed: {sync_err}"
         raise RuntimeError(msg_sync) from None
     return out
-
-
-def add_version(
-    ref_rel: str,
-    version_id: str,
-    cond: str,
-    *,
-    scope: str = CORE_MODULE_KEY,
-) -> dict[str, Any]:
-    env = ls.scope_env(scope)
-    ref_rel = ref_rel.replace("\\", "/").strip().lstrip("/")
-    vid = normalize_version_id(version_id)
-    cond_clean = (cond or "").strip()
-    if vid is None or not VERSION_ID_RE.match(vid):
-        msg = "version id must be vN (e.g. v2, v3)"
-        raise ValueError(msg)
-    if not cond_clean:
-        msg = "cond expression is required"
-        raise ValueError(msg)
-    try:
-        compile_cond(cond_clean)
-    except SyntaxError as exc:
-        msg = f"cond syntax error: {exc}"
-        raise ValueError(msg) from exc
-
-    doc = ls.load_area_doc(env)
-    found = ls.entry_for_ref(doc, ref_rel, env)
-    if found is None:
-        msg = "no area.json entry — save regions or promote the reference first"
-        raise ValueError(msg)
-    idx, entry = found
-    versions = list(entry.get("versions") or [])
-    declared = {str(v.get("id", "") or "").strip() for v in versions if isinstance(v, dict)}
-    if vid in declared:
-        msg = f"version {vid!r} already exists"
-        raise ValueError(msg)
-    versions.append({"id": vid, "cond": cond_clean})
-    entry["versions"] = versions
-    screens = doc.setdefault("screens", [])
-    if isinstance(screens, list):
-        screens[idx] = entry
-    _atomic_write_json(_require_writable_area_path(env), doc)
-    return {"ok": True, "version_id": vid}
-
-
-def update_version_cond(
-    ref_rel: str,
-    version_id: str,
-    cond: str,
-    *,
-    scope: str = CORE_MODULE_KEY,
-) -> dict[str, Any]:
-    env = ls.scope_env(scope)
-    cond_clean = (cond or "").strip()
-    if not cond_clean:
-        msg = "cond cannot be empty"
-        raise ValueError(msg)
-    try:
-        compile_cond(cond_clean)
-    except SyntaxError as exc:
-        msg = f"cond syntax error: {exc}"
-        raise ValueError(msg) from exc
-
-    doc = ls.load_area_doc(env)
-    found = ls.entry_for_ref(doc, ref_rel, env)
-    if found is None:
-        msg = "no area.json entry for this reference"
-        raise ValueError(msg)
-    idx, entry = found
-    vid = _resolve_edit_version(entry, version_id) or normalize_version_id(version_id)
-    if not vid:
-        msg = f"unknown version: {version_id}"
-        raise ValueError(msg)
-    ver = get_version_block(entry, vid)
-    if ver is None:
-        msg = f"unknown version: {version_id}"
-        raise ValueError(msg)
-    ver["cond"] = cond_clean
-    screens = doc.setdefault("screens", [])
-    if isinstance(screens, list):
-        screens[idx] = entry
-    _atomic_write_json(_require_writable_area_path(env), doc)
-    return {"ok": True, "version_id": vid}
-
-
-def bind_version_ocr(
-    ref_rel: str,
-    version_id: str,
-    ocr: str | None,
-    *,
-    scope: str = CORE_MODULE_KEY,
-) -> dict[str, Any]:
-    env = ls.scope_env(scope)
-    doc = ls.load_area_doc(env)
-    found = ls.entry_for_ref(doc, ref_rel, env)
-    if found is None:
-        msg = "no area.json entry for this reference"
-        raise ValueError(msg)
-    idx, entry = found
-    vid = _resolve_edit_version(entry, version_id) or normalize_version_id(version_id)
-    if not vid:
-        msg = f"unknown version: {version_id}"
-        raise ValueError(msg)
-    ver = get_version_block(entry, vid)
-    if ver is None:
-        msg = f"unknown version: {version_id}"
-        raise ValueError(msg)
-    ocr_clean = (ocr or "").replace("\\", "/").strip().lstrip("/")
-    if ocr_clean:
-        if ".." in Path(ocr_clean).parts:
-            msg = "invalid ocr path"
-            raise ValueError(msg)
-        if not (env.repo_root / ocr_clean).resolve().is_file():
-            msg = f"reference not found: {ocr_clean}"
-            raise FileNotFoundError(msg)
-        ver["ocr"] = ocr_clean
-    else:
-        ver.pop("ocr", None)
-    screens = doc.setdefault("screens", [])
-    if isinstance(screens, list):
-        screens[idx] = entry
-    _atomic_write_json(_require_writable_area_path(env), doc)
-    return {"ok": True, "version_id": vid, "ocr": ocr_clean or None}
-
-
-def delete_version(
-    ref_rel: str,
-    version_id: str,
-    *,
-    scope: str = CORE_MODULE_KEY,
-) -> dict[str, Any]:
-    env = ls.scope_env(scope)
-    doc = ls.load_area_doc(env)
-    found = ls.entry_for_ref(doc, ref_rel, env)
-    if found is None:
-        msg = "no area.json entry for this reference"
-        raise ValueError(msg)
-    idx, entry = found
-    vid = _resolve_edit_version(entry, version_id) or normalize_version_id(version_id)
-    if not vid:
-        msg = f"unknown version: {version_id}"
-        raise ValueError(msg)
-    versions = [v for v in entry.get("versions") or [] if isinstance(v, dict)]
-    entry["versions"] = [v for v in versions if str(v.get("id", "") or "").strip() != vid]
-    screens = doc.setdefault("screens", [])
-    if isinstance(screens, list):
-        screens[idx] = entry
-    _atomic_write_json(_require_writable_area_path(env), doc)
-    return {"ok": True, "version_id": vid}
-
-
-def sync_version_regions_from_default(
-    ref_rel: str,
-    version_id: str,
-    *,
-    scope: str = CORE_MODULE_KEY,
-) -> dict[str, Any]:
-    env = ls.scope_env(scope)
-    doc = ls.load_area_doc(env)
-    found = ls.entry_for_ref(doc, ref_rel, env)
-    if found is None:
-        msg = "no area.json entry for this reference"
-        raise ValueError(msg)
-    idx, entry = found
-    vid = _resolve_edit_version(entry, version_id) or normalize_version_id(version_id)
-    if not vid:
-        msg = f"unknown version: {version_id}"
-        raise ValueError(msg)
-    added, skipped = _sync_default_regions_into_version(cast("Any", entry), vid)
-    screens = doc.setdefault("screens", [])
-    if isinstance(screens, list):
-        screens[idx] = entry
-    _atomic_write_json(_require_writable_area_path(env), doc)
-    return {"ok": True, "added": added, "skipped": skipped, "version_id": vid}
-
-
-def suggest_next_version_id(ref_rel: str, *, scope: str = CORE_MODULE_KEY) -> dict[str, str]:
-    env = ls.scope_env(scope)
-    doc = ls.load_area_doc(env)
-    found = ls.entry_for_ref(doc, ref_rel, env)
-    declared: list[str] = []
-    if found is not None:
-        _idx, entry = found
-        declared = [
-            str(v.get("id", "") or "").strip()
-            for v in entry.get("versions") or []
-            if isinstance(v, dict)
-        ]
-    return {"suggested_id": next_version_id(declared)}
 
 
 def export_region_crops(*, scope: str = CORE_MODULE_KEY) -> dict[str, Any]:

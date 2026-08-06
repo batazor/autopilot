@@ -188,7 +188,7 @@ def quota_field(period: str, demand_id: str) -> str:
 def is_active(demand: Demand, context: dict[str, Any]) -> bool:
     """Resolve a demand's ``active_when`` against a flat state ``context``.
 
-    No condition → always active. Reuses :func:`layout.area_versions.eval_cond`
+    No condition → always active. Reuses :func:`dsl.cond_eval.eval_cond`
     (lazy-imported to keep this module's import graph light), so conditions are
     written in Python-expression syntax (``and`` / ``or``, not SQL ``AND``).
     """
@@ -226,6 +226,6 @@ def reserve_for(budget: Budget, demand_id: str, context: dict[str, Any]) -> int:
 
 
 def _eval(expr: str, context: dict[str, Any]) -> bool:
-    from layout.area_versions import eval_cond
+    from dsl.cond_eval import eval_cond
 
     return eval_cond(expr, dict(context))

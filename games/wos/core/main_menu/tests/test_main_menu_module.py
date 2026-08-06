@@ -186,7 +186,7 @@ def test_main_menu_node_is_furnace_gated() -> None:
     graph (unfiltered topology unchanged); BFS prunes the whole node — routing
     around it — when an ``edge_allowed`` predicate reports the furnace is below the
     gate or unknown, and restores it once high enough."""
-    from layout.area_versions import eval_cond
+    from dsl.cond_eval import eval_cond
 
     bind_active_game("wos")
     screen_graph.invalidate_edge_taps_cache()

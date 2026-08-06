@@ -464,7 +464,7 @@ def _validate_area_exist_region_sources(
     is a loud fleet-health banner, not a bricked startup.
     """
     from config.games import iter_games
-    from layout.area_versions import effective_ocr_for_region
+    from layout.area_regions import effective_ocr_for_region
     from layout.crop_paths import exported_crop_png
 
     covered = _direct_template_covered_regions(repo_root)

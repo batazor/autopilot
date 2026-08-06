@@ -73,7 +73,7 @@ async def test_power_gate_decision_lands_in_state_store_for_cond(
         # Redis keeps the dashboard/debug copy…
         assert redis.hashes["wos:player:101:state"]["intel.power_gate"] == "fight"
         # …and the state store carries the copy the DSL cond actually reads.
-        from layout.area_versions import eval_cond
+        from dsl.cond_eval import eval_cond
 
         flat = fresh.get_or_create("101").to_flat_dict()
         assert flat.get("intel.power_gate") == "fight"

@@ -27,7 +27,7 @@ from layout.area_manifest import (
     area_manifest_max_mtime,
     load_area_doc,
 )
-from layout.area_versions import effective_ocr_for_region
+from layout.area_regions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png, resolve_reference_path
 from layout.template_match import patch_bgr_from_bbox_percent
 

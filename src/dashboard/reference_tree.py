@@ -121,7 +121,6 @@ def build_reference_screen_id_tree_data(
                 rel=rel_posix,
                 screen_id="",
                 region_count=0,
-                active_version=None,
                 unassigned=True,
             )
         groups.setdefault(sid, []).append(rel_posix)

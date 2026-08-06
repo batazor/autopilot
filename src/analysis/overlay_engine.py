@@ -12,7 +12,7 @@ from analysis.overlay_rules import (
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
-from layout.area_versions import effective_ocr_for_region
+from layout.area_regions import effective_ocr_for_region
 from layout.blue_button_detector import BLUE_MIN_ASPECT_RATIO, find_blue_buttons
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png

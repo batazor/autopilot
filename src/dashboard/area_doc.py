@@ -26,12 +26,8 @@ from dashboard.reference_ocr_paths import (
     resolve_ocr_path_in_reference_context as _resolve_ocr_path_in_reference_context,
 )
 from layout.area_regions import (
-    dedupe_redundant_version_regions,
-    get_version_block,
-    is_auxiliary_overlay_region,
     region_names_for,
     validate_unique_region_names,
-    validate_versions,
 )
 from layout.crop_paths import exported_crop_png
 
@@ -63,21 +59,12 @@ class RegionDict(TypedDict, total=False):
     tap_hold_ms: int
 
 
-class VersionDict(TypedDict, total=False):
-    id: str
-    cond: str
-    ocr: str
-    regions: list[RegionDict]
-    removed: list[str]
-
-
 class AreaEntryDict(TypedDict, total=False):
     id: int
     ocr: str
     screen_id: str
     screen_region: str
     regions: list[RegionDict]
-    versions: list[VersionDict]
 
 
 class AreaDocDict(TypedDict, total=False):
@@ -120,8 +107,6 @@ def crop_path_for_entry_region(
     repo_root: Path,
     entry: AreaEntryDict | None,
     region_name: str,
-    *,
-    active_version: str | None = None,
 ) -> Path | None:
     """Return the on-disk crop file for ``region_name`` within ``entry``."""
     if not isinstance(entry, dict):
@@ -129,16 +114,6 @@ def crop_path_for_entry_region(
     name = (region_name or "").strip()
     if not name:
         return None
-
-    if active_version:
-        ver_block = get_version_block(cast("dict[str, Any]", entry), active_version)
-        if ver_block is not None:
-            for reg in ver_block.get("regions") or []:
-                if isinstance(reg, dict) and str(reg.get("name", "") or "").strip() == name:
-                    chosen_ocr = str(ver_block.get("ocr", "") or "").strip() or str(
-                        entry.get("ocr") or ""
-                    ).strip()
-                    return exported_crop_png(repo_root, chosen_ocr, name) if chosen_ocr else None
 
     for reg in entry.get("regions") or []:
         if isinstance(reg, dict) and str(reg.get("name", "") or "").strip() == name:
@@ -214,16 +189,6 @@ def find_stale_crops(
         base_regions_raw = entry.get("regions")
         if default_ocr and isinstance(base_regions_raw, list):
             tasks.append((default_ocr, [r for r in base_regions_raw if isinstance(r, dict)]))
-        for ver in entry.get("versions") or []:
-            if not isinstance(ver, dict):
-                continue
-            vid = str(ver.get("id", "") or "").strip()
-            if not vid:
-                continue
-            ver_ocr = str(ver.get("ocr", "") or "").strip() or default_ocr
-            ver_regions = ver.get("regions")
-            if ver_ocr and isinstance(ver_regions, list):
-                tasks.append((ver_ocr, [r for r in ver_regions if isinstance(r, dict)]))
 
         for ocr_rel, regions in tasks:
             ref_abs = root / ocr_rel
@@ -308,36 +273,6 @@ def export_all_region_crops_for_area_doc(
             elif _count_exportable_crop_regions(base_regions) > 0:
                 tasks.append((default_ocr, base_regions, abs_path))
 
-        for ver in entry.get("versions") or []:
-            if not isinstance(ver, dict):
-                continue
-            vid = str(ver.get("id", "") or "").strip()
-            if not vid:
-                continue
-            ver_regions_raw = ver.get("regions")
-            ver_regions: list[RegionDict] = (
-                cast(
-                    "list[RegionDict]",
-                    [r for r in ver_regions_raw if isinstance(r, dict)],
-                )
-                if isinstance(ver_regions_raw, list)
-                else []
-            )
-            if not ver_regions or _count_exportable_crop_regions(ver_regions) == 0:
-                continue
-            ver_ocr = str(ver.get("ocr", "") or "").strip() or default_ocr
-            if not ver_ocr:
-                warnings.append(
-                    f"Skip version `{vid}`: no reference image (neither version `ocr` nor entry `ocr`)"
-                )
-                continue
-            rel = Path(ver_ocr)
-            abs_path = rel if rel.is_absolute() else (root / rel)
-            if not abs_path.is_file():
-                warnings.append(f"Skip (missing file): `{ver_ocr}`")
-                continue
-            tasks.append((ver_ocr, ver_regions, abs_path))
-
     total_files = sum(_count_exportable_crop_regions(regs) for _, regs, _ in tasks)
     done_files = 0
 
@@ -415,13 +350,6 @@ def strip_exist_region_types(doc: dict[str, Any]) -> int:
         if not isinstance(screen, dict):
             continue
         region_groups: list[Any] = [screen.get("regions")]
-        versions = screen.get("versions")
-        if isinstance(versions, list):
-            region_groups.extend(
-                version.get("regions")
-                for version in versions
-                if isinstance(version, dict)
-            )
         for regions in region_groups:
             if not isinstance(regions, list):
                 continue
@@ -443,13 +371,6 @@ def strip_search_on_static_regions(doc: dict[str, Any]) -> int:
         if not isinstance(screen, dict):
             continue
         region_groups: list[Any] = [screen.get("regions")]
-        versions = screen.get("versions")
-        if isinstance(versions, list):
-            region_groups.extend(
-                version.get("regions")
-                for version in versions
-                if isinstance(version, dict)
-            )
         for regions in region_groups:
             if not isinstance(regions, list):
                 continue
@@ -462,14 +383,12 @@ def strip_search_on_static_regions(doc: dict[str, Any]) -> int:
     return removed
 
 
-def save_json(path: Path, doc: AreaDocDict) -> int:
+def save_json(path: Path, doc: AreaDocDict) -> None:
     """Write ``area.json`` / module ``area.yaml`` (``version`` + ``screens``)."""
     doc_dict = cast("dict[str, Any]", doc)
     strip_exist_region_types(doc_dict)
     strip_search_on_static_regions(doc_dict)
-    removed = dedupe_redundant_version_regions(doc_dict)
     validate_unique_region_names(doc_dict)
-    validate_versions(doc_dict)
     if path.suffix.lower() in {".yaml", ".yml"}:
         content = yaml.safe_dump(dict(doc), sort_keys=False, allow_unicode=True)
     else:
@@ -480,7 +399,6 @@ def save_json(path: Path, doc: AreaDocDict) -> int:
         f.write(content)
         tmp = f.name
     Path(tmp).replace(path)
-    return removed
 
 
 def load_json(path: Path) -> AreaDocDict:
@@ -531,12 +449,6 @@ def _entry_region_names(entry: AreaEntryDict) -> list[str]:
     for reg in entry.get("regions") or []:
         if isinstance(reg, dict):
             names.update(region_names_for(cast("dict[str, Any]", reg)))
-    for version in entry.get("versions") or []:
-        if not isinstance(version, dict):
-            continue
-        for reg in version.get("regions") or []:
-            if isinstance(reg, dict):
-                names.update(region_names_for(cast("dict[str, Any]", reg)))
     return sorted(names)
 
 
@@ -588,71 +500,10 @@ def _doc_with_repo_relative_ocr(
         entry_out = dict(entry)
         if entry.get("ocr"):
             entry_out["ocr"] = _prefix(str(entry["ocr"]))
-        versions = entry.get("versions")
-        if isinstance(versions, list):
-            new_versions: list[Any] = []
-            for ver in versions:
-                if not isinstance(ver, dict):
-                    new_versions.append(ver)
-                    continue
-                ver_out = dict(ver)
-                if ver.get("ocr"):
-                    ver_out["ocr"] = _prefix(str(ver["ocr"]))
-                new_versions.append(ver_out)
-            entry_out["versions"] = new_versions
         new_screens.append(entry_out)
     out = dict(doc)
     out["screens"] = new_screens
     return out  # type: ignore[return-value]
-
-
-def _sync_default_regions_into_version(
-    entry: AreaEntryDict,
-    version_id: str,
-) -> tuple[int, int]:
-    """Copy base regions into ``versions[V].regions[]`` (without suffix).
-
-    Skips overlay auxiliaries (``_search`` / ``_tap``) and regions already
-    present in the version block.
-
-    Returns ``(added, skipped)``.
-    """
-    import copy as _copy
-
-    ver_block = get_version_block(cast("dict[str, Any]", entry), version_id)
-    if ver_block is None:
-        return 0, 0
-
-    base_regions = entry.get("regions") or []
-    ver_regions = ver_block.get("regions")
-    if not isinstance(ver_regions, list):
-        ver_regions = []
-        ver_block["regions"] = ver_regions
-    existing = {
-        str(r.get("name", "") or "").strip()
-        for r in ver_regions
-        if isinstance(r, dict)
-    }
-
-    added = 0
-    skipped = 0
-    for r in base_regions:
-        if not isinstance(r, dict):
-            continue
-        name = str(r.get("name", "") or "").strip()
-        if not name:
-            continue
-        if is_auxiliary_overlay_region(cast("dict[str, Any]", r)):
-            skipped += 1
-            continue
-        if name in existing:
-            skipped += 1
-            continue
-        ver_regions.append(_copy.deepcopy(r))
-        existing.add(name)
-        added += 1
-
-    return added, skipped
 
 
 def _next_entry_id(entries: list[AreaEntryDict]) -> int:

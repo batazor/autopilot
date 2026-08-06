@@ -29,7 +29,7 @@ from games.wos.core.stamina.model import (
     quota_period,
 )
 
-from layout.area_versions import eval_cond
+from dsl.cond_eval import eval_cond
 
 from .allocator import (
     CONSUME,

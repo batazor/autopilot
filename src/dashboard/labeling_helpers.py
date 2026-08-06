@@ -14,7 +14,6 @@ class ReferenceLeafMeta:
     rel: str
     screen_id: str
     region_count: int
-    active_version: str | None
     unassigned: bool
 
 
@@ -44,14 +43,6 @@ def _count_regions(entry: dict[str, Any]) -> int:
             nm = str(reg.get("name") or "").strip()
             if nm:
                 names.add(nm)
-    for ver in entry.get("versions") or []:
-        if not isinstance(ver, dict):
-            continue
-        for reg in ver.get("regions") or []:
-            if isinstance(reg, dict):
-                nm = str(reg.get("name") or "").strip()
-                if nm:
-                    names.add(nm)
     return len(names)
 
 
@@ -73,13 +64,10 @@ def build_reference_leaf_meta_index(
         if not rel:
             continue
         sid = str(entry.get("screen_id") or "").strip()
-        av = entry.get("active_version")
-        active_ver = str(av).strip() if av is not None and str(av).strip() else None
         by_rel[rel] = ReferenceLeafMeta(
             rel=rel,
             screen_id=sid,
             region_count=_count_regions(entry),
-            active_version=active_ver,
             unassigned=not bool(sid),
         )
     # PNGs with no area entry are unassigned when we see them from the file list.
@@ -99,8 +87,6 @@ def format_reference_leaf_title(
     parts = [base]
     if meta.region_count:
         parts.append(f"{meta.region_count} reg")
-    if meta.active_version:
-        parts.append(f"v:{meta.active_version}")
     if meta.unassigned:
         parts[0] = f"⚠ {base}"
     return " · ".join(parts)
@@ -120,10 +106,8 @@ def format_screen_id_group_title(
 def suggest_basename_from_entry(
     entry: dict[str, Any] | None,
     instance_id: str,
-    *,
-    version_suffix: bool = True,
 ) -> str | None:
-    """Propose a stable basename from ``screen_id`` (+ optional active version)."""
+    """Propose a stable basename from ``screen_id``."""
     if not isinstance(entry, dict):
         return None
     sid = str(entry.get("screen_id") or "").strip()
@@ -132,10 +116,6 @@ def suggest_basename_from_entry(
     slug = sid.replace(".", "_")
     inst = str(instance_id or "").strip()
     raw = f"{inst}_{slug}" if inst else slug
-    av = entry.get("active_version")
-    ver = str(av).strip() if av is not None else ""
-    if version_suffix and ver and ver not in ("default", ""):
-        raw = f"{raw}_{ver}"
     return reference_file_basename(raw, instance_id)
 
 
@@ -248,14 +228,6 @@ def preview_delete_reference_impact(
                     nm = str(reg.get("name") or "").strip()
                     if nm:
                         region_names.append(nm)
-            for ver in entry.get("versions") or []:
-                if not isinstance(ver, dict):
-                    continue
-                for reg in ver.get("regions") or []:
-                    if isinstance(reg, dict):
-                        nm = str(reg.get("name") or "").strip()
-                        if nm and nm not in region_names:
-                            region_names.append(nm)
 
     crop_count = 0
     crop_dir = ref_root / "crop"

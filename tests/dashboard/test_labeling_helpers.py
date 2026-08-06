@@ -24,9 +24,7 @@ def test_build_reference_leaf_meta_index(tmp_path: Path) -> None:
             {
                 "screen_id": "page.shop",
                 "ocr": "references/inst_page.shop.png",
-                "regions": [{"name": "claim"}, {"name": "close"}],
-                "active_version": "v2",
-                "versions": [{"id": "v2", "regions": [{"name": "badge"}]}],
+                "regions": [{"name": "claim"}, {"name": "close"}, {"name": "badge"}],
             },
         ],
     }
@@ -35,9 +33,8 @@ def test_build_reference_leaf_meta_index(tmp_path: Path) -> None:
     m = meta["inst_page.shop.png"]
     assert m.screen_id == "page.shop"
     assert m.region_count == 3
-    assert m.active_version == "v2"
     assert format_reference_leaf_title("inst_page.shop.png", m) == (
-        "inst_page.shop.png · 3 reg · v:v2"
+        "inst_page.shop.png · 3 reg"
     )
 
 
@@ -50,8 +47,8 @@ def test_format_reference_leaf_title_unassigned() -> None:
 
 
 def test_suggest_basename_from_entry() -> None:
-    entry = {"screen_id": "main_city", "active_version": "v2"}
-    assert suggest_basename_from_entry(entry, "emu1") == "emu1_main_city_v2"
+    entry = {"screen_id": "main_city"}
+    assert suggest_basename_from_entry(entry, "emu1") == "emu1_main_city"
     assert suggest_basename_from_entry({"screen_id": ""}, "emu1") is None
 
 

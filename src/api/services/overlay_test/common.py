@@ -15,7 +15,7 @@ from analysis.overlay_rules import (
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
-from layout.area_versions import effective_ocr_for_region
+from layout.area_regions import effective_ocr_for_region
 from layout.template_match import _bbox_px_bounds
 
 logger = logging.getLogger(__name__)
