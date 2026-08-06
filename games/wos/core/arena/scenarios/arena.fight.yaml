@@ -58,6 +58,16 @@ steps:
   - loop:
       max: 10
       steps:
+        # Let the screen detector catch up first — right after the Challenge
+        # List opens (and after each battle returns to it) ``currentNode``
+        # lags the tap by a detection tick, and the guard below would break
+        # the loop on the stale node (seen live on bs3).
+        - wait_screen:
+            any: [arena.challenge_list]
+            max: 8
+            interval: 500ms
+            optional: true
+
         # Only fight from the Challenge List; stop once we've left it (e.g. a
         # "no challenges left" popup, or the list closed).
         - cond: "currentNode != arena.challenge_list"
