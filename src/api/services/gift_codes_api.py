@@ -98,16 +98,18 @@ _GIFT_CODE_GAMES: dict[str, _GiftCodeGame] = {
         redeem_supported=False,
         apply_mode="in_game_player",
     ),
-    # "Белая мгла" — the Russian re-skin (com.gof.globalru). Century-blind: no
-    # scraper, no public API. Codes are typed in by the operator and applied
-    # in-game on the RU device, same flow as the beta build.
+    # "Белая мгла" — the Russian re-skin (com.gof.globalru). Century-blind (no
+    # scraper, no public API): codes are typed in by the operator, then redeemed
+    # for every known RU account through the shard's own web form
+    # (giftcode.echofungames.com, Playwright — see century.gift_codes.echofun).
+    # The in-game applier remains as a fallback for the device player.
     "wos_ru": _GiftCodeGame(
         game="wos_ru",
         redeem_lock_key="wos:gift_code_redeem:lock:wos_ru",
         poll_once=wos_ru_gift_codes.poll_once,
         run_redeemer=wos_ru_gift_codes.run_gift_code_redeemer,
-        redeem_supported=False,
-        apply_mode="in_game_player",
+        run_redeemer_for_player=wos_ru_gift_codes.run_gift_code_redeemer_for_player,
+        apply_mode="web_all_accounts",
         manual_source=True,
     ),
 }
@@ -590,7 +592,34 @@ async def upsert_external_account(
     )
 
     resolved_nick = nickname or ""
-    if validate_fid:
+    if validate_fid and game == "wos_ru":
+        # The RU shard has no Century API — validate via the Echofun store's
+        # ID login instead (same browser stack the web redeemer uses). A
+        # missing Playwright install degrades to storing without validation.
+        from century.gift_codes.echofun import (
+            EchofunError,
+            EchofunUnavailable,
+            PlayerNotFound,
+            lookup_player_once,
+        )
+
+        try:
+            ru_player = await lookup_player_once(player_id)
+        except PlayerNotFound as exc:
+            msg = f"fid {player_id} not found in {game}: {exc}"
+            raise ValueError(msg) from exc
+        except EchofunUnavailable as exc:
+            logger.warning(
+                "wos_ru external-account validation skipped (fid=%s): %s",
+                player_id, exc,
+            )
+        except EchofunError as exc:
+            msg = f"fid {player_id} could not be validated in {game}: {exc}"
+            raise ValueError(msg) from exc
+        else:
+            if not resolved_nick:
+                resolved_nick = ru_player.nickname or ""
+    elif validate_fid:
         client = CenturyClient(game=get_game(game))
         try:
             player = await client.fetch_player(player_id)

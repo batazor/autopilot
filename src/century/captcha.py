@@ -49,6 +49,19 @@ def solve_captcha(img_b64: str) -> str:
     return text
 
 
+def solve_captcha_raw(img: str | bytes) -> str:
+    """Like :func:`solve_captcha` but keeps the recognised case.
+
+    The Echofun (RU shard) captcha is not known to be case-normalised, so
+    callers there submit exactly what ddddocr read.
+    """
+    ocr = _get_ocr()
+    result: str = ocr.classification(_image_bytes(img))  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    text = result.strip()
+    logger.debug("Captcha solved (raw): %r", text)
+    return text
+
+
 def solve_slider_match(
     target_img: str | bytes,
     background_img: str | bytes,

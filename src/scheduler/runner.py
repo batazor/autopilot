@@ -45,6 +45,9 @@ _GIFT_CODE_GAMES: list[tuple[str, str, str, bool]] = [
         "wos:gift_code_redeem:lock:kingshot_beta",
         False,
     ),
+    # RU "Белая мгла": no scraper (poll_once no-ops), but redemption runs the
+    # Echofun web form for every known RU account (century.gift_codes.wos_ru).
+    ("wos_ru", "century.gift_codes.wos_ru", "wos:gift_code_redeem:lock:wos_ru", True),
 ]
 _GIFT_CODE_POLL_INTERVAL_S = 6 * 60 * 60
 _GIFT_CODE_LOCK_TTL_S = 2 * 60 * 60

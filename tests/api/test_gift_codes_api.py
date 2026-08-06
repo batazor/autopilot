@@ -92,12 +92,15 @@ def test_beta_view_marks_codes_as_manual_in_game(sqlite_db: Path) -> None:
     assert view["active"][0]["needs_run"] is False
 
 
-def test_wos_ru_registered_as_manual_in_game_source() -> None:
+def test_wos_ru_registered_as_manual_web_redeem_source() -> None:
+    # Manual code entry (no scraper), but redemption IS supported — it runs
+    # the Echofun web form for every known RU account.
     spec = gift_codes_api._GIFT_CODE_GAMES["wos_ru"]
 
     assert spec.manual_source is True
-    assert spec.redeem_supported is False
-    assert spec.apply_mode == "in_game_player"
+    assert spec.redeem_supported is True
+    assert spec.run_redeemer_for_player is not None
+    assert spec.apply_mode == "web_all_accounts"
 
 
 def test_wos_ru_view_is_manual_source(sqlite_db: Path) -> None:
@@ -106,8 +109,8 @@ def test_wos_ru_view_is_manual_source(sqlite_db: Path) -> None:
     view = gift_codes_api.build_gift_codes_view(game="wos_ru")
 
     assert view["manual_source"] is True
-    assert view["redeem_supported"] is False
-    assert view["apply_mode"] == "in_game_player"
+    assert view["redeem_supported"] is True
+    assert view["apply_mode"] == "web_all_accounts"
     assert view["active"][0]["code"] == "RUCODE1"
 
 

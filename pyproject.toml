@@ -48,6 +48,10 @@ dependencies = [
     "croniter>=6.2.2",
     "pymorphy3>=2.0.6",
     "pymorphy3-dicts-ru>=2.4.417150.4580142",
+    # Headless-browser automation for the RU «Белая мгла» gift-code web form
+    # (century.gift_codes.echofun) and the farm-account registration flow.
+    # After installing, run `uv run playwright install chromium`.
+    "playwright>=1.40",
 ]
 
 [project.optional-dependencies]
@@ -64,12 +68,9 @@ dev = [
     "pytest-timeout>=2.4.0",
     "jsonschema>=4.21",
 ]
-# Browser automation for the farm-account registration flow (the operator
-# solves the captcha; Playwright only fills the form). Optional — not needed at
-# runtime for the bot. After installing, run `playwright install chromium`.
-farm = [
-    "playwright>=1.40",
-]
+# Kept for compatibility: playwright moved into the main dependencies (the RU
+# gift-code web redeemer needs it at runtime), so this extra is now empty.
+farm = []
 # The MCP server face of ``botctl`` (``agentctl.mcp_server``). The plain CLI
 # needs none of this; only ``uv run botctl-mcp`` imports the MCP SDK. Install
 # with ``uv sync --extra agent``.

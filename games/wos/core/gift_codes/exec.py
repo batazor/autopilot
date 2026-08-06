@@ -9,6 +9,11 @@ elsewhere and stored under a per-build game id (``wos_beta`` from Discord
 scraping; ``wos_ru`` from manual operator entry — see
 ``api.services.gift_codes_api``); this exec is the in-game applier.
 
+For ``wos_ru`` the primary path is now the Echofun **web redeemer**
+(``century.gift_codes.wos_ru`` → giftcode.echofungames.com), which covers all
+RU accounts without the emulator; codes it redeems are stamped ``SUCCESS`` so
+this exec naturally skips them and remains a fallback for the device player.
+
 Which code set to apply is decided by the **running build**: the worker binds
 the active module catalog (``wos`` / ``wos_beta`` / ``wos_ru``) on launch, and
 the overlay catalogs map 1:1 to the gift-code game. The canonical ``wos`` build

@@ -105,6 +105,7 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "ortools" },
     { name = "pillow" },
+    { name = "playwright" },
     { name = "psutil" },
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -139,9 +140,6 @@ dev = [
     { name = "syrupy" },
     { name = "testcontainers" },
 ]
-farm = [
-    { name = "playwright" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -164,7 +162,7 @@ requires-dist = [
     { name = "opentelemetry-sdk", specifier = ">=1.27" },
     { name = "ortools", specifier = ">=9.10" },
     { name = "pillow", specifier = ">=10.0" },
-    { name = "playwright", marker = "extra == 'farm'", specifier = ">=1.40" },
+    { name = "playwright", specifier = ">=1.40" },
     { name = "psutil", specifier = ">=5.9" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
