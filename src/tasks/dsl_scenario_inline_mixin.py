@@ -703,6 +703,55 @@ class DslScenarioInlineMixin(_Base):
         ip = await self._inline_preempt_if_needed(instance_id, scenario_key)
         if ip is not None:
             return ip
+        # Step-level ``cond`` gate + composite (action-less) cond blocks. The
+        # top-level executor honours ``cond`` on every step; nested steps used
+        # to fall through to "unsupported" for composite blocks — silently
+        # skipping e.g. the intel power-gate fight branch and arena.fight's
+        # loop guard (both seen live on bs3/bs4).
+        if step.get("cond") is not None:
+            allowed = await _dsl_cond_allows_step(
+                step,
+                instance_id,
+                self.redis_client,
+                state_flat=self._state_flat(),
+            )
+            action_keys = set(step.keys()) - {"cond", "steps", "else"}
+            is_composite = not action_keys and (
+                isinstance(step.get("steps"), list)
+                or isinstance(step.get("else"), list)
+            )
+            if is_composite:
+                branch = step.get("steps") if allowed else step.get("else")
+                branch_label = "steps" if allowed else "else"
+                if isinstance(branch, list) and branch:
+                    for inner_idx, inner in enumerate(branch):
+                        if not isinstance(inner, dict):
+                            continue
+                        inner_path = (
+                            f"{trace_path}.{branch_label}.{inner_idx}"
+                            if trace_path
+                            else f"{branch_label}.{inner_idx}"
+                        )
+                        result = await self._run_inline_step(
+                            inner,
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=scenario_key,
+                            trace_path=inner_path,
+                        )
+                        if result is not None:
+                            return result
+                self._append_trace_row(trace_path, step, "ok")
+                return None
+            if not allowed:
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="cond_false"
+                )
+                return None
         if "system_back" in step:
             return await self._run_system_back_step(
                 actions=actions,
