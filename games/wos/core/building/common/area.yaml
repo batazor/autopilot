@@ -323,6 +323,44 @@
       "screen_id": "",
       "ocr": "references/lancer_camp.png",
       "regions": []
+    },
+    {
+      "id": 65,
+      "screen_id": "",
+      "regions": [
+        {
+          "name": "furnace.name",
+          "action": "text",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.5055071957283017,
+            "y": 38.048246522490196,
+            "width": 32.343071211656245,
+            "height": 3.767320184591886,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string",
+          "_comment": "Building name line on the upgrade-confirm panel; OCR'd by building.upgrade to record which building was upgraded. Moved from the removed onboarding module (same bbox)."
+        },
+        {
+          "name": "chapter.objective.go",
+          "action": "cta_button",
+          "color": "blue",
+          "threshold": 0.5,
+          "_comment": "Anchor over the TOPMOST objective row's blue «Вперёд»/«Go» button on the story «Глава» screen (rows sit ~13% apart; the top row is the active objective). Owned here (not the chapter module) because building.upgrade taps it for navigation and must stay loadable while the chapter module is disabled.",
+          "bbox": {
+            "x": 71.0,
+            "y": 38.9,
+            "width": 23.0,
+            "height": 6.0,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

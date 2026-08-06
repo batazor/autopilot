@@ -188,22 +188,6 @@
             "original_width": 720,
             "original_height": 1280
           }
-        },
-        {
-          "name": "chapter.objective.go",
-          "action": "cta_button",
-          "color": "blue",
-          "threshold": 0.5,
-          "_comment": "Anchor over the TOPMOST objective row's blue «Вперёд»/«Go» button on the story «Глава» screen. Used with `action: cta_button color: blue` so the colour search taps whichever blue Вперёд renders here (rows sit ~13% apart; the top row is the active objective). Measured on bs5 «Глава 3».",
-          "bbox": {
-            "x": 71.0,
-            "y": 38.9,
-            "width": 23.0,
-            "height": 6.0,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
         }
       ]
     }
