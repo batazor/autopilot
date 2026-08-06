@@ -26,8 +26,9 @@ screens:
     priority: 24
     rules:
       - ocr: arena.challenge_list.title
-        # RU guess «Список вызовов» (token «вызов») — VERIFY LIVE.
-        contains: ["Challenge List", вызов]
+        # RU title «Список испытаний» (confirmed live on bs3 2026-08-06);
+        # stem «испытани» tolerates case endings, «вызов» kept as a fallback.
+        contains: ["Challenge List", испытани, вызов]
 
   # arena.squad REMOVED (2026-07-06): its reference (references/squad.png) is
   # the GENERIC Squad Settings screen — same title plate, VS powers and
