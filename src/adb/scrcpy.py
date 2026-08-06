@@ -986,6 +986,26 @@ class ScrcpyClient:
 
     # -- control ------------------------------------------------------------
 
+    def _wait_control_ready(self, timeout_s: float = 3.0) -> bool:
+        """Wait out an in-place stream relaunch before a control write.
+
+        A runtime ``max_fps`` change (deep-idle ↔ active) and drop recovery
+        rebuild the sockets in place: ``_control_sock`` is momentarily ``None``
+        while ``is_alive()`` deliberately stays true (the cached frame keeps
+        being served). A tap issued in that sub-second window used to raise
+        «control socket not started» and fail the scenario's first step —
+        seen live on bs3 where a task-start fps lift races the task's first
+        tap. Bounded poll; ``False`` only when the socket is genuinely gone.
+        """
+        deadline = time.monotonic() + max(0.0, timeout_s)
+        while time.monotonic() < deadline:
+            if self._control_sock is not None and self._codec_size is not None:
+                return True
+            if self._stop.is_set():
+                return False
+            time.sleep(0.05)
+        return self._control_sock is not None and self._codec_size is not None
+
     def _send_touch(
         self,
         action: int,
@@ -996,7 +1016,9 @@ class ScrcpyClient:
         buttons: int,
         pointer_id: int = 0,
     ) -> None:
-        if self._control_sock is None or self._codec_size is None:
+        if (
+            self._control_sock is None or self._codec_size is None
+        ) and not self._wait_control_ready():
             msg = "scrcpy control socket not started"
             raise RuntimeError(msg)
         w, h = self._codec_size
@@ -1133,7 +1155,7 @@ class ScrcpyClient:
         """Pinch fully out (repeat until the game clamps at min zoom) so the
         scan/navigation run at one fixed, repeatable scale. Uses ``_codec_size``
         so it is resolution-correct on any device."""
-        if self._codec_size is None:
+        if self._codec_size is None and not self._wait_control_ready():
             msg = "scrcpy control socket not started"
             raise RuntimeError(msg)
         w, h = self._codec_size
