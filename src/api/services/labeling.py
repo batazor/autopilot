@@ -169,7 +169,6 @@ def list_reference_paths(*, scope: str = CORE_MODULE_KEY, limit: int = 300) -> l
                 "title": title,
                 "screen_id": meta.screen_id if meta else "",
                 "region_count": meta.region_count if meta else 0,
-                "active_version": meta.active_version if meta else None,
                 "unassigned": meta.unassigned if meta else True,
             }
         )

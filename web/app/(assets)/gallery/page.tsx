@@ -18,7 +18,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { AppCombobox } from "@/components/headless";
+import { AppCombobox, AppRadioGroup } from "@/components/headless";
 import { ErrorBanner } from "@/components/feedback";
 import { PageHeader } from "@/components/PageHeader";
 import { PageLoading } from "@/components/ui/Spinner";
@@ -50,10 +50,23 @@ const GAME_OPTIONS: { value: string; label: string }[] = [
   { value: "wos_beta", label: "WOS Beta" },
   { value: "kingshot", label: "Kingshot" },
 ];
+// «Белая мгла» — the RU re-skin of WOS. Its crops live as a catalog overlay
+// (games/wos/ru), selected via the EN|RU build toggle rather than the Game
+// dropdown: it is the same game, localized.
+const WOS_RU_GAME = "wos_ru";
+const BUILD_OPTIONS = [
+  { value: "wos", label: "EN", title: "Global build — base games/wos catalog" },
+  {
+    value: WOS_RU_GAME,
+    label: "RU",
+    title: "«Белая мгла» RU build — games/wos/ru overlay catalog",
+  },
+];
 const GALLERY_BATCH_SIZE = 80;
 const EAGER_IMAGE_COUNT = 12;
 
 function normalizeGame(value: string | null): string {
+  if (value === WOS_RU_GAME) return WOS_RU_GAME;
   return GAME_OPTIONS.some((g) => g.value === value) ? (value as string) : "wos";
 }
 
@@ -64,6 +77,9 @@ function GalleryPageInner() {
   const [game, setGame] = useState<string>(() =>
     normalizeGame(params.get("game")),
   );
+  // The Game dropdown shows the base game; wos_ru is reached via the EN|RU
+  // build toggle rendered next to it (only for WOS).
+  const baseGame = game === WOS_RU_GAME ? "wos" : game;
   // References are game-specific. This page lives outside FleetContextProvider,
   // so mirror the selection into lib/api's active-game cache (read by
   // gameQueryEntries) during render — guarded — so the scope/gallery fetches
@@ -251,10 +267,11 @@ function GalleryPageInner() {
   const labelingHref = useMemo(() => {
     if (!preview) return null;
     const url = new URLSearchParams();
+    if (game !== "wos") url.set("game", game);
     url.set("ref", preview.rel);
     if (previewScope) url.set("module", previewScope);
     return `/labeling?${url.toString()}`;
-  }, [preview, previewScope]);
+  }, [game, preview, previewScope]);
 
   let renderedImageIndex = 0;
 
@@ -272,7 +289,7 @@ function GalleryPageInner() {
               Game
             </span>
             <select
-              value={game}
+              value={baseGame}
               onChange={(e) => handleGameChange(e.target.value)}
               className="field"
             >
@@ -283,6 +300,15 @@ function GalleryPageInner() {
               ))}
             </select>
           </label>
+
+          {baseGame === "wos" ? (
+            <AppRadioGroup
+              options={BUILD_OPTIONS}
+              value={game}
+              onChange={handleGameChange}
+              aria-label="Build (EN base catalog or RU overlay)"
+            />
+          ) : null}
 
           <div className="min-w-[220px]">
             <AppCombobox

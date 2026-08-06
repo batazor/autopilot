@@ -30,10 +30,12 @@ def _request_game() -> str:
 
 
 def _context_for_scope(scope: str, *, game: str) -> WikiModuleContext:
+    from api.services.labeling_scope import module_contexts_overlay_wins
+
     scope = normalize_module_scope(scope)
     if scope in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return all_modules_context(_REPO, game=game)
-    for ctx in list_labeling_modules(_REPO, game=game):
+    for ctx in module_contexts_overlay_wins(_REPO, game):
         if ctx.storage_key == scope or ctx.module_id == scope:
             return ctx
     return all_modules_context(_REPO, game=game)

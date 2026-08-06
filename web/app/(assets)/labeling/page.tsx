@@ -9,7 +9,7 @@ import { LabelingReferencePanel } from "@/components/labeling/LabelingReferenceP
 import { LabelingRegionsPanel } from "@/components/labeling/LabelingRegionsPanel";
 import { LabelingStaleCropsBanner } from "@/components/labeling/LabelingStaleCropsBanner";
 import { LabelingWorkflowStrip } from "@/components/labeling/LabelingWorkflowStrip";
-import { AppConfirmDialog, AppListbox } from "@/components/headless";
+import { AppConfirmDialog, AppListbox, AppRadioGroup } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { PageHeader } from "@/components/PageHeader";
 import { PageLoading } from "@/components/ui/Spinner";
@@ -64,7 +64,21 @@ const GAME_OPTIONS: { value: string; label: string }[] = [
   { value: "kingshot", label: "Kingshot" },
 ];
 
+// «Белая мгла» — the RU re-skin of WOS. Its crops live as a catalog overlay
+// (games/wos/ru), selected via the EN|RU build toggle rather than the Game
+// dropdown: it is the same game, localized.
+const WOS_RU_GAME = "wos_ru";
+const BUILD_OPTIONS = [
+  { value: "wos", label: "EN", title: "Global build — base games/wos catalog" },
+  {
+    value: WOS_RU_GAME,
+    label: "RU",
+    title: "«Белая мгла» RU build — games/wos/ru overlay catalog",
+  },
+];
+
 function normalizeGame(value: string | null): string {
+  if (value === WOS_RU_GAME) return WOS_RU_GAME;
   return GAME_OPTIONS.some((g) => g.value === value) ? (value as string) : "wos";
 }
 
@@ -100,6 +114,9 @@ function LabelingPageInner() {
   const [game, setGameState] = useState<string>(() =>
     normalizeGame(params.get("game")),
   );
+  // The Game dropdown shows the base game; wos_ru is reached via the EN|RU
+  // build toggle rendered next to it (only for WOS).
+  const baseGame = game === WOS_RU_GAME ? "wos" : game;
   // Mirror the selected game into lib/api's active-game cache so the labeling
   // fetches (which read it via gameQueryEntries) emit ?game=. This page lives
   // outside FleetContextProvider, so nothing else keeps that cache in sync.
@@ -728,12 +745,21 @@ function LabelingPageInner() {
         <AppListbox
           inline
           label="Game"
-          value={game}
+          value={baseGame}
           onChange={changeGame}
           disabled={busy}
           options={GAME_OPTIONS}
           minWidth={170}
         />
+        {baseGame === "wos" ? (
+          <AppRadioGroup
+            options={BUILD_OPTIONS}
+            value={game}
+            onChange={changeGame}
+            disabled={busy}
+            aria-label="Build (EN base catalog or RU overlay)"
+          />
+        ) : null}
         <AppListbox
           inline
           label="Instance"

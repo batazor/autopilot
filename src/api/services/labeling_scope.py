@@ -43,6 +43,23 @@ def _request_game(explicit: str | None) -> str:
     return current_request_game()
 
 
+def module_contexts_overlay_wins(
+    root: Path,
+    game: str,
+) -> list[WikiModuleContext]:
+    """Discovery-ordered module contexts, one per storage key (overlay wins).
+
+    Overlay catalogs (``games/wos/ru``, ``games/wos/beta``) re-declare a base
+    module under the same storage key; discovery yields base first and the
+    overlay right after, so keeping the LAST context per key makes the overlay
+    the editable target while base-only modules keep their base context.
+    """
+    by_key: dict[str, WikiModuleContext] = {}
+    for ctx in list_labeling_modules(root, game=game):
+        by_key[ctx.storage_key] = ctx
+    return list(by_key.values())
+
+
 def context_for_scope(
     scope: str | None,
     *,
@@ -52,7 +69,7 @@ def context_for_scope(
     key = normalize_module_scope(scope)
     if key in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return all_modules_context(_REPO, game=g)
-    for ctx in list_labeling_modules(_REPO, game=g):
+    for ctx in module_contexts_overlay_wins(_REPO, g):
         if ctx.storage_key == key or ctx.module_id == key:
             return ctx
         sk = ctx.storage_key
@@ -75,7 +92,9 @@ def list_labeling_scopes(*, game: str | None = None) -> list[dict[str, Any]]:
     root = _REPO.resolve()
     g = _request_game(game)
     ctxs: list[WikiModuleContext] = [all_modules_context(root, game=g)]
-    ctxs.extend(c for c in list_labeling_modules(root, game=g) if c.module_id is not None)
+    ctxs.extend(
+        c for c in module_contexts_overlay_wins(root, g) if c.module_id is not None
+    )
     out: list[dict[str, Any]] = []
     for ctx in ctxs:
         default_ref = (ctx.default_ref or "").replace("\\", "/").strip().lstrip("/")
