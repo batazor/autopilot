@@ -112,10 +112,18 @@ steps:
             # chief). Wait for the Victory/Defeat popup ("Tap anywhere to exit")
             # to appear — retry the initial probe for ~40s — then dismiss it (a
             # few taps for the layered reward popups) before the next iteration.
+            # `expected` is mandatory here: without it a text region matches on
+            # ANY non-empty OCR read, and mid-battle noise in the bottom strip
+            # false-positived at +8s (seen live on bs3) — the "dismissal" tap
+            # landed inside the running battle and the rest of the loop ran
+            # blind while the real result popup appeared after the scenario
+            # exited.
             # TODO: the in-battle pause→exit shortcut resolves the result
             # instantly (operator tip) — wire it here once the pause button is
             # labelled to cut the per-fight wait.
             - while_match: arena.result.exit
+              expected: ["Для выхода нажмите", "tap anywhere"]
+              threshold: 0.75
               retry: { attempts: 20, interval: 2s }
               max: 5
               steps:
