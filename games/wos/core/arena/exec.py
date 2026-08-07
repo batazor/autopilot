@@ -261,7 +261,11 @@ async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
     if not await asyncio.to_thread(
         actions.tap, inst, _PANEL_TOGGLE, approval_source="open_arena_via_city:panel"
     ):
-        ctx.result.update({"action": "panel_not_opened"})
+        # Every early return below logs: the DSL `exec:` step traces "ok" no
+        # matter what a handler reports, so a silent return here surfaced only
+        # as a generic `wait_screen_timeout` two steps later with no cause.
+        logger.warning("open_arena_via_city: City-panel toggle tap rejected (inst=%s)", inst)
+        ctx.result.update({"action": "panel_not_opened", "reason": "panel_not_opened"})
         return
     await asyncio.sleep(1.3)
 
@@ -274,7 +278,14 @@ async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
     # 2. Locate the (dynamic) Marksman row by OCR.
     found = await _find_marksman_cy(actions, ocr, inst)
     if found is None:
-        ctx.result.update({"action": "marksman_row_not_found"})
+        logger.warning(
+            "open_arena_via_city: Marksman row not found after %d sweeps (inst=%s)",
+            _PANEL_FIND_SWEEPS,
+            inst,
+        )
+        ctx.result.update(
+            {"action": "marksman_row_not_found", "reason": "marksman_row_not_found"}
+        )
         return
     cy, frame_w = found
 
@@ -293,6 +304,7 @@ async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
     )
     await asyncio.sleep(2.0)
 
+    logger.info("open_arena_via_city: opened arena via Marksman row cy=%d (inst=%s)", cy, inst)
     ctx.result.update({"action": "opened_arena", "marksman_cy": cy})
 
 
