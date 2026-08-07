@@ -323,9 +323,25 @@ class InstanceWorkerRollingMixin(_Base):
                 return
 
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
-            # Screen is UNKNOWN (landmarks occluded) → a modal may be up. Try a
-            # safe geometric dismiss before overlay analysis; short-circuit the
-            # tick if handled. Known screens are gated out inside the method.
+            # Screen is UNKNOWN (landmarks occluded) → a modal may be up. Give a
+            # KNOWN-DIALOG overlay rule (device-level, e.g. welcome_back's
+            # OCR-of-the-Confirm-button) the FIRST shot: run device-level
+            # overlay now and, if it actioned a rule, short-circuit so the blind
+            # geometric shotgun doesn't fight the precise dismiss. A truly
+            # unknown modal (no matching rule → actioned 0) still falls through
+            # to the geometric dismiss below.
+            if current_screen is None:
+                actioned = await self._overlay_analyze_bgr(
+                    image_bgr,
+                    current_screen_override=None,
+                    device_level_only=True,
+                )
+                if actioned:
+                    return
+
+            # Screen is UNKNOWN and no known-dialog rule handled it → try a safe
+            # geometric dismiss; short-circuit the tick if handled. Known screens
+            # are gated out inside the method.
             if await self._maybe_handle_popup(image_bgr, current_screen=current_screen):
                 return
 
@@ -516,6 +532,16 @@ class InstanceWorkerRollingMixin(_Base):
         outcome = "ok"
         try:
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
+            # Known-dialog dismiss beats the geometric shotgun on an UNKNOWN
+            # screen (see the twin path above / welcome_back).
+            if current_screen is None:
+                actioned = await self._overlay_analyze_bgr(
+                    image_bgr,
+                    current_screen_override=None,
+                    device_level_only=True,
+                )
+                if actioned:
+                    return
             if await self._maybe_handle_popup(image_bgr, current_screen=current_screen):
                 return
             avatar_identity = getattr(

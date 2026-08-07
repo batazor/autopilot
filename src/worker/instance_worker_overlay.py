@@ -263,7 +263,7 @@ class InstanceWorkerOverlayMixin(_Base):
         overlay_results: dict[str, Any],
         *,
         active_player: str | None = None,
-    ) -> None:
+    ) -> int:
         """Handle matched overlay rules.
 
         Two execution paths from a matched rule:
@@ -282,7 +282,7 @@ class InstanceWorkerOverlayMixin(_Base):
         in-flight scenario for player A doesn't block pushes for player B.
         """
         if self._queue is None:
-            return
+            return 0
         now = time.time()
         matched_payloads: list[tuple[str, dict[str, Any]]] = []
         push_payloads: list[tuple[int, int, str, dict[str, Any]]] = []
@@ -312,6 +312,13 @@ class InstanceWorkerOverlayMixin(_Base):
             except Exception:
                 logger.debug("Failed to enqueue pushScenario task(s) from overlay", exc_info=True)
 
+        # Count actioned rules (pushed or inline-clicked) so the rolling tick
+        # can tell a matched known-dialog dismiss (e.g. welcome_back) from an
+        # empty overlay pass and stand the geometric popup shotgun down.
+        actioned = len(push_payloads) + sum(
+            1 for name, _p in matched_payloads if get_inline_steps(name)
+        )
+
         # Still persist non-push matched overlays (e.g. set_node/text state).
         for _rule_name, payload in matched_payloads:
             if _overlay_push_priority(payload) is not None:
@@ -336,6 +343,7 @@ class InstanceWorkerOverlayMixin(_Base):
                     rule_name,
                     exc_info=True,
                 )
+        return actioned
 
     async def _execute_inline_overlay_steps(
         self, rule_name: str, payload: dict[str, Any]

@@ -101,8 +101,14 @@ class InstanceWorkerScreenMixin(_Base):
         *,
         current_screen_override: str | None = None,
         device_level_only: bool = False,
-    ) -> None:
-        """Run ``analyze/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
+    ) -> int:
+        """Run ``analyze/analyze.yaml`` overlay rules on an ADB frame (BGR).
+
+        Returns the number of overlay rules that were actioned this call
+        (pushed a scenario or ran inline steps) — the rolling tick uses it to
+        let a matched known-dialog dismiss beat the geometric popup shotgun.
+        Returns ``0`` on the frame-unchanged cache path and on any early exit.
+        """
         root = repo_root()
         try:
             current_screen: str | None = current_screen_override
@@ -225,11 +231,14 @@ class InstanceWorkerScreenMixin(_Base):
                 self._last_overlay_path = "full"
         except Exception:
             logger.exception("overlay analyze failed on %s", self._cfg.instance_id)
-            return
-        await self._schedule_overlay_matches(results, active_player=active_player)
+            return 0
+        actioned = await self._schedule_overlay_matches(
+            results, active_player=active_player
+        )
         await self._maybe_dismiss_unknown_popup(
             results, current_screen=current_screen
         )
+        return actioned
 
     # Cooldown between detector-issued pop-up taps. One frame's tap needs time to
     # animate the modal out before we re-evaluate; without this we'd re-tap the
