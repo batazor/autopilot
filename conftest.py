@@ -15,6 +15,35 @@ from adb import BotActions
 from config.loader import Settings, load_settings, reset_settings, set_settings
 from ocr.client import OcrClient
 
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Strip operator ``.env`` fleet slices before ANY fixture runs.
+
+    ``WOS_INSTANCES`` / ``WOS_MODULES`` in the repo-root ``.env`` (auto-loaded
+    into the process env) pin local runs to a subset of devices/modules. Module-
+    and session-scoped fixtures load the device registry and area docs at setup
+    time — earlier than a function-scoped ``monkeypatch.delenv`` — so those
+    slices must be removed here, at session start, or unrelated tests fail on a
+    filtered registry (e.g. ``shop.tabs_strip`` missing under an intel+arena
+    allowlist). The per-test autouse fixture below keeps them clean thereafter.
+    """
+    _ = config
+    # Set to "" (not pop): the .env auto-loader uses ``override=False``, so a
+    # POPPED var would be re-added from ``.env`` on the next lazy load. An empty
+    # value both survives that (already present) and reads as "no allowlist".
+    for var in ("WOS_INSTANCES", "WOS_MODULES"):
+        os.environ[var] = ""
+    # Drop any discovery/area caches already warmed with the allowlist during
+    # import (env_loader auto-loads ``.env`` at import time).
+    with contextlib.suppress(Exception):
+        from config.module_discovery import _clear_module_discovery_caches
+
+        _clear_module_discovery_caches()
+    with contextlib.suppress(Exception):
+        from layout.area_manifest import clear_area_doc_cache
+
+        clear_area_doc_cache()
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Iterator
     from pathlib import Path
@@ -41,15 +70,21 @@ def _disable_api_startup_gift_code_scrape(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pytest.fixture(autouse=True)
-def _ignore_operator_instance_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests must not see the operator's local ``WOS_INSTANCES`` allowlist.
+def _ignore_operator_allowlists(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests must not see the operator's local ``WOS_INSTANCES`` / ``WOS_MODULES``.
 
-    The repo-root ``.env`` (auto-loaded into the process env) may pin the
-    fleet to a single instance for local runs; ``load_settings`` would then
-    filter test-created devices out and unrelated tests fail on empty
-    ``settings.instances``.
+    The repo-root ``.env`` (auto-loaded into the process env) may pin the fleet
+    to a single instance and a module slice for local runs; those would then
+    filter test-created devices / expected modules out and unrelated tests fail
+    (empty ``settings.instances``, missing modules in discovery).
     """
-    monkeypatch.delenv("WOS_INSTANCES", raising=False)
+    # Empty (not delete): a deleted var is re-added from ``.env`` by the lazy
+    # ``override=False`` auto-loader; "" both survives and reads as no filter.
+    monkeypatch.setenv("WOS_INSTANCES", "")
+    monkeypatch.setenv("WOS_MODULES", "")
+    from config.module_discovery import _clear_module_discovery_caches
+
+    _clear_module_discovery_caches()
 
 
 @pytest.fixture(autouse=True)

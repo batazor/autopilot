@@ -129,8 +129,17 @@ def list_scenarios(
 ) -> list[dict[str, Any]]:
     cache = _ScenarioListCache()
     out: list[dict[str, Any]] = []
+    # The template resolver walks every scenario file on disk regardless of the
+    # module ``enabled`` flag / ``WOS_MODULES`` allowlist. Intersect with the
+    # active module set so the listing reflects what the runtime actually loads
+    # (otherwise ``botctl scenarios`` shows disabled-module scenarios that can
+    # never run).
+    active_dirs = [d.resolve() for d in iter_module_dirs(_REPO, game=game)]
     for rk in _tmpl.iter_resolved_keys(_REPO):
         if not path_matches_module_scope(rk.path, _REPO, module_scope, game=game):
+            continue
+        path_resolved = rk.path.resolve()
+        if not any(d in path_resolved.parents for d in active_dirs):
             continue
         out.append(
             _scenario_row(rk.path, context=rk.context, key=rk.key, cache=cache),

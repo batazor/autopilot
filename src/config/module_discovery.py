@@ -11,6 +11,7 @@ thread the active game through so Kingshot modules don't leak into WOS state.
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -97,6 +98,15 @@ def _module_dirs_cached(game: str, root_s: str) -> tuple[Path, ...]:
                 if order > 0:
                     disabled_overlay_rels.add(rel_s)
                 continue
+            if not _module_allowed(rel_s):
+                # Operator allowlist (WOS_MODULES) — a hard filter ON TOP of the
+                # per-module ``enabled`` flag, for temporarily running a slice
+                # of the fleet (e.g. intel+arena only) without editing every
+                # module.yaml. Excluded overlay modules are also stripped from
+                # the base layer, same as ``enabled: false``.
+                if order > 0:
+                    disabled_overlay_rels.add(rel_s)
+                continue
             found.append((order, rel_s, module_dir))
 
     visible = [
@@ -105,6 +115,37 @@ def _module_dirs_cached(game: str, root_s: str) -> tuple[Path, ...]:
         if not (entry[0] == 0 and entry[1] in disabled_overlay_rels)
     ]
     return tuple(entry[2] for entry in sorted(visible, key=_module_sort_key))
+
+
+@lru_cache(maxsize=1)
+def _module_allowlist() -> frozenset[str] | None:
+    """Parse ``WOS_MODULES`` into a normalized rel-path allowlist.
+
+    ``None`` (env unset/empty) means "all modules" — the default. Otherwise a
+    module is kept when its rel path matches an entry by full rel (``core/arena``),
+    by basename (``arena``), or under a ``core/`` prefix (``arena`` ↔ ``core/arena``).
+    Entries and rels are lower-cased and slash-normalized so operator input is
+    forgiving.
+    """
+    raw = os.environ.get("WOS_MODULES", "").strip()
+    if not raw:
+        return None
+    entries = {
+        e.strip().replace("\\", "/").strip("/").lower()
+        for e in raw.split(",")
+        if e.strip()
+    }
+    return frozenset(entries) or None
+
+
+def _module_allowed(rel_s: str) -> bool:
+    allow = _module_allowlist()
+    if allow is None:
+        return True
+    rel = rel_s.replace("\\", "/").strip("/").lower()
+    base = rel.rsplit("/", 1)[-1]
+    core_stripped = rel.removeprefix("core/")
+    return bool({rel, base, core_stripped} & allow)
 
 
 def _module_manifest_enabled(manifest: Path) -> bool:
@@ -133,6 +174,7 @@ def _clear_module_discovery_caches() -> None:
     """Drop module-discovery caches (tests that mutate the module tree)."""
     _module_dirs_cached.cache_clear()
     _iter_module_area_manifests_cached.cache_clear()
+    _module_allowlist.cache_clear()
 
 
 def _module_rel_for_catalog(

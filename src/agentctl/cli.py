@@ -714,6 +714,13 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Load the repo-root ``.env`` so botctl sees the same operator overrides as
+    # the worker (``WOS_INSTANCES`` / ``WOS_MODULES`` fleet slices, Redis URL,
+    # …) — otherwise reads like ``scenarios`` / ``status`` reflect the full
+    # fleet while the running worker only has the sliced set.
+    from config.env_loader import load_env_once
+
+    load_env_once()
     args = build_parser().parse_args(argv)
     try:
         data, renderer = _dispatch(args)

@@ -279,8 +279,9 @@ def test_production_screen_verify_yaml_contains_welcome_back_rule() -> None:
     expected = [
         {"match": "text.welcome_back", "threshold": 0.9},
         # RU fallback: the template crops English text; the OCR rule catches
-        # «С возвращением» on the RU build.
-        {"ocr": "text.welcome_back", "contains": ["Welcome", "возвращением"]},
+        # «С возвращением!» on the RU build. Stem «возвращени» because live OCR
+        # reads the title as «возвращение!» (drops the trailing «м»).
+        {"ocr": "text.welcome_back", "contains": ["Welcome", "возвращени"]},
     ]
     assert landmarks == expected
     assert rules == expected

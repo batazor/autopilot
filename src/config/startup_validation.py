@@ -195,6 +195,20 @@ def _check_red_dot_capability(
         )
 
 
+def _cross_ref_severity() -> str:
+    """``warning`` when an operator module allowlist (``WOS_MODULES``) is active.
+
+    A partial-fleet slice (e.g. intel+arena only) legitimately leaves kept
+    modules pointing at scenarios/regions of excluded modules — those pushes /
+    edges just soft-skip at runtime (``scenario_not_found`` / a nav edge that
+    never fires). Downgrading these to warnings keeps the slice bootable while
+    a full-fleet config still errors hard on a real typo.
+    """
+    from config.module_discovery import _module_allowlist
+
+    return "warning" if _module_allowlist() is not None else "error"
+
+
 def _check_region(
     issues: list[StartupValidationIssue],
     *,
@@ -207,7 +221,7 @@ def _check_region(
     if region and region not in region_names:
         issues.append(
             StartupValidationIssue(
-                "error",
+                _cross_ref_severity(),
                 source,
                 f"{field} references missing area region {region!r}",
             )
@@ -250,7 +264,7 @@ def _check_scenario(
                 return
         issues.append(
             StartupValidationIssue(
-                "error",
+                _cross_ref_severity(),
                 source,
                 f"{field} references missing scenario {name!r}",
             )
@@ -259,7 +273,7 @@ def _check_scenario(
     if _tmpl.resolve(repo_root, name) is None:
         issues.append(
             StartupValidationIssue(
-                "error",
+                _cross_ref_severity(),
                 source,
                 f"{field} references missing scenario {name!r}",
             )
