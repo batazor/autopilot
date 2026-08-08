@@ -25,11 +25,17 @@ def _findings(issues: list[Any]) -> dict[str, Any]:
 def _patch_graph(
     mocker: Any, adjacency: dict[str, set[str]], screens: dict[str, tuple[int, bool, str]]
 ) -> None:
+    """Pin one catalog with a known graph and a known screen set.
+
+    The check resolves screen names PER CATALOG — a name only means something
+    inside the catalog that declares it — so the per-catalog collector is what
+    has to be stubbed here, not the cross-catalog union.
+    """
     import navigation.screen_graph as sg
 
     mocker.patch.object(sg, "graph_for_game", lambda _g=None: ({}, {}, adjacency))
     mocker.patch(
-        "config.startup_validation._collect_screen_verify_entries",
+        "config.startup_validation._collect_screen_verify_entries_for_catalog",
         return_value=screens,
     )
     mocker.patch("config.games.iter_games", return_value=("wos",))

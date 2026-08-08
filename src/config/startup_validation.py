@@ -1165,37 +1165,61 @@ def _validate_screen_family_route_gaps(
         )
 
 
-def _screen_verify_yaml_paths(repo_root: Path) -> list[Path]:
-    """Every per-module ``screen_verify.yaml`` / ``routes/screen_verify.yaml``
-    across all registered games.
+def _screen_verify_yaml_paths_for_catalog(repo_root: Path, catalog: str) -> list[Path]:
+    """``screen_verify.yaml`` paths for ONE module catalog, in discovery order.
 
-    Mirrors :func:`_edge_taps_yaml_paths` so the dead-end check stays in lockstep
-    with the navigator's screen registry.
+    Discovery order is what decides shadowing, so the order here must be the
+    order :func:`config.module_discovery.iter_module_dirs` returns.
     """
-    from config.games import iter_games
     from config.module_discovery import iter_module_dirs
 
     paths: list[Path] = []
-    for g in iter_games(repo_root):
-        for module_dir in iter_module_dirs(repo_root, game=g):
-            for rel in ("screen_verify.yaml", "routes/screen_verify.yaml"):
-                mod_path = module_dir / rel
-                if mod_path.is_file():
-                    paths.append(mod_path)
-                    break
+    for module_dir in iter_module_dirs(repo_root, game=catalog):
+        for rel in ("screen_verify.yaml", "routes/screen_verify.yaml"):
+            mod_path = module_dir / rel
+            if mod_path.is_file():
+                paths.append(mod_path)
+                break
     return paths
 
 
-def _collect_screen_verify_entries(
-    repo_root: Path,
-) -> dict[str, tuple[int, bool, str]]:
-    """Map detectable screen name → ``(priority, terminal_opt_out, source_path)``.
+def _screen_verify_yaml_paths(repo_root: Path) -> list[Path]:
+    """Every per-module ``screen_verify.yaml`` across all registered games.
 
-    The first occurrence wins on duplicate names (same as the runtime loader's
-    behaviour — later modules don't shadow earlier definitions).
+    Mirrors :func:`_edge_taps_yaml_paths`. Kept for the collectors that
+    legitimately want the flat union; anything that resolves a screen NAME must
+    use :func:`_screen_verify_yaml_paths_for_catalog` instead, because names are
+    only unique within a catalog.
+    """
+    from config.games import iter_games
+
+    paths: list[Path] = []
+    for g in iter_games(repo_root):
+        paths.extend(_screen_verify_yaml_paths_for_catalog(repo_root, g))
+    return paths
+
+
+def _collect_screen_verify_entries_for_catalog(
+    repo_root: Path, catalog: str
+) -> dict[str, tuple[int, bool, str]]:
+    """Screen name → ``(priority, terminal_opt_out, source_path)`` for ONE catalog.
+
+    The LAST occurrence wins on duplicate names, matching the runtime loader
+    (``navigation.screen_graph`` does a plain ``out_screens[screen] = entry`` as
+    it walks the discovery order, so a later module shadows an earlier one).
+
+    This used to be first-wins *and* pooled across games, with a docstring
+    claiming first-wins was the runtime behaviour. Both halves were wrong, and
+    the divergence had teeth: under the ``wos_ru`` catalog the overlay redefines
+    ``chat`` / ``mail`` / ``welcome_back`` / ``survivor_status``, so the worker
+    ran the overlay entries while the validator checked the base ones — the four
+    RU documents were validated by nobody. Pooling made it worse in the other
+    direction: kingshot and wos both define ``welcome_back``, and a global
+    last-wins hands the name to whichever game sorts last, which no runtime ever
+    does.
     """
     out: dict[str, tuple[int, bool, str]] = {}
-    for path in _screen_verify_yaml_paths(repo_root):
+    for path in _screen_verify_yaml_paths_for_catalog(repo_root, catalog):
         doc = _load_yaml_dict(path)
         if "__load_error__" in doc:
             continue
@@ -1204,7 +1228,7 @@ def _collect_screen_verify_entries(
             continue
         for raw_name, raw_entry in screens.items():
             name = str(raw_name).strip()
-            if not name or name in out:
+            if not name:
                 continue
             prio = 100
             terminal = False
@@ -1219,6 +1243,24 @@ def _collect_screen_verify_entries(
             except ValueError:
                 rel = path.as_posix()
             out[name] = (prio, terminal, rel)
+    return out
+
+
+def _collect_screen_verify_entries(
+    repo_root: Path,
+) -> dict[str, tuple[int, bool, str]]:
+    """Union of every catalog's screen entries.
+
+    Retained for the checks that only ask "does this screen exist anywhere".
+    A check that reasons about a screen's *definition* must go per-catalog via
+    :func:`_collect_screen_verify_entries_for_catalog` — a name means different
+    things in different catalogs.
+    """
+    from config.games import iter_games
+
+    out: dict[str, tuple[int, bool, str]] = {}
+    for g in iter_games(repo_root):
+        out.update(_collect_screen_verify_entries_for_catalog(repo_root, g))
     return out
 
 
@@ -1331,32 +1373,45 @@ def _validate_unreachable_screens(
     from config.games import iter_games
     from navigation.screen_graph import MAIN_CITY_HUB_PRIORITY, graph_for_game
 
-    screens = _collect_screen_verify_entries(repo_root)
-    if not screens:
-        return
-
-    adjacency: dict[str, set[str]] = {}
-    for g in iter_games(repo_root):
-        try:
-            _static, _dynamic, graph = graph_for_game(g)
-        except Exception:
-            logger.debug("reachability: graph build failed game=%s", g, exc_info=True)
+    # Per catalog, never pooled. A screen name only means something inside the
+    # catalog that declares it, and the graph a worker walks is that catalog's
+    # graph. Unioning them let kingshot's reachability be computed through wos
+    # edges (and vice versa), which no runtime ever does.
+    for catalog in iter_games(repo_root):
+        screens = _collect_screen_verify_entries_for_catalog(repo_root, catalog)
+        if not screens:
             continue
-        for src, dsts in graph.items():
-            adjacency.setdefault(str(src), set()).update(str(d) for d in dsts)
-    if not adjacency:
-        return
+        try:
+            _static, _dynamic, graph = graph_for_game(catalog)
+        except Exception:
+            logger.debug(
+                "reachability: graph build failed catalog=%s", catalog, exc_info=True
+            )
+            continue
+        adjacency = {str(src): {str(d) for d in dsts} for src, dsts in graph.items()}
+        if not adjacency:
+            continue
 
-    reachable = {"main_city"}
-    frontier = ["main_city"]
-    while frontier:
-        for nxt in adjacency.get(frontier.pop(), ()):
-            if nxt not in reachable:
-                reachable.add(nxt)
-                frontier.append(nxt)
+        reachable = {"main_city"}
+        frontier = ["main_city"]
+        while frontier:
+            for nxt in adjacency.get(frontier.pop(), ()):
+                if nxt not in reachable:
+                    reachable.add(nxt)
+                    frontier.append(nxt)
 
+        _emit_unreachable(repo_root, issues, screens, reachable, MAIN_CITY_HUB_PRIORITY)
+
+
+def _emit_unreachable(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+    screens: dict[str, tuple[int, bool, str]],
+    reachable: set[str],
+    hub_priority: int,
+) -> None:
     for name, (prio, _terminal, src_path) in sorted(screens.items()):
-        if prio < MAIN_CITY_HUB_PRIORITY or name in reachable:
+        if prio < hub_priority or name in reachable:
             continue
         if _screen_verify_entry_opts_out_of_reachability(repo_root, name):
             continue
@@ -1440,7 +1495,28 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         red_dot_regions=red_dot_regions,
         text_search_regions=text_search_regions,
     )
-    return issues
+    return _dedupe_issues(issues)
+
+
+def _dedupe_issues(
+    issues: list[StartupValidationIssue],
+) -> list[StartupValidationIssue]:
+    """Collapse byte-identical findings, preserving order.
+
+    Catalogs share ~99% of their module tree, so a check that runs per catalog
+    reports the same defect in the same shared file once per catalog. Identity is
+    the finding itself — ``(severity, source, message)`` — not the catalog that
+    happened to surface it.
+    """
+    seen: set[tuple[str, str, str]] = set()
+    out: list[StartupValidationIssue] = []
+    for issue in issues:
+        key = (issue.severity, issue.source, issue.message)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(issue)
+    return out
 
 
 def log_startup_config_validation(repo_root: Path | None = None) -> list[StartupValidationIssue]:
