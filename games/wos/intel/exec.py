@@ -383,11 +383,18 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
     current: int | None = None     # latest reliable current reading
     maximum: int | None = None     # plausible max, only if a clean read yielded one
     for attempt in range(attempts):
+        # Lossless adb screencap, NOT the scrcpy H.264 stream: compression
+        # mangles the tiny «114» counter (stream reads «14»/«4», a PNG frame
+        # reads «114» clean at 4× — same reason the power gate uses adb capture).
         try:
-            image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+            image = await asyncio.to_thread(actions.capture_screen_bgr_adb, ctx.instance_id)
         except Exception:
-            logger.exception("intel stamina: capture failed instance=%s", ctx.instance_id)
-            image = None
+            logger.debug("intel stamina: adb capture failed, falling back", exc_info=True)
+            try:
+                image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+            except Exception:
+                logger.exception("intel stamina: capture failed instance=%s", ctx.instance_id)
+                image = None
         if image is not None:
             captured_any = True
             h, w = image.shape[:2]
