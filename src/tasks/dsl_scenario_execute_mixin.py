@@ -36,6 +36,36 @@ from tasks.dsl_scenario_step_loops_mixin import DslScenarioStepLoopsMixin
 
 logger = logging.getLogger(__name__)
 
+# Top-level step dispatch: action key -> handler method name. Insertion order is
+# the match order, so a step carrying two action keys resolves the same way the
+# old if-chain did (the schema rejects that anyway).
+#
+# A table rather than an if-chain because the chain had no ``else``: an
+# unrecognised key fell off the end silently. It also makes "add a step type"
+# one line here instead of an easily-forgotten branch.
+_TOP_LEVEL_STEP_HANDLERS: dict[str, str] = {
+    "match": "_exec_match_step",
+    "while_match": "_exec_while_match_step",
+    "while_scroll": "_exec_while_scroll_step",
+    "repeat": "_exec_repeat_step",
+    "loop": "_exec_loop_step",
+    "push_scenario": "_exec_push_scenario_step",
+    "system_back": "_exec_system_back_step",
+    "type_text": "_exec_type_text_step",
+    "swipe_direction": "_exec_swipe_direction_step",
+    "ocr": "_exec_ocr_step",
+    "exec": "_exec_exec_step",
+    "click": "_exec_click_step",
+    "long_click": "_exec_long_click_step",
+    "ttl": "_exec_ttl_step",
+    "wait_screen": "_exec_wait_screen_step",
+    "wait": "_exec_wait_step",
+    # ``break`` is only meaningful inside a loop body, which the nested
+    # interpreter owns. At top level it used to vanish without a trace row;
+    # this handler says so out loud instead.
+    "break": "_exec_break_outside_loop_step",
+}
+
 
 def _select_nav_target(
     allowed_nodes: tuple[str, ...], args: dict[str, Any] | None
@@ -694,6 +724,10 @@ class DslScenarioExecuteMixin(
             mark_step_done=_mark_top_level_step_done,
             step_index=step_index,
         )
+        # Publish the frame so the NESTED interpreter can stamp its terminal
+        # returns with the same trace metadata (``_nested_fin``). Without it a
+        # failure inside a loop body produced a history row with no steps_trace.
+        self._exec_frame = fr
 
         while step_index < len(steps):
             step = steps[step_index]
@@ -776,89 +810,29 @@ class DslScenarioExecuteMixin(
                 if result is not None:
                     return result
                 continue
-            if "match" in step:
-                result = await self._exec_match_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
+            handler_name = next(
+                (k for k in _TOP_LEVEL_STEP_HANDLERS if k in step), ""
+            )
+            if not handler_name:
+                # No silent fall-through: an unrecognised key used to drop off
+                # the end of the dispatch chain with no log and no trace row, so
+                # a typo'd step ran as a no-op and looked like a clean pass.
+                logger.warning(
+                    "dsl_scenario: unknown step key scenario=%s step=%s",
+                    _scen(key),
+                    sorted(step),
+                )
+                _trace_row(_resumable_step, step, "skipped", reason="unknown_step_key")
                 continue
-            if "while_match" in step:
-                result = await self._exec_while_match_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "while_scroll" in step:
-                result = await self._exec_while_scroll_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "repeat" in step:
-                result = await self._exec_repeat_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "loop" in step:
-                result = await self._exec_loop_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "push_scenario" in step:
-                result = await self._exec_push_scenario_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "system_back" in step:
-                result = await self._exec_system_back_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "type_text" in step:
-                result = await self._exec_type_text_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "swipe_direction" in step:
-                result = await self._exec_swipe_direction_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "ocr" in step:
-                result = await self._exec_ocr_step(fr, step, _resumable_step)
+            handler = getattr(self, _TOP_LEVEL_STEP_HANDLERS[handler_name])
+            result = await handler(fr, step, _resumable_step)
+            if handler_name == "ocr":
                 # The handler may have consumed a sibling chain of ``ocr:``
                 # steps — resync the loop cursor with the frame.
                 step_index = fr.step_index
-                if result is not None:
-                    return result
-                continue
-            if "exec" in step:
-                result = await self._exec_exec_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "click" in step:
-                result = await self._exec_click_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "long_click" in step:
-                result = await self._exec_long_click_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "ttl" in step:
-                result = await self._exec_ttl_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "wait_screen" in step:
-                result = await self._exec_wait_screen_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
-            if "wait" in step:
-                result = await self._exec_wait_step(fr, step, _resumable_step)
-                if result is not None:
-                    return result
-                continue
+            if result is not None:
+                return result
+            continue
         logger.info("dsl_scenario done: %s (%s)", _scen(key), instance_id)
         await self._clear_step_context(instance_id)
         return TaskResult(

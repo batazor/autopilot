@@ -115,6 +115,11 @@ class DslScenarioTask(
     _exclude_match_top_lefts: dict[str, list[tuple[int, int]]] = field(
         default_factory=dict, init=False, repr=False
     )
+    # Live ``ExecFrame`` for the current ``execute`` call. Published by
+    # ``execute`` so the NESTED step interpreter can stamp trace metadata onto
+    # its terminal returns via ``_nested_fin`` — declared here rather than
+    # materialising implicitly so the attribute has one documented owner.
+    _exec_frame: Any | None = field(default=None, init=False, repr=False)
     # Snapshot of ``dsl_preempt_gen`` at scenario start; debug UI bumps the counter to exit early.
     _preempt_gen_at_start: int = field(default=0, init=False, repr=False)
     # Short-TTL cache of the preempt outcome so per-inline-step probes inside

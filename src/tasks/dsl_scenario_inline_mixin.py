@@ -28,6 +28,7 @@ from layout.types import Point
 from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import (
     _COLOR_WORD_ALIASES,
+    _WHILE_MATCH_DEFAULT_RETRY_INTERVAL_S,
     _action_pause_seconds,
     _BreakRepeat,
     _dsl_cond_allows_step,
@@ -67,6 +68,26 @@ class DslScenarioInlineMixin(_Base):
     _last_tap_region_clicked: str
     _implicit_match_for_region: str
     _exclude_match_top_lefts: dict[str, list[tuple[int, int]]]
+    _exec_frame: Any | None
+
+    def _nested_fin(self, meta: dict[str, Any]) -> dict[str, Any]:
+        """Stamp trace metadata onto a TaskResult raised from a NESTED step.
+
+        The top-level handlers all route their returns through ``ExecFrame.fin``,
+        which attaches ``steps_trace`` / ``steps_total`` / ``scenario_completed``.
+        The nested interpreter had no access to the frame, so its eight terminal
+        returns hand-built a bare ``{"scenario": ..., "reason": ...}`` — meaning
+        any failure from inside a ``loop`` / ``while_match`` body produced a
+        history row with NO trace at all, and ``botctl trace`` silently fell back
+        to an older row while still labelling it as this run's.
+
+        ``execute`` publishes the live frame on ``self``; falls back to the bare
+        dict when there is none (a nested step driven directly by a test).
+        """
+        fr = getattr(self, "_exec_frame", None)
+        if fr is None:
+            return meta
+        return fr.fin(meta, completed=False)
 
     @staticmethod
     def _wait_screen_is_optional(step: dict[str, Any]) -> bool:
@@ -322,7 +343,9 @@ class DslScenarioInlineMixin(_Base):
             return TaskResult(
                 success=False,
                 next_run_at=None,
-                metadata={"scenario": scenario_key, "reason": "system_back_not_approved"},
+                metadata=self._nested_fin(
+                    {"scenario": scenario_key, "reason": "system_back_not_approved"}
+                ),
             )
         await asyncio.sleep(_action_pause_seconds(0.4))
         self._append_trace_row(trace_path, step, "ok")
@@ -361,7 +384,9 @@ class DslScenarioInlineMixin(_Base):
                 return TaskResult(
                     success=False,
                     next_run_at=None,
-                    metadata={"scenario": scenario_key, "reason": "type_text_not_approved"},
+                    metadata=self._nested_fin(
+                        {"scenario": scenario_key, "reason": "type_text_not_approved"}
+                    ),
                 )
             if hasattr(actions, "invalidate_frame_cache"):
                 with suppress(Exception):
@@ -590,10 +615,9 @@ class DslScenarioInlineMixin(_Base):
             return TaskResult(
                 success=False,
                 next_run_at=None,
-                metadata={
-                    "scenario": scenario_key,
-                    "reason": "tap_not_approved",
-                },
+                metadata=self._nested_fin(
+                    {"scenario": scenario_key, "reason": "tap_not_approved"}
+                ),
             )
         self._last_tap_region_clicked = region
         # After a click on a matched region, remember the last match top-left so the next
@@ -830,7 +854,9 @@ class DslScenarioInlineMixin(_Base):
                 return TaskResult(
                     success=False,
                     next_run_at=None,
-                    metadata={"scenario": scenario_key, "reason": "long_click_not_approved"},
+                    metadata=self._nested_fin(
+                        {"scenario": scenario_key, "reason": "long_click_not_approved"}
+                    ),
                 )
             self._last_tap_region_clicked = region
             await asyncio.sleep(_action_pause_seconds(0.4))
@@ -1087,12 +1113,27 @@ class DslScenarioInlineMixin(_Base):
             except (TypeError, ValueError):
                 initial_attempts = 1
             initial_attempts = max(1, initial_attempts)
+            # Same default as the top-level ``while_match`` (0.5s). It used to be
+            # 0.0 here, so `retry: {attempts: 3}` with no explicit interval
+            # hammered three probes back-to-back when nested and paced them 500ms
+            # apart at top level — the same YAML behaving differently by depth.
             attempt_interval_s = (
                 _parse_wait_seconds(retry_cfg.get("interval"))
                 if "interval" in retry_cfg
-                else 0.0
+                else _WHILE_MATCH_DEFAULT_RETRY_INTERVAL_S
             )
             attempt_interval_s = max(0.0, attempt_interval_s)
+            if step.get("strict") is True:
+                # Top-level ``strict`` soft-fails and reschedules the scenario on
+                # zero iterations. That has no meaning for a nested block (there
+                # is no queue entry to reschedule from here), and it was silently
+                # dropped — say so rather than let an author believe it applies.
+                logger.warning(
+                    "dsl_scenario: `strict: true` is ignored on a NESTED while_match "
+                    "(scenario=%s region=%s) — it only reschedules at top level",
+                    _scen(scenario_key),
+                    region,
+                )
 
             iterations = 0
             for iter_idx in range(max_iters):
@@ -1239,7 +1280,9 @@ class DslScenarioInlineMixin(_Base):
                     return TaskResult(
                         success=False,
                         next_run_at=None,
-                        metadata={"scenario": scenario_key, "reason": "swipe_not_approved"},
+                        metadata=self._nested_fin(
+                            {"scenario": scenario_key, "reason": "swipe_not_approved"}
+                        ),
                     )
                 await asyncio.sleep(_action_pause_seconds(0.4))
             self._append_trace_row(trace_path, step, "ok")
@@ -1256,11 +1299,9 @@ class DslScenarioInlineMixin(_Base):
             return TaskResult(
                 success=True,
                 next_run_at=datetime.now(tz=UTC) + timedelta(seconds=ttl_s),
-                metadata={
-                    "scenario": scenario_key,
-                    "reason": "ttl_exit",
-                    "ttl_s": ttl_s,
-                },
+                metadata=self._nested_fin(
+                    {"scenario": scenario_key, "reason": "ttl_exit", "ttl_s": ttl_s}
+                ),
             )
         if "wait_screen" in step:
             matched = await self._run_wait_screen_step(
@@ -1282,10 +1323,9 @@ class DslScenarioInlineMixin(_Base):
                 return TaskResult(
                     success=False,
                     next_run_at=None,
-                    metadata={
-                        "scenario": scenario_key,
-                        "reason": "wait_screen_timeout",
-                    },
+                    metadata=self._nested_fin(
+                        {"scenario": scenario_key, "reason": "wait_screen_timeout"}
+                    ),
                 )
             self._append_trace_row(trace_path, step, "ok", matched=matched)
             return None
@@ -1412,7 +1452,9 @@ class DslScenarioInlineMixin(_Base):
                 return TaskResult(
                     success=False,
                     next_run_at=None,
-                    metadata={"scenario": scenario_key, "reason": failure, "exec": name},
+                    metadata=self._nested_fin(
+                        {"scenario": scenario_key, "reason": failure, "exec": name}
+                    ),
                 )
             self._append_trace_row(trace_path, step, "ok", **exec_row)
             return None

@@ -69,6 +69,8 @@ class _DslTaskHost(Protocol):
     _scenario_started_at: float | None
     _step_start_times: dict[str, float] | None
     _steps_trace: list[dict[str, Any]]
+    # Live ExecFrame for the current ``execute`` call (see DslScenarioTask).
+    _exec_frame: Any | None
 
     # ------------------------------------------------------------------
     # Cross-mixin helpers (concrete implementation lives in one mixin,

@@ -25,6 +25,7 @@ from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import (
+    _WHILE_MATCH_DEFAULT_RETRY_INTERVAL_S,
     _action_pause_seconds,
     _BreakRepeat,
     _parse_wait_seconds,
@@ -209,7 +210,7 @@ class DslScenarioStepLoopsMixin(_Base):
         #     attempts: 3
         #     interval: 500ms     # also accepts "0.5s" or raw seconds
         default_attempts = 1
-        default_interval_s = 0.5
+        default_interval_s = _WHILE_MATCH_DEFAULT_RETRY_INTERVAL_S
         # Scenario ``steps:`` are OR-semantics: each step tries; if a
         # ``while_match`` finds zero iterations, we just move to the
         # next step instead of failing the whole scenario. The previous

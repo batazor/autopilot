@@ -433,6 +433,23 @@ class DslScenarioStepActionsMixin(_Base):
         )
         return None
 
+    async def _exec_break_outside_loop_step(
+        self, fr: ExecFrame, step: dict[str, Any], _resumable_step: int
+    ) -> TaskResult | None:
+        """``break:`` at top level — there is no loop to leave.
+
+        The nested interpreter implements ``break`` by raising ``_BreakRepeat``,
+        which the enclosing ``loop`` / ``repeat`` / ``while_match`` catches. At
+        top level there is no such frame, so the old chain simply had no branch
+        for it and the step vanished with no log and no trace row. Say it.
+        """
+        logger.warning(
+            "dsl_scenario: `break` outside a loop is a no-op scenario=%s",
+            _scen(fr.scenario_key),
+        )
+        self._append_trace_row(_resumable_step, step, "skipped", reason="break_outside_loop")
+        return None
+
     async def _exec_exec_step(
         self, fr: ExecFrame, step: dict[str, Any], _resumable_step: int
     ) -> TaskResult | None:
@@ -717,7 +734,33 @@ class DslScenarioStepActionsMixin(_Base):
         )
         seconds = _jittered_wait_seconds(_parse_wait_seconds(w), _jitter_pct)
         if seconds > 0:
-            await asyncio.sleep(seconds)
+            # Chunked, preemptible sleep — the same shape the NESTED ``wait:``
+            # has always used. This path used to be a single
+            # ``asyncio.sleep(seconds)``, so `wait: 30s` at top level held
+            # "Run scenario now" for the full 30s while the identical step one
+            # indent deeper cancelled within 250ms.
+            chunk = 0.25
+            remaining = seconds
+            while remaining > 0:
+                step_s = min(chunk, remaining)
+                await asyncio.sleep(step_s)
+                remaining -= step_s
+                if remaining <= 0:
+                    break
+                ip = await self._inline_preempt_if_needed(instance_id, key)
+                if ip is not None:
+                    md = dict(ip.metadata or {})
+                    _trace_row(
+                        _resumable_step,
+                        step,
+                        "stopped",
+                        reason=str(md.get("reason") or ""),
+                    )
+                    return TaskResult(
+                        success=ip.success,
+                        next_run_at=ip.next_run_at,
+                        metadata=fr.fin(md, completed=False),
+                    )
             # Explicit pause ⇒ assume the screen changed during it
             # (timer ticks, popups animating in). Drop the framebuffer
             # cache so the next ``match`` / ``ocr`` doesn't reuse the

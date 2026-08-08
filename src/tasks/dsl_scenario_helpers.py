@@ -57,6 +57,12 @@ def _trace_exec_result_kwargs(row: dict[str, Any]) -> dict[str, Any]:
 # read ``ok``.
 _EXEC_INFRA_FAILURE_REASONS = frozenset({"unknown_exec", "exec_failed"})
 
+# Pause between the initial probe attempts of a ``while_match`` when the step's
+# ``retry:`` block sets ``attempts`` but no ``interval``. Shared by both step
+# interpreters — they each carried their own default (0.5s vs 0.0s), so the same
+# YAML paced its probes differently depending on nesting depth.
+_WHILE_MATCH_DEFAULT_RETRY_INTERVAL_S = 0.5
+
 
 def _exec_result_failure_reason(row: dict[str, Any]) -> str | None:
     """The reason an ``exec:`` step failed, or ``None`` when it succeeded.
