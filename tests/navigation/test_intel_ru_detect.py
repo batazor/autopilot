@@ -56,7 +56,16 @@ async def test_belaya_mgla_intel_board_detects_intel(ru_catalog) -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_intel_stamina_ru_needs_enhance_line(ru_catalog) -> None:
-    """The stamina read the planner budgets on: «9/70» via the overlay region."""
+    """The stamina read the planner budgets on, via the wos_ru overlay region.
+
+    The counter is the TOP-RIGHT plain number («174» on this fixture) — no
+    ``/max`` part. This test used to expect ``(9, 70)``, which came from the
+    bottom-left LEVEL bar («37/70»): the region was pointed there by mistake, the
+    reader took the level for stamina and declined every fight. The overlay was
+    corrected (see the ``_comment`` on ``intel.stamina`` in
+    ``games/wos/ru/intel/area.yaml``) but this expectation was not, so the test
+    was asserting the bug.
+    """
     import cv2
 
     from config.loader import get_settings
@@ -90,7 +99,7 @@ async def test_intel_stamina_ru_needs_enhance_line(ru_catalog) -> None:
     from games.wos.intel.state import parse_stamina
 
     parsed = parse_stamina(res.text)
-    assert parsed == (9, 70), (
+    assert parsed == (174, None), (
         f"stamina read drifted: text={res.text!r} conf={res.confidence:.3f} parsed={parsed}"
     )
 
