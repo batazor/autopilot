@@ -14,7 +14,11 @@
 # disable without editing this file (or =true to force-enable a dormant one).
 enabled: true
 
-# Min seconds between blind intel dispatches. The intel board refreshes on a
-# multi-hour timer, so re-running right after a clear just burns a navigation.
-# Placeholder — tune to the real refresh cadence.
-intel_cooldown_s: 900
+# Min seconds between coordinator intel dispatches. This is only the SAFETY NET:
+# within a board window tap_intel_fight chains itself back-to-back (maybe_chain_
+# after_tap), so the coordinator just needs to RESUME the sweep after the chain
+# ends on "no free march slot" — i.e. shortly after a march returns and frees a
+# slot. An empty board is already suppressed by the board_cache exhaustion check,
+# so a short interval can't spam a cleared board. Was 900s, which stranded a
+# full board for ~15 min after each slot-limited batch (live bs3 2026-08-08).
+intel_cooldown_s: 60

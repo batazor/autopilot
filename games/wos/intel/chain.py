@@ -73,6 +73,49 @@ async def free_march_slots(
     }
 
 
+async def maybe_chain_after_tap(
+    ctx: DslExecContext, *, board_left: int, stamina: float | None, cost: int
+) -> bool:
+    """Re-enqueue ``intel_run`` the instant a pin is tapped — the robust chain.
+
+    Called from ``tap_intel_fight`` right after a successful tap, BEFORE the
+    fight/deploy flow can be preempted by a device-level popup or time out on a
+    result screen (both silently killed the old end-of-run ``queue_next``, so the
+    board stalled with pins left and only the ~15-min coordinator tick could
+    resume it). Enqueuing here makes the follow-up survive whatever happens to
+    the current run's battle.
+
+    Bounded so it terminates: only a run that actually TAPPED chains, and only
+    while the board still shows viable pins (``board_left``) and the stamina
+    budget covers another event. The first run that can't tap (no dispatchable
+    pin — e.g. every remaining pin needs a march slot and all are busy) does not
+    chain, ending the sweep until a slot frees (the coordinator picks it up).
+    """
+    if ctx.redis_client is None or not ctx.player_id:
+        return False
+    if board_left <= 0:
+        return False
+    if stamina is not None and stamina < cost:
+        return False
+    # Best-effort: a failed chain enqueue must never fail the tap that already
+    # dispatched the pin — the coordinator's short cooldown is the fallback.
+    try:
+        from tasks.dsl_scenario_helpers import _enqueue_scenario
+
+        return await _enqueue_scenario(
+            redis_async=ctx.redis_client,
+            instance_id=ctx.instance_id,
+            player_id=ctx.player_id,
+            scenario=_INTEL_SCENARIO,
+            priority=_DEFAULT_PRIORITY,
+            run_at=time.time() + _DEFAULT_DELAY_S,
+            skip_if_duplicate=False,
+        )
+    except Exception:
+        logger.debug("intel: chain-after-tap enqueue failed", exc_info=True)
+        return False
+
+
 async def queue_next_intel_run(ctx: DslExecContext) -> None:
     """Re-enqueue ``intel_run`` if a march slot and the stamina budget remain.
 

@@ -24,6 +24,7 @@ from games.wos.intel import board_cache
 from games.wos.intel import started as started_mem
 from games.wos.intel.chain import (
     free_march_slots,
+    maybe_chain_after_tap,
 )
 from games.wos.intel.chain import (
     queue_next_intel_run as _exec_queue_next_intel_run,
@@ -301,9 +302,24 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
         tapped=bool(tapped),
     )
 
+    # Robust chain: enqueue the next pass NOW, while the pin is committed but the
+    # fight hasn't started — so a device-level preemption or a result-screen
+    # timeout downstream can't strand the rest of the board (the old end-of-run
+    # queue_next did exactly that). Bounded by board_left + stamina; a run that
+    # can't tap never reaches here, so the sweep terminates on its own.
+    chained = False
+    if tapped:
+        chained = await maybe_chain_after_tap(
+            ctx,
+            board_left=board_left,
+            stamina=stamina,
+            cost=as_int_arg(ctx.args, "cost", DEFAULT_COST_PER_EVENT),
+        )
+
     ctx.result.update(
         {
             "action": "tapped" if tapped else "tap_blocked",
+            "chained_next": chained,
             "board_viable_left": board_left,
             "tap_x": point.x,
             "tap_y": point.y,

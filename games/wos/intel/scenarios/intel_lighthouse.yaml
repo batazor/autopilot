@@ -106,11 +106,9 @@ steps:
         ttl_field: intel.march_ttl
         round_trip_multiplier: 2
         extra_seconds: 15
-      # Multi-march: spend the NEXT free march slot in the same board window —
-      # re-enqueues intel_run while the lease ledger shows capacity and the
-      # stamina read covers another event. A chained run that finds nothing to
-      # dispatch completes without reaching this exec, so the chain terminates.
-      - exec: queue_next_intel_run
+      # (Chaining to the next pin is enqueued atomically by tap_intel_fight the
+      # moment a pin is tapped — see maybe_chain_after_tap — so it survives a
+      # preemption or result-screen timeout in this run's battle.)
 
   - cond: currentNode == squad_settings
     steps:
@@ -160,8 +158,3 @@ steps:
             steps:
               - click: button.to_main_city
               - wait: 2s
-
-          # Multi-march: the auto-battle freed its slot on resolve — chase the next
-          # affordable event in the same visit (same bounded chain as the deploy
-          # branch).
-          - exec: queue_next_intel_run

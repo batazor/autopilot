@@ -223,3 +223,74 @@ async def test_chain_still_runs_with_viable_board_snapshot(monkeypatch) -> None:
     await chain.queue_next_intel_run(_ctx(redis))
 
     assert len(pushed) == 1
+
+
+# --- maybe_chain_after_tap: the robust, tap-time chain -----------------------
+
+
+@pytest.mark.asyncio
+async def test_chain_after_tap_enqueues_when_board_and_stamina_allow(monkeypatch) -> None:
+    redis = _FakeRedis()
+    pushed: list[dict[str, Any]] = []
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        pushed.append(kwargs)
+        return True
+
+    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
+
+    ok = await chain.maybe_chain_after_tap(_ctx(redis), board_left=3, stamina=50.0, cost=10)
+
+    assert ok is True
+    assert len(pushed) == 1
+    assert pushed[0]["scenario"] == "intel_run"
+
+
+@pytest.mark.asyncio
+async def test_chain_after_tap_stops_on_empty_board(monkeypatch) -> None:
+    # board_left == 0 → the sweep is done; do not chain another no-op pass.
+    redis = _FakeRedis()
+    pushed: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "tasks.dsl_scenario_helpers._enqueue_scenario",
+        lambda **k: pushed.append(k) or True,
+    )
+
+    ok = await chain.maybe_chain_after_tap(_ctx(redis), board_left=0, stamina=50.0, cost=10)
+
+    assert ok is False
+    assert pushed == []
+
+
+@pytest.mark.asyncio
+async def test_chain_after_tap_stops_when_stamina_below_cost(monkeypatch) -> None:
+    redis = _FakeRedis()
+    pushed: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "tasks.dsl_scenario_helpers._enqueue_scenario",
+        lambda **k: pushed.append(k) or True,
+    )
+
+    ok = await chain.maybe_chain_after_tap(_ctx(redis), board_left=2, stamina=4.0, cost=10)
+
+    assert ok is False
+    assert pushed == []
+
+
+@pytest.mark.asyncio
+async def test_chain_after_tap_chains_when_stamina_unknown(monkeypatch) -> None:
+    # Unknown stamina (read failed) must not stop the sweep — the next run
+    # re-reads it on the board and its planner makes the real call.
+    redis = _FakeRedis()
+    pushed: list[dict[str, Any]] = []
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        pushed.append(kwargs)
+        return True
+
+    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
+
+    ok = await chain.maybe_chain_after_tap(_ctx(redis), board_left=2, stamina=None, cost=10)
+
+    assert ok is True
+    assert len(pushed) == 1

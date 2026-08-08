@@ -132,8 +132,9 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
             "round_trip_multiplier": 2,
             "extra_seconds": 15,
         },
-        # Multi-march chain: spend the next free slot in the same board window.
-        {"exec": "queue_next_intel_run"},
+        # Multi-march chaining is enqueued atomically by tap_intel_fight
+        # (maybe_chain_after_tap), not by a trailing YAML step — so it survives a
+        # preemption/timeout in this run's battle. See the flow test below.
     ]
     squad_branch = steps[8]
     assert squad_branch["cond"] == "currentNode == squad_settings"
@@ -147,8 +148,9 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
     inner = fight_flow["steps"]
     assert {"click": "squad_settings.quick_deploy"} in inner
     assert {"click": "squad_settings.fight"} in inner
-    # Both dispatch branches end with the multi-march chain exec.
-    assert inner[-1] == {"exec": "queue_next_intel_run"}
+    # The chain is no longer a trailing YAML step — tap_intel_fight enqueues the
+    # follow-up the instant it taps a pin (survives a battle preemption/timeout).
+    assert not any("queue_next_intel_run" in str(step) for step in steps)
     assert not any("push_scenario" in str(step) for step in steps)
 
 
@@ -172,8 +174,9 @@ def test_intel_run_uses_real_stamina_flow() -> None:
     # fight — losing either is the regression this test exists to catch.
     assert "read_intel_stamina" in flat
     assert flat.index("intel_power_gate") < flat.index("squad_settings.fight")
-    # The chain re-arms itself; without this a run dispatches once and stops.
-    assert "queue_next_intel_run" in flat
+    # The chain re-arms from tap_intel_fight (maybe_chain_after_tap), not a YAML
+    # step — the pin-tap step must be present for the sweep to continue.
+    assert "tap_intel_fight" in flat
 
 
 def test_intel_route_is_reachable_from_world_map() -> None:
