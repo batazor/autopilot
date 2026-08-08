@@ -201,15 +201,17 @@ async def _exec_arena_pick_and_open(ctx: DslExecContext) -> None:
 
 # --- City → Arena navigation -------------------------------------------------
 #
-# The Arena building has no reliable radar localization on every account, so we
-# reach it by a fixed, OCR-anchored gesture route that an operator dictated and
-# that verified end-to-end on bs3 (720×1280):
+# Route: open the City-list panel → OCR-find the *Marksman* training row (the
+# list is DYNAMIC — its y shifts with whatever else is active — so we locate it
+# each run) → tap the row to jump the camera to the Marksman camp.
 #
-#   open the City-list panel → OCR-find the *Marksman* training row (the list is
-#   DYNAMIC — its y shifts with whatever else is active — so we locate it each
-#   run) → tap the row to jump the camera to the Marksman camp → the Arena sits
-#   one half-screen to the right, so swipe left and tap centre to open the Arena
-#   of Glory screen.
+# The trailing "swipe half a screen left, then blind-tap the centre to open the
+# Arena building" leg is DISABLED (operator decision): a fixed flick plus an
+# unverified centre tap lands wherever the camera happens to be, so a miss opened
+# whatever building sat under the tap instead of failing cleanly. The main-menu
+# panel route above is what we keep for now. The `wait_screen: [arena]` gate in
+# arena.fight.yaml catches the "camp reached but Arena never opened" case and
+# aborts the run instead of letting the fight flow tap blind.
 #
 # Only the Marksman-row lookup needs vision; the rest are calibrated gestures.
 
@@ -219,9 +221,6 @@ _PANEL_CITY_TAB = Point(116, 270)      # «Город» tab — the panel reopen
                                        # seen live on bs3), and the Marksman row only
                                        # exists on the City tab.
 _MARKSMAN_NAV_X_FRAC = 0.40            # tap the row card body → navigate to the camp
-_ARENA_SWIPE_FROM = Point(540, 640)    # half-screen flick left …
-_ARENA_SWIPE_TO = Point(180, 640)      # … brings the Arena building to centre
-_ARENA_CENTER = Point(360, 640)        # tap centre to open the Arena
 _PANEL_RESET_SWIPES = 3
 _PANEL_FIND_SWEEPS = 6
 
@@ -252,7 +251,11 @@ async def _find_marksman_cy(actions, ocr, instance_id: str) -> tuple[int, int] |
 
 
 async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
-    """Navigate main_city → Arena of Glory via the Marksman-camp gesture route."""
+    """Navigate main_city → the Marksman camp via the City-list panel.
+
+    The final swipe-and-blind-tap that used to open the Arena building is
+    disabled — see the module comment above.
+    """
     actions = dsl_runtime.bot_actions()
     ocr = dsl_runtime.ocr_client()
     inst = ctx.instance_id
@@ -289,23 +292,21 @@ async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
         return
     cy, frame_w = found
 
-    # 3. Tap the row → jump the camera to the Marksman camp.
+    # 3. Tap the row → jump the camera to the Marksman camp. This is where the
+    #    route now ends; the swipe-and-blind-tap leg that followed is disabled.
     nav_x = int(_MARKSMAN_NAV_X_FRAC * frame_w)
     await asyncio.to_thread(
         actions.tap, inst, Point(nav_x, cy), approval_source="open_arena_via_city:marksman"
     )
     await asyncio.sleep(1.9)
 
-    # 4. Arena is one half-screen right: flick left, then tap centre to open it.
-    await asyncio.to_thread(actions.swipe, inst, _ARENA_SWIPE_FROM, _ARENA_SWIPE_TO, 350)
-    await asyncio.sleep(1.3)
-    await asyncio.to_thread(
-        actions.tap, inst, _ARENA_CENTER, approval_source="open_arena_via_city:open"
+    logger.info(
+        "open_arena_via_city: reached Marksman camp via row cy=%d (inst=%s); "
+        "arena-open swipe leg disabled",
+        cy,
+        inst,
     )
-    await asyncio.sleep(2.0)
-
-    logger.info("open_arena_via_city: opened arena via Marksman row cy=%d (inst=%s)", cy, inst)
-    ctx.result.update({"action": "opened_arena", "marksman_cy": cy})
+    ctx.result.update({"action": "marksman_camp_reached", "marksman_cy": cy})
 
 
 DSL_EXEC_HANDLERS = {

@@ -1,4 +1,9 @@
-enabled: true
+# DISABLED: the city → Arena route can no longer open the Arena building. The
+# swipe-and-blind-tap leg of `open_arena_via_city` was removed (see
+# games/wos/core/arena/exec.py), so the exec now stops at the Marksman camp and
+# `match: arena.title` below never matches. Re-enable once an Arena entry is
+# wired through the main-menu panel.
+enabled: false
 name: "Arena: scout opponent defense → enemy lineup"
 priority: 60_000
 # Device-level: scouting writes the result to instance state (arena.enemy_lineup), not

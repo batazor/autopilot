@@ -1,4 +1,13 @@
-enabled: true
+# DISABLED: the city → Arena route can no longer open the Arena building. The
+# swipe-and-blind-tap leg of `open_arena_via_city` was removed (see
+# games/wos/core/arena/exec.py), so the exec stops at the Marksman camp and every
+# run would abort at the `wait_screen: [arena]` gate below — once a day, on cron,
+# for nothing. Re-enable once an Arena entry is wired through the main-menu panel.
+#
+# NOTE when re-enabling: the `expected:` guard on the result-dismiss loop further
+# down is still UNVERIFIED live — the fight that exposed the bug it fixes was the
+# last one that ran.
+enabled: false
 name: "Arena: spend daily free challenges"
 priority: 70_000
 
