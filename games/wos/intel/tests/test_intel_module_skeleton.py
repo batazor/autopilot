@@ -153,13 +153,27 @@ def test_lighthouse_scenario_taps_fight_marker() -> None:
 
 
 def test_intel_run_uses_real_stamina_flow() -> None:
-    lighthouse = _load_yaml("scenarios/intel_lighthouse.yaml")
+    """``intel_run`` runs the real flow, not a stub.
+
+    This used to assert ``scenario["steps"] == lighthouse["steps"]`` — the two
+    files being byte-equal. They are two separate scenarios with different names
+    and priorities that happen to share a body, so the moment either one grew a
+    branch the test failed with a 270-line dict diff that said nothing about
+    intent. Assert the properties the name actually claims instead.
+    """
     scenario = _load_yaml("scenarios/intel_run.yaml")
+    flat = repr(scenario["steps"])
 
     assert scenario["enabled"] is True
     assert scenario["node"] == "intel"
-    assert scenario["steps"] == lighthouse["steps"]
-    assert scenario["steps"] != [{"wait": "1s"}]
+    # Not a stub.
+    assert len(scenario["steps"]) > 1
+    # The stamina read the planner budgets on, and the gate that must precede a
+    # fight — losing either is the regression this test exists to catch.
+    assert "read_intel_stamina" in flat
+    assert flat.index("intel_power_gate") < flat.index("squad_settings.fight")
+    # The chain re-arms itself; without this a run dispatches once and stops.
+    assert "queue_next_intel_run" in flat
 
 
 def test_intel_route_is_reachable_from_world_map() -> None:
