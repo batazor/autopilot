@@ -51,10 +51,12 @@ _MARKER_TEMPLATES: tuple[_MarkerTemplate, ...] = (
 )
 _TEMPLATE_KIND_BY_NAME: dict[str, str] = {t.name: t.kind for t in _MARKER_TEMPLATES}
 
-# Kinds that dispatch WITHOUT consuming a march-queue slot (rescue/gather
-# camps resolve outside the queue — operator-confirmed game rule). Everything
-# else (fight/skull/beast) opens a deploy and needs a free slot.
-DEPLOYLESS_KINDS: frozenset[str] = frozenset({"camp"})
+# Kinds that dispatch WITHOUT consuming a march-queue slot, so they can be
+# cleared even when every march is out (operator-confirmed game rule, 2026-08-09):
+#   * camp  — rescue/gather camps resolve instantly off the board;
+#   * fight — the sword «Разведка» targets (explore/rescue) dispatch without a march.
+# Only skull / skull_horned / beast open a real deploy and need a free slot.
+DEPLOYLESS_KINDS: frozenset[str] = frozenset({"camp", "fight"})
 
 _MARKER_KIND_PRIORITY = {
     # Within the same color tier, prefer the rarer/special intel types first.
