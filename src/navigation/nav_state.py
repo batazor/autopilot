@@ -6,13 +6,23 @@ instead of being interleaved with routing logic. ``Navigator`` owns a
 ``NavStateStore`` and forwards its state-IO methods to it.
 
 State hash ``wos:instance:<id>:state`` fields written here:
-``current_screen``, ``nav_expected_screen``, ``nav_error``. Rolling
-most-recent-first screen history lives in the ``…:screen_history`` list.
+``current_screen``, ``nav_expected_screen``, and the ``nav_error`` group —
+``nav_error`` (human-readable line), ``nav_error_cause`` (machine-readable
+:class:`navigation.nav_result.NavFailure` value), ``nav_error_at`` (epoch
+seconds) and ``nav_error_route`` (``format_route_explain`` output).
+
+The four move together, always. They were briefly written by one code path and
+cleared by another that only knew about ``nav_error`` — so after a failure
+followed by a success the prose line was blank while ``nav_error_cause`` still
+held the stale cause, and a reader trusting the machine-readable field got a
+lie. Rolling most-recent-first screen history lives in the ``…:screen_history``
+list.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -97,12 +107,36 @@ class NavStateStore:
                 "NavStateStore: failed to push screen history to Redis", exc_info=True
             )
 
-    async def write_error(self, instance_id: str, detail: str) -> None:
+    async def write_error(
+        self,
+        instance_id: str,
+        detail: str,
+        *,
+        cause: str = "",
+        route_explain: str = "",
+        at: float | None = None,
+    ) -> None:
+        """Write the whole ``nav_error`` group in one hset.
+
+        ``detail`` stays human-readable — its text is part of the dashboard
+        fingerprint and several tests match it by substring. ``cause`` is the
+        machine-readable sibling; ``route_explain`` carries the navigator's
+        route dump, which for a long time was written into ``detail`` and
+        overwritten microseconds later by the DSL gate, so no reader ever saw it.
+        """
         if self._redis is None:
             return
         try:
             await self._redis.hset(
-                self.state_key(instance_id), "nav_error", str(detail or "").strip()
+                self.state_key(instance_id),
+                mapping={
+                    "nav_error": str(detail or "").strip(),
+                    "nav_error_cause": str(cause or "").strip(),
+                    "nav_error_route": str(route_explain or "").strip(),
+                    "nav_error_at": (
+                        f"{float(at if at is not None else time.time()):.6f}"
+                    ),
+                },
             )
         except Exception:
             logger.debug(
@@ -110,10 +144,20 @@ class NavStateStore:
             )
 
     async def clear_error(self, instance_id: str) -> None:
+        """Clear the whole group — a stale ``nav_error_cause`` next to an empty
+        ``nav_error`` is worse than no field at all."""
         if self._redis is None:
             return
         try:
-            await self._redis.hset(self.state_key(instance_id), "nav_error", "")
+            await self._redis.hset(
+                self.state_key(instance_id),
+                mapping={
+                    "nav_error": "",
+                    "nav_error_cause": "",
+                    "nav_error_route": "",
+                    "nav_error_at": "",
+                },
+            )
         except Exception:
             logger.debug(
                 "NavStateStore: failed to clear nav_error in Redis", exc_info=True

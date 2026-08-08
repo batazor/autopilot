@@ -367,8 +367,17 @@ class Navigator:
     async def _write_screen(self, instance_id: str, screen: str) -> None:
         await self._screen_state.write_screen(instance_id, screen)
 
-    async def _write_nav_error(self, instance_id: str, detail: str) -> None:
-        await self._screen_state.write_error(instance_id, detail)
+    async def _write_nav_error(
+        self,
+        instance_id: str,
+        detail: str,
+        *,
+        cause: str = "",
+        route_explain: str = "",
+    ) -> None:
+        await self._screen_state.write_error(
+            instance_id, detail, cause=cause, route_explain=route_explain
+        )
 
     async def _clear_nav_error(self, instance_id: str) -> None:
         await self._screen_state.clear_error(instance_id)
@@ -852,8 +861,11 @@ class Navigator:
                     )
                     await self._write_nav_error(
                         instance_id,
-                        "navigation route failed before main_city fallback\n"
-                        + format_route_explain(str(current), str(target)),
+                        "navigation route failed before main_city fallback",
+                        cause=str(NavFailure.NO_ROUTE_TO_HUB),
+                        route_explain=format_route_explain(
+                            str(current), str(target)
+                        ),
                     )
                     img2: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                     if await self._ui_page_back_visible(img2):

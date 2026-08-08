@@ -67,6 +67,20 @@ _TOP_LEVEL_STEP_HANDLERS: dict[str, str] = {
 }
 
 
+
+def _nav_state_store(redis_client: Any) -> Any:
+    """The one writer of the ``nav_error`` group.
+
+    The gate used to write those fields with a raw ``hset`` while the store
+    cleared them, so the two disagreed about how many fields exist: after a
+    failure followed by a success, ``nav_error`` was blank and
+    ``nav_error_cause`` still held the stale cause.
+    """
+    from navigation.nav_state import NavStateStore
+
+    return NavStateStore(redis_client)
+
+
 def _select_nav_target(
     allowed_nodes: tuple[str, ...], args: dict[str, Any] | None
 ) -> str:
@@ -569,9 +583,7 @@ class DslScenarioExecuteMixin(
                 nav_ok = bool(nav_result)
             if nav_ok and self.redis_client is not None:
                 with suppress(Exception):
-                    await self.redis_client.hset(
-                        f"wos:instance:{instance_id}:state", "nav_error", ""
-                    )
+                    await _nav_state_store(self.redis_client).clear_error(instance_id)
             if not nav_ok:
                 # Capture current_screen BEFORE _clear_step_context wipes it
                 # (the clear here also blanks the screen field via the navigation
@@ -654,47 +666,44 @@ class DslScenarioExecuteMixin(
                     )
                     if self.redis_client is not None:
                         with suppress(Exception):
-                            await self.redis_client.hset(
-                                f"wos:instance:{instance_id}:state",
-                                "nav_error", "",
+                            await _nav_state_store(self.redis_client).clear_error(
+                                instance_id
                             )
             if not nav_ok:
                 await self._clear_step_context(instance_id)
                 if self.redis_client is not None:
                     with suppress(Exception):
                         from_nav = cur_at_fail or "(blank — detector/verify may not have written Redis yet)"
+                        # The nav_error group is written ONLY through the store,
+                        # so the four fields can never drift apart. `mapping`
+                        # below carries just the two neighbouring fields this
+                        # gate owns.
                         if rejected_by_operator:
                             nav_msg = (
                                 f"navigation_aborted: {from_nav} → {target_node} "
                                 f"(scenario {key}; operator rejected approval)"
                             )
+                            _cause_s = "operator_rejected"
+                            _route_s = ""
                             mapping: dict[str, str] = {
-                                "nav_error": nav_msg,
                                 "last_approval_reject_at": "",
                             }
                         else:
-                            _reason = (
+                            _cause_s = (
                                 getattr(nav_result, "reason", "") or "retries_exhausted"
                             )
                             nav_msg = (
                                 f"navigation_failed: {from_nav} → {target_node} "
-                                f"(scenario {key}; {_reason})"
+                                f"(scenario {key}; {_cause_s})"
                             )
-                            mapping = {
-                                "nav_error": nav_msg,
-                                # Machine-readable sibling: the prose line stays
-                                # for humans and for the four tests that match it
-                                # by substring, but nothing has to parse it.
-                                "nav_error_cause": _reason,
-                                "nav_error_at": f"{time.time():.6f}",
-                                # The navigator's route explain finally reaches a
-                                # reader — it used to be written to nav_error and
-                                # overwritten by this very block microseconds later.
-                                "nav_error_route": getattr(
-                                    nav_result, "route_explain", ""
-                                ),
-                                "current_screen": "",
-                            }
+                            _route_s = getattr(nav_result, "route_explain", "") or ""
+                            mapping = {"current_screen": ""}
+                        await _nav_state_store(self.redis_client).write_error(
+                            instance_id,
+                            nav_msg,
+                            cause=_cause_s,
+                            route_explain=_route_s,
+                        )
                         await self.redis_client.hset(
                             f"wos:instance:{instance_id}:state",
                             mapping=mapping,
