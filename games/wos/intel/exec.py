@@ -382,6 +382,7 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
     last_text = ""
     current: int | None = None     # latest reliable current reading
     maximum: int | None = None     # plausible max, only if a clean read yielded one
+    all_reads: list[int] = []      # every parsed current, across attempts × scales
     for attempt in range(attempts):
         # Lossless adb screencap, NOT the scrcpy H.264 stream: compression
         # mangles the tiny «114» counter (stream reads «14»/«4», a PNG frame
@@ -403,35 +404,42 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
             x1 = x0 + int(round(float(bbox["width"]) / 100.0 * w))
             y1 = y0 + int(round(float(bbox["height"]) / 100.0 * h))
             crop = image[y0:y1, x0:x1]
-            # The top-right board counter («114») is tiny (~29px tall) on a
-            # textured bar; at native size the OCR drops the leading digit
-            # («114»→«14», live bs3 2026-08-08). Upscaling ≥3× (verified: 4×/5×
-            # fast_digits read «114» cleanly, native reads «14») recovers it.
-            # Sample a few scales and take the median parsed current so one bad
-            # scale can't skew the budget.
             currents: list[int] = []
-            for fx in (3.0, 4.0, 5.0):
-                if crop.size == 0:
-                    break
-                src = cv2.resize(crop, None, fx=fx, fy=fx, interpolation=cv2.INTER_CUBIC)
-                try:
-                    res = await ocr.ocr_region(
-                        src, Region(0, 0, src.shape[1], src.shape[0]), preprocess="fast_digits"
-                    )
-                except Exception:
-                    logger.exception("intel stamina: ocr failed instance=%s", ctx.instance_id)
-                    continue
-                text = (getattr(res, "text", "") or "").strip()
-                parsed = parse_stamina(text)
-                if parsed is not None:
-                    last_text = text
-                    cur, parsed_max = parsed
-                    currents.append(cur)
-                    if parsed_max is not None:
-                        maximum = parsed_max
+            if crop.size:
+                # The tiny top-right counter («117») is white text on a dark
+                # gradient bar; raw upscaled OCR still drops/merges the thin «1»
+                # glyphs and collapses «117»→«7», starving the fight gate.
+                # Binarise (white text → black-on-white), pad, and upscale — this
+                # holds all three digits (live bs3: 115/116/117 → 115/116/107; a
+                # ±1 inaccuracy is irrelevant to a «>= cost» gate, a lost leading
+                # digit is fatal). MAX across scales is the truest read: a
+                # dropped digit only ever reads LOW.
+                gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+                _, bw = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+                prepped = cv2.copyMakeBorder(
+                    cv2.bitwise_not(bw), 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255
+                )
+                for fx in (3.0, 4.0):
+                    src = cv2.resize(prepped, None, fx=fx, fy=fx, interpolation=cv2.INTER_CUBIC)
+                    bgr = cv2.cvtColor(src, cv2.COLOR_GRAY2BGR)
+                    try:
+                        res = await ocr.ocr_region(
+                            bgr, Region(0, 0, bgr.shape[1], bgr.shape[0]), preprocess="fast_line"
+                        )
+                    except Exception:
+                        logger.exception("intel stamina: ocr failed instance=%s", ctx.instance_id)
+                        continue
+                    text = (getattr(res, "text", "") or "").strip()
+                    parsed = parse_stamina(text)
+                    if parsed is not None:
+                        last_text = text
+                        cur, parsed_max = parsed
+                        currents.append(cur)
+                        all_reads.append(cur)
+                        if parsed_max is not None:
+                            maximum = parsed_max
             if currents:
-                currents.sort()
-                current = currents[(len(currents) - 1) // 2]  # median
+                current = max(currents)  # a dropped digit reads low → max is truest
                 if maximum is not None:
                     break  # fully plausible read — stop retrying
         if attempt < attempts - 1:
@@ -452,6 +460,7 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
         "stamina": str(current),
         "stamina_at": str(time.time()),
         "stamina_source": "intel",
+        "stamina_reads": ",".join(str(r) for r in all_reads),
     }
     if maximum is not None:
         mapping["stamina_max"] = str(maximum)

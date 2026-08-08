@@ -147,7 +147,9 @@ async def test_retry_takes_first_clean_max(monkeypatch) -> None:
     assert ctx.result["stamina_max"] == 70
     assert ctx.result["max_stable"] is True
     assert redis.hashes["wos:player:p1:state"]["stamina_max"] == "70"
-    assert ocr.calls == 3  # retried until clean
+    # 2 scales/attempt: attempt 0 (710, 10) both artefacts → retry; attempt 1
+    # reads clean and breaks. Four OCR calls, clean max on the second attempt.
+    assert ocr.calls == 4
 
 
 @pytest.mark.asyncio
