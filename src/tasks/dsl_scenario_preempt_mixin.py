@@ -136,6 +136,15 @@ class DslScenarioPreemptMixin(_Base):
         """
         if self.redis_client is None:
             return None
+        # The identity probe (who_i_am) is foundational: every player-bound task
+        # is gated on the active_player it resolves. A device-level dismisser
+        # preempts regardless of priority (top_is_device_level below), and on a
+        # chief-profile transition frame that fires the instant who_i_am arrives —
+        # yielding BEFORE it reads the FID, so active_player stays empty and the
+        # whole instance starves in an identity_not_resolved retry loop (live bs3
+        # 2026-08-09). It's a short scenario; never yield it mid-read.
+        if str(self.scenario_key or "").strip() == "who_i_am":
+            return None
         my_eff = int(self.effective_priority) or int(self.priority)
         yc = await self._read_yield_count(instance_id)
         immune = yc >= PREEMPT_MAX_YIELDS
