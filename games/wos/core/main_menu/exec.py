@@ -360,6 +360,28 @@ async def _exec_sync_main_menu_marching_status(ctx: DslExecContext) -> None:
         ctx.result.update({"reason": "state_persist_failed", "slots": slots})
         return
 
+    # Mirror the scalar slot facts into the hot Redis player hash. The MARCH
+    # coordinator's slot check (games/wos/intel/chain.free_march_slots) reads
+    # marches.capacity/active_count from REDIS, but the write above only lands in
+    # the durable SQLite store — so the reader ran, saw capacity 3, yet the gate
+    # kept using the default 2 and never knew a slot was busy (bs4 2026-08-09).
+    if ctx.redis_client is not None:
+        try:
+            await ctx.redis_client.hset(
+                f"wos:player:{player_id}:state",
+                mapping={
+                    "marches.active_count": str(active_count),
+                    "marches.capacity": str(capacity),
+                    "marches.checked_at": str(now),
+                },
+            )
+        except Exception:
+            logger.debug(
+                "dsl exec sync_main_menu_marching_status: redis mirror failed player=%s",
+                player_id,
+                exc_info=True,
+            )
+
     await publish_dashboard_event_throttled_async(
         ctx.redis_client,
         topic="player",
