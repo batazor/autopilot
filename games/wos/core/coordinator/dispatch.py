@@ -437,16 +437,6 @@ async def run_march_tick(
         logger.debug("march tick: stamina estimate failed", exc_info=True)
         stamina = _to_float(state.get("stamina", ""))
     reserve = _intel_reserve(state)
-    # Pace blind intel re-runs by the live board-refresh timer ("Refreshes in:
-    # HH:MM:SS", stored as seconds by intel_run) — don't re-run until the board
-    # has actually refreshed. Falls back to the static cooldown placeholder
-    # until the timer has been read at least once.
-    board_ttl = _to_float(state.get("intel.refresh_in", ""))
-    if board_ttl is not None and board_ttl > 0:
-        cooldown_s = board_ttl
-    secs_since = await _seconds_since_last_intel(
-        queue, instance_id=instance_id, player_id=player_id, now=now
-    )
     # Board memory: the last intel pass recorded how many actionable pins were
     # left (games.wos.intel.board_cache, TTL = board refresh capped at 15 min).
     # A fresh "exhausted" snapshot means a visit is a guaranteed no-op — skip
@@ -459,6 +449,17 @@ async def run_march_tick(
     except Exception:
         logger.debug("march tick: board cache read failed", exc_info=True)
         intel_board_empty = False
+
+    # Pace blind intel re-runs by the SHORT static cooldown only. ONE pass
+    # dispatches at most as many marches as are idle, so while pins remain the
+    # coordinator must revisit as slots free up — an empty board is already
+    # suppressed above via ``intel_board_empty`` (board_cache), which is the
+    # correct "don't revisit" signal. The board-refresh timer ("Refreshes in")
+    # used to be forced in as the cooldown here, which stranded a FULL board for
+    # ~6h after the first slot-limited batch (live bs3 2026-08-08) — dropped.
+    secs_since = await _seconds_since_last_intel(
+        queue, instance_id=instance_id, player_id=player_id, now=now
+    )
 
     # MARCH-spending candidates whose eligibility isn't a live board read:
     # the blind intel run + any time-limited events (Romance Season, …). They

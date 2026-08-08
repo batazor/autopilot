@@ -233,10 +233,11 @@ async def test_tick_dispatches_intel_when_board_snapshot_has_pins():
 
 
 @pytest.mark.asyncio
-async def test_tick_board_ttl_extends_cooldown_beyond_static():
-    # Board "Refreshes in" = 12000s; last intel ran 1000s ago. The static 900s
-    # cooldown would allow a re-run, but the live board TTL says it hasn't
-    # refreshed yet → suppressed.
+async def test_tick_board_ttl_does_not_strand_a_board_with_pins():
+    # A long board "Refreshes in" (12000s) must NOT extend the intel cooldown
+    # while pins remain: one pass is march-slot-limited, so past the static 900s
+    # the coordinator revisits to spend freed slots. (Regression: board_ttl used
+    # to be forced in as the cooldown and stranded a full board for hours.)
     queue = _FakeQueue(last_run=9_000.0)  # 1000s since → past the static 900
     redis = _FakeRedis({"stamina": "100", "intel.refresh_in": "12000"})
 
@@ -245,14 +246,14 @@ async def test_tick_board_ttl_extends_cooldown_beyond_static():
         now=10_000.0, idle_slots=1,
     )
 
-    assert result.enqueued == ()
-    assert queue.calls == []
+    assert [e.task_type for e in result.enqueued] == ["intel_run"]
 
 
 @pytest.mark.asyncio
-async def test_tick_board_ttl_elapsed_dispatches_intel():
-    # Board "Refreshes in" = 60s; last intel ran 100s ago → the board has
-    # refreshed → dispatch (the static 900s cooldown would have blocked this).
+async def test_tick_static_cooldown_governs_regardless_of_board_ttl():
+    # A short board TTL (60s) no longer shortens the cooldown either: 100s since
+    # the last run is inside the static 900s window → suppressed. Pacing is the
+    # static cooldown; the empty-board case is handled by board_cache, not this.
     queue = _FakeQueue(last_run=9_900.0)  # 100s since → under the static 900
     redis = _FakeRedis({"stamina": "100", "intel.refresh_in": "60"})
 
@@ -261,7 +262,8 @@ async def test_tick_board_ttl_elapsed_dispatches_intel():
         now=10_000.0, idle_slots=1,
     )
 
-    assert [e.task_type for e in result.enqueued] == ["intel_run"]
+    assert result.enqueued == ()
+    assert queue.calls == []
 
 
 @pytest.mark.asyncio
