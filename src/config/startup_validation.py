@@ -196,17 +196,20 @@ def _check_red_dot_capability(
 
 
 def _cross_ref_severity() -> str:
-    """``warning`` when an operator module allowlist (``WOS_MODULES``) is active.
+    """``warning`` when an operator allowlist (``WOS_MODULES`` / ``WOS_SCENARIOS``) is active.
 
     A partial-fleet slice (e.g. intel+arena only) legitimately leaves kept
     modules pointing at scenarios/regions of excluded modules — those pushes /
     edges just soft-skip at runtime (``scenario_not_found`` / a nav edge that
     never fires). Downgrading these to warnings keeps the slice bootable while
-    a full-fleet config still errors hard on a real typo.
+    a full-fleet config still errors hard on a real typo. The scenario-key
+    allowlist leaves exactly the same dangling references, so it downgrades too.
     """
     from config.module_discovery import _module_allowlist
+    from dsl.registry import scenario_allowlist
 
-    return "warning" if _module_allowlist() is not None else "error"
+    sliced = _module_allowlist() is not None or scenario_allowlist() is not None
+    return "warning" if sliced else "error"
 
 
 def _check_region(

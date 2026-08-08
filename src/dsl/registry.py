@@ -6,6 +6,7 @@ implemented here; execution uses ``tasks.dsl_scenario``.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -91,17 +92,61 @@ def is_under_drafts(path: Path, root: Path) -> bool:
     return any(part.lower() == "drafts" for part in rel.parts)
 
 
+@lru_cache(maxsize=1)
+def scenario_allowlist() -> frozenset[str] | None:
+    """Parse ``WOS_SCENARIOS`` into a normalized scenario-key allowlist.
+
+    ``None`` (env unset/empty) means "all scenarios" — the default.
+
+    This is the scenario-granular sibling of ``WOS_MODULES``. The module
+    allowlist drops a module *whole*, taking its regions, routes and overlay
+    rules with it — so slicing down to one feature that way breaks navigation,
+    which needs ``main_city``/``main_world`` geometry even when none of their
+    scenarios should run. This filter keeps every module loaded and only limits
+    what is *runnable*, so the node graph and popup dismissals stay intact.
+
+    Keys are YAML stems (``intel_run.yaml`` → ``intel_run``), matched
+    case-insensitively; a ``.yaml`` suffix in operator input is tolerated.
+    """
+    raw = os.environ.get("WOS_SCENARIOS", "").strip()
+    if not raw:
+        return None
+    entries = {
+        e.strip().removesuffix(".yaml").lower()
+        for e in raw.split(",")
+        if e.strip()
+    }
+    return frozenset(entries) or None
+
+
+def _clear_scenario_allowlist_cache() -> None:
+    """Drop the parsed ``WOS_SCENARIOS`` cache (tests that mutate the env)."""
+    scenario_allowlist.cache_clear()
+
+
+def _scenario_allowed(path: Path) -> bool:
+    allow = scenario_allowlist()
+    return True if allow is None else path.stem.lower() in allow
+
+
 def iter_scenario_yaml_files(
     repo_root: Path,
     module_scope: str | None = None,
     *,
     game: str | None = None,
 ) -> list[tuple[ScenarioRoot, Path]]:
-    """All scenario YAMLs from core and modules, excluding drafts."""
+    """All scenario YAMLs from core and modules, excluding drafts.
+
+    Honours the ``WOS_SCENARIOS`` allowlist — this is the single funnel every
+    caller goes through (loader, cron specs, the API, ``botctl scenarios``), so
+    filtering here keeps the scheduler and the UI showing the same slice.
+    """
     out: list[tuple[ScenarioRoot, Path]] = []
     for root in scenario_roots(repo_root, module_scope, game=game):
         for path in root.path.rglob("*.yaml"):
             if is_under_drafts(path, root.path):
+                continue
+            if not _scenario_allowed(path):
                 continue
             out.append((root, path))
     return sorted(out, key=lambda item: (item[0].label, item[1].as_posix()))

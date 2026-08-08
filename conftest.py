@@ -19,19 +19,21 @@ from ocr.client import OcrClient
 def pytest_configure(config: pytest.Config) -> None:
     """Strip operator ``.env`` fleet slices before ANY fixture runs.
 
-    ``WOS_INSTANCES`` / ``WOS_MODULES`` in the repo-root ``.env`` (auto-loaded
-    into the process env) pin local runs to a subset of devices/modules. Module-
-    and session-scoped fixtures load the device registry and area docs at setup
-    time — earlier than a function-scoped ``monkeypatch.delenv`` — so those
-    slices must be removed here, at session start, or unrelated tests fail on a
-    filtered registry (e.g. ``shop.tabs_strip`` missing under an intel+arena
-    allowlist). The per-test autouse fixture below keeps them clean thereafter.
+    ``WOS_INSTANCES`` / ``WOS_MODULES`` / ``WOS_SCENARIOS`` in the repo-root
+    ``.env`` (auto-loaded into the process env) pin local runs to a subset of
+    devices/modules/scenarios. Module- and session-scoped fixtures load the
+    device registry and area docs at setup time — earlier than a
+    function-scoped ``monkeypatch.delenv`` — so those slices must be removed
+    here, at session start, or unrelated tests fail on a filtered registry
+    (e.g. ``shop.tabs_strip`` missing under an intel+arena allowlist, or every
+    ``pushScenario`` target missing under a three-scenario slice). The per-test
+    autouse fixture below keeps them clean thereafter.
     """
     _ = config
     # Set to "" (not pop): the .env auto-loader uses ``override=False``, so a
     # POPPED var would be re-added from ``.env`` on the next lazy load. An empty
     # value both survives that (already present) and reads as "no allowlist".
-    for var in ("WOS_INSTANCES", "WOS_MODULES"):
+    for var in ("WOS_INSTANCES", "WOS_MODULES", "WOS_SCENARIOS"):
         os.environ[var] = ""
     # Drop any discovery/area caches already warmed with the allowlist during
     # import (env_loader auto-loads ``.env`` at import time).
@@ -39,6 +41,12 @@ def pytest_configure(config: pytest.Config) -> None:
         from config.module_discovery import _clear_module_discovery_caches
 
         _clear_module_discovery_caches()
+    with contextlib.suppress(Exception):
+        from dsl.registry import _clear_scenario_allowlist_cache
+        from dsl.template_resolver import _clear_template_resolver_caches
+
+        _clear_scenario_allowlist_cache()
+        _clear_template_resolver_caches()
     with contextlib.suppress(Exception):
         from layout.area_manifest import clear_area_doc_cache
 
@@ -71,20 +79,27 @@ def _disable_api_startup_gift_code_scrape(monkeypatch: pytest.MonkeyPatch) -> No
 
 @pytest.fixture(autouse=True)
 def _ignore_operator_allowlists(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests must not see the operator's local ``WOS_INSTANCES`` / ``WOS_MODULES``.
+    """Tests must not see the operator's local fleet/module/scenario slices.
 
     The repo-root ``.env`` (auto-loaded into the process env) may pin the fleet
-    to a single instance and a module slice for local runs; those would then
-    filter test-created devices / expected modules out and unrelated tests fail
-    (empty ``settings.instances``, missing modules in discovery).
+    to a single instance, a module slice and a scenario slice for local runs;
+    those would then filter test-created devices / expected modules / expected
+    scenarios out and unrelated tests fail (empty ``settings.instances``,
+    missing modules in discovery, unresolvable scenario keys).
+
+    Tests that exercise a slice on purpose set the var themselves and clear the
+    matching cache — see ``tests/config/test_scenario_allowlist.py``.
     """
     # Empty (not delete): a deleted var is re-added from ``.env`` by the lazy
     # ``override=False`` auto-loader; "" both survives and reads as no filter.
     monkeypatch.setenv("WOS_INSTANCES", "")
     monkeypatch.setenv("WOS_MODULES", "")
+    monkeypatch.setenv("WOS_SCENARIOS", "")
     from config.module_discovery import _clear_module_discovery_caches
+    from dsl.registry import _clear_scenario_allowlist_cache
 
     _clear_module_discovery_caches()
+    _clear_scenario_allowlist_cache()
 
 
 @pytest.fixture(autouse=True)

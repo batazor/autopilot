@@ -213,12 +213,23 @@ def _scan_scenario_root(
     ``rglob``. Tests that mutate the FS tree must call
     :func:`_clear_template_resolver_caches` to invalidate.
     """
+    from dsl.registry import scenario_allowlist
+
+    allow = scenario_allowlist()
     root = Path(root_s)
     literals: list[Path] = []
     templates: list[Path] = []
     for p in root.rglob("*.yaml"):
         rel = p.relative_to(root).as_posix()
         if rel.startswith("drafts/"):
+            continue
+        # ``WOS_SCENARIOS`` slice: this walker is what ``resolve()`` uses to turn
+        # a queued key into a path, so filtering here is what actually makes a
+        # scenario unrunnable (an enqueued key outside the slice resolves to
+        # nothing and the task ends ``scenario_not_found``). Templates are
+        # matched on their unexpanded stem — a slice naming one expansion of a
+        # ``{hero}`` template is not a use case worth the fan-out cost.
+        if allow is not None and p.stem.lower() not in allow:
             continue
         if _FILENAME_PLACEHOLDER_RE.search(p.name):
             templates.append(p)
