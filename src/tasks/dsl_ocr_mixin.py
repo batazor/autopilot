@@ -44,6 +44,57 @@ def _ocr_digits(text: str) -> str:
     return re.sub(r"\D+", "", str(text or ""))
 
 
+def _levenshtein(a: str, b: str) -> int:
+    """Classic edit distance — small strings (FIDs), no external dep."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _snap_identity_to_registered(instance_id: str, fid: str) -> str:
+    """Validate a who_i_am FID read against the device's registered accounts.
+
+    The chief-profile FID OCR occasionally gains or drops a single digit
+    (live bs3 2026-08-08: «23794598» read as «237945981»). Left unchecked, the
+    phantom id becomes ``active_player`` and every player-bound task — intel_run
+    included — is «not runnable for this instance/player» until the next lucky
+    read, so the bot idles on a full board.
+
+    Snap the read to the nearest registered FID when it is within a couple of
+    edits (a one-digit slip). A read that matches NOTHING closely is left
+    unchanged — it may be a real account the device profile doesn't list yet, and
+    rejecting it would strand the device forever; only a *clear* misread of a
+    known account is corrected. Devices with no registered accounts (or a lookup
+    failure) fall through unchanged.
+    """
+    try:
+        from config.devices import get_device_registry
+
+        known = [str(p) for p in get_device_registry().player_ids_for_device(instance_id)]
+    except Exception:
+        logger.debug("who_i_am: registry lookup failed", exc_info=True)
+        return fid
+    if not known or fid in known:
+        return fid
+    ranked = sorted(known, key=lambda k: (_levenshtein(fid, k), abs(len(k) - len(fid))))
+    best = ranked[0]
+    # A one-digit OCR slip is dist 1 (substitution) or 2 (insert + ripple); the
+    # registered FIDs are mutually far apart, so this can't snap to the wrong
+    # account. Further than that → treat as a distinct (possibly unregistered)
+    # account and keep the raw read.
+    return best if _levenshtein(fid, best) <= 2 else fid
+
+
 def parse_ocr_integer(text: str) -> int | None:
     """Strip non-digits from ``text`` and return the int — None if no digits.
 
@@ -810,20 +861,34 @@ class DslOcrMixin(_Base):
                     await self.redis_client.hset(redis_key, mapping=mapping)
                     if store_redis_field == "player_id" and value:
                         identified = str(self.player_id or value)
-                        await self.redis_client.hset(
-                            f"wos:instance:{instance_id}:state",
-                            mapping={
-                                "active_player": identified,
-                                "active_player_at": str(time.time()),
-                            },
-                        )
-                        # Durably remember the identity so a worker restart can
-                        # restore ``active_player`` and skip the ``who_i_am`` probe
-                        # (config.devices_db). Best-effort — never fail the OCR step.
-                        with suppress(Exception):
-                            from config.devices import set_last_active_player
+                        # For a device-level who_i_am probe (no player binding)
+                        # the id came straight from OCR — validate it against the
+                        # device's registered accounts so a one-digit misread
+                        # (23794598→237945981) can't pin active_player to a
+                        # phantom and orphan every player-bound task.
+                        if not self.player_id:
+                            snapped = _snap_identity_to_registered(instance_id, identified)
+                            if snapped != identified:
+                                logger.info(
+                                    "dsl_scenario: who_i_am FID %s → %s (registered-account snap)",
+                                    identified, snapped or "REJECTED",
+                                )
+                            identified = snapped
+                        if identified:
+                            await self.redis_client.hset(
+                                f"wos:instance:{instance_id}:state",
+                                mapping={
+                                    "active_player": identified,
+                                    "active_player_at": str(time.time()),
+                                },
+                            )
+                            # Durably remember the identity so a worker restart can
+                            # restore ``active_player`` and skip the ``who_i_am`` probe
+                            # (config.devices_db). Best-effort — never fail the OCR step.
+                            with suppress(Exception):
+                                from config.devices import set_last_active_player
 
-                            set_last_active_player(instance_id, identified)
+                                set_last_active_player(instance_id, identified)
                         # Pin this account to the build it was just seen on. Players
                         # don't intersect across builds, so the package tells
                         # Century-backed flows (gift codes) whether the account is a
@@ -837,7 +902,7 @@ class DslOcrMixin(_Base):
                                 if isinstance(raw_pkg, bytes)
                                 else (raw_pkg or "")
                             )
-                            if pkg:
+                            if pkg and identified:
                                 from config.devices import set_gamer_package
 
                                 set_gamer_package(identified, str(pkg))
