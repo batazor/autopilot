@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from navigation.detector import ScreenName
+from navigation.nav_result import NavFailure
 from tests.navigation.conftest_nav import make_navigator
 
 if TYPE_CHECKING:
@@ -37,9 +38,10 @@ async def test_missing_navigation_path_is_not_logged_as_error(
     # incoming edge in edge_taps.yaml — you can't navigate *to* loading. This
     # exercises the "no route" branch deterministically.
     with caplog.at_level(logging.INFO, logger="navigation.navigator"):
-        ok = await nav.navigate_to(ScreenName.LOADING, "bs1")
+        res = await nav.navigate_to(ScreenName.LOADING, "bs1")
 
-    assert ok is False
+    assert res.ok is False
+    assert res.failure is NavFailure.NO_ROUTE
     assert any("No navigation path" in row.message for row in caplog.records)
     assert not any(
         row.levelno >= logging.ERROR and "No navigation path" in row.message

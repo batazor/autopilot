@@ -25,6 +25,7 @@ from layout.template_match import (
     validate_live_bbox_patch_vs_reference_dims,
 )
 from layout.types import Point
+from navigation.nav_result import NavFailure, NavResult, nav_failed, nav_ok
 from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import (
     _COLOR_WORD_ALIASES,
@@ -199,17 +200,21 @@ class DslScenarioInlineMixin(_Base):
         *,
         actions: Any,
         scenario_key: str,
-    ) -> bool:
+    ) -> NavResult:
         """Drive the FSM to ``target_node`` via :class:`Navigator` (BFS over screen_graph).
 
-        No-op when ``current_screen`` already equals the target. Unknown / not-in-graph
-        targets are treated as soft failures (logged, scenario aborts).
+        No-op when ``current_screen`` already equals the target. Returns the
+        navigator's :class:`NavResult` so the caller can report WHY it failed
+        instead of guessing; falsy on failure, so ``if not ok:`` still reads.
+
+        The one cause the Navigator never sees is produced here: a ``node:``
+        naming a screen that is not in the graph at all.
         """
         from navigation.detector import ScreenName
 
         target_node = target_node.strip()
         if not target_node:
-            return True
+            return nav_ok()
         try:
             target = ScreenName(target_node)
         except ValueError:
@@ -221,12 +226,12 @@ class DslScenarioInlineMixin(_Base):
                     target_node,
                     _scen(scenario_key),
                 )
-                return False
+                return nav_failed(NavFailure.UNKNOWN_TARGET, dst=target_node)
             target = target_node
 
         cur = await _read_current_screen(instance_id, self.redis_client)
         if cur == str(target):
-            return True
+            return nav_ok(src=cur, dst=str(target))
 
         await self._write_step_context(instance_id, scenario=scenario_key)
         # Surface the navigation target so the UI progress bar can render
@@ -248,7 +253,7 @@ class DslScenarioInlineMixin(_Base):
             # ``ScreenName`` is a StrEnum the runtime accepts the bare str form
             # transparently. Cast at the boundary rather than widening the
             # Navigator signature.
-            ok = await navigator.navigate_to(cast("ScreenName", target), instance_id)
+            result = await navigator.navigate_to(cast("ScreenName", target), instance_id)
         finally:
             if self.redis_client is not None:
                 with suppress(Exception):
@@ -257,14 +262,15 @@ class DslScenarioInlineMixin(_Base):
                         "nav_target",
                         "",
                     )
-        if not ok:
+        if not result:
             logger.warning(
-                "dsl_scenario: navigation to %s failed (scenario=%s instance=%s)",
+                "dsl_scenario: navigation to %s failed (scenario=%s instance=%s cause=%s)",
                 target_node,
                 _scen(scenario_key),
                 instance_id,
+                result.reason,
             )
-            return False
+            return result
         if self.redis_client is not None:
             try:
                 await self.redis_client.hset(
@@ -274,7 +280,7 @@ class DslScenarioInlineMixin(_Base):
                 )
             except Exception:
                 logger.debug("dsl_scenario: failed to persist current_screen", exc_info=True)
-        return True
+        return result
 
     def estimate_duration(self) -> int:
         return 15

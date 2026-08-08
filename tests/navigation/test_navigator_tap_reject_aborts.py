@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from navigation.detector import ScreenName
+from navigation.nav_result import NavFailure
 from navigation.navigator import Navigator
 from tests.navigation.conftest_nav import make_navigator
 
@@ -63,8 +64,9 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
         },
     )
 
-    ok = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
-    assert ok is False
+    res = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
+    assert res.ok is False
+    assert res.failure is NavFailure.TAP_BLOCKED
     assert tap_calls["n"] == 1
 
 
@@ -189,8 +191,9 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unknown_screen(
         },
     )
 
-    ok = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
-    assert ok is False
+    res = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
+    assert res.ok is False
+    assert res.failure is NavFailure.TAP_BLOCKED
     assert tap_calls["n"] == 1, "rejected page back must not retry"
 
 
@@ -235,9 +238,10 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_page_back(
     import navigation.navigator as navmod
     mocker.patch.object(navmod.asyncio, "sleep", new=_no_sleep)
 
-    ok = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
+    res = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
 
-    assert ok is False
+    assert res.ok is False
+    assert res.failure is NavFailure.UNKNOWN_SCREEN_NO_BACK
     # Counter-bail at 2 consecutive UNKNOWN-no-back ticks → loop runs 2 iters,
     # not the legacy 10. ``tap`` is never called: nothing to tap on a blocker.
     assert tap_calls["n"] == 0
@@ -303,8 +307,9 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unrouted_screen(
         },
     )
 
-    ok = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
-    assert ok is False
+    res = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
+    assert res.ok is False
+    assert res.failure is NavFailure.NO_ROUTE_TO_HUB
     assert tap_calls["n"] == 1, "rejected fallback page back must not retry"
 
 
@@ -364,7 +369,7 @@ async def test_same_family_route_via_main_city_tries_local_advance_first(
     mocker.patch.object(navmod, "route_hops_async", new=fake_route_hops_async)
     mocker.patch.object(navmod.asyncio, "sleep", new=no_sleep)
 
-    ok = await nav._navigate_to_impl("deals.hall_of_heroes", "bs1")  # type: ignore[arg-type]
+    res = await nav._navigate_to_impl("deals.hall_of_heroes", "bs1")  # type: ignore[arg-type]
 
-    assert ok is True
+    assert res.ok is True
     assert state["advanced"] is True

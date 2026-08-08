@@ -555,16 +555,18 @@ class DslScenarioExecuteMixin(
             # arrow is already on screen, so a round-trip to the hub is
             # pure waste.
             nav_started_at = 0.0  # only consulted in the ``not nav_ok`` branch
+            nav_result: Any = None
             if cur_screen_at_entry and cur_screen_at_entry in allowed_nodes:
                 nav_ok = True
             else:
                 nav_started_at = time.time()
-                nav_ok = await self._navigate_to_node(
+                nav_result = await self._navigate_to_node(
                     instance_id,
                     target_node,
                     actions=actions,
                     scenario_key=key,
                 )
+                nav_ok = bool(nav_result)
             if nav_ok and self.redis_client is not None:
                 with suppress(Exception):
                     await self.redis_client.hset(
@@ -595,6 +597,13 @@ class DslScenarioExecuteMixin(
                     # operator presses Reject; if that timestamp lands inside
                     # this nav attempt, no tap fired and ``current_screen`` is
                     # still valid — leave it alone.
+                    #
+                    # Now gated on the navigator's own cause: a reject can only
+                    # have blocked a TAP. Ungated, a stale
+                    # ``last_approval_reject_at`` from an earlier task mislabelled
+                    # a pure route failure as "operator rejected".
+                    _cause = getattr(nav_result, "failure", None)
+                    _tap_blocked = _cause is None or str(_cause) == "tap_blocked"
                     with suppress(Exception):
                         raw_rej = await self.redis_client.hget(
                             f"wos:instance:{instance_id}:state",
@@ -605,7 +614,7 @@ class DslScenarioExecuteMixin(
                             if isinstance(raw_rej, bytes)
                             else str(raw_rej or "")
                         ).strip()
-                        if rej_s:
+                        if rej_s and _tap_blocked:
                             try:
                                 rejected_by_operator = float(rej_s) >= nav_started_at
                             except ValueError:
@@ -622,10 +631,19 @@ class DslScenarioExecuteMixin(
                 # never runs) and hands control to ``check_main_city`` /
                 # ``who_i_am``, which navigate away before the work happens. An
                 # operator reject is a *real* stop, so exclude it.
+                # Gated on the cause: this recovery only makes sense when the
+                # post-tap VERIFY lost the race. Previously it fired for any
+                # falsy nav, so a genuine "no route" that happened to leave the
+                # device on an allowed node was silently treated as success.
+                _verify_lost_race = (
+                    getattr(nav_result, "failure", None) is None
+                    or str(getattr(nav_result, "failure", "")) == "verify_failed"
+                )
                 if (
                     not nav_ok
                     and cur_at_fail
                     and cur_at_fail in allowed_nodes
+                    and _verify_lost_race
                     and not rejected_by_operator
                 ):
                     nav_ok = True
@@ -655,12 +673,26 @@ class DslScenarioExecuteMixin(
                                 "last_approval_reject_at": "",
                             }
                         else:
+                            _reason = (
+                                getattr(nav_result, "reason", "") or "retries_exhausted"
+                            )
                             nav_msg = (
                                 f"navigation_failed: {from_nav} → {target_node} "
-                                f"(scenario {key}; no route, verify failed after tap, or tap blocked)"
+                                f"(scenario {key}; {_reason})"
                             )
                             mapping = {
                                 "nav_error": nav_msg,
+                                # Machine-readable sibling: the prose line stays
+                                # for humans and for the four tests that match it
+                                # by substring, but nothing has to parse it.
+                                "nav_error_cause": _reason,
+                                "nav_error_at": f"{time.time():.6f}",
+                                # The navigator's route explain finally reaches a
+                                # reader — it used to be written to nav_error and
+                                # overwritten by this very block microseconds later.
+                                "nav_error_route": getattr(
+                                    nav_result, "route_explain", ""
+                                ),
                                 "current_screen": "",
                             }
                         await self.redis_client.hset(

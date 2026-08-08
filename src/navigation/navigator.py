@@ -23,6 +23,7 @@ from navigation import (
     template_icon_resolver,  # noqa: F401
 )
 from navigation.detector import ScreenDetector, ScreenName
+from navigation.nav_result import NavFailure, NavResult, nav_failed, nav_ok
 from navigation.nav_state import (
     SCREEN_HISTORY_MAX as _SCREEN_HISTORY_MAX,  # noqa: F401  (back-compat re-export)
 )
@@ -671,14 +672,20 @@ class Navigator:
         await self._write_screen(instance_id, "")
         return ""
 
-    async def navigate_to(self, target: ScreenName, instance_id: str) -> bool:
+    async def navigate_to(self, target: ScreenName, instance_id: str) -> NavResult:
+        """Drive the device to ``target``.
+
+        Returns a :class:`NavResult`, which is falsy on failure — pre-existing
+        ``if not await navigate_to(...)`` call sites keep working — and carries
+        the cause the navigator already knew but used to discard.
+        """
         await self._set_nav_expected_screen(instance_id, str(target))
         try:
             return await self._navigate_to_impl(target, instance_id)
         finally:
             await self._clear_nav_expected_screen(instance_id)
 
-    async def _navigate_to_impl(self, target: ScreenName, instance_id: str) -> bool:
+    async def _navigate_to_impl(self, target: ScreenName, instance_id: str) -> NavResult:
         # Track consecutive ``UNKNOWN`` ticks where neither the screen
         # detector nor the back-button heuristic finds anything actionable.
         # That state means something opaque (typically a full-screen ad
@@ -692,6 +699,12 @@ class Navigator:
         # cron) brings the scenario back when the screen is clear.
         _UNKNOWN_NO_BACK_LIMIT = 2
         consec_unknown_no_back = 0
+        # Sharpest cause seen so far. ``verify_failed`` deliberately does NOT
+        # abort the loop — it never has, and making it abort would change
+        # routing behaviour, not reporting. It is recorded here so the
+        # retries-exhausted exit can name it instead of shrugging.
+        last_failure: NavFailure | None = None
+        current: Any = ""
 
         for attempt in range(10):
             state_flat = await self._active_player_state_flat(instance_id)
@@ -705,7 +718,7 @@ class Navigator:
             if current == target:
                 await self._write_screen(instance_id, str(target))
                 await self._clear_nav_error(instance_id)
-                return True
+                return nav_ok(src=str(current), dst=str(target), attempt=attempt)
 
             if current == ScreenName.UNKNOWN:
                 logger.warning(
@@ -733,7 +746,10 @@ class Navigator:
                             "navigation to %s",
                             instance_id, target,
                         )
-                        return False
+                        return nav_failed(
+                            NavFailure.TAP_BLOCKED,
+                            src="", dst=str(target), attempt=attempt,
+                        )
                 else:
                     consec_unknown_no_back += 1
                     logger.warning(
@@ -753,7 +769,10 @@ class Navigator:
                             "the blocker (ad / popup / loading frame)",
                             consec_unknown_no_back, instance_id, target,
                         )
-                        return False
+                        return nav_failed(
+                            NavFailure.UNKNOWN_SCREEN_NO_BACK,
+                            src="", dst=str(target), attempt=attempt,
+                        )
                 await asyncio.sleep(_NAV_UNKNOWN_RETRY_SETTLE_S)
                 continue
             # Recognised some screen (just not the target) — reset the
@@ -819,7 +838,12 @@ class Navigator:
                         # region, …) — the device didn't move, so the
                         # ``current`` identity we wrote a few lines above
                         # still holds. Don't wipe it here.
-                        return False
+                        return nav_failed(
+                            NavFailure.TAP_BLOCKED,
+                            src=str(current), dst=str(target), attempt=attempt,
+                        )
+                    if hr == "verify_failed":
+                        last_failure = NavFailure.VERIFY_FAILED
                 else:
                     logger.warning(
                         "No route %s → main_city on %s; considering icon.page.back",
@@ -843,7 +867,13 @@ class Navigator:
                                 "aborting navigation to %s",
                                 instance_id, target,
                             )
-                            return False
+                            return nav_failed(
+                                NavFailure.NO_ROUTE_TO_HUB,
+                                src=str(current), dst=str(target), attempt=attempt,
+                                route_explain=format_route_explain(
+                                    str(current), str(target)
+                                ),
+                            )
                     else:
                         logger.warning(
                             "No route to main_city and icon.page.back not visible on %s; not tapping",
@@ -865,23 +895,29 @@ class Navigator:
                     )
                     if hr == "ok":
                         await self._clear_nav_error(instance_id)
-                        return True
+                        return nav_ok(
+                            src=str(current), dst=str(target), attempt=attempt
+                        )
                     if hr == "tap_failed":
                         # Tap rejected; the previous ``_write_screen``
                         # (intermediate identity) still reflects reality.
-                        return False
+                        return nav_failed(
+                            NavFailure.TAP_BLOCKED,
+                            src=str(current), dst=str(target), attempt=attempt,
+                        )
+                    if hr == "verify_failed":
+                        last_failure = NavFailure.VERIFY_FAILED
                 else:
                     logger.info(
                         "No navigation path from %s to %s (and no route via main_city)",
                         current,
                         target,
                     )
-                    await self._write_nav_error(
-                        instance_id,
-                        "navigation path unavailable\n"
-                        + format_route_explain(str(current), str(target)),
+                    return nav_failed(
+                        NavFailure.NO_ROUTE,
+                        src=str(current), dst=str(target), attempt=attempt,
+                        route_explain=format_route_explain(str(current), str(target)),
                     )
-                    return False
                 continue
 
             hr = await self._execute_hops(
@@ -889,20 +925,24 @@ class Navigator:
             )
             if hr == "ok":
                 await self._clear_nav_error(instance_id)
-                return True
+                return nav_ok(src=str(current), dst=str(target), attempt=attempt)
             if hr == "tap_failed":
                 # Tap rejected; the previous ``_write_screen``
                 # (intermediate identity) still reflects reality.
-                return False
+                return nav_failed(
+                    NavFailure.TAP_BLOCKED,
+                    src=str(current), dst=str(target), attempt=attempt,
+                )
+            if hr == "verify_failed":
+                last_failure = NavFailure.VERIFY_FAILED
 
         logger.error("Failed to navigate to %s after 10 attempts", target)
-        await self._write_nav_error(
-            instance_id,
-            "navigation failed after retries\n"
-            + format_route_explain(str(current), str(target)),
-        )
         await self._write_screen(instance_id, "")
-        return False
+        return nav_failed(
+            last_failure or NavFailure.RETRIES_EXHAUSTED,
+            src=str(current), dst=str(target), attempt=9,
+            route_explain=format_route_explain(str(current), str(target)),
+        )
 
     async def _execute_hops(
         self,
