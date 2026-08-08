@@ -35,6 +35,7 @@ be calibrated against a real War Academy capture (mirror research_center's
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -318,7 +319,14 @@ async def _exec_start_planned_war_academy(ctx: Any) -> None:
 
     x_pct, y_pct = _RESEARCH_BTN_XY
     h, w = frame.shape[:2]
-    actions.tap(iid, Point(int(x_pct / 100 * w), int(y_pct / 100 * h)))
+    # to_thread: ``tap`` blocks on ADB and on operator click-approval, which would
+    # otherwise stall the worker's event loop for the whole approval wait.
+    await asyncio.to_thread(
+        actions.tap,
+        iid,
+        Point(int(x_pct / 100 * w), int(y_pct / 100 * h)),
+        approval_source="war_academy:research",
+    )
     ctx.result.update({"action": "started", "next": target_id, "name": target_name,
                        "tab": tab, "tier": tier})
     logger.info("start_planned_war_academy: started=%s tab=%s instance=%s",

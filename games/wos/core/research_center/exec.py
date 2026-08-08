@@ -247,8 +247,29 @@ def _px_region(bbox_pct: tuple[float, float, float, float], w: int, h: int) -> R
     return Region(int(x / 100 * w), int(y / 100 * h), int(bw / 100 * w), int(bh / 100 * h))
 
 
-def _tap_pct(actions: Any, iid: str, x_pct: float, y_pct: float, w: int, h: int) -> None:
-    actions.tap(iid, Point(int(x_pct / 100 * w), int(y_pct / 100 * h)))
+async def _tap_pct(
+    actions: Any,
+    iid: str,
+    x_pct: float,
+    y_pct: float,
+    w: int,
+    h: int,
+    *,
+    approval_source: str,
+) -> None:
+    """Tap a percent-positioned point off the event loop.
+
+    ``actions.tap`` blocks on ADB *and* on operator click-approval (which polls
+    Redis), so calling it directly from a coroutine stalls the whole worker for
+    the length of the approval wait — the overlay tick, the queue and every other
+    instance included.
+    """
+    await asyncio.to_thread(
+        actions.tap,
+        iid,
+        Point(int(x_pct / 100 * w), int(y_pct / 100 * h)),
+        approval_source=approval_source,
+    )
 
 
 async def _ocr_text(oc: Any, frame: Any, bbox_pct: tuple[float, float, float, float],
@@ -400,7 +421,7 @@ async def _read_visible_tiles(oc: Any, frame: Any, w: int, h: int, graph: Resear
     return new, frame_levels
 
 
-def _scroll_tree_down(actions: Any, iid: str, w: int, h: int) -> None:
+async def _scroll_tree_down(actions: Any, iid: str, w: int, h: int) -> None:
     """Scroll the tree down by ~2 tiers per step.
 
     A very slow swipe barely advances the list (it tracks the finger then snaps
@@ -408,7 +429,8 @@ def _scroll_tree_down(actions: Any, iid: str, w: int, h: int) -> None:
     *within* a tab (the next capture has a settle sleep) and is defused at tab
     boundaries by :func:`_switch_tab`'s fling-absorbing double tap.
     """
-    actions.swipe(
+    await asyncio.to_thread(
+        actions.swipe,
         iid,
         Point(int(0.5 * w), int(0.70 * h)),
         Point(int(0.5 * w), int(0.28 * h)),
@@ -424,9 +446,9 @@ async def _switch_tab(actions: Any, iid: str, tab: str, w: int, h: int) -> None:
     the tab is already active.
     """
     x, y = _TAB_XY[tab]
-    _tap_pct(actions, iid, x, y, w, h)
+    await _tap_pct(actions, iid, x, y, w, h, approval_source=f"research_center:tab:{tab}")
     await asyncio.sleep(0.6)
-    _tap_pct(actions, iid, x, y, w, h)
+    await _tap_pct(actions, iid, x, y, w, h, approval_source=f"research_center:tab:{tab}")
     await asyncio.sleep(1.3)
 
 
@@ -463,7 +485,9 @@ async def _ensure_on_tree(actions: Any, oc: Any, iid: str, frame: Any) -> tuple[
     if await _title_is_tree(oc, frame, w, h):
         return frame, 0
     rc_level = await _read_rc_level(oc, frame, w, h)
-    _tap_pct(actions, iid, *_OPEN_BTN_XY, w, h)
+    await _tap_pct(
+        actions, iid, *_OPEN_BTN_XY, w, h, approval_source="research_center:open_tree"
+    )
     await asyncio.sleep(2.5)
     frame = await _capture(actions, iid)
     if frame is None:
@@ -525,7 +549,7 @@ async def _sweep_research_tiles(ctx: Any, graph: ResearchGraph) -> tuple[list[tu
             if _is_frontier_band(frame_levels):
                 tab_diag["frontier_stop"] = _step
                 break
-            _scroll_tree_down(actions, iid, w, h)
+            await _scroll_tree_down(actions, iid, w, h)
             await asyncio.sleep(1.2)
         tab_diag["read"] = len(rows) - before
 
@@ -677,13 +701,18 @@ async def _locate_and_tap_tile(actions: Any, oc: Any, iid: str, graph: ResearchG
                     if tap_log is not None:
                         tap_log.update({"name": name, "col_x": col_x, "name_y": name_y,
                                         "precise_y": round(precise_y, 1), "tap_x": tx, "tap_y": ty})
-                    actions.tap(iid, Point(tx, ty))
+                    await asyncio.to_thread(
+                        actions.tap,
+                        iid,
+                        Point(tx, ty),
+                        approval_source=f"research_center:locate:{name}",
+                    )
                     await asyncio.sleep(1.6)
                     return True
         dry = dry + 1 if not hit_any else 0
         if dry >= _DRY_STOP:
             return False
-        _scroll_tree_down(actions, iid, w, h)
+        await _scroll_tree_down(actions, iid, w, h)
         await asyncio.sleep(1.2)
     return False
 
@@ -775,10 +804,14 @@ async def _exec_start_planned_research(ctx: Any) -> None:
         return
 
     # Start it: tap the blue Research button (NOT the orange gem-spending Finish).
-    _tap_pct(actions, iid, *_RESEARCH_BTN_XY, w, h)
+    await _tap_pct(
+        actions, iid, *_RESEARCH_BTN_XY, w, h, approval_source="research_center:research"
+    )
     await asyncio.sleep(1.2)
     # Some techs raise a confirm dialog; its primary action sits where Research did.
-    _tap_pct(actions, iid, *_RESEARCH_BTN_XY, w, h)
+    await _tap_pct(
+        actions, iid, *_RESEARCH_BTN_XY, w, h, approval_source="research_center:research"
+    )
     await asyncio.sleep(0.8)
 
     ctx.result.update({"action": "started", "next": target_id, "name": target_name, "tab": tab})
