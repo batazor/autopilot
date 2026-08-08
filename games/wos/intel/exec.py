@@ -465,6 +465,24 @@ _POWER_ENEMY_BBOX = (64.0, 8.8, 18.0, 3.6)
 _POWER_GATE_DEFAULT_RATIO = 0.8
 
 
+def _consensus_power(reads: list[int]) -> int:
+    """Pick the most trustworthy power from several OCR reads of one number.
+
+    A dropped digit reads ~10× low, a duplicated digit ~10× high — both are
+    length outliers. So group the reads by digit-length, take the modal length
+    (ties broken toward the *smaller* magnitude — an over-read inserts a phantom
+    digit more often than a drop deletes a real one on these stylised glyphs),
+    and return the median value within that group.
+    """
+    clean = sorted(r for r in reads if r > 0)
+    if not clean:
+        return 0
+    # Median value: robust when the reads straddle the truth (one drop reads
+    # ~10× low, one duplicate ~10× high — the correct middle read wins). With an
+    # even count, prefer the lower-middle (a drop is the more common artefact).
+    return clean[(len(clean) - 1) // 2]
+
+
 def decide_power_gate(own: int, enemy: int, *, max_ratio: float) -> str:
     """Pure gate decision: ``fight`` / ``flee`` / ``fight`` when unreadable.
 
@@ -509,53 +527,46 @@ async def _exec_intel_power_gate(ctx: DslExecContext) -> None:
             image = None
 
     own = enemy = 0
+    own_reads: list[int] = []
+    enemy_reads: list[int] = []
     if image is not None:
         h, w = image.shape[:2]
 
-        async def read_power(bbox: tuple[float, float, float, float]) -> int:
-            """OCR a VS-strip power number, resilient to a single dropped digit.
+        async def read_power(bbox: tuple[float, float, float, float]) -> tuple[int, list[int]]:
+            """OCR a VS-strip power number across scales, return (value, all_reads).
 
-            The stylised 6-7 digit powers read differently per preprocess
-            (``fast_digits`` nails «127015» but drops a digit off «1394861»;
-            ``enhance`` is the reverse). A dropped digit is a 10× error that
-            flips the gate, so try both and keep the LONGEST plausible digit
-            run — the correct read is never shorter than a truncated one.
+            The stylised 6-7 digit powers are small; at native size the OCR drops
+            the thin trailing digit off a 7-digit number («1 394 861» → «139486»)
+            and at a big upscale it *duplicates* a digit («…139466199»). Either
+            is a 10× error that flips the gate, so no single read is trusted:
+            sample several scales and let the caller pick a consensus. The raw
+            reads are surfaced for offline diagnosis.
             """
             x, y, ww, hh = bbox
             x0, y0 = int(x / 100.0 * w), int(y / 100.0 * h)
             x1, y1 = int((x + ww) / 100.0 * w), int((y + hh) / 100.0 * h)
             crop = image[y0:y1, x0:x1]
             if crop.size == 0:
-                return 0
-            # The 6-7 digit VS powers are small + stylised; at native size both
-            # preprocesses drop the thin trailing «1» off a 7-digit number
-            # («1 394 861» → «139486»), a 10× error that flips the gate to a
-            # false flee. Upscaling 4× (the troop-pool reader's proven trick)
-            # gives the OCR the pixels to keep every digit. Keep the LONGEST
-            # plausible run across scales × preprocesses — a correct read is
-            # never shorter than a truncated one.
-            best = ""
-            scaled = cv2.resize(crop, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
-            for src in (scaled, crop):
-                for pp in ("fast_digits", "enhance"):
-                    try:
-                        res = await ocr.ocr_region(
-                            src, Region(0, 0, src.shape[1], src.shape[0]), preprocess=pp
-                        )
-                    except Exception:
-                        logger.exception(
-                            "intel power gate: ocr failed instance=%s", ctx.instance_id
-                        )
-                        continue
-                    digits = "".join(
-                        c for c in (getattr(res, "text", "") or "") if c.isdigit()
+                return 0, []
+            reads: list[int] = []
+            for fx in (2.0, 3.0, 4.0):
+                src = cv2.resize(crop, None, fx=fx, fy=fx, interpolation=cv2.INTER_CUBIC)
+                try:
+                    res = await ocr.ocr_region(
+                        src, Region(0, 0, src.shape[1], src.shape[0]), preprocess="fast_digits"
                     )
-                    if len(digits) > len(best):
-                        best = digits
-            return int(best) if best else 0
+                except Exception:
+                    logger.exception(
+                        "intel power gate: ocr failed instance=%s", ctx.instance_id
+                    )
+                    continue
+                digits = "".join(c for c in (getattr(res, "text", "") or "") if c.isdigit())
+                if digits:
+                    reads.append(int(digits))
+            return (_consensus_power(reads), reads)
 
-        own = await read_power(_POWER_OWN_BBOX)
-        enemy = await read_power(_POWER_ENEMY_BBOX)
+        own, own_reads = await read_power(_POWER_OWN_BBOX)
+        enemy, enemy_reads = await read_power(_POWER_ENEMY_BBOX)
 
     decision = decide_power_gate(own, enemy, max_ratio=max_ratio)
 
@@ -567,6 +578,8 @@ async def _exec_intel_power_gate(ctx: DslExecContext) -> None:
                     "intel.power_gate": decision,
                     "intel.power_gate.own": str(own),
                     "intel.power_gate.enemy": str(enemy),
+                    "intel.power_gate.own_reads": ",".join(str(r) for r in own_reads),
+                    "intel.power_gate.enemy_reads": ",".join(str(r) for r in enemy_reads),
                     "intel.power_gate.at": str(time.time()),
                 },
             )
