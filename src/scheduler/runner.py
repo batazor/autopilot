@@ -6,7 +6,7 @@ import json
 import logging
 import re
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import redis as _redis_sync
 import redis.asyncio as aioredis
@@ -583,6 +583,29 @@ class SchedulerRunner:
                             now=now,
                         )
 
+    async def _active_player_ids_for_instance(self, inst: Any) -> list[str]:
+        """Only the account currently LOGGED IN on the device is schedulable.
+
+        A device hosts several registered accounts but exactly one is on screen
+        at a time; ``who_i_am`` resolves it into the instance's ``active_player``
+        (and now snaps a misread FID to a registered one). Scheduling every
+        registered candidate — the old behaviour — dispatched intel/coordinator
+        work for accounts that aren't logged in, hitting the wrong game and
+        scattering tasks across phantom player labels (user-reported, bs3
+        2026-08-09). Return just the active player; empty until who_i_am has
+        resolved it, so the coordinator simply waits instead of guessing.
+        """
+        if self._redis is None:
+            return []
+        try:
+            raw = await self._redis.hget(
+                f"wos:instance:{inst.instance_id}:state", "active_player"
+            )
+        except Exception:
+            return []
+        ap = (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
+        return [ap] if ap else []
+
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
         # ``_connect`` runs before any tick, so ``_redis`` is always populated here.
         assert self._redis is not None
@@ -591,10 +614,7 @@ class SchedulerRunner:
 
         states: dict[str, dict[str, object]] = {}
         for inst in self._settings.instances:
-            for player_id in player_ids_for_device_candidates(
-                inst.bluestacks_window_title,
-                inst.instance_id,
-            ):
+            for player_id in await self._active_player_ids_for_instance(inst):
                 key = f"wos:player:{player_id}:state"
                 raw = await self._redis.hgetall(key)
                 state = {
@@ -624,10 +644,7 @@ class SchedulerRunner:
     async def _build_player_instance_map(self) -> dict[str, str]:
         mapping: dict[str, str] = {}
         for inst in self._settings.instances:
-            for player_id in player_ids_for_device_candidates(
-                inst.bluestacks_window_title,
-                inst.instance_id,
-            ):
+            for player_id in await self._active_player_ids_for_instance(inst):
                 mapping[player_id] = inst.instance_id
         return mapping
 
