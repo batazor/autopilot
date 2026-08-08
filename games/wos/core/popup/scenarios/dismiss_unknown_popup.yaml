@@ -56,6 +56,21 @@ steps:
           - click: heroes.sr.new.close
           - wait: 1s
 
+      # Green «Получить»/Claim CTA on a reward popup (beast-hunt victory, etc.).
+      # Colour-matched (action + color explicit on the step, as the DSL matcher
+      # needs — mirrors claim_exploration_rewards) BEFORE the OCR
+      # claim_on_unknown fallback below, which reads NOTHING off the
+      # white-on-green label (tesseract:rus) and left the bot looping here
+      # forever (bs3 2026-08-09).
+      - while_match: button.reward_receive_cta
+        action: cta_button
+        color: green
+        threshold: 0.5
+        max: 1
+        steps:
+          - click: button.reward_receive_cta
+          - wait: 1s
+
   # Template regions above are safer and produce meaningful approval labels.
   # When none matched, OCR the whole frame for a Claim/Collect button and press
   # it — this catches reward pages (e.g. Labyrinth Treasure) whose green Claim
