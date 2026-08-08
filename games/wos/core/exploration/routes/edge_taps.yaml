@@ -3,11 +3,14 @@ edges:
     exploration: [main_city.to.exploration]
 
   exploration:
-    main_city: [icon.page.back]
+    # Static blind-tap on the fixed top-left back arrow — the icon.page.back
+    # template (from chief_profile) doesn't match this screen's RU arrow art,
+    # which stranded the bot on «Освоение».
+    main_city: [exploration.to.main_city]
     squad_settings: [exploration.to.squad_settings]
 
   squad_settings:
-    exploration: [icon.page.back]
+    exploration: [squad_settings.to.exploration]
 
   exploration.defeat:
     main_city: [button.to_main_city]

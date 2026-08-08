@@ -119,7 +119,10 @@ def test_survivor_status_routes_main_city() -> None:
 
 def test_exploration_routes_squad_settings() -> None:
     assert route_taps("exploration", "squad_settings") == [["exploration.to.squad_settings"]]
-    assert route_taps("squad_settings", "exploration") == [["icon.page.back"]]
+    # Back edges are static blind-taps on the fixed top-left arrow (RU build's
+    # arrow art doesn't match the icon.page.back template).
+    assert route_taps("squad_settings", "exploration") == [["squad_settings.to.exploration"]]
+    assert route_taps("exploration", "main_city") == [["exploration.to.main_city"]]
 
 
 def test_main_world_routes_to_city_with_world_scoped_button() -> None:

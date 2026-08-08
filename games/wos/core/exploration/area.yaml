@@ -255,6 +255,21 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "exploration.to.main_city",
+          "action": "exist",
+          "static": true,
+          "bbox": {
+            "x": 0.77,
+            "y": 0.52,
+            "width": 10.83,
+            "height": 4.95,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "_comment": "RU «Белая мгла» back arrow sits at the fixed top-left corner; static blind-tap because the icon.page.back template (cropped from chief_profile) doesn't match this screen's arrow art."
         }
       ]
     },
@@ -335,6 +350,21 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "squad_settings.to.exploration",
+          "action": "exist",
+          "static": true,
+          "bbox": {
+            "x": 0.77,
+            "y": 0.52,
+            "width": 10.83,
+            "height": 4.95,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "_comment": "RU «Белая мгла» back arrow sits at the fixed top-left corner; static blind-tap because the icon.page.back template (cropped from chief_profile) doesn't match this screen's arrow art."
         }
       ]
     },
