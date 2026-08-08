@@ -1295,6 +1295,107 @@ def _validate_dead_end_screens(
         )
 
 
+def _validate_unreachable_screens(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    """Flag detectable screens no declared edge can reach from ``main_city``.
+
+    The sibling :func:`_validate_dead_end_screens` only checks the OUTBOUND
+    direction — it catches "the navigator cannot leave this screen". The
+    inbound direction was unchecked, so a screen could be perfectly detectable,
+    have a clean exit edge, and still be impossible for the navigator to route
+    *to*. Every scenario with that ``node:`` target then fails, and the usual
+    workaround is a hand-rolled gesture ``exec:`` that taps blind.
+
+    Motivating case: ``arena``. It declares ``arena -> main_city``, and
+    ``arena.challenge_list -> arena`` (a dialog *inside* arena), but nothing in
+    ``main_city`` / ``main_menu`` leads in. ``arena.fight`` therefore carried its
+    own ``exec: open_arena_via_city`` swipe route, whose failures were invisible
+    (the ``exec:`` step traced ``ok`` regardless — see
+    :func:`tasks.dsl_scenario_helpers._exec_result_failure_reason`), and the
+    scenario is disabled today because that route stopped working.
+
+    Only real navigation targets are checked (``priority >=
+    MAIN_CITY_HUB_PRIORITY``); modals and popups are reached by dismissal
+    scenarios, not routing. ``terminal: true`` does NOT exempt a screen here —
+    that flag says "its own scenario taps out of it", which says nothing about
+    getting in. Use ``entry: scenario`` on the ``screen_verify.yaml`` entry for a
+    screen that is deliberately only ever reached by a scenario's own taps.
+
+    Reachability is computed over the BUILT graph, not the raw YAML: the builder
+    synthesizes per-building and per-hero edges that exist in no ``edge_taps.yaml``
+    (``screen_graph._load_edge_taps``), and a check that reads only the files
+    reports every per-building screen as a false positive.
+    """
+    from config.games import iter_games
+    from navigation.screen_graph import MAIN_CITY_HUB_PRIORITY, graph_for_game
+
+    screens = _collect_screen_verify_entries(repo_root)
+    if not screens:
+        return
+
+    adjacency: dict[str, set[str]] = {}
+    for g in iter_games(repo_root):
+        try:
+            _static, _dynamic, graph = graph_for_game(g)
+        except Exception:
+            logger.debug("reachability: graph build failed game=%s", g, exc_info=True)
+            continue
+        for src, dsts in graph.items():
+            adjacency.setdefault(str(src), set()).update(str(d) for d in dsts)
+    if not adjacency:
+        return
+
+    reachable = {"main_city"}
+    frontier = ["main_city"]
+    while frontier:
+        for nxt in adjacency.get(frontier.pop(), ()):
+            if nxt not in reachable:
+                reachable.add(nxt)
+                frontier.append(nxt)
+
+    for name, (prio, _terminal, src_path) in sorted(screens.items()):
+        if prio < MAIN_CITY_HUB_PRIORITY or name in reachable:
+            continue
+        if _screen_verify_entry_opts_out_of_reachability(repo_root, name):
+            continue
+        issues.append(
+            StartupValidationIssue(
+                # WARNING, not error: 14 screens fail this today (battle results,
+                # event screens, popups reached only by their own scenario's taps),
+                # and hard-failing the boot on a pre-existing backlog helps nobody.
+                # Annotate the legitimate ones with `entry: scenario`; once the list
+                # is only real gaps this can be promoted to "error".
+                "warning",
+                f"screen_verify:{name}",
+                f"screen {name!r} is detectable in {src_path} but NO declared "
+                "edge_taps.yaml edge reaches it from main_city — the navigator "
+                "cannot route to it, so every scenario with this `node:` target "
+                "fails with `navigation_failed` and the only way in is a "
+                "hand-rolled gesture `exec:`. Declare an inbound edge (e.g. "
+                "`main_city: {<screen>: [<region>]}`) or annotate the "
+                "screen_verify entry with `entry: scenario` if it is only ever "
+                "reached by its own scenario's taps.",
+            )
+        )
+
+
+def _screen_verify_entry_opts_out_of_reachability(repo_root: Path, screen: str) -> bool:
+    """Whether ``screen``'s ``screen_verify.yaml`` entry sets ``entry: scenario``."""
+    for path in _screen_verify_yaml_paths(repo_root):
+        doc = _load_yaml_dict(path)
+        if "__load_error__" in doc:
+            continue
+        screens = doc.get("screens")
+        if not isinstance(screens, dict):
+            continue
+        entry = screens.get(screen)
+        if isinstance(entry, dict) and str(entry.get("entry") or "").strip() == "scenario":
+            return True
+    return False
+
+
 def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValidationIssue]:
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     issues: list[StartupValidationIssue] = []
@@ -1322,6 +1423,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     _validate_edge_taps(root, issues)
     _validate_screen_family_route_gaps(root, issues)
     _validate_dead_end_screens(root, issues)
+    _validate_unreachable_screens(root, issues)
     _validate_cron_specs(root, issues)
     _validate_analyze_manifest(
         root,
