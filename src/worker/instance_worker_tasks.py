@@ -19,6 +19,7 @@ from dashboard.dashboard_events import publish_dashboard_event_async
 from navigation.lifecycle_states import InstanceState
 from scheduler.wake import wake_scheduler_async
 from tasks.dsl_scenario import DslScenarioTask
+from tasks.reasons import reason_category
 
 logger = logging.getLogger(__name__)
 
@@ -306,9 +307,14 @@ class InstanceWorkerTasksMixin(_Base):
                     # nav errors (fix the graph). Sanitised: free-text exception
                     # reprs collapse to one ``error`` bucket to cap cardinality.
                     if _outcome in ("failed", "error"):
-                        _attrs["reason"] = (
-                            safe_reason_label(_reason) or ("error" if _task_error else "failed")
+                        _label = safe_reason_label(_reason) or (
+                            "error" if _task_error else "failed"
                         )
+                        _attrs["reason"] = _label
+                        # Ten values, so cardinality is free, and it answers
+                        # "config bug or device blip" without enumerating 50
+                        # reasons in the query.
+                        _attrs["reason_category"] = reason_category(_label) or "unknown"
                     task_duration_histogram().record(
                         max(0.0, _finished_at - started_at),
                         attributes=_attrs,
@@ -412,6 +418,7 @@ class InstanceWorkerTasksMixin(_Base):
                 ),
             )
             span_id = format(span_ctx.span_id, "016x") if span_ctx.span_id else ""
+            _reason_for_history = str((metadata or {}).get("reason") or "")
             row = {
                 "task_id": item.task_id,
                 "task_type": item.task_type,
@@ -425,7 +432,11 @@ class InstanceWorkerTasksMixin(_Base):
                 "duration_s": max(0.0, finished_at - started_at),
                 "success": success,
                 "error": error,
-                "reason": str((metadata or {}).get("reason") or ""),
+                "reason": _reason_for_history,
+                # Derived at write time, so no migration and no read-path change:
+                # it rides inside `row_json` in SQLite exactly like `reason`, and
+                # older rows simply lack the key.
+                "reason_category": reason_category(_reason_for_history),
                 "metadata": metadata or {},
                 "trace_id": trace_id,
                 "span_id": span_id,

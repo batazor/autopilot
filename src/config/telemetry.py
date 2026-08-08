@@ -170,12 +170,39 @@ def report_restart(name: str, *, attempt: int) -> None:
 _REASON_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,64}$")
 
 
+_warned_unregistered_reasons: set[str] = set()
+
+
 def safe_reason_label(reason: str) -> str:
-    """A failure reason safe to use as a metric label ("" when empty)."""
+    """A failure reason safe to use as a metric label ("" when empty).
+
+    Three outcomes, in order:
+
+    * registered in :mod:`tasks.reasons` — passed through;
+    * unregistered but token-shaped — **also passed through**, plus a
+      warn-once. Collapsing it would hide exactly what the registry exists to
+      surface: a reason someone forgot to register, or a typo that would
+      otherwise silently found a new metric series. The CI test
+      ``test_reason_registry`` is what turns that warning into a fix;
+    * free text (an exception repr, a nav message with spaces and arrows) —
+      collapsed to ``error``, because it would explode label cardinality.
+    """
     reason = (reason or "").strip()
     if not reason:
         return ""
-    return reason if _REASON_TOKEN_RE.fullmatch(reason) else "error"
+    if not _REASON_TOKEN_RE.fullmatch(reason):
+        return "error"
+
+    from tasks.reasons import is_known_reason
+
+    if not is_known_reason(reason) and reason not in _warned_unregistered_reasons:
+        _warned_unregistered_reasons.add(reason)
+        logger.warning(
+            "task reason %r is not registered in tasks.reasons.TaskReason — it is "
+            "still reported, but it has no category and nothing describes it",
+            reason,
+        )
+    return reason
 
 
 def _ocr_counter() -> metrics.Counter:
