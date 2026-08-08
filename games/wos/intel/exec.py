@@ -360,6 +360,8 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
     * if no clean max appears, store the (reliable) current alone and KEEP the last
       known max instead of overwriting it with an OCR artefact.
     """
+    import cv2
+
     from layout.area_lookup import screen_region_by_name
     from layout.area_manifest import load_area_doc
     from layout.types import Region
@@ -389,25 +391,42 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
         if image is not None:
             captured_any = True
             h, w = image.shape[:2]
-            reg = Region(
-                int(round(float(bbox["x"]) / 100.0 * w)),
-                int(round(float(bbox["y"]) / 100.0 * h)),
-                int(round(float(bbox["width"]) / 100.0 * w)),
-                int(round(float(bbox["height"]) / 100.0 * h)),
-            )
-            try:
-                res = await ocr.ocr_region(image, reg, preprocess="fast_line")
-            except Exception:
-                logger.exception("intel stamina: ocr failed instance=%s", ctx.instance_id)
-                res = None
-            if res is not None:
-                last_text = (getattr(res, "text", "") or "").strip()
-                parsed = parse_stamina(last_text)
+            x0 = int(round(float(bbox["x"]) / 100.0 * w))
+            y0 = int(round(float(bbox["y"]) / 100.0 * h))
+            x1 = x0 + int(round(float(bbox["width"]) / 100.0 * w))
+            y1 = y0 + int(round(float(bbox["height"]) / 100.0 * h))
+            crop = image[y0:y1, x0:x1]
+            # The top-right board counter («114») is tiny (~29px tall) on a
+            # textured bar; at native size the OCR drops the leading digit
+            # («114»→«14», live bs3 2026-08-08). Upscaling ≥3× (verified: 4×/5×
+            # fast_digits read «114» cleanly, native reads «14») recovers it.
+            # Sample a few scales and take the median parsed current so one bad
+            # scale can't skew the budget.
+            currents: list[int] = []
+            for fx in (3.0, 4.0, 5.0):
+                if crop.size == 0:
+                    break
+                src = cv2.resize(crop, None, fx=fx, fy=fx, interpolation=cv2.INTER_CUBIC)
+                try:
+                    res = await ocr.ocr_region(
+                        src, Region(0, 0, src.shape[1], src.shape[0]), preprocess="fast_digits"
+                    )
+                except Exception:
+                    logger.exception("intel stamina: ocr failed instance=%s", ctx.instance_id)
+                    continue
+                text = (getattr(res, "text", "") or "").strip()
+                parsed = parse_stamina(text)
                 if parsed is not None:
-                    current, parsed_max = parsed
+                    last_text = text
+                    cur, parsed_max = parsed
+                    currents.append(cur)
                     if parsed_max is not None:
                         maximum = parsed_max
-                        break  # fully plausible read — stop retrying
+            if currents:
+                currents.sort()
+                current = currents[(len(currents) - 1) // 2]  # median
+                if maximum is not None:
+                    break  # fully plausible read — stop retrying
         if attempt < attempts - 1:
             await asyncio.sleep(_STAMINA_RETRY_DELAY_S)
 
