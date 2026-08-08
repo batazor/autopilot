@@ -294,3 +294,32 @@ async def test_chain_after_tap_chains_when_stamina_unknown(monkeypatch) -> None:
 
     assert ok is True
     assert len(pushed) == 1
+
+
+@pytest.mark.asyncio
+async def test_schedule_reward_claim_enqueues_delayed_pickup(monkeypatch) -> None:
+    redis = _FakeRedis()
+    pushed: list[dict[str, Any]] = []
+
+    async def _fake_enqueue(**kwargs: Any) -> bool:
+        pushed.append(kwargs)
+        return True
+
+    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
+
+    now = time.time()
+    ok = await chain.schedule_reward_claim(_ctx(redis), delay=40.0)
+
+    assert ok is True
+    assert len(pushed) == 1
+    assert pushed[0]["scenario"] == "intel_claim_reward"
+    assert pushed[0]["skip_if_duplicate"] is True
+    assert pushed[0]["run_at"] >= now + 39  # ~40s out
+
+
+@pytest.mark.asyncio
+async def test_schedule_reward_claim_noop_without_player() -> None:
+    ctx = DslExecContext(
+        instance_id="bs5", player_id="", redis_client=_FakeRedis(), args={}, result={}
+    )
+    assert await chain.schedule_reward_claim(ctx) is False

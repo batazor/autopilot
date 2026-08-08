@@ -116,6 +116,40 @@ async def maybe_chain_after_tap(
         return False
 
 
+_CLAIM_SCENARIO = "intel_claim_reward"
+_CLAIM_DELAY_S = 40.0
+
+
+async def schedule_reward_claim(ctx: DslExecContext, *, delay: float = _CLAIM_DELAY_S) -> bool:
+    """Push a delayed board-reward pickup after a pin is dispatched.
+
+    An intel fight sends a march that travels, fights and RETURNS with the
+    reward; the green «Получить все» pill only appears once the march is back —
+    by which time the sweep has cleared the board and the bot has gone home, so
+    the reward sat until the twice-a-day claim cron (user-reported, bs3
+    2026-08-09). Enqueue ``intel_claim_reward`` ~``delay`` s out (≈ march return)
+    to come back and press it. ``skip_if_duplicate`` keeps a single pickup
+    pending across a multi-pin sweep instead of one per tap.
+    """
+    if ctx.redis_client is None or not ctx.player_id:
+        return False
+    try:
+        from tasks.dsl_scenario_helpers import _enqueue_scenario
+
+        return await _enqueue_scenario(
+            redis_async=ctx.redis_client,
+            instance_id=ctx.instance_id,
+            player_id=ctx.player_id,
+            scenario=_CLAIM_SCENARIO,
+            priority=55_000,
+            run_at=time.time() + max(0.0, delay),
+            skip_if_duplicate=True,
+        )
+    except Exception:
+        logger.debug("intel: reward-claim schedule failed", exc_info=True)
+        return False
+
+
 async def queue_next_intel_run(ctx: DslExecContext) -> None:
     """Re-enqueue ``intel_run`` if a march slot and the stamina budget remain.
 

@@ -25,6 +25,7 @@ from games.wos.intel import started as started_mem
 from games.wos.intel.chain import (
     free_march_slots,
     maybe_chain_after_tap,
+    schedule_reward_claim,
 )
 from games.wos.intel.chain import (
     queue_next_intel_run as _exec_queue_next_intel_run,
@@ -315,6 +316,10 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
             stamina=stamina,
             cost=as_int_arg(ctx.args, "cost", DEFAULT_COST_PER_EVENT),
         )
+        # The dispatched march returns with the board reward ~40s later, after
+        # the sweep has emptied the board and the bot has left — come back then
+        # and press the green «Получить все» pill (schedule_reward_claim).
+        await schedule_reward_claim(ctx)
 
     ctx.result.update(
         {
