@@ -198,7 +198,6 @@ def _stem_to_regex(stem: str) -> tuple[re.Pattern[str], list[str]]:
     return re.compile("^" + "".join(rebuilt) + "$"), axes
 
 
-@lru_cache(maxsize=256)
 def _scan_scenario_root(
     root_s: str,
 ) -> tuple[tuple[Path, ...], dict[str, Path], tuple[Path, ...]]:
@@ -208,14 +207,28 @@ def _scan_scenario_root(
     path)`` so first-hit semantics are deterministic. ``literal_by_stem`` maps
     stem → first-sorted literal path for O(1) key lookup.
 
+    The ``WOS_SCENARIOS`` slice is passed EXPLICITLY into the cached worker
+    rather than read inside it: as a hidden input it made the cache key a lie —
+    warming the scan under one slice served those results to every later caller,
+    so a test (or an API process) that changed the slice kept the stale scan.
+    """
+    from dsl.registry import scenario_allowlist
+
+    return _scan_scenario_root_cached(root_s, scenario_allowlist())
+
+
+@lru_cache(maxsize=256)
+def _scan_scenario_root_cached(
+    root_s: str,
+    allow: frozenset[str] | None,
+) -> tuple[tuple[Path, ...], dict[str, Path], tuple[Path, ...]]:
+    """Cached body of :func:`_scan_scenario_root`, keyed on root + slice.
+
     Cached for the process lifetime — startup validation resolves hundreds of
     scenario keys and each fall-through used to re-walk the entire root via
     ``rglob``. Tests that mutate the FS tree must call
     :func:`_clear_template_resolver_caches` to invalidate.
     """
-    from dsl.registry import scenario_allowlist
-
-    allow = scenario_allowlist()
     root = Path(root_s)
     literals: list[Path] = []
     templates: list[Path] = []
@@ -337,7 +350,7 @@ def _resolve_cached(root_s: str, key: str) -> ResolvedScenario | None:
 def _clear_template_resolver_caches() -> None:
     """Drop resolver caches (tests that mutate the module tree)."""
     _resolve_cached.cache_clear()
-    _scan_scenario_root.cache_clear()
+    _scan_scenario_root_cached.cache_clear()
 
 
 def render(text: str, ctx: dict[str, str]) -> str:

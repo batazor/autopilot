@@ -97,9 +97,13 @@ def _ignore_operator_allowlists(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WOS_SCENARIOS", "")
     from config.module_discovery import _clear_module_discovery_caches
     from dsl.registry import _clear_scenario_allowlist_cache
+    from dsl.template_resolver import _clear_template_resolver_caches
 
     _clear_module_discovery_caches()
     _clear_scenario_allowlist_cache()
+    # The resolver caches a scenario-tree scan; a test that ran under a slice
+    # would otherwise hand its filtered scan to every later test.
+    _clear_template_resolver_caches()
 
 
 @pytest.fixture(autouse=True)
