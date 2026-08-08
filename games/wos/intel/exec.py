@@ -452,13 +452,13 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
 
 
 # Squad Settings VS strip: own power left of the VS badge, enemy right of it.
-# Percent bboxes calibrated on live bs5 (RU) frames AND the EN arena squad
-# reference — identical layout on both builds; ``fast_digits`` on the cropped
-# plate reads cleanly where the generic pass returns icon noise. The own box
-# starts at 17.5% to skip the fist icon, which otherwise swallows a digit
-# («784 720» → 78720, verified live).
-_POWER_OWN_BBOX = (17.5, 8.8, 27.5, 3.6)
-_POWER_ENEMY_BBOX = (55.0, 8.8, 32.0, 3.6)
+# Percent bboxes verified on a live bs3 (RU) 7-digit matchup («1 394 861» vs
+# «127 015», dumped 2026-08-08). The enemy box MUST start right of the big icy
+# «VS» badge — an earlier 55%-wide box swallowed the badge's right edge as a
+# spurious leading «4» («127 015» → «4127015»), which read as 4.1M and fled a
+# 10× winning fight. The own box skips the left fist icon.
+_POWER_OWN_BBOX = (17.5, 8.8, 28.0, 3.6)
+_POWER_ENEMY_BBOX = (64.0, 8.8, 18.0, 3.6)
 # Fight only when the enemy is at most this fraction of our power. Squad
 # Settings shows raw power, which overweights walls of low-tier troops, so the
 # default keeps a healthy margin.
@@ -511,23 +511,35 @@ async def _exec_intel_power_gate(ctx: DslExecContext) -> None:
         h, w = image.shape[:2]
 
         async def read_power(bbox: tuple[float, float, float, float]) -> int:
+            """OCR a VS-strip power number, resilient to a single dropped digit.
+
+            The stylised 6-7 digit powers read differently per preprocess
+            (``fast_digits`` nails «127015» but drops a digit off «1394861»;
+            ``enhance`` is the reverse). A dropped digit is a 10× error that
+            flips the gate, so try both and keep the LONGEST plausible digit
+            run — the correct read is never shorter than a truncated one.
+            """
             x, y, ww, hh = bbox
             x0, y0 = int(x / 100.0 * w), int(y / 100.0 * h)
             x1, y1 = int((x + ww) / 100.0 * w), int((y + hh) / 100.0 * h)
             crop = image[y0:y1, x0:x1]
             if crop.size == 0:
                 return 0
-            try:
-                res = await ocr.ocr_region(
-                    crop,
-                    Region(0, 0, crop.shape[1], crop.shape[0]),
-                    preprocess="fast_digits",
-                )
-            except Exception:
-                logger.exception("intel power gate: ocr failed instance=%s", ctx.instance_id)
-                return 0
-            digits = "".join(c for c in (getattr(res, "text", "") or "") if c.isdigit())
-            return int(digits) if digits else 0
+            best = ""
+            for pp in ("fast_digits", "enhance"):
+                try:
+                    res = await ocr.ocr_region(
+                        crop, Region(0, 0, crop.shape[1], crop.shape[0]), preprocess=pp
+                    )
+                except Exception:
+                    logger.exception(
+                        "intel power gate: ocr failed instance=%s", ctx.instance_id
+                    )
+                    continue
+                digits = "".join(c for c in (getattr(res, "text", "") or "") if c.isdigit())
+                if len(digits) > len(best):
+                    best = digits
+            return int(best) if best else 0
 
         own = await read_power(_POWER_OWN_BBOX)
         enemy = await read_power(_POWER_ENEMY_BBOX)
