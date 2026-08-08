@@ -486,6 +486,8 @@ async def _exec_intel_power_gate(ctx: DslExecContext) -> None:
     autonomous run never feeds the army into an unwinnable pin (the failure
     mode: dead troops → hospital → hours of healing downtime).
     """
+    import cv2
+
     from layout.types import Region
     from services import get_ocr_client
 
@@ -525,20 +527,31 @@ async def _exec_intel_power_gate(ctx: DslExecContext) -> None:
             crop = image[y0:y1, x0:x1]
             if crop.size == 0:
                 return 0
+            # The 6-7 digit VS powers are small + stylised; at native size both
+            # preprocesses drop the thin trailing «1» off a 7-digit number
+            # («1 394 861» → «139486»), a 10× error that flips the gate to a
+            # false flee. Upscaling 4× (the troop-pool reader's proven trick)
+            # gives the OCR the pixels to keep every digit. Keep the LONGEST
+            # plausible run across scales × preprocesses — a correct read is
+            # never shorter than a truncated one.
             best = ""
-            for pp in ("fast_digits", "enhance"):
-                try:
-                    res = await ocr.ocr_region(
-                        crop, Region(0, 0, crop.shape[1], crop.shape[0]), preprocess=pp
+            scaled = cv2.resize(crop, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
+            for src in (scaled, crop):
+                for pp in ("fast_digits", "enhance"):
+                    try:
+                        res = await ocr.ocr_region(
+                            src, Region(0, 0, src.shape[1], src.shape[0]), preprocess=pp
+                        )
+                    except Exception:
+                        logger.exception(
+                            "intel power gate: ocr failed instance=%s", ctx.instance_id
+                        )
+                        continue
+                    digits = "".join(
+                        c for c in (getattr(res, "text", "") or "") if c.isdigit()
                     )
-                except Exception:
-                    logger.exception(
-                        "intel power gate: ocr failed instance=%s", ctx.instance_id
-                    )
-                    continue
-                digits = "".join(c for c in (getattr(res, "text", "") or "") if c.isdigit())
-                if len(digits) > len(best):
-                    best = digits
+                    if len(digits) > len(best):
+                        best = digits
             return int(best) if best else 0
 
         own = await read_power(_POWER_OWN_BBOX)
