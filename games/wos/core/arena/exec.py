@@ -215,11 +215,15 @@ async def _exec_arena_pick_and_open(ctx: DslExecContext) -> None:
 #
 # Only the Marksman-row lookup needs vision; the rest are calibrated gestures.
 
-_PANEL_TOGGLE = Point(19, 550)         # main_city City-list toggle (main_city.to.main_menu)
-_PANEL_CITY_TAB = Point(116, 270)      # «Город» tab — the panel reopens on whichever
-                                       # tab was active last (e.g. «Глушь» march queues,
-                                       # seen live on bs3), and the Marksman row only
-                                       # exists on the City tab.
+# Both taps go through labelled regions rather than pixel literals — these used
+# to be `Point(19, 550)` / `Point(116, 270)`, which are just these two regions'
+# resolved centres on a 720×1280 frame, so the constants silently pinned the
+# route to one resolution and drifted from the labelling they were copied from.
+_PANEL_TOGGLE_REGION = "main_city.to.main_menu"   # City-list panel toggle
+_PANEL_CITY_TAB_REGION = "main_menu.city"         # «Город» tab — the panel reopens on
+                                       # whichever tab was active last (e.g. «Глушь»
+                                       # march queues, seen live on bs3), and the
+                                       # Marksman row only exists on the City tab.
 _MARKSMAN_NAV_X_FRAC = 0.40            # tap the row card body → navigate to the camp
 _PANEL_RESET_SWIPES = 3
 _PANEL_FIND_SWEEPS = 6
@@ -260,22 +264,27 @@ async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
     ocr = dsl_runtime.ocr_client()
     inst = ctx.instance_id
 
+    try:
+        area_doc = load_area_doc(repo_root())
+    except Exception:
+        logger.exception("open_arena_via_city: area manifest load failed")
+        ctx.fail("area_load_failed", action="area_load_failed")
+        return
+    state_flat = {"current_screen": await _current_screen(ctx)}
+    img = await asyncio.to_thread(actions.capture_screen_bgr, inst)
+    if img is None or getattr(img, "size", 0) == 0:
+        ctx.fail("capture_failed", action="capture_failed")
+        return
+
     # 1. Open the City-list panel.
-    if not await asyncio.to_thread(
-        actions.tap, inst, _PANEL_TOGGLE, approval_source="open_arena_via_city:panel"
-    ):
-        # Every early return below logs: the DSL `exec:` step traces "ok" no
-        # matter what a handler reports, so a silent return here surfaced only
-        # as a generic `wait_screen_timeout` two steps later with no cause.
+    if not await _tap_region(ctx, actions, area_doc, state_flat, img, _PANEL_TOGGLE_REGION):
         logger.warning("open_arena_via_city: City-panel toggle tap rejected (inst=%s)", inst)
-        ctx.result.update({"action": "panel_not_opened", "reason": "panel_not_opened"})
+        ctx.fail("panel_not_opened", action="panel_not_opened")
         return
     await asyncio.sleep(1.3)
 
     # 1b. Force the «Город» tab — the panel remembers the last active tab.
-    await asyncio.to_thread(
-        actions.tap, inst, _PANEL_CITY_TAB, approval_source="open_arena_via_city:city_tab"
-    )
+    await _tap_region(ctx, actions, area_doc, state_flat, img, _PANEL_CITY_TAB_REGION)
     await asyncio.sleep(0.8)
 
     # 2. Locate the (dynamic) Marksman row by OCR.
@@ -286,9 +295,7 @@ async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
             _PANEL_FIND_SWEEPS,
             inst,
         )
-        ctx.result.update(
-            {"action": "marksman_row_not_found", "reason": "marksman_row_not_found"}
-        )
+        ctx.fail("marksman_row_not_found", action="marksman_row_not_found")
         return
     cy, frame_w = found
 
