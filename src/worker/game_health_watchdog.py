@@ -24,6 +24,7 @@ from config.runtime_bootstrap import bootstrap_runtime_observability
 from config.startup_validation import assert_startup_configs_valid
 from dashboard.notifications import push_ui_notification_sync
 from navigation.lifecycle_states import InstanceState
+from worker.instance_state_fields import last_error_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ def _handle_adb_offline_instance(
                 mapping={
                     "paused": "1",
                     "auto_paused": "0",
-                    "last_error": msg,
+                    **last_error_mapping(msg),
                     "queue_blocked_reason": msg,
                     _ADB_OFFLINE_ATTEMPTS_FIELD: str(attempts),
                     _ADB_OFFLINE_EXHAUSTED_FIELD: "1",
@@ -158,7 +159,7 @@ def _handle_adb_offline_instance(
             mapping={
                 "paused": "1",
                 "auto_paused": "1",
-                "last_error": _ADB_OFFLINE_ERROR,
+                **last_error_mapping(_ADB_OFFLINE_ERROR),
                 "queue_blocked_reason": _ADB_OFFLINE_ERROR,
                 _ADB_OFFLINE_ATTEMPTS_FIELD: str(attempts),
                 _ADB_OFFLINE_EXHAUSTED_FIELD: "0",
@@ -327,7 +328,7 @@ def restart_application_after_health_failure(
                 "state": str(InstanceState.RESTARTING),
                 "paused": "1",
                 "auto_paused": "1",
-                "last_error": "",
+                **last_error_mapping(""),
             },
         )
     # Give the worker a moment to drain the pause command and let the
@@ -353,7 +354,7 @@ def restart_application_after_health_failure(
                     key,
                     mapping={
                         "state": str(InstanceState.CRASHED),
-                        "last_error": "start application failed (see logs)",
+                        **last_error_mapping("start application failed (see logs)"),
                     },
                 )
             return
@@ -397,7 +398,7 @@ def restart_application_after_health_failure(
                 key,
                 mapping={
                     "state": str(InstanceState.READY),
-                    "last_error": "",
+                    **last_error_mapping(""),
                     "active_player": "",
                 },
             )
@@ -534,7 +535,7 @@ def run_forever(stop: threading.Event | None = None) -> None:
                 with contextlib.suppress(redis.RedisError):
                     r.hset(
                         key,
-                        mapping={"auto_paused": "0", "last_error": ""},
+                        mapping={"auto_paused": "0", **last_error_mapping("")},
                     )
                 _clear_offline_retry_state(r, key)
                 logger.info(
@@ -557,7 +558,7 @@ def run_forever(stop: threading.Event | None = None) -> None:
                             with contextlib.suppress(redis.RedisError):
                                 r.hset(
                                     key,
-                                    mapping={"paused": "0", "last_error": ""},
+                                    mapping={"paused": "0", **last_error_mapping("")},
                                 )
                             logger.info(
                                 "Watchdog: %s game process alive after startup pause — resumed",

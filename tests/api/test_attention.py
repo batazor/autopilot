@@ -400,3 +400,52 @@ def test_diagnose_instance_flags_manual_pause(fleet) -> None:
     d = attention.diagnose_instance(None, "bs1", now=fleet.now)
     assert "paused" in [i["kind"] for i in d["issues"]]
     assert d["verdict"] == "degraded"
+
+
+# --------------------------------------------------------------------------- #
+# Age handling. `nav_error` has an active clearer (`_clear_nav_error` fires on
+# the next successful navigation), so a stale one means nothing has navigated
+# since — not that navigation is failing now. `last_error` has no clearer: a
+# crashed worker's error is old by definition and must keep showing.
+
+
+def test_stale_nav_error_is_dropped(fleet) -> None:
+    fleet.states["bs1"]["nav_error"] = "navigation_failed: main_city → arena (no_route)"
+    fleet.states["bs1"]["nav_error_at"] = str(fleet.now - 3600)
+
+    assert _kinds(_view()) == []
+
+
+def test_fresh_nav_error_still_warns_and_names_the_cause(fleet) -> None:
+    fleet.states["bs1"]["nav_error"] = "navigation_failed: main_city → arena (no_route)"
+    fleet.states["bs1"]["nav_error_at"] = str(fleet.now - 5)
+    fleet.states["bs1"]["nav_error_cause"] = "no_route"
+
+    view = _view()
+
+    assert _kinds(view) == ["nav_error"]
+    assert "no_route" in view["items"][0]["title"]
+    assert "ago" in view["items"][0]["detail"]
+
+
+def test_nav_error_without_a_stamp_is_still_shown(fleet) -> None:
+    """Unknown age must never suppress an item, or this becomes a new source of
+    silence — the opposite of what the timestamps are for."""
+    fleet.states["bs1"]["nav_error"] = "boom"
+
+    assert _kinds(_view()) == ["nav_error"]
+
+
+def test_old_last_error_is_never_age_filtered(fleet) -> None:
+    """A crashed worker's error is old by definition.
+
+    Deliberately NOT an ADB-offline message: that text routes to the
+    `device_offline` branch, which owns its own item.
+    """
+    fleet.states["bs1"]["last_error"] = "start application failed (see logs)"
+    fleet.states["bs1"]["last_error_at"] = str(fleet.now - 86400)
+
+    view = _view()
+
+    assert "instance_error" in _kinds(view)
+    assert "ago" in view["items"][0]["title"]

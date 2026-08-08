@@ -34,6 +34,7 @@ from navigation.lifecycle_states import InstanceState
 from popup import PopupDetector
 from tasks.base import BaseTask, TaskResult
 from tasks.dsl_scenario import DslScenarioTask
+from worker.instance_state_fields import last_error_mapping
 from worker.instance_worker_blocking import InstanceWorkerBlockingMixin
 from worker.instance_worker_health import InstanceWorkerHealthMixin
 from worker.instance_worker_overlay import InstanceWorkerOverlayMixin
@@ -414,7 +415,7 @@ class InstanceWorker(
                             mapping={
                                 "paused": "1",
                                 "auto_paused": "1",
-                                "last_error": "device offline (ADB)",
+                                **last_error_mapping("device offline (ADB)"),
                             },
                         )
                 return None
@@ -1095,7 +1096,7 @@ class InstanceWorker(
                 )
                 mapping: dict[str, str] = {
                     "paused": "1",
-                    "last_error": pause_reason,
+                    **last_error_mapping(pause_reason),
                 }
                 # Only device-offline pauses are auto-resumed by the health watchdog
                 # when ADB comes back. Game-not-ready stays paused until foreground.

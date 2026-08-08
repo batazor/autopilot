@@ -15,6 +15,7 @@ from config.redis_health import ping_async_redis_or_exit
 from navigation.lifecycle_states import InstanceState
 from scheduler.claims import CooperativeClaims
 from scheduler.queue import QueueItem, RedisQueue
+from worker.instance_state_fields import last_error_mapping, queue_blocked_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class InstanceWorkerRedisMixin(_Base):
                 **active_player_mapping,
                 "paused": "0",
                 "last_seen_at": str(time.time()),
-                "last_error": "",
+                **last_error_mapping(""),
                 "nav_error": "",
                 "nav_target": "",
                 "current_screen": "",
@@ -146,10 +147,8 @@ class InstanceWorkerRedisMixin(_Base):
         if self._redis is None:
             return
         mapping: dict[str, str] = {"state": str(state)}
-        if error:
-            mapping["last_error"] = error[:500]
-        else:
-            mapping["last_error"] = ""
+        # Value and stamp move together — see worker.instance_state_fields.
+        mapping.update(last_error_mapping(error))
         try:
             await self._redis.hset(
                 _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
@@ -199,12 +198,14 @@ class InstanceWorkerRedisMixin(_Base):
         if item is not None or self._redis is None:
             if item is not None and self._redis is not None:
                 with suppress(Exception):
-                    await self._redis.hset(inst_key, "queue_blocked_reason", "")
+                    await self._redis.hset(
+                        inst_key, mapping=queue_blocked_mapping("")
+                    )
             return item
 
         reason = await self._queue_blocked_reason(current_screen=current_screen)
         with suppress(Exception):
-            await self._redis.hset(inst_key, "queue_blocked_reason", reason)
+            await self._redis.hset(inst_key, mapping=queue_blocked_mapping(reason))
         return None
 
     async def _queue_blocked_reason(self, *, current_screen: str) -> str:

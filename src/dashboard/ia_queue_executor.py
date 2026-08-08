@@ -18,6 +18,7 @@ from config.paths import repo_root as default_repo_root
 from dsl import template_resolver
 from scheduler.queue import RedisQueue
 from tasks.dsl_scenario import DslScenarioTask
+from worker.instance_state_fields import last_error_mapping, queue_blocked_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +145,8 @@ async def _execute_item(
             "current_task_started_at": str(started_at),
             "current_task_region": item.region or "",
             "current_scenario": scenario_key,
-            "queue_blocked_reason": "",
-            "last_error": "",
+            **queue_blocked_mapping(""),
+            **last_error_mapping(""),
         },
     )
 
@@ -231,7 +232,7 @@ async def _execute_item(
                 "current_task_player": "",
                 "current_task_region": "",
                 "current_scenario": "",
-                "last_error": error,
+                **last_error_mapping(error),
             },
         )
 

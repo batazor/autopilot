@@ -34,6 +34,7 @@ from dashboard.redis_client import (
     fetch_next_queue_row_for_instance,
     get_instance_state,
 )
+from worker.instance_state_fields import field_age_s, format_age
 
 SEVERITY_CRITICAL = "critical"
 SEVERITY_WARNING = "warning"
@@ -43,6 +44,8 @@ SEVERITY_WARNING = "warning"
 OVERDUE_STUCK_THRESHOLD_S = 30 * 60.0
 
 _DEVICE_OFFLINE_ERROR = "device offline (ADB)"
+# Older than this and nav_error is history, not a live failure.
+_NAV_ERROR_STALE_S = 300.0
 _ADB_OFFLINE_EXHAUSTED_FIELD = "adb_offline_retry_exhausted"
 _ADB_OFFLINE_ATTEMPTS_FIELD = "adb_offline_attempts"
 _ADB_OFFLINE_RETRY_LIMIT = 5
@@ -247,6 +250,13 @@ def _instance_items(
     last_error = (row.get("last_error") or "").strip()
     blocked = (row.get("queue_blocked_reason") or "").strip()
     nav_error = (row.get("nav_error") or "").strip()
+    # Ages. `last_error` / `queue_blocked_reason` are only ANNOTATED with theirs:
+    # a crashed worker's error is old by definition and must keep showing.
+    # `nav_error` is different — it has an active clearer, so a stale one means
+    # navigation recovered and nobody cares any more.
+    last_error_age = field_age_s(row.get("last_error_at"), now=now)
+    blocked_age = field_age_s(row.get("queue_blocked_reason_at"), now=now)
+    nav_error_age = field_age_s(row.get("nav_error_at"), now=now)
     approval_pending = _approval_pending(client, instance_id)
 
     device_offline = is_device_offline(row)
@@ -285,7 +295,8 @@ def _instance_items(
                 severity=SEVERITY_CRITICAL,
                 instance_id=instance_id,
                 title=f"{instance_id} worker is {status}",
-                detail=last_error or blocked,
+                detail=(last_error or blocked)
+                + format_age(last_error_age if last_error else blocked_age),
             )
         )
     elif not device_offline and (last_error or blocked):
@@ -297,8 +308,11 @@ def _instance_items(
                 kind="instance_error",
                 severity=SEVERITY_WARNING,
                 instance_id=instance_id,
-                title=f"{instance_id}: {last_error or blocked}",
-                detail=blocked if last_error and blocked else "",
+                title=f"{instance_id}: {last_error or blocked}"
+                + format_age(last_error_age if last_error else blocked_age),
+                detail=(blocked + format_age(blocked_age))
+                if last_error and blocked
+                else "",
             )
         )
 
@@ -310,14 +324,22 @@ def _instance_items(
         if stuck is not None:
             items.append(stuck)
 
-    if nav_error:
+    # A nav_error older than this is history: `_clear_nav_error` fires on the
+    # next successful navigation, so an old one that is still here means nothing
+    # has navigated since — not that navigation is failing right now.
+    # An UNKNOWN age never suppresses the item: a missing stamp must not turn
+    # this into a new source of silence.
+    nav_error_stale = nav_error_age is not None and nav_error_age > _NAV_ERROR_STALE_S
+    if nav_error and not nav_error_stale:
+        cause = (row.get("nav_error_cause") or "").strip()
         items.append(
             _item(
                 kind="nav_error",
                 severity=SEVERITY_WARNING,
                 instance_id=instance_id,
-                title=f"{instance_id}: navigation failing",
-                detail=nav_error,
+                title=f"{instance_id}: navigation failing"
+                + (f" ({cause})" if cause else ""),
+                detail=nav_error + format_age(nav_error_age),
             )
         )
 
