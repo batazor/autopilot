@@ -6,6 +6,14 @@ screens:
   welcome_back:
     priority: 3
     rules:
+    # Primary: template-match the RU «возвращением» title crop. tesseract:rus
+    # garbles this stylised banner font into Latin ('C Bo3BpalieHvem!' — live
+    # bs3 2026-08-08), so the OCR rule below never fired and the popup fell
+    # through to «unknown» → dismiss_unknown_popup looped and starved intel.
+    - match: text.welcome_back_ru
+      threshold: 0.82
+    # OCR fallback (kept for a future font that reads clean); harmless when the
+    # template already matched.
     - ocr: text.welcome_back
-      contains: [возвращением, Welcome]
+      contains: [возвращени, Welcome]
       threshold: 0.4

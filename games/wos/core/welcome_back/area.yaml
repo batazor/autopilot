@@ -21,6 +21,20 @@
           }
         },
         {
+          "name": "text.welcome_back_ru",
+          "action": "exist",
+          "threshold": 0.82,
+          "bbox": {
+            "x": 35.13899613899614,
+            "y": 18.515217391304347,
+            "width": 29.44401544401545,
+            "height": 2.1869565217391305,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "text.01_40_12",
           "action": "text",
           "threshold": 0.9,

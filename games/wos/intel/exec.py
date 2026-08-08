@@ -138,15 +138,23 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
     started_radius = as_int_arg(ctx.args, "started_radius_px", STARTED_MATCH_RADIUS_PX)
 
     actions = dsl_runtime.bot_actions()
+    # Lossless adb screencap, NOT the scrcpy H.264 stream: template matching the
+    # board pins off a compressed/mid-animation stream frame silently finds ZERO
+    # markers (live bs3 2026-08-08: stream → not_found while a fresh PNG of the
+    # same full board detects 9), so the run bails as a claim-only pass and
+    # strands the device on the board. One screencap per pass is worth it.
     try:
-        image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+        image = await asyncio.to_thread(actions.capture_screen_bgr_adb, ctx.instance_id)
     except Exception:
-        logger.exception(
-            "dsl exec tap_intel_fight: capture_screen_bgr failed instance=%s",
-            ctx.instance_id,
-        )
-        ctx.result.update({"action": "capture_failed"})
-        return
+        logger.debug("tap_intel_fight: adb capture failed, falling back", exc_info=True)
+        try:
+            image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+        except Exception:
+            logger.exception(
+                "dsl exec tap_intel_fight: capture failed instance=%s", ctx.instance_id
+            )
+            ctx.result.update({"action": "capture_failed"})
+            return
 
     markers = detect_intel_markers(
         image,

@@ -147,10 +147,17 @@ steps:
           - cond: currentNode == exploration.victory
             steps:
               - click: page.exploration.victory.next
+              # Optional: victory can drop to a rewards popup or straight to the
+              # world map, not always one of these nodes. A hard wait here used
+              # to time out and ABORT the whole run before queue_next_intel_run,
+              # stranding the rest of the board (live bs3 2026-08-08). Let it
+              # settle if it can, else fall through — the chained run re-enters
+              # via node: intel and its claim_all clears any leftover popup.
               - wait_screen:
                   any: [squad_settings, intel, main_city]
                   max: 8
                   interval: 500ms
+                  optional: true
               - cond: currentNode == squad_settings
                 steps:
                   - click: icon.page.back
