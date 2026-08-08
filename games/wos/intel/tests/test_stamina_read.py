@@ -43,6 +43,16 @@ def test_parse_rejects_implausible_current() -> None:
     assert parse_stamina("0/70") is None             # current must be > 0
 
 
+def test_parse_plain_single_number() -> None:
+    # The top-right board stamina counter is a plain «200» (no «/max»); it must
+    # parse as (value, None). Regression for the bug where the reader pointed at
+    # the bottom-left LEVEL bar («37/70» → stamina 7) and declined every fight.
+    assert parse_stamina("200") == (200, None)
+    assert parse_stamina("200.") == (200, None)     # trailing OCR dot
+    assert parse_stamina("136") == (136, None)
+    assert parse_stamina("44") == (44, None)
+
+
 def test_parse_no_digit_pair() -> None:
     assert parse_stamina("") is None
     assert parse_stamina(None) is None

@@ -22,33 +22,44 @@ logger = logging.getLogger(__name__)
 STAMINA_MAX_CAP = 300
 
 _STAMINA_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
+_STAMINA_SINGLE_RE = re.compile(r"\d+")
+# The intel board's own stamina counter (top-right «200», a spendable currency
+# with a "+" to buy more) has no visible max, and can far exceed the old «X/90»
+# bar's range, so a plain-number read gets a much wider plausibility bound.
+STAMINA_SINGLE_CAP = 5000
 
 
 def parse_stamina(text: Any, *, cap: int = STAMINA_MAX_CAP) -> tuple[int, int | None] | None:
-    """Parse a «current/max» stamina OCR string into ``(current, max_or_None)``.
+    """Parse the intel-board stamina OCR into ``(current, max_or_None)``.
 
-    The board reads «43/70», but scrcpy H.264 compression frequently corrupts the
-    small denominator — inserting a digit («43/710») or dropping one («43/10»).
-    The numerator is larger/clearer and reads reliably. So:
+    Two on-screen shapes:
 
-    * ``None`` — no digit pair, or the current value is itself implausible
-      (``<= 0`` or ``> cap``); the caller should retry / report parse_failed.
-    * ``(current, max)`` — a fully plausible read (``current <= max <= cap``).
-    * ``(current, None)`` — current is good but the max is an OCR artefact
-      (``max < current`` or ``max > cap``); the caller keeps the last known max
-      instead of overwriting it with garbage.
+    * ``«current/max»`` (legacy «43/70» bar): scrcpy H.264 frequently corrupts
+      the small denominator, so the reliable numerator drives the result —
+      ``(current, max)`` when both are plausible, ``(current, None)`` when the
+      max is an artefact (``max < current`` or ``max > cap``).
+    * A plain integer («200», the top-right board stamina counter, no visible
+      max): returned as ``(value, None)`` when ``0 < value <= STAMINA_SINGLE_CAP``.
+
+    ``None`` — nothing plausible parsed; the caller retries / reports parse_failed.
     """
     if text is None:
         return None
     match = _STAMINA_RE.search(str(text))
-    if not match:
-        return None
-    current, maximum = int(match.group(1)), int(match.group(2))
-    if not (0 < current <= cap):
-        return None
-    if current <= maximum <= cap:
-        return (current, maximum)
-    return (current, None)
+    if match:
+        current, maximum = int(match.group(1)), int(match.group(2))
+        if not (0 < current <= cap):
+            return None
+        if current <= maximum <= cap:
+            return (current, maximum)
+        return (current, None)
+    # Plain single number (top-right board stamina «200» — no «/max»).
+    single = _STAMINA_SINGLE_RE.search(str(text))
+    if single:
+        value = int(single.group(0))
+        if 0 < value <= STAMINA_SINGLE_CAP:
+            return (value, None)
+    return None
 
 
 # --- DSL step-arg coercion ---------------------------------------------------

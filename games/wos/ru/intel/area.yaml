@@ -49,16 +49,16 @@
         },
         {
           "name": "intel.stamina",
-          "_comment": "RU stamina «9/70» bottom-left of the «Разведка» board. Same bbox as the base region, but the base `fast_line` (raw PSM 7) reads EMPTY under the rus traineddata — the white outlined digits on the bar gradient need contrast enhancement first. `enhance_line` (enhance_for_ocr + PSM 7, no whitelist so the «/» survives for parse_stamina) reads '9/70' at conf 0.97 on the live frame. Verified offline on scratchpad step1_board capture 2026-07-05.",
+          "_comment": "Top-right board stamina counter («200», plain number, no /max). Was WRONGLY on the bottom-left LEVEL bar («37/70») — the reader read the level as stamina=7 and declined every fight.",
           "action": "text",
           "threshold": 0.7,
           "type": "string",
           "preprocess": "enhance_line",
           "bbox": {
-            "x": 21.666666666666668,
-            "y": 93.515625,
-            "width": 18.333333333333332,
-            "height": 5.15625,
+            "x": 82.5,
+            "y": 1.9,
+            "width": 9.9,
+            "height": 2.3,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
