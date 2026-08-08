@@ -27,5 +27,3 @@ def test_parse_no_level() -> None:
     assert _parse("Survivors are getting cold") is None
 
 
-def test_handler_registered() -> None:
-    assert "record_building_level" in _mod.DSL_EXEC_HANDLERS

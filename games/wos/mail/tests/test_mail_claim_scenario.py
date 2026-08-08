@@ -37,7 +37,12 @@ def test_tab_template_renders_explicit_mail_pages(snapshot, scenario_key: str) -
     assert loaded is not None
     path, doc = loaded
     assert path.name == "mail.claim.{tab}.yaml"
-    assert doc == snapshot
+    # The template's whole point is substitution: ${tab} reaches the node and
+    # ${tab_name} the title. Snapshotting the rendered doc instead pinned the
+    # scenario body, so editing a step broke a resolver test.
+    tab = scenario_key.rsplit(".", 1)[-1]
+    assert doc["node"] == f"mail.{tab}"
+    assert "${" not in doc["name"]
 
 
 @pytest.mark.parametrize("scenario_key", TAB_SCENARIO_KEYS)

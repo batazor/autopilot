@@ -14,8 +14,11 @@ from agentctl import mcp_server
 
 def test_tool_inventory() -> None:
     names = [f.__name__ for f in mcp_server.TOOLS]
-    assert len(names) == 26
-    assert len(set(names)) == 26  # no duplicates
+    # No count assertion: `len(names) == 26` broke on every tool added and caught
+    # nothing. Uniqueness is the real invariant (a duplicate name silently
+    # shadows a tool); completeness is pinned by
+    # ``test_build_server_registers_all_tools``.
+    assert len(set(names)) == len(names)
     for expected in (
         "bot_status", "bot_run", "bot_focus", "bot_pause", "bot_trace",
         "bot_queue_clear", "bot_why", "bot_planners", "bot_drive",

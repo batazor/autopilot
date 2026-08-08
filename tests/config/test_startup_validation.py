@@ -701,17 +701,6 @@ screens:
     )
 
 
-def test_startup_validation_accepts_ads_myriad_region_on_real_repo() -> None:
-    issues = validate_startup_configs(repo_root())
-    myriad_issues = [
-        i
-        for i in issues
-        if i.source == "analyze:myriad_bazaar.visible"
-        or "myriad_bazaar.title" in i.message
-    ]
-    assert myriad_issues == []
-
-
 def test_edge_taps_accepts_any_of_with_known_regions(tmp_path: Path) -> None:
     # ``any_of`` is a real navigator tap action (one destination reachable by
     # several buttons — navigator._tap_any_of_async); the validator must accept

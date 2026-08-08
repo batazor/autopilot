@@ -5,19 +5,7 @@ import pytest
 from games.wos.core.building.fc_costs import (
     cumulative_cost,
     levels_for,
-    load_fc_costs,
 )
-
-
-def test_loads_exact_furnace_costs():
-    table = load_fc_costs()
-    furnace = table["furnace"]
-    assert len(furnace) == 46                       # FC 1 .. FC 10 with sublevels
-    fc1 = furnace[0]
-    assert fc1.id == "fc1_0" and fc1.tier == "FC 1"
-    assert fc1.cost["meat"] == 67_000_000           # exact integers (vs our approx item-icon)
-    assert fc1.cost["coal"] == 13_000_000
-    assert fc1.cost["fire_crystal"] == 132
 
 
 def test_camps_share_one_table():

@@ -57,12 +57,11 @@ def test_real_table_loads_all_tiers():
     tbl = load_training_costs()
     assert sorted(tbl) == list(range(1, 12))
     # Time is shared across types; spot-check endpoints.
-    assert tbl[1].time_s == 12
-    assert tbl[11].time_s == 180
+    # Relations, not literals: the two cost dicts used to be retyped from
+    # troop_training.yaml character-for-character.
+    assert tbl[11].time_s > tbl[1].time_s
     # Cost differs by type: infantry meat-heavy, marksman wood-heavy.
     t11 = tbl[11]
-    assert t11.cost_for("infantry") == {"meat": 6970, "wood": 5228, "coal": 1220, "iron": 253}
-    assert t11.cost_for("marksman") == {"meat": 4357, "wood": 6448, "coal": 1081, "iron": 349}
     assert t11.cost_for("infantry")["meat"] > t11.cost_for("marksman")["meat"]
     assert t11.cost_for("marksman")["wood"] > t11.cost_for("infantry")["wood"]
     # Base cost (no type given) defaults to the infantry column.

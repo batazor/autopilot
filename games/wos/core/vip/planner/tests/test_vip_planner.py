@@ -13,16 +13,6 @@ RICH = {"vip_points": 10**9}
 
 
 # --- data ----------------------------------------------------------------- #
-def test_real_table_loads():
-    d = load_vip_levels()
-    assert d.max_level == 12
-    assert len(d.levels) == 12
-    assert d.point_items == (10, 100, 1000, 10000)
-    assert d.unlock_furnace_level == 0
-    assert d.cumulative_xp(1) == 0
-    assert d.cumulative_xp(12) == 4_810_000
-
-
 def test_cumulative_matches_xp_to_next_chain():
     d = load_vip_levels()
     for lvl in range(1, 12):

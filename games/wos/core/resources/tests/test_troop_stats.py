@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from games.wos.core.resources.troop_stats import (
     TROOP_TYPES,
-    base_speed,
     load_troop_stats,
     troop_stat,
 )
@@ -21,22 +20,6 @@ def test_matrix_is_complete():
     for ttype in TROOP_TYPES:
         pairs = {(t, f) for (ty, t, f) in table if ty == ttype}
         assert pairs == {(t, f) for t in range(1, 12) for f in range(11)}
-
-
-def test_base_speed_constant():
-    assert base_speed() == 11
-
-
-def test_anchored_values():
-    """Top-tier infantry at max FC — pins the re-encoding to source numbers."""
-    s = troop_stat("infantry", 11, 10)
-    assert (s.power, s.attack, s.defense, s.lethality, s.health, s.load) == (
-        148, 19, 28, 18, 27, 400,
-    )
-    assert s.name == "Helios"
-    # Tier-1 baseline and the source-typo fix ("Vetern" -> "Veteran").
-    assert troop_stat("lancer", 1, 0).name == "Rookie"
-    assert troop_stat("marksman", 4, 0).name == "Veteran"
 
 
 def test_power_increases_with_tier():

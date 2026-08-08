@@ -40,13 +40,12 @@ def _load_rehearsal_fixture_bgr(name: str) -> np.ndarray:
     return frame
 
 
-def test_welcome_new_survivors_scenario_is_registered_with_expected_shape(snapshot) -> None:
+def test_welcome_new_survivors_scenario_is_registered_with_expected_shape() -> None:
     loaded = template_resolver.load_doc(REPO_ROOT, "welcome_new_survivors")
     assert loaded is not None
 
-    path, doc = loaded
+    path, _doc = loaded
     assert path == MODULE_DIR / "scenarios" / "welcome_new_survivors.yaml"
-    assert doc == snapshot
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,6 @@ from games.wos.core.hero_gear.planner import (
     SELECTED,
     hero_gear_roadmap,
     hero_gear_value,
-    load_hero_gear_data,
     plan_next,
 )
 from games.wos.core.roles import get_role
@@ -16,18 +15,6 @@ RICH = {"enhancement_xp": 10**7, "essence_stones": 10**6, "weapon_widget": 10**6
 
 
 # --- data ---------------------------------------------------------------------
-def test_real_tracks_load():
-    d = load_hero_gear_data()
-    assert len(d.pieces) == 6
-    assert set(d.tracks) == {"enhance", "mastery", "widget"}
-    assert d.tracks["enhance"].max_level == 100
-    assert d.tracks["enhance"].cost_at(1) == 10 and d.tracks["enhance"].cost_at(100) == 2400
-    assert d.tracks["mastery"].cost_at(1) == 10 and d.tracks["mastery"].cost_at(20) == 200
-    assert d.tracks["widget"].cost_at(10) == 50
-    assert d.tracks["mastery"].resource == "essence_stones"
-
-
-# --- plan_next ----------------------------------------------------------------
 def test_per_track_furnace_gates():
     assert plan_next({}, RICH, furnace_level=10).reason == LOCKED        # nothing < F15
     assert plan_next({}, RICH, furnace_level=15).step.track == "enhance"  # only enhance @ F15

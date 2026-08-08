@@ -29,10 +29,6 @@ def _ctx(redis: _FakeRedis) -> DslExecContext:
     return DslExecContext(redis_client=redis, player_id=PLAYER, instance_id="bs1", args={})
 
 
-def test_handler_is_registered():
-    assert "sync_vip_level" in build_dsl_exec_registry()
-
-
 @pytest.mark.asyncio
 async def test_persists_parsed_level():
     redis = _FakeRedis({PKEY: {"vip.level": "8"}})

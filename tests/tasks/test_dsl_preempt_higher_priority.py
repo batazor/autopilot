@@ -16,8 +16,6 @@ import pytest
 from scheduler.queue import QueueItem
 from tasks import dsl_scenario_helpers as dsl_helpers
 from tasks.dsl_scenario import (
-    PREEMPT_MARGIN,
-    PREEMPT_MAX_YIELDS,
     DslScenarioTask,
 )
 from tasks.dsl_scenario_preempt_mixin import (
@@ -307,12 +305,6 @@ async def test_redis_failure_is_safe_no_yield(
 
     task = _make_task(effective_priority=80_000, redis_client=redis_async)
     assert await task._preempted_by_higher_priority("bs1", 1) is None
-
-
-def test_preempt_constants_match_adr() -> None:
-    """ADR §5 defaults: PREEMPT_MARGIN=5_000, max yields = 3."""
-    assert PREEMPT_MARGIN == 5_000
-    assert PREEMPT_MAX_YIELDS == 3
 
 
 @pytest.mark.asyncio

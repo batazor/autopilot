@@ -391,6 +391,15 @@ Two Cursor rules are applied to this repo:
 
 Module tests should use `device_level: true` fixtures to avoid Redis state pollution across test runs.
 
+**What earns a test — see [`docs/adr/0002-testing-strategy.md`](docs/adr/0002-testing-strategy.md).**
+The rule in one line: *a test must be able to fail for a reason other than
+"someone edited a config file on purpose".* Concretely — do not restate a bbox,
+region name, rule dict, cron string, cost table or scenario step list in Python;
+assert invariants instead. Do not duplicate a check `src/config/startup_validation.py`
+already performs at boot (region refs, `push_scenario` targets, cron tasks, edge
+taps, dead-end/unreachable screens) — extend the validator instead, it protects
+production while a test only protects the commit.
+
 ## Emulator Requirements
 
 **Mandatory:**

@@ -32,10 +32,6 @@ def _ctx(redis: _FakeRedis) -> DslExecContext:
     return DslExecContext(redis_client=redis, player_id=PLAYER, instance_id="bs1", args={})
 
 
-def test_handler_is_registered() -> None:
-    assert "sync_charms" in build_dsl_exec_registry()
-
-
 @pytest.mark.asyncio
 async def test_persists_charm_slots() -> None:
     redis = _FakeRedis({PKEY: {

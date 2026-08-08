@@ -54,10 +54,6 @@ def test_parse_island_state_shapes_scalars_decorations_lumber() -> None:
 
 
 # --- handler ---------------------------------------------------------------- #
-def test_handler_is_registered() -> None:
-    assert "sync_island_state" in build_dsl_exec_registry()
-
-
 @pytest.mark.asyncio
 async def test_persists_island_state_and_flat_mirror() -> None:
     redis = _FakeRedis({PKEY: {

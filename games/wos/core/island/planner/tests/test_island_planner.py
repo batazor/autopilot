@@ -66,25 +66,6 @@ def test_prosperity_block_pivots_to_decoration():
     assert plan.pick.target_id == "market"
 
 
-def test_role_tilts_decoration_choice_when_not_blocked():
-    """Tree not blocked but LE too low for it → decorations compete on buff value;
-    a farm prefers the gathering (economy) decoration over the combat one."""
-    data = _data()
-    # prosperity satisfied for L2 (150) but not enough LE for the tree (500)… give
-    # enough LE for decorations though by lowering tree affordability via a custom
-    # state: LE 3000 affords the rare (3000) but the tree (500) is also affordable,
-    # so instead block LE for the tree by setting prosperity below threshold? No —
-    # to isolate role tilt, max the tree first.
-    state = IslandState(tree_of_life_level=3, prosperity=100000, life_essence=10000)
-    farm = plan_island_next(data, state, role=get_role("farm"))
-    fighter = plan_island_next(data, state, role=get_role("fighter"))
-    assert farm.pick is not None and fighter.pick is not None
-    # farm down-weights battle → the gathering rare beats the combat mythic? The
-    # mythic base (120) is large; farm battle mult 0.5 → market 60, bazaar economy
-    # 40×1.0=40 → market still wins. Assert the fighter at least keeps the mythic.
-    assert fighter.pick.target_id == "market"
-
-
 def test_insufficient_life_essence():
     """Tree ready (prosperity ok) but no Life Essence anywhere → reported, no pick."""
     data = _data()
@@ -108,17 +89,6 @@ def test_all_maxed():
 
 
 # --- the shipped catalog loads and is internally consistent ------------------
-def test_real_catalog_loads():
-    data = load_island_data()
-    assert data.tree_max() == 10
-    assert data.tree_level(10).prosperity_required == 20000
-    ids = {d.id for d in data.decorations}
-    assert {"natural_hot_spring", "floating_market", "barbecue_stand"} <= ids
-    # research speed decoration maps to growth (universal); combat ones to battle
-    hot_spring = data.decoration("natural_hot_spring")
-    assert hot_spring.kind == "research"
-
-
 def test_real_catalog_tree_first_from_scratch():
     """On a fresh island with prosperity in hand, the tree is the pick."""
     data = load_island_data()

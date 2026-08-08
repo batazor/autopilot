@@ -23,13 +23,6 @@ def test_cron_and_plain_partition_repo_scenarios() -> None:
     assert cron_set | plain_set == all_yaml
 
 
-def test_cron_default_matches_overlay_default() -> None:
-    """Cron-scheduled scenarios use the same default priority as overlay-pushed
-    ones — a scenario's importance is a property of what it does, not of how
-    it was scheduled. Both fall back to ``DEFAULT_SCENARIO_PRIORITY``."""
-    assert DEFAULT_SCENARIO_PRIORITY == 80_000
-
-
 def test_resolve_cron_priority_returns_explicit_int() -> None:
     assert resolve_cron_priority(52) == 52
     assert resolve_cron_priority(10) == 10

@@ -34,10 +34,6 @@ def _ctx(redis, **args):
     return SimpleNamespace(redis_client=redis, instance_id="bs1", args=args, result={})
 
 
-def test_handler_registered() -> None:
-    assert "plan_next_builds" in _mod.DSL_EXEC_HANDLERS
-
-
 def test_plan_next_builds_writes_two_distinct_picks() -> None:
     """A developed city (furnace maxed) still yields two distinct economy/camp
     picks — plan_builds keeps free queues busy where plan_next would goal_reach."""

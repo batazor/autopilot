@@ -7,12 +7,13 @@ import pytest
 
 import navigation.screen_graph as screen_graph
 from config.loader import get_settings
-from layout.types import Region
 from navigation.detector import ScreenDetector, ScreenName
 from ocr.client import OcrClient, OCRResult
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from layout.types import Region
 
 
 class _FakeOcrClient:
@@ -29,104 +30,7 @@ class _FakeOcrClient:
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="legacy OCR landmark coverage; rewrite for template landmarks")
-async def test_screen_detector_uses_yaml_landmarks(mocker, tmp_path: Path) -> None:
-    cfg = tmp_path / "screen_verify.yaml"
-    cfg.write_text(
-        """
-screens:
-  arena:
-    landmarks:
-      - ocr: page_title
-        contains: [arena]
-        threshold: 0.8
-""",
-        encoding="utf-8",
-    )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
-    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
-
-    detector = ScreenDetector(OcrClient(get_settings()))
-    fake_ocr = _FakeOcrClient()
-    detector._client = fake_ocr  # ty: ignore[invalid-assignment]
-    detector._area_doc = {
-        "screens": [
-            {
-                "screen_id": "arena",
-                "regions": [
-                    {
-                        "name": "page_title",
-                        "bbox": {"x": 10, "y": 20, "width": 30, "height": 10},
-                    }
-                ],
-            }
-        ]
-    }
-
-    try:
-        detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
-    finally:
-        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
-
-    assert detected == ScreenName.ARENA
-    assert fake_ocr.regions == [Region(10, 40, 30, 20)]
-
-
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="legacy text_switch detector coverage; rewrite for template landmarks")
-async def test_screen_detector_switches_on_page_title_text(
-    mocker,
-    tmp_path: Path,
-) -> None:
-    cfg = tmp_path / "screen_verify.yaml"
-    cfg.write_text(
-        """
-text_switch:
-  - ocr: page_title
-    threshold: 0.8
-    cases:
-      arena: [arena]
-screens:
-  main_city:
-    landmarks:
-      - ocr: page.main_city.title
-        contains: [city]
-""",
-        encoding="utf-8",
-    )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
-    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
-
-    detector = ScreenDetector(OcrClient(get_settings()))
-    fake_ocr = _FakeOcrClient()
-    detector._client = fake_ocr  # ty: ignore[invalid-assignment]
-    detector._area_doc = {
-        "screens": [
-            {
-                "screen_id": "common",
-                "regions": [
-                    {
-                        "name": "page_title",
-                        "bbox": {"x": 11, "y": 2, "width": 70, "height": 5},
-                    },
-                    {
-                        "name": "page.main_city.title",
-                        "bbox": {"x": 10, "y": 20, "width": 30, "height": 10},
-                    },
-                ],
-            }
-        ]
-    }
-
-    try:
-        detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
-    finally:
-        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
-
-    assert detected == ScreenName.ARENA
-    assert fake_ocr.regions == [Region(11, 4, 70, 10)]
-
-
 @pytest.mark.asyncio
 async def test_screen_detector_uses_match_landmark(
     mocker,
@@ -349,52 +253,3 @@ screens:
 
     assert detected == ScreenName.WELCOME_BACK
     assert detector.last_used_sticky_verify is False
-
-
-@pytest.mark.asyncio
-@pytest.mark.skip(reason="legacy mocker-patched ScreenName coverage; rewrite for template landmarks")
-async def test_screen_detector_can_return_building_from_match_landmark(
-    mocker,
-    tmp_path: Path,
-) -> None:
-    cfg = tmp_path / "screen_verify.yaml"
-    cfg.write_text(
-        """
-screens:
-  building:
-    landmarks:
-      - match: page.building.furniture
-        threshold: 0.85
-""",
-        encoding="utf-8",
-    )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
-    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
-
-    async def evaluate_overlay_rules_async(
-        _image: np.ndarray,
-        _area_doc: dict[str, Any],
-        _repo_root: Path,
-        rules: list[dict[str, Any]],
-        **_kwargs: Any,
-    ) -> dict[str, Any]:
-        name = str(rules[0]["name"])
-        assert rules[0]["region"] == "page.building.furniture"
-        return {name: {"matched": True}}
-
-    import navigation.detector as detector_module
-
-    mocker.patch.object(
-        detector_module,
-        "evaluate_overlay_rules_async",
-        new=evaluate_overlay_rules_async,
-    )
-    detector = ScreenDetector(OcrClient(get_settings()))
-    detector._area_doc = {"screens": []}
-
-    try:
-        detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
-    finally:
-        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
-
-    assert detected == ScreenName.BUILDING

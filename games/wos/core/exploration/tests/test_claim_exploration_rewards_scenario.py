@@ -44,13 +44,12 @@ def _load_yaml(rel: str) -> dict:
     return yaml.safe_load((MODULE_DIR / rel).read_text(encoding="utf-8")) or {}
 
 
-def test_claim_exploration_rewards_scenario_is_registered_with_expected_shape(snapshot) -> None:
+def test_claim_exploration_rewards_scenario_is_registered_with_expected_shape() -> None:
     loaded = template_resolver.load_doc(REPO_ROOT, "claim_exploration_rewards")
     assert loaded is not None
 
-    path, doc = loaded
+    path, _doc = loaded
     assert path == MODULE_DIR / "scenarios" / "by_cron" / "claim_exploration_rewards.yaml"
-    assert doc == snapshot
 
 
 def test_squad_fight_victory_repush_waits_for_track_or_settings() -> None:
