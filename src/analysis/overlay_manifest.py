@@ -67,11 +67,21 @@ def load_analyze_yaml(path: Path) -> dict[str, Any]:
 def iter_analyze_manifest_paths(
     repo_root: Path,
     module_scope: str | None = None,
+    *,
+    game: str | None = None,
 ) -> list[Path]:
-    """Module overlay manifests in discovery order."""
+    """Module overlay manifests in discovery order.
+
+    ``game`` selects the module catalog. Default (``None``) resolves the
+    process-active catalog, which is what every runtime caller wants. Startup
+    validation passes it explicitly: at supervisor boot no catalog is bound yet,
+    so the default silently resolved to ``wos`` and the overlay catalogs'
+    manifests — e.g. ``games/wos/ru/core/welcome_back/analyze/analyze.yaml``,
+    a live rule — were validated by nothing.
+    """
     from dsl.registry import iter_module_analyze_manifests
 
-    return iter_module_analyze_manifests(repo_root, module_scope)
+    return iter_module_analyze_manifests(repo_root, module_scope, game=game)
 
 
 def _stat_fingerprint(path: Path) -> tuple[str, int, int] | None:
@@ -129,11 +139,13 @@ def _walk_include_paths(manifest_path: Path) -> tuple[str, ...]:
 def analyze_manifests_fingerprint(
     repo_root: Path,
     module_scope: str | None = None,
+    *,
+    game: str | None = None,
 ) -> tuple[tuple[str, int, int], ...]:
     """Sorted ``(path, size, mtime_ns)`` for every manifest and ``include:`` file."""
     entries: list[tuple[str, int, int]] = []
     seen_paths: set[str] = set()
-    for manifest in iter_analyze_manifest_paths(repo_root, module_scope):
+    for manifest in iter_analyze_manifest_paths(repo_root, module_scope, game=game):
         for resolved_str in _walk_include_paths(manifest):
             if resolved_str in seen_paths:
                 continue
@@ -148,10 +160,14 @@ def analyze_manifests_fingerprint(
 def analyze_manifests_mtime(
     repo_root: Path,
     module_scope: str | None = None,
+    *,
+    game: str | None = None,
 ) -> float | None:
     """Latest ``st_mtime`` among manifests and ``include:`` targets (legacy float bucket)."""
     mt: float | None = None
-    for _path, _size, mtime_ns in analyze_manifests_fingerprint(repo_root, module_scope):
+    for _path, _size, mtime_ns in analyze_manifests_fingerprint(
+        repo_root, module_scope, game=game
+    ):
         m = mtime_ns / 1_000_000_000
         mt = m if mt is None else max(mt, m)
     return mt
@@ -169,13 +185,15 @@ def compiled_overlay_plan(
     *,
     module_scope: str | None = None,
     device_level_only: bool = False,
+    game: str | None = None,
 ) -> CompiledOverlayPlan:
     """Compiled overlay rules for ``run_overlay_analysis`` (mtime-keyed cache)."""
     root = repo_root.resolve()
-    fp = analyze_manifests_fingerprint(root, module_scope)
+    fp = analyze_manifests_fingerprint(root, module_scope, game=game)
     return _compiled_overlay_plan_cached(
         str(root),
         module_scope or "",
+        game or "",
         fp,
         device_level_only,
     )
@@ -185,12 +203,13 @@ def compiled_overlay_plan(
 def _compiled_overlay_plan_cached(
     repo_root_s: str,
     module_scope: str,
+    game: str,
     manifests_fp: tuple[tuple[str, int, int], ...],
     device_level_only: bool,
 ) -> CompiledOverlayPlan:
     _ = manifests_fp
     merged = _load_merged_analyze_yaml_cached(
-        repo_root_s, module_scope, manifests_fp
+        repo_root_s, module_scope, game, manifests_fp
     )
     overlay = merged.get("overlay")
     rules = overlay if isinstance(overlay, list) else []
@@ -207,13 +226,15 @@ def load_merged_analyze_yaml(
     repo_root: Path,
     *,
     module_scope: str | None = None,
+    game: str | None = None,
 ) -> dict[str, Any]:
     """Merge ``overlay`` rules from every ``modules/core/*/analyze`` + feature module."""
     root = repo_root.resolve()
-    fp = analyze_manifests_fingerprint(root, module_scope)
+    fp = analyze_manifests_fingerprint(root, module_scope, game=game)
     return _load_merged_analyze_yaml_cached(
         str(root),
         module_scope or "",
+        game or "",
         fp,
     )
 
@@ -222,16 +243,19 @@ def load_merged_analyze_yaml(
 def _load_merged_analyze_yaml_cached(
     repo_root_s: str,
     module_scope: str,
+    game: str,
     manifests_fp: tuple[tuple[str, int, int], ...],
 ) -> dict[str, Any]:
     # manifests_fp is part of the cache key; edits invalidate automatically.
+    # ``game`` is in the key too: the merged rule set differs per catalog, and
+    # reading it from process state inside the body would make the key a lie.
     _ = manifests_fp
     repo_root = Path(repo_root_s)
     scope = module_scope or None
     merged: dict[str, Any] = {}
     overlay: list[dict[str, Any]] = []
 
-    for module_manifest in iter_analyze_manifest_paths(repo_root, scope):
+    for module_manifest in iter_analyze_manifest_paths(repo_root, scope, game=game or None):
         doc = load_analyze_yaml(module_manifest)
         module_overlay = doc.get("overlay")
         if isinstance(module_overlay, list):

@@ -225,9 +225,34 @@ def iter_games(repo_root: Path | None = None) -> tuple[str, ...]:
 
     ``repo_root`` is accepted for future filesystem-driven discovery but unused
     today — the registry is the source of truth.
+
+    Games only. A module-catalog overlay (``wos_ru``) is NOT a game: it has no
+    :class:`GameSpec`, so ``spec_for_game`` raises for it, and callers like
+    ``adb.controller_process`` and ``config.research`` iterate this tuple
+    expecting a real game. Anything that wants "every tree that ships modules"
+    wants :func:`iter_module_catalogs`.
     """
     _ = repo_root
     return tuple(GAMES.keys())
+
+
+def iter_module_catalogs(repo_root: Path | None = None) -> tuple[str, ...]:
+    """Every catalog that ships modules: games plus overlay catalogs.
+
+    Config validation walks this instead of :func:`iter_games`, because the
+    overlays (``games/wos/ru``, ``games/wos/beta``) carry real ``area.yaml`` /
+    ``screen_verify.yaml`` / ``analyze.yaml`` that a live RU build executes — and
+    that nothing validated while the iteration was games-only.
+
+    Overlays whose tree is absent on disk are skipped, so a ``tmp_path`` fixture
+    repo does not have to materialise them.
+    """
+    out: list[str] = list(GAMES.keys())
+    for catalog in MODULE_CATALOG_OVERLAYS:
+        roots = module_roots_for(catalog, repo_root=repo_root)
+        if roots and roots[-1].is_dir():
+            out.append(catalog)
+    return tuple(out)
 
 
 def games_root(repo_root: Path | None = None) -> Path:

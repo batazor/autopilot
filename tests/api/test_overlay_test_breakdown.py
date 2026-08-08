@@ -57,7 +57,10 @@ async def test_breakdown_skips_empty_overlay_without_calling_analysis(
     analyze = AsyncMock(side_effect=AssertionError("run_overlay_analysis should not run"))
     monkeypatch.setattr("api.services.overlay_test.breakdown.run_overlay_analysis", analyze)
 
-    def _one_manifest(_repo: object, _scope: str | None = None) -> list[object]:
+    def _one_manifest(
+        _repo: object, _scope: str | None = None, *, game: str | None = None
+    ) -> list[object]:
+        _ = game  # catalog-scoped discovery; this fixture has one manifest either way
         return [mod / "analyze" / "analyze.yaml"]
 
     monkeypatch.setattr(

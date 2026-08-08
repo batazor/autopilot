@@ -556,8 +556,16 @@ def _validate_analyze_manifest(
     *,
     region_names: set[str],
     red_dot_regions: set[str],
+    catalog: str | None = None,
 ) -> None:
-    analyze_doc = load_merged_analyze_yaml(repo_root)
+    """Check the merged overlay rule set of ONE module catalog.
+
+    ``catalog=None`` keeps the historical behaviour (whatever catalog the process
+    has bound). Startup validation passes it explicitly: at boot no catalog is
+    bound, so the default resolved to ``wos`` and the overlay catalogs' rules
+    were checked by nobody.
+    """
+    analyze_doc = load_merged_analyze_yaml(repo_root, game=catalog)
     from config.games import MODULES_DIR_NAME
 
     overlay = analyze_doc.get("overlay")
@@ -1452,6 +1460,8 @@ def _screen_verify_entry_opts_out_of_reachability(repo_root: Path, screen: str) 
 
 
 def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValidationIssue]:
+    from config.games import iter_module_catalogs
+
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     issues: list[StartupValidationIssue] = []
 
@@ -1480,12 +1490,29 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     _validate_dead_end_screens(root, issues)
     _validate_unreachable_screens(root, issues)
     _validate_cron_specs(root, issues)
-    _validate_analyze_manifest(
-        root,
-        issues,
-        region_names=region_names,
-        red_dot_regions=red_dot_regions,
-    )
+    # Per catalog: an overlay ships real rules against its own regions, and the
+    # region set differs per catalog, so checking a rule against the union would
+    # be both too lax (a base rule using an RU-only region would pass) and
+    # mislabelled. Duplicate findings from the shared base tree collapse in
+    # `_dedupe_issues`.
+    for _catalog in iter_module_catalogs(root):
+        # Names AND capabilities must come from the SAME catalog document.
+        # Mixing them (per-catalog names against the union's capability set)
+        # invents errors: kingshot's `mail.tab.wars.red_dot` is a real red-dot
+        # region in kingshot's area doc and absent from wos's, so the rule was
+        # reported as targeting a region with no capability.
+        try:
+            _catalog_doc = load_area_doc(root, game=_catalog)
+        except Exception:
+            logger.debug("analyze validation: area load failed catalog=%s", _catalog)
+            continue
+        _validate_analyze_manifest(
+            root,
+            issues,
+            region_names=_area_region_names(_catalog_doc),
+            red_dot_regions=_area_regions_with_red_dot_capability(_catalog_doc),
+            catalog=_catalog,
+        )
     _validate_overlay_runtime_area_manifest(root, issues)
     _validate_area_exist_region_sources(root, issues)
     _validate_scenarios(
