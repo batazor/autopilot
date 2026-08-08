@@ -31,6 +31,7 @@ from tasks.dsl_scenario_helpers import (
     _action_pause_seconds,
     _dsl_cond_allows_step,
     _enqueue_scenario,
+    _exec_result_failure_reason,
     _jittered_wait_seconds,
     _parse_wait_seconds,
     _read_active_player,
@@ -437,6 +438,7 @@ class DslScenarioStepActionsMixin(_Base):
     ) -> TaskResult | None:
         key = fr.scenario_key
         instance_id = fr.instance_id
+        _fin = fr.fin
         _mark_top_level_step_done = fr.mark_step_done
         _trace_row = self._append_trace_row
 
@@ -450,8 +452,26 @@ class DslScenarioStepActionsMixin(_Base):
                 **{k: v for k, v in step.items() if k not in ("exec", "cond")},
             }
             exec_row = await self._run_exec_step(cmd, instance_id, args)
-        await _mark_top_level_step_done()
+        failure = _exec_result_failure_reason(exec_row)
         exec_row = _trace_exec_result_kwargs(exec_row)
+        if failure is not None and step.get("optional") is not True:
+            logger.info(
+                "dsl_scenario: exec %r reported failure scenario=%s reason=%s",
+                cmd,
+                _scen(key),
+                failure,
+            )
+            await self._clear_step_context(instance_id)
+            _trace_row(_resumable_step, step, "early_exit", **exec_row)
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata=_fin(
+                    {"scenario": key, "reason": failure, "exec": cmd},
+                    completed=False,
+                ),
+            )
+        await _mark_top_level_step_done()
         _trace_row(_resumable_step, step, "ok", **exec_row)
         return None
 

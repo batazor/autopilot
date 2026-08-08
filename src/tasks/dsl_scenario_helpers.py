@@ -50,6 +50,32 @@ def _trace_exec_result_kwargs(row: dict[str, Any]) -> dict[str, Any]:
     return safe
 
 
+# Dispatcher-level exec failures, as opposed to a handler reporting a game
+# state. These are always bugs — a scenario naming a handler that does not
+# exist, or a handler that raised — so they fail the step even when the author
+# did not opt into ``ctx.fail``. Both used to be swallowed into a trace row that
+# read ``ok``.
+_EXEC_INFRA_FAILURE_REASONS = frozenset({"unknown_exec", "exec_failed"})
+
+
+def _exec_result_failure_reason(row: dict[str, Any]) -> str | None:
+    """The reason an ``exec:`` step failed, or ``None`` when it succeeded.
+
+    Two signals, both explicit — deliberately NOT string-sniffing ``action``
+    for ``*_failed`` / ``*_not_found`` suffixes, which would silently change the
+    behaviour of handlers that use those words to describe a benign outcome:
+
+    * the handler called :meth:`DslExecContext.fail` (``ok: False``);
+    * the dispatcher itself failed (see ``_EXEC_INFRA_FAILURE_REASONS``).
+    """
+    if not isinstance(row, dict):
+        return None
+    reason = str(row.get("reason") or "").strip()
+    if row.get("ok") is False:
+        return reason or "exec_reported_failure"
+    return reason if reason in _EXEC_INFRA_FAILURE_REASONS else None
+
+
 def _step_bool_guard(step: dict[str, Any], key: str) -> bool | None:
     """Read optional ``key: true|false`` on a DSL step (YAML bool only).
 

@@ -127,6 +127,12 @@ class DslStep(BaseModel):
     # falling through to the next top-level step (or rescheduling via strict).
     else_: list[DslStep] | None = Field(default=None, alias="else")
 
+    # Downgrade a step's failure to "carry on". Honoured by ``wait_screen``
+    # (timeout stops being fatal) and by ``exec`` (a handler that called
+    # ``ctx.fail`` no longer ends the scenario). Declared here so the key is
+    # discoverable — ``extra="allow"`` would accept it silently either way.
+    optional: bool | None = None
+
     threshold: float | None = None
     min_match_saturation: int | None = None
     min_patch_bright_ratio: float | None = None

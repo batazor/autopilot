@@ -30,6 +30,23 @@ class DslExecContext:
     result: dict[str, Any] = field(default_factory=dict)
     """Best-effort diagnostics the handler can expose on the scenario trace."""
 
+    def fail(self, reason: str, **extra: Any) -> None:
+        """Declare that this handler could NOT do its job.
+
+        An ``exec:`` step used to trace ``ok`` whatever the handler reported, so
+        a handler that gave up early looked identical to one that succeeded —
+        the failure only surfaced later as an unrelated symptom (a nav exec that
+        never opened its screen showed up as a ``wait_screen_timeout`` two steps
+        on, with no hint of the cause). Calling this marks the step failed and
+        ends the scenario with ``reason``, unless the step opts out with
+        ``optional: true``.
+
+        Use it for "the game was not in a state where I could act". Do NOT use
+        it for a legitimate no-op — a handler that correctly decides there is
+        nothing to do has succeeded, and should just return.
+        """
+        self.result.update({"ok": False, "reason": reason, **extra})
+
 
 def _decode_redis_raw(raw: Any) -> str:
     if raw is None:

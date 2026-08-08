@@ -60,6 +60,16 @@ For conditional branching, use composite `cond:` blocks (below) — there is no 
 - **Composite `cond` block** — `cond:` + `steps:`. Runs the inner steps only when the condition holds.
 - **Bare group** — only `steps:`. Inlines the inner steps (handy with YAML anchors).
 
+**`exec:` failure contract** — a handler that cannot do its job calls
+`ctx.fail("reason")` (`tasks/dsl_exec/context.py`); the step is then traced as a
+failure and the scenario ends with that reason. Add `optional: true` to the step
+to downgrade it to "carry on". A typo'd handler name (`unknown_exec`) and a
+handler that raises (`exec_failed`) always fail the step — those are bugs, not
+game states. A handler that correctly decides there is nothing to do has
+*succeeded*: just return, don't call `fail`. Before this contract existed an
+`exec:` step traced `ok` whatever happened, so a nav handler that never opened
+its screen surfaced two steps later as an unrelated `wait_screen_timeout`.
+
 ## Key idioms
 
 **Guard pattern** — "run inner steps only if region is visible":

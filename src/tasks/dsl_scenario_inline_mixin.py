@@ -32,6 +32,7 @@ from tasks.dsl_scenario_helpers import (
     _BreakRepeat,
     _dsl_cond_allows_step,
     _enqueue_scenario,
+    _exec_result_failure_reason,
     _jittered_wait_seconds,
     _parse_wait_seconds,
     _read_current_screen,
@@ -1397,7 +1398,22 @@ class DslScenarioInlineMixin(_Base):
                     **{k: v for k, v in step.items() if k not in ("exec", "cond")},
                 }
                 exec_row = await self._run_exec_step(name, instance_id, args)
+            failure = _exec_result_failure_reason(exec_row)
             exec_row = _trace_exec_result_kwargs(exec_row)
+            if failure is not None and step.get("optional") is not True:
+                logger.info(
+                    "dsl_scenario: exec %r reported failure scenario=%s reason=%s",
+                    name,
+                    _scen(scenario_key),
+                    failure,
+                )
+                await self._clear_step_context(instance_id)
+                self._append_trace_row(trace_path, step, "stopped", **exec_row)
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={"scenario": scenario_key, "reason": failure, "exec": name},
+                )
             self._append_trace_row(trace_path, step, "ok", **exec_row)
             return None
         if "ocr" in step:
