@@ -124,44 +124,17 @@ steps:
           - click: squad_settings.quick_deploy
           - wait: 200ms
           - click: squad_settings.fight
-          - wait: 2s
-
-          - while_match: page.squad_fight.auto
-            max: 1
-            steps:
-              - click: page.squad_fight.auto
-              - wait: 1s
-
-          - while_match: page.squad_fight.speed
-            max: 1
-            steps:
-              - click: page.squad_fight.speed
-
-          - wait_screen:
-              any: [exploration.victory, exploration.defeat]
-              max: 90
-              interval: 2s
-
-          - cond: currentNode == exploration.victory
-            steps:
-              - click: page.exploration.victory.next
-              # Optional: victory can drop to a rewards popup or straight to the
-              # world map, not always one of these nodes. A hard wait here used
-              # to time out and ABORT the whole run before queue_next_intel_run,
-              # stranding the rest of the board (live bs3 2026-08-08). Let it
-              # settle if it can, else fall through — the chained run re-enters
-              # via node: intel and its claim_all clears any leftover popup.
-              - wait_screen:
-                  any: [squad_settings, intel, main_city]
-                  max: 8
-                  interval: 500ms
-                  optional: true
-              - cond: currentNode == squad_settings
-                steps:
-                  - click: icon.page.back
-                  - wait: 1s
-
-          - cond: currentNode == exploration.defeat
-            steps:
-              - click: button.to_main_city
-              - wait: 2s
+          # The troops MARCH OFF here — the fight is resolved server-side and the
+          # reward lands on the march's return (op-confirmed RU 2026-08-10:
+          # «отряд уходит маршем»). The on-screen battle is just an animation, so
+          # DON'T watch it: the old ~90s wait_screen[victory/defeat] blocked the
+          # NEXT march for every combat pin, which is exactly the "бот ждёт
+          # выполнения" the operator hit. Give the dispatch a beat to register,
+          # then back out of the battle → squad → world map. The already-queued
+          # chained intel_run reopens the board for the next pin, and the reward
+          # is collected on return by the delayed intel_claim_reward + claim_all.
+          - wait: 1s
+          - system_back: true
+          - wait: 800ms
+          - system_back: true
+          - wait: 500ms

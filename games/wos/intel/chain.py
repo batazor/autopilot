@@ -40,7 +40,10 @@ DEFAULT_MARCH_CAPACITY = 2
 
 _INTEL_SCENARIO = "intel_run"
 _DEFAULT_PRIORITY = 80_060  # mirrors intel_run's own priority
-_DEFAULT_DELAY_S = 5.0
+# Short gap between chained passes so a full board's free marches go out back-to-
+# back (the fight no longer blocks ~90s watching the battle). Just enough for the
+# deploy/back-out to settle before the next run re-opens the board.
+_DEFAULT_DELAY_S = 1.5
 
 
 def _to_int(raw: Any, default: int = 0) -> int:
