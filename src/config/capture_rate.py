@@ -61,10 +61,18 @@ def scrcpy_max_fps_for_capture_interval(
 
 
 @lru_cache(maxsize=8)
-def _module_capture_ms_map(repo_root_s: str) -> dict[str, int]:
-    """``{module_id: capture_interval_ms}`` for modules that declare it (>0)."""
+def _module_capture_ms_map(repo_root_s: str, game: str) -> dict[str, int]:
+    """``{module_id: capture_interval_ms}`` for modules that declare it (>0).
+
+    ``game`` is in the cache key, not read from process state inside the body.
+    It used to be the latter: the key was ``repo_root`` alone while
+    ``iter_module_dirs`` resolved the active catalog, so whichever catalog warmed
+    the map served its answer to every later caller — a worker that bound
+    ``wos_ru`` afterwards got wos's intervals, permanently, and there was no
+    clear helper to recover.
+    """
     out: dict[str, int] = {}
-    for module_dir in iter_module_dirs(Path(repo_root_s)):
+    for module_dir in iter_module_dirs(Path(repo_root_s), game=game or None):
         raw = load_module_yaml(module_dir).get("capture_interval_ms")
         if raw is None:
             continue
@@ -77,15 +85,25 @@ def _module_capture_ms_map(repo_root_s: str) -> dict[str, int]:
     return out
 
 
-def module_capture_interval_ms(repo_root: Path, module_id: str | None) -> int | None:
+def clear_capture_rate_cache() -> None:
+    """Drop the per-catalog capture-interval map."""
+    _module_capture_ms_map.cache_clear()
+
+
+def module_capture_interval_ms(
+    repo_root: Path, module_id: str | None, *, game: str | None = None
+) -> int | None:
     """Declared ``capture_interval_ms`` for ``module_id`` (None when unset)."""
     if not module_id:
         return None
-    return _module_capture_ms_map(str(repo_root.resolve())).get(module_id)
+    from config.games import resolve_module_catalog
+
+    catalog = resolve_module_catalog(game)
+    return _module_capture_ms_map(str(repo_root.resolve()), catalog).get(module_id)
 
 
 def capture_interval_s_for_scenario_key(
-    repo_root: Path, scenario_key: str
+    repo_root: Path, scenario_key: str, *, game: str | None = None
 ) -> float | None:
     """Rolling-capture override (seconds) for the module owning ``scenario_key``.
 
@@ -97,6 +115,6 @@ def capture_interval_s_for_scenario_key(
     from config.test_module import module_id_for_scenario_key
 
     ms = module_capture_interval_ms(
-        repo_root, module_id_for_scenario_key(repo_root, scenario_key)
+        repo_root, module_id_for_scenario_key(repo_root, scenario_key), game=game
     )
     return ms / 1000.0 if ms else None

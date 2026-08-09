@@ -12,7 +12,6 @@ import yaml
 from config.devices import player_ids_for_device_candidates
 from config.loader import load_settings
 from config.module_discovery import (
-    _clear_module_discovery_caches,
     is_core_nested_module,
     iter_module_dirs,
     load_module_yaml,
@@ -22,6 +21,7 @@ from config.module_discovery import (
 )
 from config.module_registry import normalize_module_scope, path_matches_module_scope
 from config.paths import repo_root
+from config.reload import reload_config
 from dashboard.redis_client import get_player_scenario, set_player_scenario
 from dsl import template_resolver as _tmpl
 from dsl.registry import scenario_source_label
@@ -342,7 +342,10 @@ def create_module(
     (module_dir / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
     (module_dir / "scenarios" / ".gitkeep").write_text("", encoding="utf-8")
 
-    _clear_module_discovery_caches()
+    # Everything, not just discovery: the new module's SCENARIOS live behind
+    # `dsl.registry` / `template_resolver` caches, so clearing discovery alone
+    # left them invisible to this very process until it restarted.
+    reload_config()
 
     rel_target = module_dir.relative_to(_REPO).as_posix()
     for row in list_modules(module_scope="all"):

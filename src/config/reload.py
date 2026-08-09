@@ -11,14 +11,17 @@ from __future__ import annotations
 def reload_config() -> None:
     """Drop all in-process config caches.
 
-    Safe to call from any thread/coroutine. After the call, the next access
-    re-reads YAML/JSON from disk. Each worker process keeps its own caches —
-    cross-process reload should be coordinated via Redis (out of scope here).
-    """
-    from config.module_discovery import _clear_module_discovery_caches
-    from layout.area_manifest import clear_area_doc_cache
-    from navigation.screen_graph import invalidate_screen_verify_config
+    The inventory lives in :mod:`config.cache_registry`; this function is the
+    only fan-out. It used to hand-call three helpers while seventeen existed,
+    which made the docstring above a lie — a module created at runtime stayed
+    invisible to its own process because the scenario-tree caches were never in
+    the list.
 
-    _clear_module_discovery_caches()
-    invalidate_screen_verify_config()
-    clear_area_doc_cache()
+    Safe to call from any thread/coroutine, and never raises. After the call,
+    the next access re-reads from disk. Each worker process keeps its own
+    caches — cross-process reload should be coordinated via Redis (out of scope
+    here).
+    """
+    from config.cache_registry import clear_all
+
+    clear_all()

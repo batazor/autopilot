@@ -120,6 +120,16 @@ async def get_instance_test_module_async(
     return str(raw or "").strip()
 
 
+def clear_test_module_cache() -> None:
+    """Drop the scenario-key → module-id map.
+
+    It resolves through the scenario tree, so it goes stale exactly when that
+    tree changes — and it had no clear helper at all, which is why a module
+    created at runtime stayed unresolvable until the process restarted.
+    """
+    _module_id_for_scenario_key_cached.cache_clear()
+
+
 @lru_cache(maxsize=2048)
 def _module_id_for_scenario_key_cached(repo_root_s: str, scenario_key: str) -> str | None:
     """Resolve a scenario_key to the owning module's id (lru-cached)."""
