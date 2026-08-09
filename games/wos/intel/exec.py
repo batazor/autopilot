@@ -448,7 +448,7 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
                 prepped = cv2.copyMakeBorder(
                     cv2.bitwise_not(bw), 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255
                 )
-                for fx in (3.0, 4.0):
+                for fx in (2.0, 3.0, 4.0, 5.0):
                     src = cv2.resize(prepped, None, fx=fx, fy=fx, interpolation=cv2.INTER_CUBIC)
                     bgr = cv2.cvtColor(src, cv2.COLOR_GRAY2BGR)
                     try:
@@ -467,10 +467,15 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
                         all_reads.append(cur)
                         if parsed_max is not None:
                             maximum = parsed_max
-            if currents:
-                current = max(currents)  # a dropped digit reads low → max is truest
+            # The double-«1» in «117» drops inconsistently per scale/attempt
+            # («117»→«17»→«6», live bs4 2026-08-10). A dropped digit ALWAYS reads
+            # lower than the truth, so the GLOBAL max across every scale × attempt
+            # is the truest current — never the last attempt's max (which a single
+            # bad frame could pin low).
+            if all_reads:
+                current = max(all_reads)
                 if maximum is not None:
-                    break  # fully plausible read — stop retrying
+                    break  # a fully plausible «current/max» read — stop retrying
         if attempt < attempts - 1:
             await asyncio.sleep(_STAMINA_RETRY_DELAY_S)
 
