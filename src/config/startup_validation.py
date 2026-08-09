@@ -1533,6 +1533,83 @@ def _validate_module_manifests(
                 )
 
 
+
+def _validate_region_name_uniqueness(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    """Region names that resolve first-wins, so the later copy is dead config.
+
+    ``layout.area_regions.validate_unique_region_names`` exists but checks one
+    screen entry at a time and runs only from the dashboard's save path — never
+    at load, never at boot. The lookup index (``area_lookup``) is first-wins
+    across the merged doc, so a duplicate name silently makes the second
+    declaration unreachable while it still looks live in the file.
+
+    Two categories are NOT collisions and are excluded, or the warning would be
+    noise nobody acts on:
+
+    * an overlay redeclaring a base name (``games/wos/ru/**``) — that IS the
+      overlay mechanism;
+    * the same name in two different games — their catalogs never merge.
+    """
+
+    from config.games import iter_games
+
+    def _is_overlay(rel: str) -> bool:
+        return "/ru/" in rel or "/beta/" in rel
+
+    known_games = set(iter_games(repo_root))
+    owners: dict[str, set[str]] = {}
+    for path in sorted(
+        [*repo_root.glob("games/**/area.yaml"), *repo_root.glob("games/**/area.json")]
+    ):
+        doc = _load_yaml_dict(path)
+        if "__load_error__" in doc:
+            continue
+        rel = path.relative_to(repo_root).as_posix()
+        seen_here: dict[str, int] = {}
+        for screen in doc.get("screens") or []:
+            if not isinstance(screen, dict):
+                continue
+            for region in screen.get("regions") or []:
+                if not isinstance(region, dict):
+                    continue
+                name = str(region.get("name") or "").strip()
+                if not name:
+                    continue
+                seen_here[name] = seen_here.get(name, 0) + 1
+                owners.setdefault(name, set()).add(rel)
+
+        for name, count in sorted(seen_here.items()):
+            if count > 1:
+                issues.append(
+                    StartupValidationIssue(
+                        "warning",
+                        f"area:{rel}",
+                        f"region {name!r} is declared {count}x in this file — "
+                        "region lookup is first-wins, so every copy after the "
+                        "first is unreachable config that still looks live",
+                    )
+                )
+
+    for name, files in sorted(owners.items()):
+        base = sorted(f for f in files if not _is_overlay(f))
+        if len(base) < 2:
+            continue
+        if len({f.split("/")[1] for f in base} & known_games) > 1:
+            continue
+        issues.append(
+            StartupValidationIssue(
+                "warning",
+                f"area:{name}",
+                f"region {name!r} is declared in {len(base)} files of the same "
+                f"catalog ({', '.join(base)}) — first-wins picks one and the "
+                "others are dead; rename them apart",
+            )
+        )
+
+
 def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValidationIssue]:
     from config.games import iter_module_catalogs
 
@@ -1565,6 +1642,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     _validate_unreachable_screens(root, issues)
     _validate_cron_specs(root, issues)
     _validate_module_manifests(root, issues)
+    _validate_region_name_uniqueness(root, issues)
     # Per catalog: an overlay ships real rules against its own regions, and the
     # region set differs per catalog, so checking a rule against the union would
     # be both too lax (a base rule using an RU-only region would pass) and
