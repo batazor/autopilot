@@ -14,6 +14,7 @@ from pathlib import Path
 from config.module_discovery import (
     is_core_nested_module,
     iter_module_dirs,
+    load_manifest,
     module_matches_scope,
     module_meta_id,
 )
@@ -64,14 +65,20 @@ def _scenario_roots_cached(
             module_dir, scope, repo_root, game=game
         ):
             continue
-        scen_dir = module_dir / "scenarios"
+        # Honour the manifest's `scenarios:` instead of hardcoding the name.
+        # The editor (`api/services/edit_dsl_api`) has always read that key, so a
+        # module declaring a non-default directory was editable in the UI and
+        # invisible to the runtime — a split every one of the 87 manifests that
+        # declare it happens to dodge today only because they all say "scenarios".
+        manifest = load_manifest(module_dir)
+        scen_dir = manifest.scenarios_dir
         if scen_dir.is_dir():
             label = scen_dir.relative_to(repo_root).as_posix()
             roots.append(
                 ScenarioRoot(
                     path=scen_dir,
                     label=label,
-                    module_id=module_meta_id(module_dir),
+                    module_id=manifest.id,
                 )
             )
     return tuple(roots)

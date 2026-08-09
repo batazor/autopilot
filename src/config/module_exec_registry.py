@@ -16,8 +16,6 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 from config.module_discovery import iter_module_dirs, module_meta_id
 from config.paths import ensure_repo_on_sys_path
 from config.paths import repo_root as default_repo_root
@@ -32,11 +30,10 @@ DslExecHandler = Callable[[Any], Awaitable[None]]
 
 
 def _load_module_yaml(module_dir: Path) -> dict[str, object]:
-    path = module_dir / "module.yaml"
-    if not path.is_file():
-        return {}
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return raw if isinstance(raw, dict) else {}
+    """One shared parse — this used to be a third copy of the same six lines."""
+    from config.module_discovery import load_module_yaml
+
+    return load_module_yaml(module_dir)
 
 
 def _import_exec_module(exec_path: Path, module_id: str) -> object | None:

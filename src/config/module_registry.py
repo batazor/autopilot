@@ -5,8 +5,6 @@ import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 import config.module_discovery as _module_discovery
 from config.games import (
     MODULES_DIR_NAME,
@@ -138,11 +136,10 @@ def analyzer_module_scope_options(
 
 
 def _load_module_yaml(module_dir: Path) -> dict[str, Any]:
-    path = module_dir / "module.yaml"
-    if not path.is_file():
-        return {}
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return raw if isinstance(raw, dict) else {}
+    """One shared parse — this used to be a third copy of the same six lines."""
+    from config.module_discovery import load_module_yaml
+
+    return load_module_yaml(module_dir)
 
 
 def _resolve_under_module(module_dir: Path, raw: str, default: str) -> Path:

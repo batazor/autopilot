@@ -1459,6 +1459,80 @@ def _screen_verify_entry_opts_out_of_reachability(repo_root: Path, screen: str) 
     return False
 
 
+
+def _validate_module_manifests(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    """Unknown keys and dead paths in ``module.yaml``.
+
+    Nothing checked manifests, and the cost was already paid: two of them
+    declare ``area: ../../../area.json``, a file Phase 3 removed. It went
+    unnoticed because ``area:`` is read by the wiki editor and ignored by
+    discovery, so the only symptom was a wiki page pointing at nothing.
+
+    Unknown keys are a warning, not an error: a manifest may legitimately carry
+    a field this build does not know yet, and refusing to boot over it would be
+    worse than the typo it catches.
+    """
+    from config.games import iter_module_catalogs
+    from config.module_discovery import (
+        KNOWN_MANIFEST_KEYS,
+        iter_module_dirs,
+        load_manifest,
+    )
+
+    seen: set[Path] = set()
+    for catalog in iter_module_catalogs(repo_root):
+        for module_dir in iter_module_dirs(repo_root, game=catalog):
+            if module_dir in seen:
+                continue
+            seen.add(module_dir)
+            manifest = load_manifest(module_dir)
+            try:
+                rel_module = module_dir.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel_module = module_dir.as_posix()
+
+            unknown = sorted(
+                k for k, _v in manifest.raw if k not in KNOWN_MANIFEST_KEYS
+            )
+            if unknown:
+                issues.append(
+                    StartupValidationIssue(
+                        "warning",
+                        f"module.yaml:{rel_module}",
+                        f"unknown manifest key(s) {unknown} — a typo, or a field "
+                        "this build does not read; add it to "
+                        "config.module_discovery.KNOWN_MANIFEST_KEYS if it is real",
+                    )
+                )
+
+            # Declared paths must exist. Each is relative to the module dir.
+            for field, value in (
+                ("area", manifest.area),
+                ("analyze", manifest.analyze),
+                ("references", manifest.references),
+                ("scenarios", manifest.scenarios),
+                ("exec", manifest.exec_path),
+                ("routes", manifest.routes),
+            ):
+                if not value:
+                    continue
+                target = (module_dir / value).resolve()
+                if target.exists():
+                    continue
+                issues.append(
+                    StartupValidationIssue(
+                        "warning",
+                        f"module.yaml:{rel_module}",
+                        f"`{field}: {value}` points at a path that does not "
+                        f"exist ({target}) — the consumer silently falls back "
+                        "to its default, so the declaration is dead",
+                    )
+                )
+
+
 def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValidationIssue]:
     from config.games import iter_module_catalogs
 
@@ -1490,6 +1564,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     _validate_dead_end_screens(root, issues)
     _validate_unreachable_screens(root, issues)
     _validate_cron_specs(root, issues)
+    _validate_module_manifests(root, issues)
     # Per catalog: an overlay ships real rules against its own regions, and the
     # region set differs per catalog, so checking a rule against the union would
     # be both too lax (a base rule using an RU-only region would pass) and

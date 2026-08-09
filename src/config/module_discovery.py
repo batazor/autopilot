@@ -12,6 +12,7 @@ thread the active game through so Kingshot modules don't leak into WOS state.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,132 @@ IGNORED_MODULE_DIR_NAMES = frozenset({"draft", "drafts"})
 # ``wos_beta``, ``ru`` for ``wos_ru`` («Белая мгла»). Keep in sync with the
 # overlay leaves in ``config.games.MODULE_CATALOG_OVERLAYS``.
 CATALOG_OVERLAY_DIR_NAMES = frozenset({"beta", "ru"})
+
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleManifest:
+    """One parsed ``module.yaml``.
+
+    The file used to be re-parsed by four independent loaders plus a fifth pass
+    that opened it again just to read ``enabled``, and its fields were then
+    passed around as raw dicts. That is why ``area:`` is honoured by the wiki
+    editor and ignored by discovery, and why two manifests can point at a path
+    that has not existed since Phase 3 without anything noticing.
+
+    ``raw`` keeps whatever is not modelled so nothing is silently dropped;
+    :data:`KNOWN_MANIFEST_KEYS` is what startup validation checks against.
+    """
+
+    module_dir: Path
+    id: str
+    title: str
+    description: str
+    enabled: bool
+    wiki: bool
+    wiki_url: str
+    references: str
+    scenarios: str
+    area: str
+    analyze: str
+    exec_path: str
+    routes: str
+    icon: str
+    default_ref: str
+    capture_interval_ms: int | None
+    raw: tuple[tuple[str, Any], ...]
+
+    @property
+    def scenarios_dir(self) -> Path:
+        """Directory holding this module's scenario YAMLs."""
+        return self.module_dir / (self.scenarios or "scenarios")
+
+
+# Every key any consumer reads, plus the two nothing reads yet. `icon` is
+# declared by 85 manifests and `routes` by 3 with no reader at all — kept
+# listed so the unknown-key check does not flag them as typos, and so their
+# deadness is visible in one place rather than inferred.
+KNOWN_MANIFEST_KEYS = frozenset(
+    {
+        "id", "title", "description", "enabled", "wiki", "wiki_url",
+        "references", "scenarios", "area", "analyze", "exec", "routes",
+        "icon", "default_ref", "capture_interval_ms",
+    }
+)
+
+
+def _manifest_bool(value: Any, *, default: bool) -> bool:
+    """YAML bools, plus the string forms an operator might hand-write."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in {"false", "0", "no", "off"}
+    return default
+
+
+def load_manifest(module_dir: Path) -> ModuleManifest:
+    """Parsed manifest for ``module_dir``; defaults when the file is absent."""
+    path = module_dir / MODULE_MANIFEST
+    stat_key: tuple[float, int] = (0.0, 0)
+    try:
+        st = path.stat()
+        stat_key = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        pass
+    return _load_manifest_cached(str(module_dir), stat_key)
+
+
+@lru_cache(maxsize=512)
+def _load_manifest_cached(
+    module_dir_s: str, _stat_key: tuple[float, int]
+) -> ModuleManifest:
+    # ``_stat_key`` is only a cache key — an edit changes it and invalidates.
+    module_dir = Path(module_dir_s)
+    raw: dict[str, Any] = {}
+    path = module_dir / MODULE_MANIFEST
+    if path.is_file():
+        try:
+            parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:
+            parsed = None
+        if isinstance(parsed, dict):
+            raw = parsed
+
+    def _s(key: str) -> str:
+        return str(raw.get(key) or "").strip()
+
+    interval: int | None
+    try:
+        interval = int(raw["capture_interval_ms"])
+    except (KeyError, TypeError, ValueError):
+        interval = None
+
+    return ModuleManifest(
+        module_dir=module_dir,
+        id=_s("id") or module_dir.name,
+        title=_s("title"),
+        description=_s("description"),
+        # A malformed or missing manifest must not hide a module — that would
+        # turn a YAML typo into a silently absent feature.
+        enabled=_manifest_bool(raw.get("enabled", True), default=True),
+        wiki=_manifest_bool(raw.get("wiki", True), default=True),
+        wiki_url=_s("wiki_url"),
+        references=_s("references"),
+        scenarios=_s("scenarios"),
+        area=_s("area"),
+        analyze=_s("analyze"),
+        exec_path=_s("exec"),
+        routes=_s("routes"),
+        icon=_s("icon"),
+        default_ref=_s("default_ref"),
+        capture_interval_ms=interval if interval and interval > 0 else None,
+        raw=tuple(sorted((k, v) for k, v in raw.items() if isinstance(k, str))),
+    )
+
+
+def clear_manifest_cache() -> None:
+    """Drop parsed manifests (registered in ``config.cache_registry``)."""
+    _load_manifest_cached.cache_clear()
 
 
 def _resolve_game(game: str | None) -> str:
@@ -155,24 +282,17 @@ def _module_manifest_enabled(manifest: Path) -> bool:
     overlay engine, scenario loader, and startup validator all skip them in
     lockstep — partial wiring would otherwise leak as runtime errors or
     validation failures.
+
+    Reads the shared parsed manifest: this used to open and parse the file a
+    second time purely for this one flag.
     """
-    try:
-        raw = yaml.safe_load(manifest.read_text(encoding="utf-8"))
-    except Exception:
-        return True
-    if not isinstance(raw, dict):
-        return True
-    flag = raw.get("enabled", True)
-    if isinstance(flag, bool):
-        return flag
-    if isinstance(flag, str):
-        return flag.strip().lower() not in {"false", "0", "no", "off"}
-    return True
+    return load_manifest(manifest.parent).enabled
 
 
 def _clear_module_discovery_caches() -> None:
     """Drop module-discovery caches (tests that mutate the module tree)."""
     _module_dirs_cached.cache_clear()
+    _load_manifest_cached.cache_clear()
     _iter_module_area_manifests_cached.cache_clear()
     _module_allowlist.cache_clear()
 
@@ -235,16 +355,16 @@ def is_core_nested_module(
 
 
 def load_module_yaml(module_dir: Path) -> dict[str, Any]:
-    path = module_dir / MODULE_MANIFEST
-    if not path.is_file():
-        return {}
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return raw if isinstance(raw, dict) else {}
+    """Raw manifest mapping.
+
+    Kept for callers that want the untyped shape; it now projects from the one
+    cached parse rather than re-reading the file. Prefer :func:`load_manifest`.
+    """
+    return dict(load_manifest(module_dir).raw)
 
 
 def module_meta_id(module_dir: Path) -> str:
-    meta = load_module_yaml(module_dir)
-    return str(meta.get("id") or module_dir.name).strip() or module_dir.name
+    return load_manifest(module_dir).id
 
 
 def module_scope_aliases(

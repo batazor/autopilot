@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 CONFIG_CACHE_CLEARERS: tuple[str, ...] = (
     # module discovery + manifests
     "config.module_discovery:_clear_module_discovery_caches",
+    "config.module_discovery:clear_manifest_cache",
     "config.capture_rate:clear_capture_rate_cache",
     "config.test_module:clear_test_module_cache",
     # area docs and the indexes derived from them
