@@ -16,6 +16,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    INSUFFICIENT_RESOURCES,
+    NONE,
+    SELECTED,
+)
+
 from .hero_xp import MAX_HERO_LEVEL, level_cost, level_furnace_gate
 from .policy import (
     RARITY_BOOK_COST,
@@ -41,9 +47,6 @@ LEVEL_UP = "level_up"             # spends hero_xp (Furnace-gated)
 LEVEL_VALUE_FACTOR = 0.95         # a level step is worth ~95% of a star step
 
 # Plan reasons
-SELECTED = "selected"
-INSUFFICIENT_RESOURCES = "insufficient_resources"   # candidates exist, none affordable
-NONE = "none"                                        # nothing worth investing in
 
 
 @dataclass(frozen=True, slots=True)

@@ -16,6 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    NONE,
+    SELECTED,
+)
 from games.wos.core.resources.troop_stats import load_troop_stats
 
 from .training_costs import TrainTier, promote_cost_time, tier_cost_time
@@ -73,8 +77,6 @@ def plan_training(
 
 
 # --- Value-greedy pick: which (type, tier) to train next ---------------------
-SELECTED = "selected"
-NONE = "none"                     # nothing trainable (every camp tier-capped at 0)
 
 TRAIN = "train"                   # fresh troops
 PROMOTE = "promote"               # raise existing tier-1 troops → tier (pays the diff)

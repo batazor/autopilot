@@ -18,7 +18,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-IDLE = "idle"
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    IDLE,
+)
+
 PREP = "prep"
 ACTIVE = "active"
 CLOSING = "closing"

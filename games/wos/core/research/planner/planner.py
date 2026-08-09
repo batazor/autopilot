@@ -32,11 +32,14 @@ if TYPE_CHECKING:
     from .model import ResearchGraph, ResearchNode
 
 # --- Plan reasons ------------------------------------------------------------
-SELECTED = "selected"          # step is the tech to research now
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    ALL_MAXED,
+    NONE,
+    SELECTED,
+)
+
 RC_GATED = "rc_gated"          # researchable techs exist but all need a higher RC
 WA_GATED = "wa_gated"          # top tech is a T11/T12 troop tech needing a higher War Academy
-ALL_MAXED = "all_maxed"        # every reachable tech is maxed
-NONE = "none"                  # nothing to do (empty graph)
 
 
 @dataclass(frozen=True, slots=True)

@@ -36,9 +36,12 @@ if TYPE_CHECKING:
     from .model import IslandData
 
 # --- Plan reasons ------------------------------------------------------------
-SELECTED = "selected"                      # a candidate was picked
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    ALL_MAXED,
+    SELECTED,
+)
+
 INSUFFICIENT_LIFE_ESSENCE = "insufficient_life_essence"   # candidates exist, none affordable
-ALL_MAXED = "all_maxed"                    # nothing left to build
 
 # Candidate kinds.
 TREE = "tree_of_life"

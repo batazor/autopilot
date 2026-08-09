@@ -26,10 +26,12 @@ if TYPE_CHECKING:
     from .model import HeroGearData
 
 # Plan reasons
-SELECTED = "selected"
-LOCKED = "locked"                       # no track unlocked yet (Furnace too low)
-INSUFFICIENT_RESOURCES = "insufficient_resources"
-NONE = "none"                           # every unlocked track already at its cap
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    INSUFFICIENT_RESOURCES,
+    LOCKED,
+    NONE,
+    SELECTED,
+)
 
 
 @dataclass(frozen=True, slots=True)

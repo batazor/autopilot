@@ -20,6 +20,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    INSUFFICIENT_STAMINA,
+    NONE,
+    QUOTA_FULL,
+    SELECTED,
+)
+
 from .policy import (
     DEFAULT_COST_PER_EVENT,
     PRIORITY_COLORS,
@@ -37,10 +44,6 @@ DEFER = "defer"      # worth taking, blocked by stamina or quota right now
 SKIP = "skip"        # filtered out (below min_value / not a priority colour)
 
 # Plan reasons
-SELECTED = "selected"                       # at least one marker queued
-INSUFFICIENT_STAMINA = "insufficient_stamina"   # markers worth taking, none affordable
-QUOTA_FULL = "quota_full"                   # daily quota exhausted
-NONE = "none"                               # nothing worth taking on screen
 
 _MAX_TRACE = 12
 

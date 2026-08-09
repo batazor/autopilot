@@ -15,6 +15,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    INSUFFICIENT_RESOURCES,
+    LOCKED,
+    NONE,
+    SELECTED,
+)
+
 from .policy import RARITY_FOOD_COST, RARITY_SHARD_COST, pet_value
 
 if TYPE_CHECKING:
@@ -29,10 +36,6 @@ REFINE = "refine"               # spends pet_shard:<id>
 UPGRADE_SKILL = "upgrade_skill" # spends pet_food
 
 # Plan reasons
-SELECTED = "selected"
-INSUFFICIENT_RESOURCES = "insufficient_resources"
-LOCKED = "locked"               # nothing unlocked yet (server too young / prereqs unmet)
-NONE = "none"
 
 SKILL_VALUE_FACTOR = 0.9
 

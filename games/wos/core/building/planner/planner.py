@@ -31,7 +31,12 @@ if TYPE_CHECKING:
     from .model import BuildGraph, LevelReq
 
 # --- Plan reasons ------------------------------------------------------------
-SELECTED = "selected"            # step is the building to upgrade now
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    ALL_MAXED,
+    INSUFFICIENT_RESOURCES,
+    SELECTED,
+)
+
 GOAL_REACHED = "goal_reached"    # goal building already at/above the cap
 GOAL_UNKNOWN = "goal_unknown"    # goal id not in the graph
 BLOCKED = "blocked"              # next goal level is gated by an unbuildable prereq
@@ -163,8 +168,6 @@ def plan_next(
 
 
 # --- Multi-track value-greedy planner (fills N construction queues) ----------
-INSUFFICIENT_RESOURCES = "insufficient_resources"   # ready candidates exist, none affordable
-ALL_MAXED = "all_maxed"                              # nothing left to build
 
 
 @dataclass(frozen=True, slots=True)

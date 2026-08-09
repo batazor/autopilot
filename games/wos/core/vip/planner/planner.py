@@ -29,10 +29,12 @@ if TYPE_CHECKING:
     from .model import VipData
 
 # Plan reasons
-SELECTED = "selected"
-LOCKED = "locked"                       # VIP not unlocked yet (Furnace gate, default none)
-INSUFFICIENT_RESOURCES = "insufficient_resources"
-NONE = "none"                           # already at the target / max VIP level
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    INSUFFICIENT_RESOURCES,
+    LOCKED,
+    NONE,
+    SELECTED,
+)
 
 VIP_BASE = 100.0                        # internal value scale (the coordinator bands the domain)
 VIP_ROLE_CATEGORY = "growth"            # VIP buffs (build/research/training speed) → universal

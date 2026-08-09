@@ -28,15 +28,17 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 # --- Per-action verdict reasons (beyond model's per-cost block reasons) ------
-SELECTED = "selected"
-WINDOW_CLOSED = "window_closed"      # active_when is false right now
-QUOTA_FULL = "quota_full"            # daily quota exhausted
-RESERVE_HELD = "reserve_held"        # a slot is held for a higher-priority action
-NOT_CONSIDERED = "not_considered"    # a higher-priority action already won
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    CONSUME,
+    IDLE,
+    NOT_CONSIDERED,
+    QUOTA_FULL,
+    RESERVE_HELD,
+    SELECTED,
+    WINDOW_CLOSED,
+)
 
 # --- Decision actions --------------------------------------------------------
-CONSUME = "consume"
-IDLE = "idle"
 
 
 @dataclass(frozen=True, slots=True)

@@ -34,6 +34,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    INSUFFICIENT_STAMINA,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -51,7 +54,7 @@ HEROES_RESOURCE = "heroes"
 
 # --- Per-cost blocking reasons (surfaced in the decision trace) --------------
 NO_FREE_SLOT = "no_free_slot"
-INSUFFICIENT_STAMINA = "insufficient_stamina"
+
 NO_TROOPS = "no_troops"
 NO_FREE_HERO = "no_free_hero"
 UNOBSERVED_BLOCKED = "unobserved_blocked"

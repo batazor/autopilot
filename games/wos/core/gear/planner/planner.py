@@ -28,10 +28,12 @@ if TYPE_CHECKING:
     from .model import GearData
 
 # Plan reasons
-SELECTED = "selected"
-LOCKED = "locked"                       # Chief Gear not unlocked yet (Furnace < 22)
-INSUFFICIENT_RESOURCES = "insufficient_resources"
-NONE = "none"                           # every piece already at the target/max
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    INSUFFICIENT_RESOURCES,
+    LOCKED,
+    NONE,
+    SELECTED,
+)
 
 
 @dataclass(frozen=True, slots=True)

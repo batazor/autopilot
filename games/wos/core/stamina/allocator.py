@@ -21,17 +21,20 @@ if TYPE_CHECKING:
     from .model import Demand, Supply
 
 # --- Per-demand verdict reasons (surfaced in the UI decision trace) ----------
-SELECTED = "selected"
-WINDOW_CLOSED = "window_closed"          # active_when is false right now
-QUOTA_FULL = "quota_full"                # daily quota exhausted
-RESERVE_HELD = "reserve_held"            # held back for a higher-priority demand
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    CONSUME,
+    IDLE,
+    NOT_CONSIDERED,
+    QUOTA_FULL,
+    RESERVE_HELD,
+    SELECTED,
+    SUPPLY,
+    WINDOW_CLOSED,
+)
+
 INSUFFICIENT = "insufficient_stamina"    # est below this demand's cost
-NOT_CONSIDERED = "not_considered"        # a higher-priority demand already won
 
 # --- Decision actions --------------------------------------------------------
-CONSUME = "consume"
-SUPPLY = "supply"
-IDLE = "idle"
 
 
 @dataclass(frozen=True, slots=True)

@@ -28,10 +28,12 @@ if TYPE_CHECKING:
     from .model import CharmData
 
 # Plan reasons
-SELECTED = "selected"
-LOCKED = "locked"                       # Chief Charms not unlocked yet (Furnace < 25)
-INSUFFICIENT_RESOURCES = "insufficient_resources"
-NONE = "none"                           # every slot already at the target/max
+from games.wos.core.planner_reasons import (  # shared verdict vocabulary
+    INSUFFICIENT_RESOURCES,
+    LOCKED,
+    NONE,
+    SELECTED,
+)
 
 
 @dataclass(frozen=True, slots=True)
