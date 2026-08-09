@@ -13,16 +13,18 @@ steps:
   # main_city / main_world: measure the green fill-bar under the avatar. Self-
   # validating — a no-op off those screens (the bbox won't look like a bar), so
   # it's safe to run unguarded. Covers the screens the bot sits on most.
+  # NOTE: this exec writes `stamina` DIRECTLY (no `store:` declaration), so — like
+  # read_intel_stamina below — it never triggers the scenario-start store-HDEL.
   - exec: read_stamina_bar
     region: stamina.bar
 
-  - match: chief_profile.title        # chief profile → current + max (bottom-left)
-    threshold: 0.85
-    steps:
-      - ocr: chief_profile.stamina
-        store: stamina
-      - ocr: chief_profile.stamina.max
-        store: stamina_max
+  # NB: the chief-profile branch used to `ocr: chief_profile.stamina store: stamina`
+  # — but `store:` fields are HDEL'd at scenario start across ALL branches, so this
+  # cron (every 5 min) WIPED `stamina` up front, and on the RU build the avatar bar
+  # is unreadable (read_stamina_bar returns not_a_bar without rewriting), leaving
+  # stamina EMPTY → the MARCH coordinator (intel_intent) stops dispatching intel
+  # entirely (bs4 2026-08-10). Dropped: on RU the intel board (read_intel_stamina)
+  # is the real source, and it now persists instead of being wiped.
 
   - match: intel.title                # intel screen → «current/max» bottom-left bar
     threshold: 0.85
