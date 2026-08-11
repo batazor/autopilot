@@ -714,6 +714,13 @@ class Navigator:
         # retries-exhausted exit can name it instead of shrugging.
         last_failure: NavFailure | None = None
         current: Any = ""
+        # Consecutive verify failures on a DIRECT edge (hop_sequences not None).
+        # A direct tap that keeps landing wrong — e.g. main_world→intel tapping the
+        # ≡ button while the device is actually on the zoomed-out kingdom map
+        # (mis-detected as main_world) — would otherwise re-tap the same failing
+        # edge all 10 attempts. After a couple, re-home via main_city to reset the
+        # screen to a known state, then retry the route from there.
+        direct_verify_fails = 0
 
         for attempt in range(10):
             state_flat = await self._active_player_state_flat(instance_id)
@@ -947,6 +954,28 @@ class Navigator:
                 )
             if hr == "verify_failed":
                 last_failure = NavFailure.VERIFY_FAILED
+                direct_verify_fails += 1
+                # The direct edge keeps landing wrong. Re-home to main_city so the
+                # next attempt routes main_city → … → target from a known screen
+                # (the target's entry button is then in its fixed position),
+                # instead of re-tapping the same mis-landing direct edge.
+                if direct_verify_fails >= 2 and current != _MAIN_CITY:
+                    to_hub = await route_hops_async(
+                        str(current), str(_MAIN_CITY),
+                        instance_id=instance_id, redis_client=self._redis,
+                        edge_allowed=edge_allowed,
+                    )
+                    if to_hub:
+                        logger.info(
+                            "Navigator: direct edge to %s verify-failed %dx — "
+                            "re-homing via main_city on %s",
+                            target, direct_verify_fails, instance_id,
+                        )
+                        await self._execute_hops(
+                            instance_id, to_hub, from_screen=str(current)
+                        )
+                        await asyncio.sleep(_NAV_HOP_SETTLE_S)
+                        direct_verify_fails = 0
 
         logger.error("Failed to navigate to %s after 10 attempts", target)
         await self._write_screen(instance_id, "")
