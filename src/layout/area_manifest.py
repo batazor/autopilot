@@ -143,6 +143,20 @@ def _load_area_doc_cached(
     # first. We therefore split base vs overlay screens and prepend the overlay
     # ones — letting ``games/wos/ru`` override a base region's bbox/crop per build
     # (the deploy-flow text buttons) while base fills every name it doesn't touch.
+    #
+    # Two consequences worth stating, because both have been misread:
+    #
+    # 1. The merge is effectively REGION-granular even though it is written at
+    #    screen granularity. An overlay declares only the regions it changes and
+    #    the rest of that screen still resolves from base — on the live tree
+    #    ``exit_confirm.body`` comes from the RU overlay while
+    #    ``exit_confirm.cancel`` / ``.close`` / ``.confirm`` come from base.
+    # 2. The override is NOT always visible in the region dict. Two RU regions
+    #    (``exit_confirm.body``, ``chapter.title``) copy their base geometry
+    #    verbatim ON PURPOSE and override only the template crop, which lives
+    #    beside the screen entry's ``ocr:`` reference rather than inside the
+    #    region. Judging redundancy by the dict alone would call those dead.
+    #    ``startup_validation._validate_overlay_region_drift`` compares both.
     overlay_roots = [
         r.resolve() for r in module_roots_for(game, repo_root=repo_root)[1:]
     ]

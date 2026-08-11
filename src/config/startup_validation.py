@@ -1610,6 +1610,118 @@ def _validate_region_name_uniqueness(
         )
 
 
+def _validate_overlay_region_drift(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    """An overlay region that changes nothing at all is a drift bomb.
+
+    Region lookup is first-wins over the merged doc with overlay screens
+    prepended, so an overlay only declares the regions it CHANGES — every base
+    region on the same screen keeps resolving. Verified on the live tree:
+    ``exit_confirm.body`` comes from ``games/wos/ru`` while
+    ``exit_confirm.cancel`` / ``.close`` / ``.confirm`` still come from base.
+
+    **The override is not always in the region dict.** Both RU regions whose
+    dicts match base verbatim — ``exit_confirm.body`` and ``chapter.title`` —
+    are real overrides: the geometry is deliberately unchanged and the RU build
+    ships a different template CROP at the same relative path (6442 vs 6991
+    bytes for ``chapter_chapter.title.png``). Comparing dicts alone would tell
+    an operator to delete the one thing making RU screen detection work, so this
+    compares the resolved crop bytes too and only fires when BOTH match.
+
+    Deliberately not reported: an overlay region with no base counterpart.
+    ``upgrade_button_top`` exists only for the RU build and
+    ``building.upgrade.yaml`` leans on that on purpose — "EN has no
+    ``upgrade_button_top`` region → the block resolves no row and is skipped".
+    """
+    from pathlib import Path as _Path
+
+    from config.games import iter_games
+    from layout.crop_paths import exported_crop_png
+
+    def _overlay_root(rel: str) -> str:
+        """``games/wos/ru/core/x/area.yaml`` → ``games/wos/ru``, else ``""``."""
+        parts = rel.split("/")
+        for i, part in enumerate(parts[:3]):
+            if part in {"ru", "beta"} and i >= 2:
+                return "/".join(parts[: i + 1])
+        return ""
+
+    def _crop_bytes(rel_area: str, ocr_ref: str, region_name: str) -> bytes | None:
+        """The template PNG this declaration actually matches against."""
+        if not ocr_ref:
+            return None
+        module_root = _Path(rel_area).parent
+        ref_rel = (module_root / ocr_ref).as_posix()
+        crop = exported_crop_png(repo_root, ref_rel, region_name)
+        try:
+            return crop.read_bytes()
+        except OSError:
+            return None
+
+    known_games = set(iter_games(repo_root))
+    base: dict[str, dict[str, tuple[str, dict[str, Any], str]]] = {}
+    overlay: list[tuple[str, str, str, dict[str, Any], str]] = []
+    for path in sorted(
+        [*repo_root.glob("games/**/area.yaml"), *repo_root.glob("games/**/area.json")]
+    ):
+        doc = _load_yaml_dict(path)
+        if "__load_error__" in doc:
+            continue
+        rel = path.relative_to(repo_root).as_posix()
+        parts = rel.split("/")
+        if len(parts) < 3 or parts[1] not in known_games:
+            continue
+        game, ov = parts[1], _overlay_root(rel)
+        for screen in doc.get("screens") or []:
+            if not isinstance(screen, dict):
+                continue
+            ocr_ref = str(screen.get("ocr") or "").strip()
+            for region in screen.get("regions") or []:
+                if not isinstance(region, dict):
+                    continue
+                name = str(region.get("name") or "").strip()
+                if not name:
+                    continue
+                if ov:
+                    overlay.append((ov, rel, name, region, ocr_ref))
+                else:
+                    base.setdefault(game, {}).setdefault(name, (rel, region, ocr_ref))
+
+    for ov, rel, name, region, ocr_ref in overlay:
+        found = base.get(ov.split("/")[1], {}).get(name)
+        if found is None:
+            continue
+        base_rel, base_region, base_ocr = found
+        if _canonical_region(region) != _canonical_region(base_region):
+            continue
+        if _crop_bytes(rel, ocr_ref, name) != _crop_bytes(base_rel, base_ocr, name):
+            continue
+        issues.append(
+            StartupValidationIssue(
+                "warning",
+                f"area:{rel}",
+                f"overlay region {name!r} has the same geometry AND the same crop as "
+                f"the one it shadows in {base_rel} — it overrides nothing, and it "
+                "will hold the stale values the day the base one is retuned; delete "
+                "it and let the base region resolve",
+            )
+        )
+
+
+def _canonical_region(region: dict[str, Any]) -> str:
+    """A region's content, ignoring key order and authoring-only annotations."""
+    import json
+
+    stripped = {
+        k: v
+        for k, v in region.items()
+        if not k.startswith("_") and k not in {"aliases", "comment"}
+    }
+    return json.dumps(stripped, sort_keys=True, ensure_ascii=False)
+
+
 def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValidationIssue]:
     from config.games import iter_module_catalogs
 
@@ -1643,6 +1755,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     _validate_cron_specs(root, issues)
     _validate_module_manifests(root, issues)
     _validate_region_name_uniqueness(root, issues)
+    _validate_overlay_region_drift(root, issues)
     # Per catalog: an overlay ships real rules against its own regions, and the
     # region set differs per catalog, so checking a rule against the union would
     # be both too lax (a base rule using an RU-only region would pass) and
