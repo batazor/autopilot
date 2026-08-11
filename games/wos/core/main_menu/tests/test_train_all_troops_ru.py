@@ -73,7 +73,7 @@ def test_classify_status_handles_russian(text: str, kind: str) -> None:
 )
 def test_section_for_row_handles_russian(title: str, section: str, row: str) -> None:
     mod = _load_exec_module()
-    got_section, got_row = mod._section_for_row(title, "", "")
+    got_section, got_row = mod.section_for_row(title, "", "")
     assert (got_section, got_row) == (section, row)
 
 

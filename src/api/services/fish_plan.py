@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from api.services.fish_common import FishDetectionRow, decode_bgr, detections_to_rows
 from api.services.fish_detect import _load_frame
 from api.services.fish_engine import (
-    _HOOK_STEER_SPEED_PX_S,
+    HOOK_STEER_SPEED_PX_S,
     SwipePlan,
     parse_level,
     plan_action,
@@ -232,7 +232,7 @@ def run_fish_plan(
         # Same interception model as the live driver so the overlay arrow shows
         # the real aim (account for fish velocity + the hook's own travel time).
         base_latency_s=lead_s,
-        hook_speed_px_s=_HOOK_STEER_SPEED_PX_S,
+        hook_speed_px_s=HOOK_STEER_SPEED_PX_S,
     )
 
     base["detections"] = rows

@@ -18,7 +18,7 @@ from typing import Any
 from config.state_store import get_state_store
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _resolve_player_id_for_device_level_exec,
+    resolve_player_id_for_device_level_exec,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,9 +61,9 @@ def _pick_scarcest(amounts: dict[str, float | None]) -> str | None:
 
 
 async def _read_hash(redis_client: Any, key: str, field: str) -> str:
-    from tasks.dsl_exec.context import _decode_redis_raw
+    from tasks.dsl_exec.context import decode_redis_raw
 
-    return _decode_redis_raw(await redis_client.hget(key, field))
+    return decode_redis_raw(await redis_client.hget(key, field))
 
 
 def _resource_balances(raw_by_res: dict[str, str]) -> dict[str, int]:
@@ -89,7 +89,7 @@ async def _exec_record_resources(ctx: DslExecContext) -> None:
     if ctx.redis_client is None:
         ctx.result.update({"reason": "no_redis_client"})
         return
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         ctx.result.update({"reason": "empty_player_id"})
         return
@@ -126,7 +126,7 @@ async def _exec_gather_pick_scarcest(ctx: DslExecContext) -> None:
         ctx.result.update({"reason": "no_redis_client"})
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec gather_pick_scarcest: empty player_id")
         ctx.result.update({"reason": "empty_player_id"})

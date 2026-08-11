@@ -250,13 +250,13 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
     # ``heroes.grid.r{ri}c{ci}`` cell we just wrote above). ``skip_if_duplicate``
     # collapses repeat scans firing on the same dot until the first push runs.
     from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
-    from tasks.dsl_scenario_helpers import _enqueue_scenario
+    from tasks.dsl_scenario_helpers import enqueue_scenario
 
     red_dot_heroes = [hid for hid, match in hits.items() if match.has_red_dot]
     pushed: list[str] = []
     for hid in red_dot_heroes:
         try:
-            ok = await _enqueue_scenario(
+            ok = await enqueue_scenario(
                 redis_async=ctx.redis_client,
                 instance_id=ctx.instance_id,
                 player_id=player_id,
@@ -289,7 +289,7 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
     pushed_recruits: list[str] = []
     for hid in recruit_ready_heroes:
         try:
-            ok = await _enqueue_scenario(
+            ok = await enqueue_scenario(
                 redis_async=ctx.redis_client,
                 instance_id=ctx.instance_id,
                 player_id=player_id,

@@ -150,12 +150,12 @@ def test_infer_maxed_predecessors_backfills_lower_tiers() -> None:
     mod = _load_exec_module()
     graph = load_research_graph()
     # Only tier III was read; I and II must be backfilled to their max levels.
-    got = mod._infer_maxed_predecessors({"bandaging_iii": 4}, graph)
+    got = mod.infer_maxed_predecessors({"bandaging_iii": 4}, graph)
     assert got["bandaging_iii"] == 4
     assert got["bandaging_i"] == graph.spec("bandaging_i").max_level
     assert got["bandaging_ii"] == graph.spec("bandaging_ii").max_level
     # An existing higher record is never lowered.
-    got2 = mod._infer_maxed_predecessors({"bandaging_ii": 1, "bandaging_iii": 4}, graph)
+    got2 = mod.infer_maxed_predecessors({"bandaging_ii": 1, "bandaging_iii": 4}, graph)
     assert got2["bandaging_ii"] == graph.spec("bandaging_ii").max_level
 
 
@@ -165,7 +165,7 @@ def test_research_levels_from_ocr_rows_maps_and_drops_unknown() -> None:
     mod = _load_exec_module()
     graph = load_research_graph()
     rows = [("Bandaging I", 2), ("Camp Expansion I", 1), ("garbage xyz", 5)]
-    got = mod._research_levels_from_ocr_rows(rows, graph)
+    got = mod.research_levels_from_ocr_rows(rows, graph)
     assert got == {"bandaging_i": 2, "camp_expansion_i": 1}
 
 

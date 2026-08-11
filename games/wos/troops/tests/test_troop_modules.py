@@ -286,7 +286,7 @@ async def test_train_timer_region_reads_countdown_pill(
     Promoting); the trailing detail line never breaks the hms parse."""
     from layout.types import Region
     from services import get_ocr_client
-    from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
+    from tasks.dsl_scenario_helpers import parse_hms_to_seconds
 
     area = _load_yaml(TROOPS_DIR / "infantry" / "area.yaml")
     region = next(
@@ -308,7 +308,7 @@ async def test_train_timer_region_reads_countdown_pill(
             int(b["height"] / 100 * h),
         ),
     )
-    assert _parse_hms_to_seconds(res.text) == expected_seconds
+    assert parse_hms_to_seconds(res.text) == expected_seconds
 
 
 def test_screen_graph_exposes_troop_nodes() -> None:

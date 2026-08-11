@@ -165,7 +165,7 @@ def _overlay_push_priority(payload: dict[str, Any]) -> int | None:
     return best
 
 
-def _decode_redis_raw(raw: Any) -> str:
+def decode_redis_raw(raw: Any) -> str:
     if raw is None:
         return ""
     if isinstance(raw, bytes):
@@ -491,7 +491,7 @@ class InstanceWorkerOverlayMixin(_Base):
         except Exception:
             logger.debug("overlay idle telemetry: current task read failed", exc_info=True)
             return False
-        return any(_decode_redis_raw(v) for v in vals or [])
+        return any(decode_redis_raw(v) for v in vals or [])
 
     async def _emit_idle_tab_red_dot_telemetry(
         self,
@@ -515,7 +515,7 @@ class InstanceWorkerOverlayMixin(_Base):
                     f"wos:instance:{iid}:state",
                     "current_screen",
                 )
-                screen = _decode_redis_raw(raw_screen)
+                screen = decode_redis_raw(raw_screen)
         screen = screen or "unknown"
         active_raw = payload.get("active_index")
         active_index = "none" if active_raw is None else str(active_raw)

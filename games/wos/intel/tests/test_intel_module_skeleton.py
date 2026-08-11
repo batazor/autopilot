@@ -300,11 +300,11 @@ def test_deploy_ttl_region_reads_low_confidence_timer() -> None:
 def test_refresh_timer_parses_with_prefix() -> None:
     # The board timer reads "Refreshes in: HH:MM:SS"; the type:time OCR handler
     # must tolerate the prefix and yield seconds.
-    from tasks.dsl_ocr_mixin import _parse_hms_to_seconds
+    from tasks.dsl_ocr_mixin import parse_hms_to_seconds
 
-    assert _parse_hms_to_seconds("Refreshes in: 03:23:15") == 12195
-    assert _parse_hms_to_seconds("03:22:15") == 12135
-    assert _parse_hms_to_seconds("") is None
+    assert parse_hms_to_seconds("Refreshes in: 03:23:15") == 12195
+    assert parse_hms_to_seconds("03:22:15") == 12135
+    assert parse_hms_to_seconds("") is None
 
 
 @pytest.mark.asyncio
@@ -316,7 +316,7 @@ async def test_refresh_timer_region_reads_board_ttl() -> None:
     from config.loader import load_settings
     from layout.types import Region
     from ocr.client import OcrClient
-    from tasks.dsl_ocr_mixin import _parse_hms_to_seconds
+    from tasks.dsl_ocr_mixin import parse_hms_to_seconds
 
     area_doc = load_area_doc(REPO_ROOT)
     bbox = None
@@ -338,7 +338,7 @@ async def test_refresh_timer_region_reads_board_ttl() -> None:
     result = await OcrClient(load_settings()).ocr_region(
         image, region_px, region_id="intel.refresh_in"
     )
-    seconds = _parse_hms_to_seconds(result.text)
+    seconds = parse_hms_to_seconds(result.text)
     # A multi-hour board refresh (reference reads ~03:2x:xx).
     assert seconds is not None and 3600 <= seconds <= 6 * 3600
 

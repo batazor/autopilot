@@ -24,7 +24,7 @@ _DISMISS_POPUP_MAX_LAYERS = 4
 _DISMISS_POPUP_SETTLE_S = 0.6
 
 
-def _popup_tap_target(state: PopupState) -> tuple[Point, str] | None:
+def popup_tap_target(state: PopupState) -> tuple[Point, str] | None:
     """Resolve the one safe tap for ``state``: ``(point, approval_region)``.
 
     Mirrors the worker rolling-loop dispatch in
@@ -178,7 +178,7 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
             )
             return
 
-        target = _popup_tap_target(state)
+        target = popup_tap_target(state)
         if target is None:
             ctx.result.update(
                 {

@@ -215,7 +215,7 @@ async def test_delay_expression_clamps_negative_to_zero() -> None:
     assert await _resolve("10s - 30s") == 0.0
 
 
-# --- ``_resolve_push_expires_at`` (push_scenario.expires) -------------------
+# --- ``resolve_push_expires_at`` (push_scenario.expires) -------------------
 
 
 async def _resolve_expires(
@@ -223,9 +223,9 @@ async def _resolve_expires(
     *,
     store: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[float | None, str]:
-    from tasks.dsl_scenario_helpers import _resolve_push_expires_at
+    from tasks.dsl_scenario_helpers import resolve_push_expires_at
 
-    return await _resolve_push_expires_at(
+    return await resolve_push_expires_at(
         expires,
         instance_id="inst-1",
         redis_async=_FakeRedis(store),

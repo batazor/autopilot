@@ -1853,7 +1853,7 @@ async def _evaluate_pending_text_rules(
     Replaces the old per-rule ``ocr.ocr_region()`` path: a tick with 130+
     text rules now pays one batched OCR request instead of one per rule.
     """
-    from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
+    from tasks.dsl_scenario_helpers import parse_hms_to_seconds
 
     out: dict[str, Any] = {}
     if not pending:
@@ -1943,7 +1943,7 @@ async def _evaluate_pending_text_rules(
         txt = str(slot["txt"])
         time_seconds: int | None = None
         if p["rule_type"] == "time":
-            parsed = _parse_hms_to_seconds(txt)
+            parsed = parse_hms_to_seconds(txt)
             if parsed is not None:
                 time_seconds = int(parsed)
                 # The presence of a parsed time IS the "matched" signal for

@@ -29,7 +29,7 @@ from config.paths import repo_root
 from layout.area_manifest import load_area_doc
 from layout.types import Point
 from tasks import dsl_runtime
-from tasks.dsl_exec.context import DslExecContext, _decode_redis_raw
+from tasks.dsl_exec.context import DslExecContext, decode_redis_raw
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ async def _current_screen(ctx: DslExecContext) -> str:
     except Exception:
         logger.debug("arena_pick: current_screen read failed", exc_info=True)
         return ""
-    return _decode_redis_raw(raw)
+    return decode_redis_raw(raw)
 
 
 async def _player_state_field(ctx: DslExecContext, field: str) -> str:
@@ -61,7 +61,7 @@ async def _player_state_field(ctx: DslExecContext, field: str) -> str:
     except Exception:
         logger.debug("arena_pick: state read failed field=%s", field, exc_info=True)
         return ""
-    return _decode_redis_raw(raw)
+    return decode_redis_raw(raw)
 
 
 def _read_toggle_sync(player_id: str) -> bool:
@@ -232,7 +232,7 @@ _PANEL_FIND_SWEEPS = 6
 async def _find_marksman_cy(actions, ocr, instance_id: str) -> tuple[int, int] | None:  # noqa: ANN001
     """Reset the City panel to the top, then sweep-scan for the Marksman training
     row. Returns its ``(centre_y, frame_width)`` or ``None`` if never found."""
-    from games.wos.core.main_menu.exec import _capture_panel_frame, _scan_panel_rows
+    from games.wos.core.main_menu.exec import capture_panel_frame, scan_panel_rows
 
     for _ in range(_PANEL_RESET_SWIPES):
         await asyncio.to_thread(
@@ -240,10 +240,10 @@ async def _find_marksman_cy(actions, ocr, instance_id: str) -> tuple[int, int] |
         )
         await asyncio.sleep(0.4)
     for _ in range(_PANEL_FIND_SWEEPS):
-        frame = await _capture_panel_frame(actions, instance_id)
+        frame = await capture_panel_frame(actions, instance_id)
         if frame is None:
             return None
-        rows = await _scan_panel_rows(frame, ocr=ocr, with_status=False)
+        rows = await scan_panel_rows(frame, ocr=ocr, with_status=False)
         row = next((r for r in rows if r.get("row") == "marksman"), None)
         if row is not None:
             return int(row["cy"]), int(frame.shape[1])

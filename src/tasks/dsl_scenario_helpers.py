@@ -458,7 +458,7 @@ _HMS_RE = re.compile(
 _DURATION_SUFFIX_RE = re.compile(r"^\d+(?:\.\d+)?\s*(?:ms|s|m|h)$", re.IGNORECASE)
 
 
-def _parse_hms_to_seconds(text: str) -> int | None:
+def parse_hms_to_seconds(text: str) -> int | None:
     """Parse OCR'd time strings like ``"00:01:23"`` / ``"1:23:45"`` /
     ``"05:30"`` / ``"1d 09:11:19"`` into total seconds.
 
@@ -564,7 +564,7 @@ async def _resolve_push_delay_base_seconds(
         return 0.0
 
     if ":" in s:
-        parsed = _parse_hms_to_seconds(s)
+        parsed = parse_hms_to_seconds(s)
         if parsed is not None:
             return float(parsed)
         logger.warning(
@@ -599,7 +599,7 @@ async def _resolve_push_delay_base_seconds(
             s, pid or "-", instance_id,
         )
         return None
-    parsed = _parse_hms_to_seconds(cur)
+    parsed = parse_hms_to_seconds(cur)
     if parsed is None:
         logger.warning(
             "push_scenario: state value %r=%r is not hh:mm:ss — skipping push",
@@ -760,7 +760,7 @@ async def _resolve_push_delay_seconds(
     )
 
 
-async def _resolve_push_expires_at(
+async def resolve_push_expires_at(
     expires: object,
     *,
     instance_id: str,
@@ -793,7 +793,7 @@ async def _resolve_push_expires_at(
     return time.time() + secs, ""
 
 
-async def _enqueue_scenario(
+async def enqueue_scenario(
     *,
     redis_async: Any | None,
     instance_id: str,
@@ -1044,3 +1044,4 @@ def _action_pause_seconds(base_seconds: float = 0.4) -> float:
     if random.random() < 0.08:
         pause += random.uniform(base * 0.35, base * 1.25)
     return max(0.02, pause)
+

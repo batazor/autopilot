@@ -128,7 +128,7 @@ class PlanResult:
 # --- Live-state resolution (pure) --------------------------------------------
 
 
-def _parse_hero_roster(state: dict[str, Any]) -> dict[str, list[str]]:
+def parse_hero_roster(state: dict[str, Any]) -> dict[str, list[str]]:
     """Free heroes by role from ``heroes.roster`` (a JSON list the reader writes).
 
     Contract (filled by the future ``sync_hero_roster`` scenario):
@@ -252,7 +252,7 @@ def build_world(
     free_heroes: dict[str, tuple[str, ...]] = {}
     if heroes_observed:
         held_heroes = {h for r in ledger for h in (r.get("heroes") or [])}
-        for role, ids in _parse_hero_roster(state).items():
+        for role, ids in parse_hero_roster(state).items():
             free_heroes[role] = tuple(h for h in ids if h not in held_heroes)
 
     return WorldView(

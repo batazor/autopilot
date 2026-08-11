@@ -75,8 +75,8 @@ async def _exec_record_new_hero(ctx: DslExecContext) -> None:
     # Imported lazily: ``tasks.dsl_exec.context`` eagerly builds the exec registry
     # (which loads this module), so a module-level import here is a circular one.
     from tasks.dsl_exec.context import (
-        _decode_redis_raw,
-        _resolve_player_id_for_device_level_exec,
+        decode_redis_raw,
+        resolve_player_id_for_device_level_exec,
     )
 
     if ctx.redis_client is None:
@@ -86,7 +86,7 @@ async def _exec_record_new_hero(ctx: DslExecContext) -> None:
     raw = await ctx.redis_client.hget(
         f"wos:instance:{ctx.instance_id}:state", NAME_FIELD
     )
-    name_text = _decode_redis_raw(raw)
+    name_text = decode_redis_raw(raw)
     if not name_text:
         logger.info(
             "dsl exec record_new_hero: no %s on instance %s — name unreadable, "
@@ -112,7 +112,7 @@ async def _exec_record_new_hero(ctx: DslExecContext) -> None:
     # this same hero on the following loop iteration.
     await _clear_name_field(ctx)
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     ctx.result["hero_id"] = hero_id
     ctx.result["hero_name"] = canonical
     ctx.result["match_score"] = score

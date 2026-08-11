@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 import cv2
 
 from api.services.fish_engine import (
-    _HOOK_STEER_SPEED_PX_S,
+    HOOK_STEER_SPEED_PX_S,
     parse_level,
     plan_action,
 )
@@ -506,7 +506,7 @@ async def _exec_drive_fishing(ctx: DslExecContext) -> None:
                 prev_detections=prev_rows, dt_s=dt_s,
                 lead_s=base_latency_s,
                 base_latency_s=base_latency_s,
-                hook_speed_px_s=_HOOK_STEER_SPEED_PX_S,
+                hook_speed_px_s=HOOK_STEER_SPEED_PX_S,
                 prev_tracked=prev_tracked,
                 vel_ema_alpha=_VEL_EMA_ALPHA,
                 fallback_hook=est_hook,  # better steer origin when the ring is lost

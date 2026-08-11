@@ -552,7 +552,7 @@ async def test_research_regions_ocr_from_reference() -> None:
 
     from layout.types import Region
     from services import get_ocr_client
-    from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
+    from tasks.dsl_scenario_helpers import parse_hms_to_seconds
 
     frame = cv2.imread(str(MODULE_DIR / "references" / "training.png"))
     assert frame is not None
@@ -578,7 +578,7 @@ async def test_research_regions_ocr_from_reference() -> None:
     timer = await ocr.ocr_region(
         frame, _region("main_menu.research.slot.time"), preprocess="bar_timer"
     )
-    assert _parse_hms_to_seconds(timer.text) == 4 * 86400 + 11 * 3600 + 59 * 60 + 43
+    assert parse_hms_to_seconds(timer.text) == 4 * 86400 + 11 * 3600 + 59 * 60 + 43
 
 
 # --- City-panel scanner ------------------------------------------------------
@@ -619,7 +619,7 @@ async def test_scan_panel_rows_classifies_reference(reference: str) -> None:
     mod = _load_exec_module()
     frame = cv2.imread(str(MODULE_DIR / "references" / reference))
     assert frame is not None
-    rows = await mod._scan_panel_rows(frame, ocr=get_ocr_client())
+    rows = await mod.scan_panel_rows(frame, ocr=get_ocr_client())
     got = [(r["section"], r["row"], r["kind"]) for r in rows]
     assert got == _SCAN_EXPECTATIONS[reference]
 
@@ -634,7 +634,7 @@ async def test_scan_panel_rows_training_reads_day_prefixed_research_timer() -> N
 
     mod = _load_exec_module()
     frame = cv2.imread(str(MODULE_DIR / "references" / "training.png"))
-    rows = await mod._scan_panel_rows(frame, ocr=get_ocr_client())
+    rows = await mod.scan_panel_rows(frame, ocr=get_ocr_client())
     research = next(r for r in rows if r["section"] == "tech_research")
     assert research["row"] == "center"
     assert research["kind"] == "in_progress"
@@ -819,7 +819,7 @@ async def test_exec_scan_panel_pushes_train_for_idle_troops(
     import dsl.dsl_schema as schema
 
     monkeypatch.setattr(mod.dsl_runtime, "bot_actions", lambda: _FakeActions())
-    monkeypatch.setattr(mod, "_scan_panel_rows", _fake_scan)
+    monkeypatch.setattr(mod, "scan_panel_rows", _fake_scan)
     monkeypatch.setattr(schema, "dsl_scenario_yaml_enabled", lambda *_a, **_k: True)
     monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
     monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
@@ -944,7 +944,7 @@ async def test_exec_scan_panel_research_idle_push_gated_on_dispatch_enabled(
         return None
 
     monkeypatch.setattr(mod.dsl_runtime, "bot_actions", lambda: _FakeActions())
-    monkeypatch.setattr(mod, "_scan_panel_rows", _fake_scan)
+    monkeypatch.setattr(mod, "scan_panel_rows", _fake_scan)
     monkeypatch.setattr(mod, "get_state_store", lambda: _StateStore())
     monkeypatch.setattr(mod, "publish_dashboard_event_throttled_async", _publish)
 
@@ -1015,7 +1015,7 @@ async def test_exec_tap_main_menu_panel_row_taps_matching_row_button(
     fake_actions = _FakeActions()
     monkeypatch.setattr(mod.dsl_runtime, "bot_actions", lambda: fake_actions)
     monkeypatch.setattr(mod.dsl_runtime, "ocr_client", lambda: object())
-    monkeypatch.setattr(mod, "_scan_panel_rows", _fake_scan_panel_rows)
+    monkeypatch.setattr(mod, "scan_panel_rows", _fake_scan_panel_rows)
     monkeypatch.setattr(mod.asyncio, "sleep", lambda _delay: _noop_async())
 
     ctx = DslExecContext(

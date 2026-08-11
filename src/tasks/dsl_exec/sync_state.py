@@ -9,8 +9,8 @@ from config.buildings import get_building_registry
 from config.state_store import get_state_store
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _decode_redis_raw,
-    _resolve_player_id_for_device_level_exec,
+    decode_redis_raw,
+    resolve_player_id_for_device_level_exec,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,13 +25,13 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
     Called from ``building.upgrade.yaml`` which is ``device_level: true``
     (tutorial-driven flow runs before identity is established). So the
     ``ctx.player_id`` may be empty here and we fall back to
-    ``active_player`` via :func:`_resolve_player_id_for_device_level_exec`.
+    ``active_player`` via :func:`resolve_player_id_for_device_level_exec`.
     """
     if ctx.redis_client is None:
         logger.warning("dsl exec sync_building_name: no redis client — skipping")
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec sync_building_name: empty player_id — skipping")
         return
@@ -42,7 +42,7 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
     text_field = ""
     for field in _BUILDING_TITLE_FIELDS:
         raw_text = await ctx.redis_client.hget(state_key, field)
-        text = _decode_redis_raw(raw_text)
+        text = decode_redis_raw(raw_text)
         if text:
             text_source = "player" if field == "building.name" else f"player:{field}"
             text_field = field
@@ -51,7 +51,7 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
         inst_key = f"wos:instance:{ctx.instance_id}:state"
         for field in _BUILDING_TITLE_FIELDS:
             raw_text = await ctx.redis_client.hget(inst_key, field)
-            text = _decode_redis_raw(raw_text)
+            text = decode_redis_raw(raw_text)
             if text:
                 text_source = "instance" if field == "building.name" else f"instance:{field}"
                 text_field = field
@@ -84,7 +84,7 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
     # which already keys by ``building.id``.
     level_field = f"buildings.levels.{building.id}"
     prev_level_raw = await ctx.redis_client.hget(state_key, level_field)
-    prev_level = _decode_redis_raw(prev_level_raw)
+    prev_level = decode_redis_raw(prev_level_raw)
     mapping = {
         level_field: str(level),
         "building.name.parsed_id": building.id,
@@ -166,7 +166,7 @@ async def _exec_sync_furnace_level(ctx: DslExecContext) -> None:
         logger.warning("dsl exec sync_furnace_level: no redis client — skipping")
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec sync_furnace_level: empty player_id — skipping")
         return
@@ -178,7 +178,7 @@ async def _exec_sync_furnace_level(ctx: DslExecContext) -> None:
     for key, source_key in ((state_key, "player"), (inst_key, "instance")):
         for field in _FURNACE_LEVEL_FIELDS:
             raw = await ctx.redis_client.hget(key, field)
-            level_text = _decode_redis_raw(raw)
+            level_text = decode_redis_raw(raw)
             if level_text:
                 source = f"{source_key}:{field}"
                 break

@@ -13,11 +13,11 @@ import logging
 from typing import TYPE_CHECKING
 
 from games.wos.core.readers import collect_read_fields, persist_planner_owned
-from games.wos.core.readers.parse import _coerce_int
+from games.wos.core.readers.parse import coerce_int
 
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _resolve_player_id_for_device_level_exec,
+    resolve_player_id_for_device_level_exec,
 )
 
 if TYPE_CHECKING:
@@ -44,7 +44,7 @@ def parse_island_state(read_fields: Mapping[str, object]) -> dict[str, object]:
         if not key.startswith("island.read."):
             continue
         rest = key[len("island.read."):]
-        n = _coerce_int(val)
+        n = coerce_int(val)
         if n is None:
             continue
         if rest in _ISLAND_SCALARS:
@@ -65,7 +65,7 @@ async def _exec_sync_island_state(ctx: DslExecContext) -> None:
         logger.warning("dsl exec sync_island_state: no redis client — skipping")
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec sync_island_state: empty player_id — skipping")
         return

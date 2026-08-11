@@ -167,7 +167,7 @@ def _grid_roi_pixels(frame_h: int, frame_w: int) -> tuple[int, int, int, int]:
 
 
 @lru_cache(maxsize=128)
-def _load_hero_template_gray(hero_id: str, scale_px: int = _TEMPLATE_PX) -> np.ndarray:
+def load_hero_template_gray(hero_id: str, scale_px: int = _TEMPLATE_PX) -> np.ndarray:
     icons_dir = default_repo_root() / "db" / "assets" / "wiki" / "heroes" / hero_id
     if not icons_dir.is_dir():
         msg = f"no wiki icons for hero {hero_id!r} at {icons_dir}"
@@ -188,7 +188,7 @@ def _load_hero_template_gray(hero_id: str, scale_px: int = _TEMPLATE_PX) -> np.n
 
 
 @lru_cache(maxsize=1)
-def _all_hero_ids() -> tuple[str, ...]:
+def all_hero_ids() -> tuple[str, ...]:
     from config.heroes import hero_index_path
 
     idx_path = hero_index_path()
@@ -205,9 +205,9 @@ def _all_hero_ids() -> tuple[str, ...]:
 def _all_hero_templates(scale_px: int = _TEMPLATE_PX) -> tuple[tuple[str, np.ndarray], ...]:
     """Every hero's grayscale wiki portrait at ``scale_px`` (cached per scale)."""
     out: list[tuple[str, np.ndarray]] = []
-    for hid in _all_hero_ids():
+    for hid in all_hero_ids():
         try:
-            out.append((hid, _load_hero_template_gray(hid, scale_px)))
+            out.append((hid, load_hero_template_gray(hid, scale_px)))
         except (FileNotFoundError, RuntimeError):
             continue
     return tuple(out)
@@ -235,7 +235,7 @@ def match_hero_portrait(
         raise ValueError(msg)
     gray = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
     templates = (
-        tuple((h, _load_hero_template_gray(h, scale_px)) for h in hero_ids)
+        tuple((h, load_hero_template_gray(h, scale_px)) for h in hero_ids)
         if hero_ids is not None
         else _all_hero_templates(scale_px)
     )
@@ -442,7 +442,7 @@ def find_hero_in_frame(
     rx, ry, rw, rh = _grid_roi_pixels(fh, fw)
     if rw < scale_px or rh < scale_px:
         return None
-    template = _load_hero_template_gray(hero_id, scale_px)
+    template = load_hero_template_gray(hero_id, scale_px)
 
     best_score = -1.0
     best_cell: tuple[int, int] | None = None
@@ -495,7 +495,7 @@ def scan_grid_cells(
     ``row_y_offset`` shifts the row lattice (scroll-aware scanning); leave it 0
     for an un-scrolled frame.
     """
-    targets = hero_ids if hero_ids is not None else _all_hero_ids()
+    targets = hero_ids if hero_ids is not None else all_hero_ids()
     if frame_bgr.ndim != 3:
         msg = "frame_bgr must be HxWx3 BGR"
         raise ValueError(msg)
@@ -508,7 +508,7 @@ def scan_grid_cells(
     templates: list[tuple[str, np.ndarray]] = []
     for hid in targets:
         try:
-            templates.append((hid, _load_hero_template_gray(hid, scale_px)))
+            templates.append((hid, load_hero_template_gray(hid, scale_px)))
         except FileNotFoundError:
             continue
 
@@ -639,9 +639,9 @@ def calibrate_row_offset(
     if rw < scale_px or rh < scale_px:
         return 0
     templates: list[tuple[str, np.ndarray]] = []
-    for hid in _all_hero_ids():
+    for hid in all_hero_ids():
         try:
-            templates.append((hid, _load_hero_template_gray(hid, scale_px)))
+            templates.append((hid, load_hero_template_gray(hid, scale_px)))
         except FileNotFoundError:
             continue
     half = _GRID_ROW_PITCH // 2 if search_px is None else search_px

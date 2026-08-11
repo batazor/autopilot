@@ -30,14 +30,14 @@ from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import (
     _action_pause_seconds,
     _dsl_cond_allows_step,
-    _enqueue_scenario,
     _exec_result_failure_reason,
     _jittered_wait_seconds,
     _parse_wait_seconds,
     _read_active_player,
     _resolve_push_delay_seconds,
-    _resolve_push_expires_at,
     _trace_exec_result_kwargs,
+    enqueue_scenario,
+    resolve_push_expires_at,
 )
 
 if TYPE_CHECKING:
@@ -181,7 +181,7 @@ class DslScenarioStepActionsMixin(_Base):
                 player_id=self.player_id,
             )
             skip_dup = bool(spec.get("skip_if_duplicate", True))
-            expires_at, expires_skip = await _resolve_push_expires_at(
+            expires_at, expires_skip = await resolve_push_expires_at(
                 spec.get("expires"),
                 instance_id=instance_id,
                 redis_async=self.redis_client,
@@ -207,7 +207,7 @@ class DslScenarioStepActionsMixin(_Base):
             _trace_row(_resumable_step, step, "skipped", reason=expires_skip)
             return None
         if name:
-            await _enqueue_scenario(
+            await enqueue_scenario(
                 redis_async=self.redis_client,
                 instance_id=instance_id,
                 player_id=self.player_id,

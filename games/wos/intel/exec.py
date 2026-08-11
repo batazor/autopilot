@@ -58,6 +58,7 @@ from games.wos.intel.state import (
 )
 
 from tasks import dsl_runtime
+from tasks.dsl_exec.capture import capture_lossless
 
 if TYPE_CHECKING:
     from tasks.dsl_exec.context import DslExecContext
@@ -145,18 +146,10 @@ async def _exec_tap_intel_fight(ctx: DslExecContext) -> None:
     # markers (live bs3 2026-08-08: stream → not_found while a fresh PNG of the
     # same full board detects 9), so the run bails as a claim-only pass and
     # strands the device on the board. One screencap per pass is worth it.
-    try:
-        image = await asyncio.to_thread(actions.capture_screen_bgr_adb, ctx.instance_id)
-    except Exception:
-        logger.debug("tap_intel_fight: adb capture failed, falling back", exc_info=True)
-        try:
-            image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
-        except Exception:
-            logger.exception(
-                "dsl exec tap_intel_fight: capture failed instance=%s", ctx.instance_id
-            )
-            ctx.result.update({"action": "capture_failed"})
-            return
+    image = await capture_lossless(actions, ctx.instance_id, what="tap_intel_fight")
+    if image is None:
+        ctx.result.update({"action": "capture_failed"})
+        return
 
     markers = detect_intel_markers(
         image,
@@ -416,15 +409,7 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
         # Lossless adb screencap, NOT the scrcpy H.264 stream: compression
         # mangles the tiny «114» counter (stream reads «14»/«4», a PNG frame
         # reads «114» clean at 4× — same reason the power gate uses adb capture).
-        try:
-            image = await asyncio.to_thread(actions.capture_screen_bgr_adb, ctx.instance_id)
-        except Exception:
-            logger.debug("intel stamina: adb capture failed, falling back", exc_info=True)
-            try:
-                image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
-            except Exception:
-                logger.exception("intel stamina: capture failed instance=%s", ctx.instance_id)
-                image = None
+        image = await capture_lossless(actions, ctx.instance_id, what="intel stamina")
         if image is not None:
             captured_any = True
             h, w = image.shape[:2]

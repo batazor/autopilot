@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from games.wos.core.building.common.exec import _busy_build_queues
 
-from agentctl.core import _build_queue_summary
+from agentctl.core import build_queue_summary
 from config.building_name_parser import parse_building_name_level_instance
 from config.buildings import get_building_registry
 
@@ -32,7 +32,7 @@ def test_busy_build_queues_counts_only_future_finishes() -> None:
 
 
 def test_build_queue_summary_shape_and_order() -> None:
-    summary = _build_queue_summary(_state(), _NOW)
+    summary = build_queue_summary(_state(), _NOW)
     assert summary["total_queues"] == 2
     assert summary["busy_queues"] == 2
     assert summary["free_queues"] == 0
@@ -44,7 +44,7 @@ def test_build_queue_summary_shape_and_order() -> None:
 
 
 def test_build_queue_summary_empty_is_all_free() -> None:
-    summary = _build_queue_summary({}, _NOW)
+    summary = build_queue_summary({}, _NOW)
     assert summary == {
         "total_queues": 2,
         "busy_queues": 0,

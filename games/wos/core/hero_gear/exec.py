@@ -19,7 +19,7 @@ from games.wos.core.readers import (
 
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _resolve_player_id_for_device_level_exec,
+    resolve_player_id_for_device_level_exec,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ async def _exec_sync_hero_gear(ctx: DslExecContext) -> None:
         logger.warning("dsl exec sync_hero_gear: no redis client — skipping")
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec sync_hero_gear: empty player_id — skipping")
         return

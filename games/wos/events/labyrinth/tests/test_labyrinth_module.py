@@ -210,11 +210,11 @@ async def test_main_menu_routes_to_labyrinth_by_dynamic_panel_row() -> None:
 
 
 def test_main_menu_scanner_classifies_every_labyrinth_cave_title() -> None:
-    from games.wos.core.main_menu.exec import _section_for_row
+    from games.wos.core.main_menu.exec import section_for_row
 
     for cave_node, cave in CAVES.items():
         cave_slug = cave_node.rsplit(".", 1)[1]
-        assert _section_for_row(cave["title"], "", "") == ("labyrinth", cave_slug)
+        assert section_for_row(cave["title"], "", "") == ("labyrinth", cave_slug)
 
 
 def test_labyrinth_routes_to_cave_nodes() -> None:

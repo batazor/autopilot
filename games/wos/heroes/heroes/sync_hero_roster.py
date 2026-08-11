@@ -7,7 +7,7 @@ with its resource-allocator role from the static hero DB (``sub_class``), and
 writes the ``heroes.roster`` JSON the resource/march allocator reads to un-blind
 its ``heroes`` pool.
 
-Contract consumed by ``games.wos.core.resources.adapter._parse_hero_roster``:
+Contract consumed by ``games.wos.core.resources.adapter.parse_hero_roster``:
 ``heroes.roster`` = ``[{"id": "<id>", "role": "combat|gatherer", "free": true}, …]``.
 
 Written to the Redis player hash (``wos:player:<id>:state`` — where the scheduler

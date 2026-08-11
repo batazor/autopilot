@@ -172,4 +172,4 @@ def test_main_menu_scanner_recognizes_seasonal_titles(
 ) -> None:
     main_menu_exec = importlib.import_module("games.wos.core.main_menu.exec")
 
-    assert main_menu_exec._section_for_row(title, "", "") == expected
+    assert main_menu_exec.section_for_row(title, "", "") == expected

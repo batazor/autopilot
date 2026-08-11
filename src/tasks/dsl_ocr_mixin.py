@@ -27,9 +27,9 @@ from layout.types import Region
 from ocr.preprocess import parse_digit_count, resolve_preprocess
 from tasks.dsl_scenario_helpers import (
     _event_timer_name_from_spec,
-    _parse_hms_to_seconds,
     _read_active_player,
     _read_current_screen,
+    parse_hms_to_seconds,
 )
 
 logger = logging.getLogger(__name__)
@@ -632,7 +632,7 @@ class DslOcrMixin(_Base):
                 return
             value = str(parsed)
         elif type_hint == "time":
-            seconds = _parse_hms_to_seconds(text)
+            seconds = parse_hms_to_seconds(text)
             if seconds is None:
                 logger.warning(
                     "dsl_scenario: store skipped field=%s reason=time_cast_failed "
@@ -715,7 +715,7 @@ class DslOcrMixin(_Base):
         # dict keys (``event_timers["shop.artisans_trove"]``).
         event_timer_written = False
         if event_timer_name:
-            timer_seconds = _parse_hms_to_seconds(text)
+            timer_seconds = parse_hms_to_seconds(text)
             if timer_seconds is None:
                 logger.warning(
                     "dsl_scenario: event_timer skipped event=%s reason=time_parse_failed "

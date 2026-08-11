@@ -849,7 +849,7 @@ def current_detection(instance: str | None = None) -> dict[str, Any]:
     }
 
 
-def _build_queue_summary(flat: dict[str, str], now: float) -> dict[str, Any]:
+def build_queue_summary(flat: dict[str, str], now: float) -> dict[str, Any]:
     """Construction-queue occupancy from the per-building ETA tracker.
 
     ``record_build_eta`` stores ``buildings.upgrading.<id>`` = finishes_at epoch.
@@ -922,7 +922,7 @@ def instance_diagnosis(instance: str | None = None) -> dict[str, Any]:
     diag["blind_planners"] = blind
     import time as _time
 
-    diag["build_queue"] = _build_queue_summary(
+    diag["build_queue"] = build_queue_summary(
         _player_flat(client, fid) if fid else {}, _time.time()
     )
     return diag

@@ -508,7 +508,7 @@ async def test_scan_heroes_grid_skips_red_dot_push_when_already_queued(
 ) -> None:
     """A second scan with the same red-dot heroes must not duplicate the queue.
 
-    ``_enqueue_scenario`` is called with ``skip_if_duplicate=True``; if the
+    ``enqueue_scenario`` is called with ``skip_if_duplicate=True``; if the
     hero scenario is still pending from an earlier scan, the second push
     is a no-op (otherwise repeat scans would stack ``N`` copies of the
     same hero card visit per minute).

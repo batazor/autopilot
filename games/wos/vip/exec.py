@@ -15,8 +15,8 @@ import time
 from config.state_store import get_state_store
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _decode_redis_raw,
-    _resolve_player_id_for_device_level_exec,
+    decode_redis_raw,
+    resolve_player_id_for_device_level_exec,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ async def _exec_sync_vip_level(ctx: DslExecContext) -> None:
         logger.warning("dsl exec sync_vip_level: no redis client — skipping")
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec sync_vip_level: empty player_id — skipping")
         return
@@ -48,7 +48,7 @@ async def _exec_sync_vip_level(ctx: DslExecContext) -> None:
     for key, source_key in ((state_key, "player"), (inst_key, "instance")):
         for field in _VIP_LEVEL_FIELDS:
             raw = await ctx.redis_client.hget(key, field)
-            level_text = _decode_redis_raw(raw)
+            level_text = decode_redis_raw(raw)
             if level_text:
                 source = f"{source_key}:{field}"
                 break

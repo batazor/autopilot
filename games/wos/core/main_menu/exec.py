@@ -15,12 +15,13 @@ from config.state_store import get_state_store
 from dashboard.dashboard_events import publish_dashboard_event_throttled_async
 from layout.types import Point, Region
 from tasks import dsl_runtime
+from tasks.dsl_exec.capture import capture_lossless
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _decode_redis_raw,
-    _resolve_player_id_for_device_level_exec,
+    decode_redis_raw,
+    resolve_player_id_for_device_level_exec,
 )
-from tasks.dsl_scenario_helpers import _enqueue_scenario, _parse_hms_to_seconds
+from tasks.dsl_scenario_helpers import enqueue_scenario, parse_hms_to_seconds
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -35,7 +36,7 @@ _MARCH_SLOT_COUNT = 6
 
 async def _read_hash(redis_client: Any, key: str, field: str) -> str:
     raw = await redis_client.hget(key, field)
-    return _decode_redis_raw(raw)
+    return decode_redis_raw(raw)
 
 
 def _parse_remaining_seconds(raw_seconds: str, raw_text: str) -> int | None:
@@ -45,7 +46,7 @@ def _parse_remaining_seconds(raw_seconds: str, raw_text: str) -> int | None:
         seconds = -1
     if seconds >= 0:
         return seconds
-    parsed = _parse_hms_to_seconds(raw_text)
+    parsed = parse_hms_to_seconds(raw_text)
     return int(parsed) if parsed is not None else None
 
 
@@ -100,7 +101,7 @@ async def _resolve_sync_target(
         logger.warning("dsl exec %s: no redis client", label)
         ctx.result.update({"reason": "no_redis_client"})
         return None
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec %s: empty player_id", label)
         ctx.result.update({"reason": "empty_player_id"})
@@ -664,7 +665,7 @@ def _classify_status(text: str) -> tuple[str, int]:
     t = (text or "").strip().lower()
     if not t:
         return "empty", 0
-    secs = _parse_hms_to_seconds(t)
+    secs = parse_hms_to_seconds(t)
     if secs is not None:
         return "in_progress", int(secs)
     # Russian «Белая мгла» (wos_ru) status strings are checked alongside the EN
@@ -705,7 +706,7 @@ def _classify_status(text: str) -> tuple[str, int]:
     return "unknown", 0
 
 
-def _section_for_row(title: str, header_text: str, prev_section: str) -> tuple[str, str]:
+def section_for_row(title: str, header_text: str, prev_section: str) -> tuple[str, str]:
     """(section, row_slug) — title keywords first, then header fuzz, then carry."""
     t = (title or "").strip().lower()
     for needle, section, row_slug in _ROW_TITLE_MAP:
@@ -729,7 +730,7 @@ def _section_for_row(title: str, header_text: str, prev_section: str) -> tuple[s
     return section or "unknown", _slugify(title)
 
 
-async def _scan_panel_rows(
+async def scan_panel_rows(
     image_bgr: np.ndarray, *, ocr: OcrClient, with_status: bool = True
 ) -> list[dict[str, Any]]:
     """OCR every fully-visible task card on the current frame."""
@@ -753,7 +754,7 @@ async def _scan_panel_rows(
         title = _clean_ocr_line(title_res.text)
         if not title:
             continue
-        section, row_slug = _section_for_row(title, header_text, section)
+        section, row_slug = section_for_row(title, header_text, section)
 
         status_text, kind, remaining = "", "unknown", 0
         if with_status:
@@ -772,7 +773,7 @@ async def _scan_panel_rows(
                     preprocess="bar_timer",
                 )
                 bar_text = _clean_ocr_line(bar_res.text)
-                if _parse_hms_to_seconds(bar_text) is not None:
+                if parse_hms_to_seconds(bar_text) is not None:
                     status_text = bar_text
             kind, remaining = _classify_status(status_text)
             if kind in ("empty", "unknown"):
@@ -916,7 +917,7 @@ async def _exec_scan_main_menu_panel(ctx: DslExecContext) -> None:
     if ctx.redis_client is None:
         ctx.result.update({"reason": "no_redis_client"})
         return
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         ctx.result.update({"reason": "empty_player_id"})
         return
@@ -932,7 +933,7 @@ async def _exec_scan_main_menu_panel(ctx: DslExecContext) -> None:
         ctx.result.update({"reason": "capture_failed"})
         return
 
-    rows = await _scan_panel_rows(image, ocr=dsl_runtime.ocr_client())
+    rows = await scan_panel_rows(image, ocr=dsl_runtime.ocr_client())
     if not rows:
         ctx.result.update({"reason": "no_rows_recognized"})
         return
@@ -974,7 +975,7 @@ async def _exec_scan_main_menu_panel(ctx: DslExecContext) -> None:
         scenario = _resolve_dispatch_scenario(rule, str(r["row"]))
         if not scenario or not _scenario_enabled(scenario):
             continue
-        ok = await _enqueue_scenario(
+        ok = await enqueue_scenario(
             redis_async=ctx.redis_client,
             instance_id=ctx.instance_id,
             player_id=player_id,
@@ -1014,26 +1015,9 @@ _TAP_ACCEPT_MAX_SWEEPS = 8
 _TAP_PANEL_ROW_MAX_SWEEPS = 16
 
 
-async def _capture_panel_frame(actions: Any, instance_id: str) -> np.ndarray | None:
-    """Lossless adb screencap for the scroll-find sweep, scrcpy as fallback.
-
-    The City-panel rows carry small title/status text; the scrcpy H.264 stream
-    degrades it enough to drop short titles below the section/row match (the same
-    reason research_center's tech-tree reader prefers adb). adb screencap is
-    slower (~300 ms) but lossless and coexists with scrcpy, so the deep
-    scroll-find lands its target far more reliably. Falls back to the configured
-    backend if adb capture is unavailable.
-    """
-    try:
-        return await asyncio.to_thread(actions.capture_screen_bgr_adb, instance_id)
-    except Exception:
-        logger.debug("main_menu panel: adb capture failed, trying default backend",
-                     exc_info=True)
-    try:
-        return await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
-    except Exception:
-        logger.exception("main_menu panel: screen capture failed instance=%s", instance_id)
-        return None
+async def capture_panel_frame(actions: Any, instance_id: str) -> np.ndarray | None:
+    """Lossless frame for the City-panel sweep — see :func:`capture_lossless`."""
+    return await capture_lossless(actions, instance_id, what="main_menu panel")
 
 
 async def _scroll_find_and_tap(
@@ -1070,14 +1054,14 @@ async def _scroll_find_and_tap(
         await asyncio.sleep(0.5)
 
     for sweep in range(max_sweeps):
-        image = await _capture_panel_frame(actions, ctx.instance_id)
+        image = await capture_panel_frame(actions, ctx.instance_id)
         if image is None:
             logger.exception(
                 "dsl exec %s: capture failed instance=%s", log_label, ctx.instance_id
             )
             return {"reason": "capture_failed"}
         _h, w = image.shape[:2]
-        rows = await _scan_panel_rows(image, ocr=ocr, with_status=False)
+        rows = await scan_panel_rows(image, ocr=ocr, with_status=False)
         target = next((r for r in rows if match(r)), None)
         if target is not None:
             bx = int((_BUTTON_X0_PCT + _BUTTON_X1_PCT) / 2 / 100 * w)
@@ -1171,7 +1155,7 @@ async def _exec_find_idle_training_slot(ctx: DslExecContext) -> None:
     if ctx.redis_client is None:
         ctx.result.update({"reason": "no_redis_client"})
         return
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         ctx.result.update({"reason": "empty_player_id"})
         return

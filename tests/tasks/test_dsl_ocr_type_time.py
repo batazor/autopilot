@@ -26,7 +26,7 @@ from config.state_sqlite import set_state_db_path_for_tests
 from config.state_store import get_state_store
 from layout.types import Region as LayoutRegion
 from ocr.client import OCRResult
-from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
+from tasks.dsl_scenario_helpers import parse_hms_to_seconds
 
 
 @pytest.mark.parametrize(
@@ -51,7 +51,7 @@ from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
     ],
 )
 def test_parse_hms_valid(text: str, expected: int) -> None:
-    assert _parse_hms_to_seconds(text) == expected
+    assert parse_hms_to_seconds(text) == expected
 
 
 @pytest.mark.parametrize(
@@ -67,7 +67,7 @@ def test_parse_hms_valid(text: str, expected: int) -> None:
     ],
 )
 def test_parse_hms_invalid(text: object) -> None:
-    assert _parse_hms_to_seconds(text) is None  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+    assert parse_hms_to_seconds(text) is None  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
 
 def _scenario_root(tmp_path: Path) -> Path:

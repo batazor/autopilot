@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from config.paths import repo_root
-from navigation.hero_grid_search import _all_hero_ids, match_hero_portrait
+from navigation.hero_grid_search import all_hero_ids, match_hero_portrait
 
 _WIKI = repo_root() / "db" / "assets" / "wiki" / "heroes"
 
@@ -24,7 +24,7 @@ def _portrait_at(hero_id: str, px: int = 150) -> np.ndarray | None:
     return None if img is None else cv2.resize(img, (px, px), interpolation=cv2.INTER_AREA)
 
 
-_SAMPLE = [h for h in ("molly", "bahiti", "jeronimo", "natalia", "sergey", "gina") if h in _all_hero_ids()]
+_SAMPLE = [h for h in ("molly", "bahiti", "jeronimo", "natalia", "sergey", "gina") if h in all_hero_ids()]
 
 
 @pytest.mark.parametrize("hero_id", _SAMPLE)

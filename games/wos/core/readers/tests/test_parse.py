@@ -2,19 +2,19 @@
 from __future__ import annotations
 
 from games.wos.core.readers.parse import (
-    _coerce_int,
+    coerce_int,
     parse_owned_flat,
     parse_owned_nested,
 )
 
 
-def test_coerce_int_strips_ocr_noise() -> None:
-    assert _coerce_int("12") == 12
-    assert _coerce_int(" Lv.30 ") == 30      # strip surrounding glyphs
-    assert _coerce_int("0") == 0
-    assert _coerce_int("") is None
-    assert _coerce_int("??") is None
-    assert _coerce_int(None) is None
+def testcoerce_int_strips_ocr_noise() -> None:
+    assert coerce_int("12") == 12
+    assert coerce_int(" Lv.30 ") == 30      # strip surrounding glyphs
+    assert coerce_int("0") == 0
+    assert coerce_int("") is None
+    assert coerce_int("??") is None
+    assert coerce_int(None) is None
 
 
 def test_parse_owned_flat_collects_entities() -> None:

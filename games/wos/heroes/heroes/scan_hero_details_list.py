@@ -47,7 +47,7 @@ import cv2
 
 from config.state_store import get_state_store
 from layout.types import Point, Region
-from navigation.hero_grid_search import _load_hero_template_gray, match_hero_portrait
+from navigation.hero_grid_search import load_hero_template_gray, match_hero_portrait
 from tasks import dsl_runtime
 
 if TYPE_CHECKING:
@@ -125,7 +125,7 @@ def detect_hero_rows(
             # (the band starts at x0, but the portrait sits a margin in) so the field
             # offsets anchor on the real portrait, not the band edge.
             gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY)
-            tpl = _load_hero_template_gray(r[0], scale_px)
+            tpl = load_hero_template_gray(r[0], scale_px)
             _, _, _, loc = cv2.minMaxLoc(cv2.matchTemplate(gray, tpl, cv2.TM_CCOEFF_NORMED))
             hits.append(DetectedRow(hero_id=r[0], x=x0 + loc[0], y=y + loc[1], score=r[1]))
         y += _DETECT_Y_STEP

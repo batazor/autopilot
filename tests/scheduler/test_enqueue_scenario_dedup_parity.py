@@ -1,4 +1,4 @@
-"""``_enqueue_scenario`` must enqueue through ``RedisQueue.schedule`` so DSL
+"""``enqueue_scenario`` must enqueue through ``RedisQueue.schedule`` so DSL
 ``push_scenario`` and exec analyzers share the same atomic dedup semantics
 and ``created_at`` tie-breaker as every other enqueue path.
 
@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tasks.dsl_scenario_helpers import _enqueue_scenario
+from tasks.dsl_scenario_helpers import enqueue_scenario
 
 if TYPE_CHECKING:
     import redis.asyncio as aioredis
@@ -32,7 +32,7 @@ async def _queue_payloads(redis: aioredis.Redis, instance_id: str) -> list[dict]
 async def test_enqueue_scenario_writes_created_at(redis_async: aioredis.Redis) -> None:
     """``RedisQueue.schedule`` stamps ``created_at`` for stable tie-breaks;
     the old hand-rolled enqueue dropped it."""
-    ok = await _enqueue_scenario(
+    ok = await enqueue_scenario(
         redis_async=redis_async,
         instance_id="bs1",
         player_id="p1",
@@ -79,7 +79,7 @@ async def test_player_bound_push_treats_device_level_pending_as_duplicate(
         },
     )
 
-    ok = await _enqueue_scenario(
+    ok = await enqueue_scenario(
         redis_async=redis_async,
         instance_id="bs1",
         player_id="p1",
@@ -102,7 +102,7 @@ async def test_different_players_do_not_block_each_other(
     """Sanity: a queued push for player A must not block a push for player B
     when both are player-bound (the Lua check is ``device or data_pid=='' or
     data_pid==me``, so two non-empty distinct pids don't match)."""
-    await _enqueue_scenario(
+    await enqueue_scenario(
         redis_async=redis_async,
         instance_id="bs1",
         player_id="p1",
@@ -111,7 +111,7 @@ async def test_different_players_do_not_block_each_other(
         run_at=1_700_000_000.0,
         skip_if_duplicate=True,
     )
-    ok = await _enqueue_scenario(
+    ok = await enqueue_scenario(
         redis_async=redis_async,
         instance_id="bs1",
         player_id="p2",
@@ -133,7 +133,7 @@ async def test_skip_if_duplicate_false_still_enqueues_when_present(
 ) -> None:
     """When ``skip_if_duplicate=False`` we bypass the dedup gate entirely.
     Used for paths that explicitly want a stack of equivalent items."""
-    await _enqueue_scenario(
+    await enqueue_scenario(
         redis_async=redis_async,
         instance_id="bs1",
         player_id="p1",
@@ -142,7 +142,7 @@ async def test_skip_if_duplicate_false_still_enqueues_when_present(
         run_at=1_700_000_000.0,
         skip_if_duplicate=True,
     )
-    ok = await _enqueue_scenario(
+    ok = await enqueue_scenario(
         redis_async=redis_async,
         instance_id="bs1",
         player_id="p1",
@@ -164,7 +164,7 @@ async def test_enqueue_scenario_forwards_args_payload(
     """``args`` round-trips onto the queue item so the worker can hydrate
     ``DslScenarioTask.args``. This is the channel the daily-mission router uses
     to pass parsed values (resource / troop / target) to the target scenario."""
-    ok = await _enqueue_scenario(
+    ok = await enqueue_scenario(
         redis_async=redis_async,
         instance_id="bs1",
         player_id="p1",
@@ -192,7 +192,7 @@ async def test_enqueue_scenario_validates_required_fields(
         {"scenario": "x", "player_id": "", "instance_id": "bs1"},
         {"scenario": "x", "player_id": "p1", "instance_id": ""},
     ):
-        ok = await _enqueue_scenario(
+        ok = await enqueue_scenario(
             redis_async=redis_async,
             priority=50_000,
             run_at=1_700_000_000.0,

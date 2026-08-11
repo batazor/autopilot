@@ -8,7 +8,7 @@ from config.building_name_parser import (
     normalise_building_lookup_text as _normalise_lookup_text,
 )
 from config.state_store import get_state_store
-from tasks.dsl_exec.context import DslExecContext, _decode_redis_raw
+from tasks.dsl_exec.context import DslExecContext, decode_redis_raw
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ async def _exec_sync_hero_unit(ctx: DslExecContext) -> None:
 
     state_key = f"wos:player:{player_id}:state"
     raw_name = await ctx.redis_client.hget(state_key, "page.heroes.unit.name")
-    name = _decode_redis_raw(raw_name)
+    name = decode_redis_raw(raw_name)
     if not name:
         logger.warning(
             "dsl exec sync_hero_unit: missing page.heroes.unit.name in %s — "
@@ -51,7 +51,7 @@ async def _exec_sync_hero_unit(ctx: DslExecContext) -> None:
         return
 
     raw_level = await ctx.redis_client.hget(state_key, "page.heroes.unit.level")
-    level_text = _decode_redis_raw(raw_level)
+    level_text = decode_redis_raw(raw_level)
     try:
         level = int(level_text)
     except (TypeError, ValueError):

@@ -86,7 +86,7 @@ _DODGE_HORIZONS_S = (0.0, 0.25, 0.5, 0.75)
 # travel to the aim point. We aim where the hook and fish will MEET. The steer
 # speed is how fast a flick moves the hook (px/s) — used only to estimate that
 # extra travel time; it's tuned live, not physically exact.
-_HOOK_STEER_SPEED_PX_S = 1400.0
+HOOK_STEER_SPEED_PX_S = 1400.0
 # Collect bias: aim this fraction of the fish's width PAST the intercept toward
 # its heading, so the hook lands on the body/head, not the trailing tail.
 _COLLECT_LEAD_WIDTH_FRAC = 0.35

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 
-def _coerce_int(value: object) -> int | None:
+def coerce_int(value: object) -> int | None:
     """Best-effort non-negative int from an OCR string (drops noise/blanks)."""
     text = str(value if value is not None else "").strip()
     if not text:
@@ -41,7 +41,7 @@ def parse_owned_flat(read_fields: Mapping[str, object], *, domain: str) -> dict[
         entity = key[len(prefix):]
         if not entity or "." in entity:  # nested → wrong shape for this parser
             continue
-        n = _coerce_int(val)
+        n = coerce_int(val)
         if n is not None:
             out[entity] = n
     return out
@@ -65,7 +65,7 @@ def parse_owned_nested(
         if len(parts) != 2 or not parts[0] or not parts[1]:
             continue
         entity, stat = parts
-        n = _coerce_int(val)
+        n = coerce_int(val)
         if n is not None:
             out.setdefault(entity, {})[stat] = n
     if require is not None:

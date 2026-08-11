@@ -69,7 +69,7 @@ async def test_chains_when_slot_and_stamina_remain(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(
-        "tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue
+        "tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue
     )
     ctx = _ctx(redis)
 
@@ -106,7 +106,7 @@ async def test_skips_when_leases_fill_capacity(monkeypatch) -> None:
     async def _fake_enqueue(**kwargs: Any) -> bool:
         return True
 
-    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
+    monkeypatch.setattr("tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue)
     ctx = _ctx(redis)
 
     await chain.queue_next_intel_run(ctx)
@@ -145,7 +145,7 @@ async def test_capacity_fact_overrides_default(monkeypatch) -> None:
     async def _fake_enqueue(**kwargs: Any) -> bool:
         return True
 
-    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
+    monkeypatch.setattr("tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue)
     ctx = _ctx(redis)
 
     await chain.queue_next_intel_run(ctx)
@@ -168,7 +168,7 @@ async def test_unknown_stamina_still_chains(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(
-        "tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue
+        "tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue
     )
     ctx = _ctx(redis)
 
@@ -193,7 +193,7 @@ async def test_chain_ends_on_exhausted_board_snapshot(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(
-        "tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue
+        "tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue
     )
 
     ctx = _ctx(redis)
@@ -217,7 +217,7 @@ async def test_chain_still_runs_with_viable_board_snapshot(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(
-        "tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue
+        "tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue
     )
 
     await chain.queue_next_intel_run(_ctx(redis))
@@ -237,7 +237,7 @@ async def test_chain_after_tap_enqueues_when_board_and_stamina_allow(monkeypatch
         pushed.append(kwargs)
         return True
 
-    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
+    monkeypatch.setattr("tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue)
 
     ok = await chain.maybe_chain_after_tap(_ctx(redis), board_left=3, stamina=50.0, cost=10)
 
@@ -252,7 +252,7 @@ async def test_chain_after_tap_stops_on_empty_board(monkeypatch) -> None:
     redis = _FakeRedis()
     pushed: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "tasks.dsl_scenario_helpers._enqueue_scenario",
+        "tasks.dsl_scenario_helpers.enqueue_scenario",
         lambda **k: pushed.append(k) or True,
     )
 
@@ -267,7 +267,7 @@ async def test_chain_after_tap_stops_when_stamina_below_cost(monkeypatch) -> Non
     redis = _FakeRedis()
     pushed: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "tasks.dsl_scenario_helpers._enqueue_scenario",
+        "tasks.dsl_scenario_helpers.enqueue_scenario",
         lambda **k: pushed.append(k) or True,
     )
 
@@ -288,7 +288,7 @@ async def test_chain_after_tap_chains_when_stamina_unknown(monkeypatch) -> None:
         pushed.append(kwargs)
         return True
 
-    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
+    monkeypatch.setattr("tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue)
 
     ok = await chain.maybe_chain_after_tap(_ctx(redis), board_left=2, stamina=None, cost=10)
 
@@ -305,7 +305,7 @@ async def test_schedule_reward_claim_enqueues_delayed_pickup(monkeypatch) -> Non
         pushed.append(kwargs)
         return True
 
-    monkeypatch.setattr("tasks.dsl_scenario_helpers._enqueue_scenario", _fake_enqueue)
+    monkeypatch.setattr("tasks.dsl_scenario_helpers.enqueue_scenario", _fake_enqueue)
 
     now = time.time()
     ok = await chain.schedule_reward_claim(_ctx(redis), delay=40.0)

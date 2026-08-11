@@ -15,6 +15,7 @@ from typing import Any, Protocol
 import cv2  # type: ignore[import-untyped]
 import numpy as np
 
+from layout.bbox_percent import clip_region, region_from_percent
 from layout.types import Point, Region
 
 _RANK_FALLBACK = (4, 3, 2, 1, 0)
@@ -99,30 +100,13 @@ class _CardAnchor:
     bbox: Region
 
 
-def _clip_region(r: Region, w: int, h: int) -> Region:
-    x1 = max(0, min(int(r.x), w))
-    y1 = max(0, min(int(r.y), h))
-    x2 = max(x1, min(int(r.x + r.w), w))
-    y2 = max(y1, min(int(r.y + r.h), h))
-    return Region(x1, y1, x2 - x1, y2 - y1)
-
-
-def _region_from_pct(x: float, y: float, w: float, h: float, frame_w: int, frame_h: int) -> Region:
-    return Region(
-        int(round(x / 100.0 * frame_w)),
-        int(round(y / 100.0 * frame_h)),
-        int(round(w / 100.0 * frame_w)),
-        int(round(h / 100.0 * frame_h)),
-    )
-
-
 def _subregion(parent: Region, x: int, y: int, w: int, h: int) -> Region:
     return Region(parent.x + x, parent.y + y, w, h)
 
 
 def _crop(image: np.ndarray, r: Region) -> np.ndarray:
     h, w = image.shape[:2]
-    rr = _clip_region(r, w, h)
+    rr = clip_region(r, w, h)
     return image[rr.y : rr.y + rr.h, rr.x : rr.x + rr.w]
 
 
@@ -217,7 +201,7 @@ class AllianceMembersParser:
         specs: list[OcrRegionSpec] = [
             OcrRegionSpec(
                 "summary.online",
-                _region_from_pct(25.0, 14.1, 50.0, 4.1, w, h),
+                region_from_percent(25.0, 14.1, 50.0, 4.1, w, h),
                 "fast_line",
             )
         ]

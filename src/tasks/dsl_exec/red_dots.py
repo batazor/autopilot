@@ -15,7 +15,7 @@ from layout.types import Point
 from tasks import dsl_runtime
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _decode_redis_raw,
+    decode_redis_raw,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ async def _exec_click_next_red_dot_tab(ctx: DslExecContext) -> None:
             )
         except Exception:
             raw_screen = None
-        current_screen = _decode_redis_raw(raw_screen)
+        current_screen = decode_redis_raw(raw_screen)
         screen_prefix = current_screen.split(".", 1)[0].strip() if current_screen else ""
         if screen_prefix and screen_prefix != region_prefix:
             logger.info(

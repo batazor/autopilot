@@ -30,14 +30,14 @@ if TYPE_CHECKING:
     from tasks.dsl_exec import DslExecContext
 
 # ``tasks.dsl_exec`` would normally provide ``DslExecHandler`` and
-# ``_decode_redis_raw``, but importing it at module load creates a circular
+# ``decode_redis_raw``, but importing it at module load creates a circular
 # import: dsl_exec calls ``build_dsl_exec_registry()`` at the bottom of its
 # own module body, which in turn imports this file. Inline the tiny pieces
 # we actually need so the engine boot order stays one-way.
 DslExecHandler = Callable[[Any], Awaitable[None]]
 
 
-def _decode_redis_raw(raw: Any) -> str:
+def decode_redis_raw(raw: Any) -> str:
     if raw is None:
         return ""
     if isinstance(raw, bytes):
@@ -149,7 +149,7 @@ async def _release_lock(redis_client: object | None, key: str, token: str) -> No
         return
     try:
         raw = await redis_client.get(key)  # type: ignore[attr-defined]
-        if _decode_redis_raw(raw) == token:
+        if decode_redis_raw(raw) == token:
             await redis_client.delete(key)  # type: ignore[attr-defined]
     except Exception:
         logger.debug("gift-code redeem lock release failed (key=%s)", key, exc_info=True)

@@ -28,7 +28,7 @@ from config.paths import repo_root
 from layout.area_manifest import load_area_doc
 from layout.types import Point
 from tasks import dsl_runtime
-from tasks.dsl_exec.context import DslExecContext, _decode_redis_raw
+from tasks.dsl_exec.context import DslExecContext, decode_redis_raw
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ async def _current_screen(ctx: DslExecContext) -> str:
     except Exception:
         logger.debug("drain_use_all: current_screen read failed", exc_info=True)
         return ""
-    return _decode_redis_raw(raw)
+    return decode_redis_raw(raw)
 
 
 async def _match_and_tap(

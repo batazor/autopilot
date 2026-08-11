@@ -25,8 +25,8 @@ import yaml
 
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _decode_redis_raw,
-    _resolve_player_id_for_device_level_exec,
+    decode_redis_raw,
+    resolve_player_id_for_device_level_exec,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,13 +135,13 @@ async def _exec_route_daily_missions(ctx: DslExecContext) -> None:
         ctx.result.update({"reason": "no_redis_client"})
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec route_daily_missions: empty player_id")
         ctx.result.update({"reason": "empty_player_id"})
         return
 
-    buffer = _decode_redis_raw(
+    buffer = decode_redis_raw(
         await ctx.redis_client.hget(f"wos:player:{player_id}:state", _TASKS_FIELD)
     )
     if not buffer.strip():
@@ -152,9 +152,9 @@ async def _exec_route_daily_missions(ctx: DslExecContext) -> None:
 
     # Lazy import: tasks.dsl_scenario_helpers pulls in scheduler/queue, which we
     # don't want evaluated at module import (exec.py loads at registry build).
-    from tasks.dsl_scenario_helpers import _enqueue_scenario, _resolve_push_expires_at
+    from tasks.dsl_scenario_helpers import enqueue_scenario, resolve_push_expires_at
 
-    expires_at, expires_skip = await _resolve_push_expires_at(
+    expires_at, expires_skip = await resolve_push_expires_at(
         _REFRESH_EXPIRES,
         instance_id=ctx.instance_id,
         redis_async=ctx.redis_client,
@@ -176,7 +176,7 @@ async def _exec_route_daily_missions(ctx: DslExecContext) -> None:
     pushed: list[str] = []
     now = time.time()
     for push in pushes:
-        ok = await _enqueue_scenario(
+        ok = await enqueue_scenario(
             redis_async=ctx.redis_client,
             instance_id=ctx.instance_id,
             player_id=player_id,
@@ -405,13 +405,13 @@ async def _exec_route_chapter_objective(ctx: DslExecContext) -> None:
         ctx.result.update({"reason": "no_redis_client"})
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec route_chapter_objective: empty player_id")
         ctx.result.update({"reason": "empty_player_id"})
         return
 
-    text = _decode_redis_raw(
+    text = decode_redis_raw(
         await ctx.redis_client.hget(f"wos:player:{player_id}:state", _CHAPTER_TASK_FIELD)
     )
     inst_key = f"wos:instance:{ctx.instance_id}:state"
@@ -449,9 +449,9 @@ async def _exec_route_chapter_objective(ctx: DslExecContext) -> None:
     pushed = False
     if scenario:
         # Lazy import (scheduler/queue) — same reason as route_daily_missions.
-        from tasks.dsl_scenario_helpers import _enqueue_scenario
+        from tasks.dsl_scenario_helpers import enqueue_scenario
 
-        pushed = await _enqueue_scenario(
+        pushed = await enqueue_scenario(
             redis_async=ctx.redis_client,
             instance_id=ctx.instance_id,
             player_id=player_id,

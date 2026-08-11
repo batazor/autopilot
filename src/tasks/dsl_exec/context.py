@@ -48,7 +48,7 @@ class DslExecContext:
         self.result.update({"ok": False, "reason": reason, **extra})
 
 
-def _decode_redis_raw(raw: Any) -> str:
+def decode_redis_raw(raw: Any) -> str:
     if raw is None:
         return ""
     if isinstance(raw, bytes):
@@ -59,7 +59,7 @@ def _decode_redis_raw(raw: Any) -> str:
     return str(raw).strip()
 
 
-async def _resolve_player_id_for_device_level_exec(ctx: DslExecContext) -> str:
+async def resolve_player_id_for_device_level_exec(ctx: DslExecContext) -> str:
     """Resolve a player binding for execs called from ``device_level: true``
     scenarios.
 
@@ -85,4 +85,5 @@ async def _resolve_player_id_for_device_level_exec(ctx: DslExecContext) -> str:
     except Exception:
         logger.debug("dsl exec: active_player lookup failed", exc_info=True)
         return ""
-    return _decode_redis_raw(raw)
+    return decode_redis_raw(raw)
+

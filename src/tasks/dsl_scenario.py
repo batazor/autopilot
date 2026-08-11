@@ -27,7 +27,6 @@ from tasks.dsl_scenario_helpers import (
     _decode_redis_value,
     _dsl_cond_allows_step,
     _dsl_step_summary,
-    _enqueue_scenario,
     _eval_instance_text_cond,
     _eval_simple_screen_cond,
     _load_area_json,
@@ -42,6 +41,7 @@ from tasks.dsl_scenario_helpers import (
     _step_red_dot_requirement,
     _step_tab_active_requirement,
     _strip_quotes,
+    enqueue_scenario,
 )
 from tasks.dsl_scenario_inline_mixin import DslScenarioInlineMixin
 from tasks.dsl_scenario_preempt_mixin import (

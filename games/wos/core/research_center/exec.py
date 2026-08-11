@@ -32,10 +32,13 @@ from typing import TYPE_CHECKING, Any
 
 import cv2
 
+from layout.bbox_percent import region_from_percent
 from layout.types import Point, Region
 
 if TYPE_CHECKING:
     from games.wos.core.research.planner import ResearchGraph, ResearchNode
+
+from tasks.dsl_exec.capture import capture_lossless
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +103,7 @@ _PILL_UPSCALE = 5
 
 
 # --- instance-state hash helpers (bytes- or str-keyed, like building's) ------
-def _read_research_levels(state: dict) -> dict[str, int]:
+def read_research_levels(state: dict) -> dict[str, int]:
     """Pull ``research.levels.<node_id>`` ints out of an instance-state hash."""
     prefix = "research.levels."
     levels: dict[str, int] = {}
@@ -116,7 +119,7 @@ def _read_research_levels(state: dict) -> dict[str, int]:
     return levels
 
 
-def _state_get_int(state: dict, field: str, default: int = 0) -> int:
+def state_get_int(state: dict, field: str, default: int = 0) -> int:
     """One ``field`` out of a bytes- or str-keyed instance-state hash, as int."""
     for raw_k, raw_v in (state or {}).items():
         k = raw_k.decode() if isinstance(raw_k, bytes) else str(raw_k)
@@ -130,7 +133,7 @@ def _state_get_int(state: dict, field: str, default: int = 0) -> int:
     return default
 
 
-def _state_get_str(state: dict, field: str, default: str = "") -> str:
+def state_get_str(state: dict, field: str, default: str = "") -> str:
     """One ``field`` out of a bytes- or str-keyed instance-state hash, as str."""
     for raw_k, raw_v in (state or {}).items():
         k = raw_k.decode() if isinstance(raw_k, bytes) else str(raw_k)
@@ -182,7 +185,7 @@ def _match_tile_to_node(name: str, graph: Any, *, threshold: float = _TILE_MATCH
     return best_id if best_score >= threshold else None
 
 
-def _research_levels_from_ocr_rows(rows: Any, graph: Any) -> dict[str, int]:
+def research_levels_from_ocr_rows(rows: Any, graph: Any) -> dict[str, int]:
     """Map ``[(tile_name, level), ...]`` OCR rows to ``{node_id: level}``.
 
     Pure: drops rows whose name doesn't resolve to a node or whose level isn't an
@@ -204,7 +207,7 @@ def _research_levels_from_ocr_rows(rows: Any, graph: Any) -> dict[str, int]:
     return out
 
 
-def _infer_maxed_predecessors(levels: dict[str, int], graph: Any) -> dict[str, int]:
+def infer_maxed_predecessors(levels: dict[str, int], graph: Any) -> dict[str, int]:
     """Fill maxed lower tiers implied by any tile the reader saw.
 
     In-game a tech tile is only *visible* once its same-line previous tier is
@@ -243,8 +246,8 @@ def branch_to_tab(branch: str) -> str:
 
 # --- device-IO helpers (percent-bbox → pixels, OCR, taps) --------------------
 def _px_region(bbox_pct: tuple[float, float, float, float], w: int, h: int) -> Region:
-    x, y, bw, bh = bbox_pct
-    return Region(int(x / 100 * w), int(y / 100 * h), int(bw / 100 * w), int(bh / 100 * h))
+    """Tech-tree cell rect. Was truncating; see :func:`region_from_percent`."""
+    return region_from_percent(*bbox_pct, w, h)
 
 
 async def _tap_pct(
@@ -272,7 +275,7 @@ async def _tap_pct(
     )
 
 
-async def _ocr_text(oc: Any, frame: Any, bbox_pct: tuple[float, float, float, float],
+async def ocr_text(oc: Any, frame: Any, bbox_pct: tuple[float, float, float, float],
                     w: int, h: int, *, preprocess: str, region_id: str) -> str:
     res = await oc.ocr_region(frame, _px_region(bbox_pct, w, h),
                               region_id=region_id, preprocess=preprocess)
@@ -280,7 +283,7 @@ async def _ocr_text(oc: Any, frame: Any, bbox_pct: tuple[float, float, float, fl
 
 
 async def _title_is_tree(oc: Any, frame: Any, w: int, h: int) -> bool:
-    txt = await _ocr_text(oc, frame, _TITLE_BBOX, w, h,
+    txt = await ocr_text(oc, frame, _TITLE_BBOX, w, h,
                           preprocess="title_line", region_id="rc_title")
     return "research" in txt.lower()
 
@@ -319,7 +322,7 @@ def _pill_level_from_text(txt: str, max_level: int) -> int | None:
     garble — both would tell the planner a tech is more researched than it is (the bug
     behind a "2/3" tile stored as done). The word "MAX" (or a partial letter read) maps
     to ``max_level``. An illegible pill returns ``None`` — we do NOT assume MAX (that
-    mis-stored partially-researched frontier tiles as done); _infer_maxed_predecessors
+    mis-stored partially-researched frontier tiles as done); infer_maxed_predecessors
     backfills a genuinely maxed tile from any read successor, and the sweep retries it.
     """
     nums = re.findall(r"\d+", txt)
@@ -392,7 +395,7 @@ async def _read_visible_tiles(oc: Any, frame: Any, w: int, h: int, graph: Resear
     for col_x in _COL_X_PCT:
         cx_px = int(col_x / 100 * w)
         for name_y in _NAME_ROW_Y_PCT:
-            name = await _ocr_text(
+            name = await ocr_text(
                 oc, frame,
                 (col_x - _NAME_W_PCT / 2, name_y - _NAME_H_PCT / 2, _NAME_W_PCT, _NAME_H_PCT),
                 w, h, preprocess="title_line", region_id="rc_tile_name",
@@ -452,29 +455,7 @@ async def _switch_tab(actions: Any, iid: str, tab: str, w: int, h: int) -> None:
     await asyncio.sleep(1.3)
 
 
-async def _capture(actions: Any, iid: str) -> Any:
-    """Capture a frame for OCR via direct ``adb screencap``.
-
-    The tech-tree tile names + level pills are small text; the device's scrcpy
-    backend H.264-degrades small text enough to drop short names below the fuzzy
-    match threshold (calibration was done on pristine adb frames). adb screencap
-    is slower (~300 ms) but lossless, and works alongside scrcpy — worth it for an
-    OCR-heavy 6-hourly reader. Falls back to the configured backend if adb capture
-    isn't available.
-    """
-    try:
-        return await asyncio.to_thread(actions.capture_screen_bgr_adb, iid)
-    except Exception:
-        logger.debug("research_center: adb capture failed, trying default backend",
-                     exc_info=True)
-    try:
-        return await asyncio.to_thread(actions.capture_screen_bgr, iid)
-    except Exception:
-        logger.exception("research_center: screen capture failed instance=%s", iid)
-        return None
-
-
-async def _ensure_on_tree(actions: Any, oc: Any, iid: str, frame: Any) -> tuple[Any, int]:
+async def ensure_on_tree(actions: Any, oc: Any, iid: str, frame: Any) -> tuple[Any, int]:
     """From the building-popup ring or the tree, end up on the tree.
 
     Returns ``(tree_frame_or_None, rc_level)``. When we start on the ring we read
@@ -489,7 +470,7 @@ async def _ensure_on_tree(actions: Any, oc: Any, iid: str, frame: Any) -> tuple[
         actions, iid, *_OPEN_BTN_XY, w, h, approval_source="research_center:open_tree"
     )
     await asyncio.sleep(2.5)
-    frame = await _capture(actions, iid)
+    frame = await capture_lossless(actions, iid, what="research_center")
     if frame is None:
         return None, rc_level
     h, w = frame.shape[:2]
@@ -498,7 +479,7 @@ async def _ensure_on_tree(actions: Any, oc: Any, iid: str, frame: Any) -> tuple[
     return frame, rc_level
 
 
-async def _sweep_research_tiles(ctx: Any, graph: ResearchGraph) -> tuple[list[tuple[str, int]], int]:
+async def sweep_research_tiles(ctx: Any, graph: ResearchGraph) -> tuple[list[tuple[str, int]], int]:
     """OCR the tech-tree tabs → ``([(tile_name, level), ...], rc_level)``.
 
     Assumes we start on the Research Center building-popup ring (the
@@ -518,10 +499,10 @@ async def _sweep_research_tiles(ctx: Any, graph: ResearchGraph) -> tuple[list[tu
         return [], 0
     iid = ctx.instance_id
 
-    frame = await _capture(actions, iid)
+    frame = await capture_lossless(actions, iid, what="research_center")
     if frame is None:
         return [], 0
-    frame, rc_level = await _ensure_on_tree(actions, oc, iid, frame)
+    frame, rc_level = await ensure_on_tree(actions, oc, iid, frame)
     if frame is None:
         return [], rc_level
 
@@ -535,7 +516,7 @@ async def _sweep_research_tiles(ctx: Any, graph: ResearchGraph) -> tuple[list[tu
         before = len(rows)
         dry = 0
         for _step in range(_MAX_SCROLL_STEPS):
-            frame = await _capture(actions, iid)
+            frame = await capture_lossless(actions, iid, what="research_center")
             if frame is None:
                 break
             h, w = frame.shape[:2]
@@ -574,7 +555,7 @@ async def _exec_sync_research_levels(ctx: Any) -> None:
     """
     from games.wos.core.research.planner import load_research_graph
 
-    from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
+    from tasks.dsl_exec.context import resolve_player_id_for_device_level_exec
 
     r = ctx.redis_client
     if r is None:
@@ -582,12 +563,12 @@ async def _exec_sync_research_levels(ctx: Any) -> None:
         return
 
     graph = load_research_graph()
-    rows, rc_level = await _sweep_research_tiles(ctx, graph)
+    rows, rc_level = await sweep_research_tiles(ctx, graph)
     if not rows and rc_level <= 0:
         ctx.result.update({"reason": "no_tiles_read"})
         return
 
-    levels = _infer_maxed_predecessors(_research_levels_from_ocr_rows(rows, graph), graph)
+    levels = infer_maxed_predecessors(research_levels_from_ocr_rows(rows, graph), graph)
     mapping: dict[str, str] = {f"research.levels.{nid}": str(lvl) for nid, lvl in levels.items()}
     if rc_level > 0:
         mapping["research.center.level"] = str(rc_level)
@@ -595,7 +576,7 @@ async def _exec_sync_research_levels(ctx: Any) -> None:
         ctx.result.update({"reason": "no_tiles_recognized"})
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     # Durable per-account home: the SQLite GamerState. Tech levels live under
     # ``researches.levels.<id>`` (a dict on the model); the Research Center building
     # level goes with the other building levels.
@@ -630,7 +611,7 @@ async def _exec_sync_research_levels(ctx: Any) -> None:
 
 async def _read_tile_name(oc: Any, frame: Any, w: int, h: int, col_x: float, name_y: float) -> str:
     """OCR a single tile-name cell (white-outlined title text)."""
-    return await _ocr_text(
+    return await ocr_text(
         oc, frame,
         (col_x - _NAME_W_PCT / 2, name_y - _NAME_H_PCT / 2, _NAME_W_PCT, _NAME_H_PCT),
         w, h, preprocess="title_line", region_id="rc_tile_name",
@@ -657,7 +638,7 @@ async def _refine_name_y(oc: Any, frame: Any, w: int, h: int, col_x: float,
     return sum(matched_ys) / len(matched_ys) if matched_ys else coarse_y
 
 
-async def _locate_and_tap_tile(actions: Any, oc: Any, iid: str, graph: ResearchGraph,
+async def locate_and_tap_tile(actions: Any, oc: Any, iid: str, graph: ResearchGraph,
                                target_id: str, tap_log: dict | None = None,
                                diag: list | None = None) -> bool:
     """Scroll the current tab top→down looking for ``target_id``'s tile; tap it.
@@ -673,7 +654,7 @@ async def _locate_and_tap_tile(actions: Any, oc: Any, iid: str, graph: ResearchG
     tgt_name = (tgt_spec.name if tgt_spec else target_id).lower()
     dry = 0
     for _step in range(_LOCATE_SCROLL_STEPS):
-        frame = await _capture(actions, iid)
+        frame = await capture_lossless(actions, iid, what="research_center")
         if frame is None:
             return False
         h, w = frame.shape[:2]
@@ -737,9 +718,9 @@ async def _exec_start_planned_research(ctx: Any) -> None:
         state = await r.hgetall(inst_key)
     except Exception:
         state = {}
-    target_id = _state_get_str(state, "planner.next_research")
-    target_name = _state_get_str(state, "planner.next_research_name")
-    branch = _state_get_str(state, "planner.next_research_branch")
+    target_id = state_get_str(state, "planner.next_research")
+    target_name = state_get_str(state, "planner.next_research_name")
+    branch = state_get_str(state, "planner.next_research_branch")
     if not target_id:
         ctx.result.update({"reason": "no_plan"})
         return
@@ -749,11 +730,11 @@ async def _exec_start_planned_research(ctx: Any) -> None:
     oc = dsl_runtime.ocr_client()
     iid = ctx.instance_id
 
-    frame = await _capture(actions, iid)
+    frame = await capture_lossless(actions, iid, what="research_center")
     if frame is None:
         ctx.result.update({"reason": "capture_failed"})
         return
-    frame, _rc = await _ensure_on_tree(actions, oc, iid, frame)
+    frame, _rc = await ensure_on_tree(actions, oc, iid, frame)
     if frame is None:
         ctx.result.update({"reason": "tree_not_opened"})
         return
@@ -770,7 +751,7 @@ async def _exec_start_planned_research(ctx: Any) -> None:
 
     tap_log: dict = {}
     locate_diag: list | None = [] if ctx.args.get("debug") else None
-    found = await _locate_and_tap_tile(actions, oc, iid, graph, target_id, tap_log, locate_diag)
+    found = await locate_and_tap_tile(actions, oc, iid, graph, target_id, tap_log, locate_diag)
     if locate_diag is not None:
         ctx.result["locate_diag"] = locate_diag
     if not found:
@@ -782,11 +763,11 @@ async def _exec_start_planned_research(ctx: Any) -> None:
     # tapping — a maxed tile shows "Tech level maxed!" and a locked one shows "Go"
     # requirement buttons, neither of which we want to blind-tap. The popup title
     # OCRs unreliably (decorated header), so the button label is the signal.
-    frame = await _capture(actions, iid)
+    frame = await capture_lossless(actions, iid, what="research_center")
     btn = ""
     if frame is not None:
         dh, dw = frame.shape[:2]
-        btn = await _ocr_text(oc, frame, _RESEARCH_BTN_BBOX, dw, dh,
+        btn = await ocr_text(oc, frame, _RESEARCH_BTN_BBOX, dw, dh,
                               preprocess="word_line", region_id="rc_research_btn")
     ctx.result["btn_ocr"] = btn
 
@@ -840,8 +821,8 @@ async def _exec_plan_next_research(ctx: Any) -> None:
         state = await r.hgetall(inst_key)
     except Exception:
         state = {}
-    levels = _read_research_levels(state)
-    rc_level = _state_get_int(state, "research.center.level", 0)
+    levels = read_research_levels(state)
+    rc_level = state_get_int(state, "research.center.level", 0)
 
     # Self-heal blindness: the instance hash is only a hot mirror, so when it has
     # no research history yet, re-check the durable SQLite profile (the canonical
@@ -852,10 +833,10 @@ async def _exec_plan_next_research(ctx: Any) -> None:
         import time
 
         from config.state_store import get_state_store
-        from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
-        from tasks.dsl_scenario_helpers import _enqueue_scenario
+        from tasks.dsl_exec.context import resolve_player_id_for_device_level_exec
+        from tasks.dsl_scenario_helpers import enqueue_scenario
 
-        player_id = await _resolve_player_id_for_device_level_exec(ctx)
+        player_id = await resolve_player_id_for_device_level_exec(ctx)
         if player_id:
             try:
                 snap = get_state_store().get_or_create(str(player_id)).snapshot()
@@ -867,7 +848,7 @@ async def _exec_plan_next_research(ctx: Any) -> None:
             except Exception:
                 logger.debug("plan_next_research: durable SQLite read failed", exc_info=True)
         if not levels:
-            pushed = await _enqueue_scenario(
+            pushed = await enqueue_scenario(
                 redis_async=r,
                 instance_id=ctx.instance_id,
                 player_id=player_id or "",

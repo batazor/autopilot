@@ -66,8 +66,8 @@ def _levels_from_plate_texts(texts: Any) -> dict[str, int]:
 
 async def _exec_record_building_level(ctx: Any) -> None:
     from tasks.dsl_exec.context import (
-        _decode_redis_raw,
-        _resolve_player_id_for_device_level_exec,
+        decode_redis_raw,
+        resolve_player_id_for_device_level_exec,
     )
 
     r = ctx.redis_client
@@ -75,14 +75,14 @@ async def _exec_record_building_level(ctx: Any) -> None:
         ctx.result.update({"reason": "no_redis_client"})
         return
     inst_key = f"wos:instance:{ctx.instance_id}:state"
-    parsed = _parse_level(_decode_redis_raw(await r.hget(inst_key, "dsl_last_ocr_value")))
+    parsed = _parse_level(decode_redis_raw(await r.hget(inst_key, "dsl_last_ocr_value")))
     if parsed is None:
         ctx.result.update({"reason": "no_level"})
         return
     slug, level = parsed
     field = f"buildings.levels.{slug}"
 
-    player = (await _resolve_player_id_for_device_level_exec(ctx)) or ctx.instance_id
+    player = (await resolve_player_id_for_device_level_exec(ctx)) or ctx.instance_id
     # Durable profile — levels are monotonic, so never downgrade on a mis-read.
     try:
         from config.state_store import get_state_store
@@ -279,8 +279,8 @@ async def _exec_navigate_to_building(ctx: Any) -> None:
     from modules.radar.config import account_runs_root
     from modules.radar.navigator import Navigator, latest_city_run
     from tasks.dsl_exec.context import (
-        _decode_redis_raw,
-        _resolve_player_id_for_device_level_exec,
+        decode_redis_raw,
+        resolve_player_id_for_device_level_exec,
     )
 
     r = ctx.redis_client
@@ -292,14 +292,14 @@ async def _exec_navigate_to_building(ctx: Any) -> None:
         # given-but-empty key returns no_building rather than silently falling
         # back to the furnace-first planner.next_building.
         key = str(ctx.args.get("building_key") or "").strip() or "planner.next_building"
-        building = _decode_redis_raw(await r.hget(inst_key, key))
+        building = decode_redis_raw(await r.hget(inst_key, key))
     if not building:
         ctx.result.update({"reason": "no_building"})
         return
 
     # The city map is per-account: route against THIS account's scan, never a
     # different Chief's city (which would tap the wrong tiles / report not_in_map).
-    account = (await _resolve_player_id_for_device_level_exec(ctx)) or ""
+    account = (await resolve_player_id_for_device_level_exec(ctx)) or ""
     run = latest_city_run(account_runs_root(account))
     if run is None:
         ctx.result.update({"reason": "no_city_map", "account": account})
@@ -333,12 +333,12 @@ async def _exec_navigate_to_building(ctx: Any) -> None:
 
                 from popup.detector import PopupDetector
                 from tasks import dsl_runtime
-                from tasks.dsl_exec.dismiss_popup import _popup_tap_target
+                from tasks.dsl_exec.dismiss_popup import popup_tap_target
 
                 det = PopupDetector(dsl_runtime.ocr_client())
                 for _ in range(3):
                     state = asyncio.run(det.detect(device.capture()))
-                    tgt = _popup_tap_target(state)
+                    tgt = popup_tap_target(state)
                     if tgt is None:
                         break
                     (px, py), _region = tgt
@@ -404,14 +404,14 @@ async def _exec_sweep_building_levels(ctx: Any) -> None:
     from modules.radar.config import account_runs_root
     from modules.radar.navigator import Navigator, latest_city_run, open_tap_point
     from tasks import dsl_runtime
-    from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
+    from tasks.dsl_exec.context import resolve_player_id_for_device_level_exec
 
     r = ctx.redis_client
     if r is None:
         ctx.result.update({"reason": "no_redis_client"})
         return
     # Read levels off THIS account's scanned city (see navigate_to_building).
-    account = (await _resolve_player_id_for_device_level_exec(ctx)) or ""
+    account = (await resolve_player_id_for_device_level_exec(ctx)) or ""
     run = latest_city_run(account_runs_root(account))
     if run is None:
         ctx.result.update({"reason": "no_city_map", "account": account})
@@ -523,8 +523,8 @@ async def _exec_record_build_eta(ctx: Any) -> None:
     import time as _time
 
     from tasks.dsl_exec.context import (
-        _decode_redis_raw,
-        _resolve_player_id_for_device_level_exec,
+        decode_redis_raw,
+        resolve_player_id_for_device_level_exec,
     )
 
     r = ctx.redis_client
@@ -532,12 +532,12 @@ async def _exec_record_build_eta(ctx: Any) -> None:
         ctx.result.update({"reason": "no_redis_client"})
         return
     inst_key = f"wos:instance:{ctx.instance_id}:state"
-    building_id = _decode_redis_raw(await r.hget(inst_key, "building.name.parsed_id")).strip()
+    building_id = decode_redis_raw(await r.hget(inst_key, "building.name.parsed_id")).strip()
     if not building_id:
         ctx.result.update({"reason": "no_building"})
         return
     try:
-        seconds = int(float(_decode_redis_raw(await r.hget(inst_key, "dsl_last_ocr_value"))))
+        seconds = int(float(decode_redis_raw(await r.hget(inst_key, "dsl_last_ocr_value"))))
     except (TypeError, ValueError):
         seconds = 0
 
@@ -550,7 +550,7 @@ async def _exec_record_build_eta(ctx: Any) -> None:
         finishes_at = 0  # no timer on the panel → idle / just finished
         action = "idle"
 
-    player = (await _resolve_player_id_for_device_level_exec(ctx)) or ctx.instance_id
+    player = (await resolve_player_id_for_device_level_exec(ctx)) or ctx.instance_id
     try:
         from config.state_store import get_state_store
 

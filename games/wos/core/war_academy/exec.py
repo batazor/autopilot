@@ -44,18 +44,19 @@ from typing import TYPE_CHECKING, Any
 # device mechanics are identical; only the building we navigate to, the branch→tab
 # mapping and the node scope differ.
 from games.wos.core.research_center.exec import (
-    _ensure_on_tree,
-    _infer_maxed_predecessors,
-    _locate_and_tap_tile,
-    _ocr_text,
-    _read_research_levels,
-    _research_levels_from_ocr_rows,
-    _state_get_int,
-    _state_get_str,
-    _sweep_research_tiles,
+    ensure_on_tree,
+    infer_maxed_predecessors,
+    locate_and_tap_tile,
+    ocr_text,
+    read_research_levels,
+    research_levels_from_ocr_rows,
+    state_get_int,
+    state_get_str,
+    sweep_research_tiles,
 )
 
 from layout.types import Point
+from tasks.dsl_exec.capture import capture_lossless
 
 if TYPE_CHECKING:
     from games.wos.core.research.planner import ResearchGraph
@@ -127,17 +128,17 @@ async def _exec_plan_next_war_academy(ctx: Any) -> None:
         state = await r.hgetall(inst_key)
     except Exception:
         state = {}
-    levels = _read_research_levels(state)
-    wa_fc = _state_get_int(state, "war_academy.fc", 0)
+    levels = read_research_levels(state)
+    wa_fc = state_get_int(state, "war_academy.fc", 0)
 
     # Self-heal: the instance hash is only a hot mirror, cold after a Redis flush.
     # Fall back to the durable SQLite profile (shared ``researches.levels`` + the WA
     # FC tier) before deciding coverage is empty — mirrors plan_next_research.
     if not levels or wa_fc <= 0:
         from config.state_store import get_state_store
-        from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
+        from tasks.dsl_exec.context import resolve_player_id_for_device_level_exec
 
-        player_id = await _resolve_player_id_for_device_level_exec(ctx)
+        player_id = await resolve_player_id_for_device_level_exec(ctx)
         if player_id:
             try:
                 snap = get_state_store().get_or_create(str(player_id)).snapshot()
@@ -182,12 +183,12 @@ async def _exec_sync_war_academy_levels(ctx: Any) -> None:
 
     Reuses research_center's tab sweep (same overlay engine) but scoped to the WA
     subgraph, so only ``t11_*`` / ``t12_*`` tiles bind. Writes the player + instance
-    hashes (research levels are per-account). NOTE: ``_sweep_research_tiles`` is
+    hashes (research levels are per-account). NOTE: ``sweep_research_tiles`` is
     tuned for the RC tree's Growth/Economy/Battle tabs — the WA tab layout is
     UNVERIFIED, so this runs only behind the disabled scenario until calibrated."""
     from games.wos.core.research.planner import load_research_graph
 
-    from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
+    from tasks.dsl_exec.context import resolve_player_id_for_device_level_exec
 
     r = ctx.redis_client
     if r is None:
@@ -195,12 +196,12 @@ async def _exec_sync_war_academy_levels(ctx: Any) -> None:
         return
 
     wa_graph = war_academy_subgraph(load_research_graph())
-    rows, wa_fc = await _sweep_research_tiles(ctx, wa_graph)
+    rows, wa_fc = await sweep_research_tiles(ctx, wa_graph)
     if not rows and wa_fc <= 0:
         ctx.result.update({"reason": "no_tiles_read"})
         return
 
-    levels = _infer_maxed_predecessors(_research_levels_from_ocr_rows(rows, wa_graph), wa_graph)
+    levels = infer_maxed_predecessors(research_levels_from_ocr_rows(rows, wa_graph), wa_graph)
     mapping: dict[str, str] = {f"research.levels.{nid}": str(lvl) for nid, lvl in levels.items()}
     if wa_fc > 0:
         mapping["war_academy.fc"] = str(wa_fc)
@@ -208,7 +209,7 @@ async def _exec_sync_war_academy_levels(ctx: Any) -> None:
         ctx.result.update({"reason": "no_tiles_recognized"})
         return
 
-    player_id = await _resolve_player_id_for_device_level_exec(ctx)
+    player_id = await resolve_player_id_for_device_level_exec(ctx)
     # Durable per-account home: the SQLite GamerState. WA tech levels are shared with
     # the RC tree (same node ids → ``researches.levels.<id>``); the FC tier gates
     # T11/T12 (``researches.war_academy_fc``). The Redis *instance* hash is the hot
@@ -250,7 +251,7 @@ async def _exec_start_planned_war_academy(ctx: Any) -> None:
     Reads ``planner.next_war_academy`` (set by ``plan_next_war_academy``), opens the
     War Academy tech tree and locates + taps the planned tile, then taps the in-tree
     **Research** button (never the gem-spending *Finish*). Reuses research_center's
-    ``_locate_and_tap_tile`` (engine-generic). The WA tab switch geometry is
+    ``locate_and_tap_tile`` (engine-generic). The WA tab switch geometry is
     UNVERIFIED, so this runs only behind the disabled scenario."""
     from games.wos.core.research.planner import load_research_graph
 
@@ -265,9 +266,9 @@ async def _exec_start_planned_war_academy(ctx: Any) -> None:
         state = await r.hgetall(inst_key)
     except Exception:
         state = {}
-    target_id = _state_get_str(state, "planner.next_war_academy")
-    target_name = _state_get_str(state, "planner.next_war_academy_name")
-    branch = _state_get_str(state, "planner.next_war_academy_branch")
+    target_id = state_get_str(state, "planner.next_war_academy")
+    target_name = state_get_str(state, "planner.next_war_academy_name")
+    branch = state_get_str(state, "planner.next_war_academy_branch")
     if not target_id:
         ctx.result.update({"reason": "no_plan"})
         return
@@ -277,13 +278,11 @@ async def _exec_start_planned_war_academy(ctx: Any) -> None:
     oc = dsl_runtime.ocr_client()
     iid = ctx.instance_id
 
-    from games.wos.core.research_center.exec import _capture
-
-    frame = await _capture(actions, iid)
+    frame = await capture_lossless(actions, iid, what="war_academy")
     if frame is None:
         ctx.result.update({"reason": "capture_failed"})
         return
-    frame, _fc = await _ensure_on_tree(actions, oc, iid, frame)
+    frame, _fc = await ensure_on_tree(actions, oc, iid, frame)
     if frame is None:
         ctx.result.update({"reason": "tree_not_opened"})
         return
@@ -296,17 +295,17 @@ async def _exec_start_planned_war_academy(ctx: Any) -> None:
     tier = war_academy_tier(branch)
     ctx.result.update({"wa_tab": tab, "wa_tier": tier})
 
-    found = await _locate_and_tap_tile(actions, oc, iid, wa_graph, target_id)
+    found = await locate_and_tap_tile(actions, oc, iid, wa_graph, target_id)
     if not found:
         ctx.result.update({"reason": "tile_not_found", "next": target_id,
                            "tab": tab, "tier": tier})
         return
 
-    frame = await _capture(actions, iid)
+    frame = await capture_lossless(actions, iid, what="war_academy")
     btn = ""
     if frame is not None:
         dh, dw = frame.shape[:2]
-        btn = await _ocr_text(oc, frame, _RESEARCH_BTN_BBOX, dw, dh,
+        btn = await ocr_text(oc, frame, _RESEARCH_BTN_BBOX, dw, dh,
                               preprocess="word_line", region_id="wa_research_btn")
     if "research" not in btn.lower():
         try:

@@ -20,7 +20,7 @@ from config.state_sqlite import (
 from config.state_store import get_state_store
 from layout.types import Point
 from tasks import dsl_runtime
-from tasks.dsl_exec.context import DslExecContext, _decode_redis_raw
+from tasks.dsl_exec.context import DslExecContext, decode_redis_raw
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def _parse_members(raw: object) -> tuple[int, int]:
 
 async def _read_hash(redis_client: Any, key: str, field: str) -> str:
     raw = await redis_client.hget(key, field)
-    return _decode_redis_raw(raw)
+    return decode_redis_raw(raw)
 
 
 async def _exec_sync_alliance_stats(ctx: DslExecContext) -> None:

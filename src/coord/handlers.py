@@ -45,7 +45,7 @@ async def _noop(ctx: HandlerContext, directive: Directive) -> str:
     return "noop"
 
 
-async def _enqueue_scenario(ctx: HandlerContext, directive: Directive) -> str:
+async def enqueue_scenario(ctx: HandlerContext, directive: Directive) -> str:
     if ctx.queue is None:
         return "no_queue"
     scenario = str(directive.payload.get("scenario") or "").strip()
@@ -119,7 +119,7 @@ async def _barrier_signal(ctx: HandlerContext, directive: Directive) -> str:
 REGISTRY: dict[str, Any] = {
     "ping": _ping,
     "noop": _noop,
-    "enqueue_scenario": _enqueue_scenario,
+    "enqueue_scenario": enqueue_scenario,
     "request_account_switch": _request_account_switch,
     "barrier_signal": _barrier_signal,
 }

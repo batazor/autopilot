@@ -1,11 +1,11 @@
 """Unit tests for the hero-roster projection (``build_roster``) + the producer →
-consumer contract with the resource allocator's ``_parse_hero_roster``."""
+consumer contract with the resource allocator's ``parse_hero_roster``."""
 
 from __future__ import annotations
 
 import json
 
-from games.wos.core.resources.adapter import _parse_hero_roster
+from games.wos.core.resources.adapter import parse_hero_roster
 from games.wos.heroes.heroes.sync_hero_roster import build_roster
 
 ROLE_OF = {"natalia": "combat", "flint": "combat", "cloris": "gatherer"}
@@ -37,12 +37,12 @@ def test_build_roster_empty_when_nothing_owned():
 
 
 def test_roundtrip_into_resource_allocator_parse():
-    # The exact contract: build_roster → JSON → _parse_hero_roster → {role: [ids]}.
+    # The exact contract: build_roster → JSON → parse_hero_roster → {role: [ids]}.
     entries = {
         "natalia": {"available": True},
         "flint": {"available": True},
         "cloris": {"available": True},
     }
     payload = json.dumps(build_roster(entries, ROLE_OF))
-    by_role = _parse_hero_roster({"heroes.roster": payload})
+    by_role = parse_hero_roster({"heroes.roster": payload})
     assert by_role == {"combat": ["flint", "natalia"], "gatherer": ["cloris"]}

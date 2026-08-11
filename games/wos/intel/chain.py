@@ -103,9 +103,9 @@ async def maybe_chain_after_tap(
     # Best-effort: a failed chain enqueue must never fail the tap that already
     # dispatched the pin — the coordinator's short cooldown is the fallback.
     try:
-        from tasks.dsl_scenario_helpers import _enqueue_scenario
+        from tasks.dsl_scenario_helpers import enqueue_scenario
 
-        return await _enqueue_scenario(
+        return await enqueue_scenario(
             redis_async=ctx.redis_client,
             instance_id=ctx.instance_id,
             player_id=ctx.player_id,
@@ -137,9 +137,9 @@ async def schedule_reward_claim(ctx: DslExecContext, *, delay: float = _CLAIM_DE
     if ctx.redis_client is None or not ctx.player_id:
         return False
     try:
-        from tasks.dsl_scenario_helpers import _enqueue_scenario
+        from tasks.dsl_scenario_helpers import enqueue_scenario
 
-        return await _enqueue_scenario(
+        return await enqueue_scenario(
             redis_async=ctx.redis_client,
             instance_id=ctx.instance_id,
             player_id=ctx.player_id,
@@ -203,10 +203,10 @@ async def queue_next_intel_run(ctx: DslExecContext) -> None:
         ctx.result.update({"action": "skipped", "reason": "board_exhausted", **detail})
         return
 
-    from tasks.dsl_scenario_helpers import _enqueue_scenario
+    from tasks.dsl_scenario_helpers import enqueue_scenario
 
     delay = as_float_arg(ctx.args, "delay", _DEFAULT_DELAY_S)
-    ok = await _enqueue_scenario(
+    ok = await enqueue_scenario(
         redis_async=ctx.redis_client,
         instance_id=ctx.instance_id,
         player_id=ctx.player_id,

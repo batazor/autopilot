@@ -119,7 +119,7 @@ async def _exec_redeem_in_game_gift_codes(ctx: Any) -> None:
     from century.gift_codes.models import RedeemStatus
     from config.giftcodes_db import get_redemption, list_codes, set_redemption
     from tasks import dsl_runtime
-    from tasks.dsl_exec.context import _resolve_player_id_for_device_level_exec
+    from tasks.dsl_exec.context import resolve_player_id_for_device_level_exec
 
     iid = ctx.instance_id
 
@@ -131,7 +131,7 @@ async def _exec_redeem_in_game_gift_codes(ctx: Any) -> None:
         return
 
     # No gamer id during onboarding → key redemptions by the device id.
-    player = (await _resolve_player_id_for_device_level_exec(ctx)) or iid
+    player = (await resolve_player_id_for_device_level_exec(ctx)) or iid
 
     _done = {RedeemStatus.SUCCESS, RedeemStatus.ALREADY_RECEIVED}
     pending: list[str] = []

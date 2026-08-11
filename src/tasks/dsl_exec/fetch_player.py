@@ -13,7 +13,7 @@ from config.state_store import get_state_store
 from dashboard.notifications import push_ui_notification
 from tasks.dsl_exec.context import (
     DslExecContext,
-    _decode_redis_raw,
+    decode_redis_raw,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ async def _running_build_is_beta(ctx: DslExecContext) -> bool | None:
         )
     except Exception:
         return None
-    flag = _decode_redis_raw(raw)
+    flag = decode_redis_raw(raw)
     if flag == "1":
         return True
     if flag == "0":
@@ -74,7 +74,7 @@ async def _clear_active_player_if_matches(
     instance_key = f"wos:instance:{ctx.instance_id}:state"
     try:
         raw_active = await ctx.redis_client.hget(instance_key, "active_player")
-        active = _decode_redis_raw(raw_active)
+        active = decode_redis_raw(raw_active)
         with contextlib.suppress(Exception):
             clear_last_active_player(ctx.instance_id, player_id)
         if active != player_id:
@@ -113,7 +113,7 @@ async def _recent_fetch_failure(
         return False
     try:
         raw_ts = await ctx.redis_client.hget(state_key, "century_player_sync_failed_at")
-        ts_s = _decode_redis_raw(raw_ts)
+        ts_s = decode_redis_raw(raw_ts)
         ts = float(ts_s) if ts_s else 0.0
     except Exception:
         ts = 0.0
@@ -123,10 +123,10 @@ async def _recent_fetch_failure(
     if age >= _FETCH_PLAYER_FAILURE_TTL_SECONDS:
         return False
     try:
-        err_code = _decode_redis_raw(
+        err_code = decode_redis_raw(
             await ctx.redis_client.hget(state_key, "century_player_sync_err_code")
         )
-        error = _decode_redis_raw(
+        error = decode_redis_raw(
             await ctx.redis_client.hget(state_key, "century_player_sync_error")
         )
     except Exception:
@@ -205,7 +205,7 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
 
     state_key = f"wos:player:{ctx.player_id}:state"
     raw_fid = await ctx.redis_client.hget(state_key, "player_id")
-    fid_s = _decode_redis_raw(raw_fid)
+    fid_s = decode_redis_raw(raw_fid)
     if not fid_s:
         logger.warning(
             "dsl exec fetch_player: missing player_id field on %s — run ocr first",
@@ -222,7 +222,7 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
     # but we avoid excessive calls from repeated runs / cron).
     try:
         raw_ts = await ctx.redis_client.hget(state_key, "century_player_sync_at")
-        ts_s = _decode_redis_raw(raw_ts)
+        ts_s = decode_redis_raw(raw_ts)
         ts = float(ts_s) if ts_s else 0.0
     except Exception:
         ts = 0.0

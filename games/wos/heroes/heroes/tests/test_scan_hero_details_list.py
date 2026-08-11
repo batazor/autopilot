@@ -20,10 +20,10 @@ from games.wos.heroes.heroes.scan_hero_details_list import (
 )
 
 from config.paths import repo_root
-from navigation.hero_grid_search import _all_hero_ids
+from navigation.hero_grid_search import all_hero_ids
 
 _WIKI = repo_root() / "db" / "assets" / "wiki" / "heroes"
-_ROWS = [h for h in ("edith", "wu_ming", "wayne", "molly") if h in _all_hero_ids()]
+_ROWS = [h for h in ("edith", "wu_ming", "wayne", "molly") if h in all_hero_ids()]
 _YS = [100, 360, 620, 880]
 
 
