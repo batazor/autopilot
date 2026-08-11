@@ -35,6 +35,14 @@ DEFAULT_BACKOFF_FACTOR = 0.3      # priority multiplier while stuck
 DEFAULT_BREAKER_THRESHOLD = 3     # same-reason failures in a row → hold entirely
 DEFAULT_BREAKER_COOLDOWN_S = 3600.0  # how long a tripped breaker holds the action
 
+# Reasons that are ENVIRONMENTAL/transient, not a broken action — they must never
+# trip the 1-hour circuit-breaker. ``navigation_failed`` fires when the device is
+# momentarily on a screen the navigator can't route from (e.g. the zoomed-out
+# kingdom map that mis-detects as main_world): one such frame would otherwise hold
+# intel for an hour (bs7 2026-08-11). They still count as a stall (mild backoff),
+# just never accumulate toward the breaker.
+_TRANSIENT_REASONS: frozenset[str] = frozenset({"navigation_failed"})
+
 
 @dataclass(frozen=True, slots=True)
 class Outcome:
@@ -94,6 +102,10 @@ def record(state: FeedbackState, outcome: Outcome) -> FeedbackState:
         # on a *diagnosed* repeat failure, not on N anonymous ones.
         same = bool(reason) and reason == prev.last_reason
         reason_streak = prev.same_reason_streak + 1 if same else (1 if reason else 0)
+        # Transient/environmental reasons never build a breaker streak — they'd
+        # otherwise hold a fine action for an hour on a momentary bad screen.
+        if reason in _TRANSIENT_REASONS:
+            reason_streak = 0
     updated = ActionStat(
         key=outcome.key,
         domain=outcome.domain,

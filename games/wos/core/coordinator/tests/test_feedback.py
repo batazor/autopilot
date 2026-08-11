@@ -121,6 +121,23 @@ def test_breaker_never_trips_without_now():
     assert tuning(s).held == ()                   # pure/offline callers: backoff only
 
 
+def test_transient_navigation_failed_never_trips_breaker():
+    # A momentary bad screen (kingdom map mis-detected as main_world) fails
+    # navigation repeatedly, but that must NOT hold intel for an hour.
+    s = record_many(
+        FeedbackState(),
+        _same_reason_stalls("intel:run", "intel", 5, reason="navigation_failed"),
+    )
+    assert tuning(s, now=6.0).held == ()          # never circuit-broken
+    assert s.stats["intel:run"].same_reason_streak == 0
+    # A genuinely-broken action (non-transient reason) still trips at threshold.
+    s2 = record_many(
+        FeedbackState(),
+        _same_reason_stalls("intel:run", "intel", 3, reason="deploy_failed"),
+    )
+    assert "intel:run" in tuning(s2, now=4.0).held
+
+
 def test_progress_resets_reason_streak():
     s = record_many(
         FeedbackState(), _same_reason_stalls("intel:run", "intel", 3, reason="nav_error")
