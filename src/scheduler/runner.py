@@ -588,6 +588,7 @@ class SchedulerRunner:
         assert self._redis is not None
         from games.wos.core.readers.persist import overlay_durable_planner_owned
         from games.wos.core.resources.adapter import overlay_durable_troops
+        from games.wos.core.stamina.adapter import overlay_durable_stamina
 
         states: dict[str, dict[str, object]] = {}
         for inst in self._settings.instances:
@@ -614,6 +615,11 @@ class SchedulerRunner:
                 # botctl diagnostics backfilled these, so after a Redis flush the
                 # autonomous tick planned blind until the next daily reader cron.
                 overlay_durable_planner_owned(player_id, state)
+                # Re-hydrate stamina from SQLite so the MARCH coordinator can
+                # dispatch intel BETWEEN waves. On RU the hot ``stamina`` field is
+                # only written on the intel board; off-board it goes absent and
+                # the coordinator (estimate_from_state → intel_intent) goes blind.
+                overlay_durable_stamina(player_id, state)
                 # Mirror the durable per-account role (planner.role, set via the farm
                 # UI) into the hot state so the value-greedy planners actually bias by
                 # it — the Redis player hash doesn't carry it. No-op when present.

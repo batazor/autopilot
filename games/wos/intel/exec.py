@@ -490,6 +490,35 @@ async def _exec_read_intel_stamina(ctx: DslExecContext) -> None:
             )
         except Exception:
             logger.exception("intel stamina: hset failed player=%s", ctx.player_id)
+    # Mirror to the durable SQLite store so the MARCH coordinator still SEES a
+    # stamina value between intel waves. The Redis hash only carries `stamina`
+    # while/after an intel_run touched the board; on the RU build nothing writes
+    # it off-board (the avatar bar reader is blind), so it goes ABSENT once the
+    # bot leaves the board → estimate_from_state returns None → intel_intent
+    # gates out → the coordinator stops dispatching intel and the bot idles
+    # ("зависает на разведке", bs7 2026-08-11). overlay_durable_stamina re-hydrates
+    # it each scheduler tick from here.
+    if ctx.player_id:
+        try:
+            from config.state_store import get_state_store
+
+            # Persist under the declared ``intel`` container: a bare top-level
+            # ``stamina`` key isn't a GamerState field, so ``_set_nested`` would
+            # drop it even with ``extra: allow`` (same reason intel.power_gate is
+            # stored here — state_schema.py:396-401).
+            durable: dict[str, object] = {
+                "intel.stamina": current,
+                "intel.stamina_at": float(mapping["stamina_at"]),
+            }
+            if maximum is not None:
+                durable["intel.stamina_max"] = maximum
+            get_state_store().get_or_create(str(ctx.player_id)).update_from_flat(durable)
+        except Exception:
+            logger.debug(
+                "intel stamina: durable persist failed player=%s",
+                ctx.player_id,
+                exc_info=True,
+            )
     ctx.result.update(
         {
             "action": "measured",

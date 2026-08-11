@@ -108,6 +108,43 @@ def estimate_from_state(state: dict[str, Any], now: float) -> float | None:
     )
 
 
+def overlay_durable_stamina(player_id: str, state: dict[str, Any]) -> None:
+    """Self-heal ``stamina``/``stamina_at`` from the durable SQLite profile.
+
+    The MARCH coordinator gates intel on ``estimate_from_state``, which returns
+    ``None`` when the hot Redis hash has no ``stamina`` field. On the RU build
+    that field is only ever written on the intel board (``read_intel_stamina``);
+    off-board nothing refreshes it (the avatar-bar reader is blind), so once the
+    bot leaves the board ``stamina`` goes ABSENT and the coordinator stops
+    dispatching intel — the bot idles ("зависает на разведке", bs7 2026-08-11).
+    ``read_intel_stamina`` also persists the value to SQLite; fill it back here so
+    every scheduler tick sees a stamina to regen-extrapolate. Fill-only — a live
+    Redis reading always wins, so this can never staleness-overwrite (the estimate
+    interpolates regen from ``stamina_at`` regardless of how old the read is).
+    """
+    if state.get("stamina") not in (None, ""):
+        return  # warm mirror — the on-board read is fresher; leave it
+    try:
+        from config.state_store import get_state_store
+
+        store = get_state_store().get(str(player_id))
+        if store is None:
+            return
+        # read_intel_stamina persists under the declared ``intel`` container.
+        stamina = store.get("intel.stamina")
+        if stamina in (None, ""):
+            return
+        state["stamina"] = str(stamina)
+        for src, dst in (("intel.stamina_at", "stamina_at"), ("intel.stamina_max", "stamina_max")):
+            val = store.get(src)
+            if state.get(dst) in (None, "") and val not in (None, ""):
+                state[dst] = str(val)
+    except Exception:
+        logger.debug(
+            "overlay_durable_stamina: durable read failed player=%s", player_id, exc_info=True
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class PlanResult:
     """Outcome of one planning pass for a player."""
