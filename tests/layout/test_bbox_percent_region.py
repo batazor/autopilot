@@ -9,6 +9,7 @@ on a level pill.
 from __future__ import annotations
 
 import pytest
+
 from layout.bbox_percent import clip_region, region_from_percent
 from layout.types import Region
 

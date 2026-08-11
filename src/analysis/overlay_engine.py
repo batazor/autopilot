@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import cv2
@@ -53,6 +54,7 @@ from ocr.fuzzy import match as fuzzy_match
 from ocr.preprocess import resolve_preprocess
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     import numpy as np
@@ -93,6 +95,29 @@ from analysis.overlay_template_match import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class RuleEvalContext:
+    """Everything an action evaluator may need from the tick, in one object.
+
+    The evaluators used to take these as keyword-only parameters, each declaring
+    its own subset — five wanted ``cur_screen_norm``, three wanted ``repo_root``,
+    one wanted ``frame_gray``. That made the dispatch loop responsible for
+    knowing which handler wanted what, which is why it was a 130-line if-chain
+    of near-identical call blocks and why adding an action meant editing it.
+
+    ``set_node_s`` and ``priority`` are deliberately NOT here: they are per-rule,
+    not per-tick, and every evaluator already receives ``compiled``, which
+    carries them.
+    """
+
+    image_bgr: np.ndarray
+    frame_gray: np.ndarray
+    area_doc: dict[str, Any]
+    repo_root: Path
+    state_flat: dict[str, Any] | None
+    cur_screen_norm: str
+
+
 def _apply_rule_overrides(
     hit: dict[str, Any],
     *,
@@ -115,15 +140,15 @@ def _apply_rule_overrides(
 def _eval_red_dot_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    state_flat: dict[str, Any] | None,
-    cur_screen_norm: str,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a ``red_dot`` / ``red_dot_absent`` rule into its hit dict."""
+    image_bgr = ctx.image_bgr
+    area_doc = ctx.area_doc
+    state_flat = ctx.state_flat
+    cur_screen_norm = ctx.cur_screen_norm
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     want_present = compiled.action == "red_dot"
     region_name = str(rule.get("region") or "").strip()
     pair = (
@@ -166,15 +191,15 @@ def _eval_red_dot_rule(
 def _eval_tab_active_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    state_flat: dict[str, Any] | None,
-    cur_screen_norm: str,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a ``tab_active`` / ``tab_active_absent`` rule into its hit dict."""
+    image_bgr = ctx.image_bgr
+    area_doc = ctx.area_doc
+    state_flat = ctx.state_flat
+    cur_screen_norm = ctx.cur_screen_norm
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     want_active = compiled.action == "tab_active"
     region_name = str(rule.get("region") or "").strip()
     pair = (
@@ -265,18 +290,18 @@ def _eval_tab_active_rule(
 def _eval_find_icon_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    frame_gray: np.ndarray,
-    area_doc: dict[str, Any],
-    repo_root: Path,
-    state_flat: dict[str, Any] | None,
-    cur_screen_norm: str,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a ``findIcon`` rule into its hit dict (direct template, full-frame
     cache, search-ROI, and primary-bbox 1:1 paths)."""
+    image_bgr = ctx.image_bgr
+    frame_gray = ctx.frame_gray
+    area_doc = ctx.area_doc
+    repo_root = ctx.repo_root
+    state_flat = ctx.state_flat
+    cur_screen_norm = ctx.cur_screen_norm
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     region_name = str(rule.get("region") or "").strip()
     threshold = compiled.threshold
     pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
@@ -678,16 +703,16 @@ def _eval_find_icon_rule(
 def _eval_detect_tabs_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    repo_root: Path,
-    state_flat: dict[str, Any] | None,
-    cur_screen_norm: str,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a ``detectTabs`` rule (tab strip segmentation + identification)."""
+    image_bgr = ctx.image_bgr
+    area_doc = ctx.area_doc
+    repo_root = ctx.repo_root
+    state_flat = ctx.state_flat
+    cur_screen_norm = ctx.cur_screen_norm
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     region_name_dt = str(rule.get("region") or "").strip()
     pair_dt = screen_region_by_name(area_doc, region_name_dt, state_flat=state_flat) if region_name_dt else None
     if pair_dt is None:
@@ -887,15 +912,15 @@ def _eval_detect_tabs_rule(
 def _eval_white_border_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    state_flat: dict[str, Any] | None,
-    cur_screen_norm: str,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a ``white_border`` / ``white_border_absent`` rule."""
+    image_bgr = ctx.image_bgr
+    area_doc = ctx.area_doc
+    state_flat = ctx.state_flat
+    cur_screen_norm = ctx.cur_screen_norm
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     want_border = compiled.action == "white_border"
     region_name_wb = str(rule.get("region") or "").strip()
     pair_wb = screen_region_by_name(area_doc, region_name_wb, state_flat=state_flat) if region_name_wb else None
@@ -1006,15 +1031,15 @@ def _eval_white_border_rule(
 def _eval_color_check_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    repo_root: Path,
-    state_flat: dict[str, Any] | None,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a ``color_check`` rule (dominant-color share in a region)."""
+    image_bgr = ctx.image_bgr
+    area_doc = ctx.area_doc
+    repo_root = ctx.repo_root
+    state_flat = ctx.state_flat
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     region_name = str(rule.get("region") or "").strip()
     pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat) if region_name else None
     if pair is None:
@@ -1105,14 +1130,14 @@ def _eval_color_check_rule(
 def _eval_green_button_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    state_flat: dict[str, Any] | None,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a dynamic green-CTA mask rule."""
+    image_bgr = ctx.image_bgr
+    area_doc = ctx.area_doc
+    state_flat = ctx.state_flat
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     region_name = compiled.region_name
     pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
     if pair is None:
@@ -1244,14 +1269,14 @@ def _eval_green_button_rule(
 def _eval_blue_button_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    state_flat: dict[str, Any] | None,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a local dynamic blue-CTA mask rule."""
+    image_bgr = ctx.image_bgr
+    area_doc = ctx.area_doc
+    state_flat = ctx.state_flat
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     region_name = compiled.region_name
     pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
     if pair is None:
@@ -1417,37 +1442,20 @@ def _eval_blue_button_rule(
 def _eval_cta_button_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    state_flat: dict[str, Any] | None,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
-    """Evaluate a color-parametrized CTA mask rule."""
+    """Evaluate a color-parametrized CTA mask rule.
+
+    Pure delegation: it picks a detector by colour and hands ``ctx`` straight
+    through, so it reads nothing off the context itself.
+    """
     color = str(rule.get("color") or rule.get("cta_color") or "").strip().lower()
     if color in {"green", "claim"}:
         detector_action = "green_button"
-        out = _eval_green_button_rule(
-            {**rule, "action": detector_action},
-            compiled,
-            image_bgr=image_bgr,
-            area_doc=area_doc,
-            state_flat=state_flat,
-            set_node_s=set_node_s,
-            priority=priority,
-        )
+        out = _eval_green_button_rule({**rule, "action": detector_action}, compiled, ctx)
     elif color in {"blue", "build", "upgrade", "next"}:
         detector_action = "blue_button"
-        out = _eval_blue_button_rule(
-            {**rule, "action": detector_action},
-            compiled,
-            image_bgr=image_bgr,
-            area_doc=area_doc,
-            state_flat=state_flat,
-            set_node_s=set_node_s,
-            priority=priority,
-        )
+        out = _eval_blue_button_rule({**rule, "action": detector_action}, compiled, ctx)
     else:
         return {
             "matched": False,
@@ -1467,14 +1475,14 @@ def _eval_cta_button_rule(
 def _eval_reward_ribbon_rule(
     rule: dict[str, Any],
     compiled: Any,
-    *,
-    image_bgr: np.ndarray,
-    area_doc: dict[str, Any],
-    state_flat: dict[str, Any] | None,
-    set_node_s: str | None,
-    priority: int | None,
+    ctx: RuleEvalContext,
 ) -> dict[str, Any]:
     """Evaluate a ``reward_ribbon`` rule."""
+    image_bgr = ctx.image_bgr
+    area_doc = ctx.area_doc
+    state_flat = ctx.state_flat
+    set_node_s = compiled.set_node_s
+    priority = compiled.priority
     region_name = str(rule.get("region") or "").strip()
     pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat) if region_name else None
     if pair is None:
@@ -1566,6 +1574,31 @@ def _eval_reward_ribbon_rule(
     )
 
 
+# action → evaluator. One entry per supported ``action:``; the dispatch loop
+# does a dict lookup and reports ``unsupported_action`` for a miss, so a new
+# action is a line here rather than a branch in the loop.
+#
+# ``text`` is absent on purpose: it does not evaluate in place. Its rules are
+# collected into ``pending_text_rules`` and resolved by ONE batched
+# ``ocr_regions`` call per tick — that batching is what replaced 130+
+# sequential HTTP calls on ``screen_verify.yaml``.
+_RULE_EVALUATORS: dict[str, Callable[[dict[str, Any], Any, RuleEvalContext], dict[str, Any]]] = {
+    "red_dot": _eval_red_dot_rule,
+    "red_dot_absent": _eval_red_dot_rule,
+    "tab_active": _eval_tab_active_rule,
+    "tab_active_absent": _eval_tab_active_rule,
+    "detectTabs": _eval_detect_tabs_rule,
+    "white_border": _eval_white_border_rule,
+    "white_border_absent": _eval_white_border_rule,
+    "findIcon": _eval_find_icon_rule,
+    "color_check": _eval_color_check_rule,
+    "green_button": _eval_green_button_rule,
+    "blue_button": _eval_blue_button_rule,
+    "cta_button": _eval_cta_button_rule,
+    "reward_ribbon": _eval_reward_ribbon_rule,
+}
+
+
 async def evaluate_overlay_rules_async(
     image_bgr: np.ndarray,
     area_doc: dict[str, Any],
@@ -1605,6 +1638,14 @@ async def evaluate_overlay_rules_async(
     # against the primary OCR text. Replaces 130+ sequential HTTP calls on
     # ``screen_verify.yaml`` with at most 2 round-trips.
     pending_text_rules: list[dict[str, Any]] = []
+    eval_ctx = RuleEvalContext(
+        image_bgr=image_bgr,
+        frame_gray=frame_gray,
+        area_doc=area_doc,
+        repo_root=repo_root,
+        state_flat=state_flat,
+        cur_screen_norm=cur_screen_norm,
+    )
     for compiled in plan:
         rule = compiled.raw
         logical_name = compiled.logical_name
@@ -1636,127 +1677,11 @@ async def evaluate_overlay_rules_async(
                 continue
             rule_eval_state[logical_name] = now_mono
 
-        if action in ("red_dot", "red_dot_absent"):
-            out[logical_name] = _eval_red_dot_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                state_flat=state_flat,
-                cur_screen_norm=cur_screen_norm,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
+        evaluator = _RULE_EVALUATORS.get(action)
+        if evaluator is not None:
+            out[logical_name] = evaluator(rule, compiled, eval_ctx)
             continue
 
-        if action in ("tab_active", "tab_active_absent"):
-            out[logical_name] = _eval_tab_active_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                state_flat=state_flat,
-                cur_screen_norm=cur_screen_norm,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-
-        if action == "detectTabs":
-            out[logical_name] = _eval_detect_tabs_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                repo_root=repo_root,
-                state_flat=state_flat,
-                cur_screen_norm=cur_screen_norm,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-        if action in ("white_border", "white_border_absent"):
-            out[logical_name] = _eval_white_border_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                state_flat=state_flat,
-                cur_screen_norm=cur_screen_norm,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-        if action == "findIcon":
-            out[logical_name] = _eval_find_icon_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                frame_gray=frame_gray,
-                area_doc=area_doc,
-                repo_root=repo_root,
-                state_flat=state_flat,
-                cur_screen_norm=cur_screen_norm,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-        if action == "color_check":
-            out[logical_name] = _eval_color_check_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                repo_root=repo_root,
-                state_flat=state_flat,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-        if action == "green_button":
-            out[logical_name] = _eval_green_button_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                state_flat=state_flat,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-        if action == "blue_button":
-            out[logical_name] = _eval_blue_button_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                state_flat=state_flat,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-        if action == "cta_button":
-            out[logical_name] = _eval_cta_button_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                state_flat=state_flat,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
-        if action == "reward_ribbon":
-            out[logical_name] = _eval_reward_ribbon_rule(
-                rule,
-                compiled,
-                image_bgr=image_bgr,
-                area_doc=area_doc,
-                state_flat=state_flat,
-                set_node_s=set_node_s,
-                priority=priority,
-            )
-            continue
         if action == "text":
             region_name = compiled.region_name
             threshold = compiled.threshold

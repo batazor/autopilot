@@ -19,6 +19,7 @@ Results are returned as the planner dataclasses serialised via ``dataclasses.asd
 from __future__ import annotations
 
 import dataclasses
+import functools
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
@@ -121,22 +122,38 @@ def _asdict(obj: Any) -> Any:
     return dataclasses.asdict(obj)
 
 
-def _guard(fn: Callable[[], Any]) -> Any:
-    """Run a planner call, turning value errors into 400s and the rest into 500s."""
-    try:
-        return fn()
-    except HTTPException:
-        raise
-    except (KeyError, ValueError, TypeError) as exc:
-        raise HTTPException(status_code=400, detail=f"bad input: {exc}") from exc
-    except Exception as exc:  # surface planner failures to the operator
-        raise HTTPException(status_code=500, detail=f"planner error: {exc}") from exc
+def guarded(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Turn planner value errors into 400s and everything else into a 500.
+
+    This used to be ``_guard(run)`` — a call each endpoint had to route its work
+    through, around a nested ``def run()`` that existed only to be passed in.
+    Six of the thirty-three routes did not make that call. Probing them did not
+    produce a live 500 (``/building/autofill`` feeds operator strings into
+    ``level_rank``, which turns out to be total, and the ``/state`` pair raises
+    its own 404s), so this fixes no bug I can point at — it makes the contract
+    uniform and, being a decorator, checkable. ``tests/api/
+    test_planner_routes_guarded.py`` fails if a route opts out again.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return fn(*args, **kwargs)
+        except HTTPException:
+            raise
+        except (KeyError, ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=f"bad input: {exc}") from exc
+        except Exception as exc:  # surface planner failures to the operator
+            raise HTTPException(status_code=500, detail=f"planner error: {exc}") from exc
+
+    return wrapper
 
 
 # --------------------------------------------------------------------------- #
 # Meta — option lists that power the form dropdowns / placeholders
 # --------------------------------------------------------------------------- #
 @router.get("/meta")
+@guarded
 def get_meta() -> dict[str, Any]:
     from games.wos.core.coordinator import channel_kinds
     from games.wos.core.roles import ROLES
@@ -188,25 +205,25 @@ class BuildingBody(BaseModel):
 
 
 @router.post("/building")
+@guarded
 def post_building(body: BuildingBody) -> dict[str, Any]:
     from games.wos.core.building.planner import plan_builds
 
-    slate = _guard(
-        lambda: plan_builds(
-            _building_graph(),
-            body.levels,
-            role=_role(body.role),
-            resources=body.resources,
-            free_queues=body.free_queues,
-            goal_id=body.goal_id,
-            goal_cap=body.goal_cap,
-            active_events=body.active_events,
-        )
+    slate = plan_builds(
+        _building_graph(),
+        body.levels,
+        role=_role(body.role),
+        resources=body.resources,
+        free_queues=body.free_queues,
+        goal_id=body.goal_id,
+        goal_cap=body.goal_cap,
+        active_events=body.active_events,
     )
     return _asdict(slate)
 
 
 @router.get("/building/catalog")
+@guarded
 def get_building_catalog() -> dict[str, Any]:
     """Every building + its level ladder, for the levels editor dropdowns."""
     graph = _building_graph()
@@ -227,6 +244,7 @@ class AutofillBody(BaseModel):
 
 
 @router.post("/building/autofill")
+@guarded
 def post_building_autofill(body: AutofillBody) -> dict[str, Any]:
     """Backfill prerequisite levels implied by the given levels.
 
@@ -296,24 +314,22 @@ class ResearchBody(BaseModel):
 
 
 @router.post("/research")
+@guarded
 def post_research(body: ResearchBody) -> dict[str, Any]:
     from games.wos.core.research.planner import plan_next, research_roadmap
 
-    def run() -> dict[str, Any]:
-        graph = _research_graph()
-        plan = plan_next(
-            graph, body.levels, body.rc_level,
-            war_academy_fc=body.war_academy_fc, role=_role(body.role),
-        )
-        out = _asdict(plan)
-        if body.target_levels:
-            out["roadmap"] = _asdict(research_roadmap(
-                graph, body.levels, body.target_levels,
-                research_speed_pct=body.research_speed_pct,
-            ))
-        return out
-
-    return _guard(run)
+    graph = _research_graph()
+    plan = plan_next(
+        graph, body.levels, body.rc_level,
+        war_academy_fc=body.war_academy_fc, role=_role(body.role),
+    )
+    out = _asdict(plan)
+    if body.target_levels:
+        out["roadmap"] = _asdict(research_roadmap(
+            graph, body.levels, body.target_levels,
+            research_speed_pct=body.research_speed_pct,
+        ))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -352,27 +368,25 @@ def _hero_current_generation(body: HeroesBody) -> int | None:
 
 
 @router.post("/heroes")
+@guarded
 def post_heroes(body: HeroesBody) -> dict[str, Any]:
     from games.wos.heroes.heroes.planner import hero_upgrade_roadmap, plan_next
 
-    def run() -> dict[str, Any]:
-        plan = plan_next(
-            _hero_catalog(),
-            body.owned,
-            body.resources,
-            current_generation=_hero_current_generation(body),
-            role=_role(body.role),
-            furnace_level=body.furnace_level,
-        )
-        out = _asdict(plan)
-        if body.roadmap is not None:
-            spec = _hero_catalog().get(body.roadmap.hero_id)
-            if spec is not None:
-                rm = hero_upgrade_roadmap(spec, body.roadmap.current, body.roadmap.target)
-                out["roadmap"] = _asdict(rm)
-        return out
-
-    return _guard(run)
+    plan = plan_next(
+        _hero_catalog(),
+        body.owned,
+        body.resources,
+        current_generation=_hero_current_generation(body),
+        role=_role(body.role),
+        furnace_level=body.furnace_level,
+    )
+    out = _asdict(plan)
+    if body.roadmap is not None:
+        spec = _hero_catalog().get(body.roadmap.hero_id)
+        if spec is not None:
+            rm = hero_upgrade_roadmap(spec, body.roadmap.current, body.roadmap.target)
+            out["roadmap"] = _asdict(rm)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -415,129 +429,123 @@ class ArenaLineupBody(BaseModel):
 
 
 @router.get("/arena/heroes")
+@guarded
 def get_arena_heroes() -> dict[str, Any]:
     """Hero catalog + slot layout that power the arena lineup pickers."""
-    def run() -> dict[str, Any]:
-        from games.wos.core.arena.optimizer import CLASSES
+    from games.wos.core.arena.optimizer import CLASSES
 
-        cfg = _arena_config()
-        cat = _arena_catalog()
-        heroes = [
-            {"id": h.id, "name": h.name, "hero_class": h.hero_class,
-             "rarity": h.rarity, "role": h.role, "tags": list(h.tags)}
-            for h in sorted(cat.values(), key=lambda x: x.name)
-        ]
-        return {
-            "heroes": heroes,
-            "classes": list(CLASSES),
-            "layout": {"count": cfg.slot_count, "front": list(cfg.front),
-                       "back": list(cfg.back), "all_target": cfg.all_target},
-            "counter_coeff": cfg.counter_coeff,
-        }
-
-    return _guard(run)
+    cfg = _arena_config()
+    cat = _arena_catalog()
+    heroes = [
+        {"id": h.id, "name": h.name, "hero_class": h.hero_class,
+         "rarity": h.rarity, "role": h.role, "tags": list(h.tags)}
+        for h in sorted(cat.values(), key=lambda x: x.name)
+    ]
+    return {
+        "heroes": heroes,
+        "classes": list(CLASSES),
+        "layout": {"count": cfg.slot_count, "front": list(cfg.front),
+                   "back": list(cfg.back), "all_target": cfg.all_target},
+        "counter_coeff": cfg.counter_coeff,
+    }
 
 
 @router.post("/arena/lineup")
+@guarded
 def post_arena_lineup(body: ArenaLineupBody) -> dict[str, Any]:
     """Best arrangement of my heroes into the 5 arena seats vs the enemy lineup."""
-    def run() -> dict[str, Any]:
-        from dataclasses import replace
+    from dataclasses import replace
 
-        from games.wos.core.arena.optimizer import (
-            ArenaHero,
-            EnemyHero,
-            normalize_class,
-            optimize_lineup,
-        )
+    from games.wos.core.arena.optimizer import (
+        ArenaHero,
+        EnemyHero,
+        normalize_class,
+        optimize_lineup,
+    )
 
-        cfg = _arena_config()
-        if not body.counter_enabled:
-            cfg = replace(cfg, counter_coeff=0.0)
-        cat = _arena_catalog()
+    cfg = _arena_config()
+    if not body.counter_enabled:
+        cfg = replace(cfg, counter_coeff=0.0)
+    cat = _arena_catalog()
 
-        def _cls(raw: str | None, tmpl: Any) -> str:
-            return normalize_class(raw) if raw else (tmpl.hero_class if tmpl else "")
+    def _cls(raw: str | None, tmpl: Any) -> str:
+        return normalize_class(raw) if raw else (tmpl.hero_class if tmpl else "")
 
-        def _stat(tmpl: Any, attr: str) -> float | None:
-            return getattr(tmpl, attr, None) if tmpl else None
+    def _stat(tmpl: Any, attr: str) -> float | None:
+        return getattr(tmpl, attr, None) if tmpl else None
 
-        def _median(xs: list[float] | None) -> float | None:
-            # Median, not mean — robust to the odd OCR misread (a dropped digit, 20→2)
-            # in a hero's gear levels.
-            if not xs:
-                return None
-            s = sorted(xs)
-            return float(s[len(s) // 2])
+    def _median(xs: list[float] | None) -> float | None:
+        # Median, not mean — robust to the odd OCR misread (a dropped digit, 20→2)
+        # in a hero's gear levels.
+        if not xs:
+            return None
+        s = sorted(xs)
+        return float(s[len(s) // 2])
 
-        my: list[Any] = []
-        for b in body.my_heroes:
-            t = cat.get(b.id)
-            my.append(ArenaHero(
-                id=b.id, name=(t.name if t else b.id), hero_class=_cls(b.hero_class, t),
-                rarity=b.rarity if b.rarity is not None else (t.rarity if t else ""),
-                role=b.role if b.role is not None else (t.role if t else ""),
-                tags=tuple(b.tags) if b.tags is not None else (t.tags if t else ()),
-                star=b.star, level=b.level, skill=b.skill, power=b.power, gear_avg=_median(b.gear),
-                base_attack=_stat(t, "base_attack"), base_def=_stat(t, "base_def"),
-                base_health=_stat(t, "base_health"),
-            ))
-        enemy: list[Any] = []
-        for b in body.enemy:
-            t = cat.get(b.id or "")
-            enemy.append(EnemyHero(
-                slot=b.slot, hero_class=_cls(b.hero_class, t), id=b.id or "",
-                name=(t.name if (b.id and t) else (b.id or "")),
-                rarity=b.rarity or (t.rarity if t else ""),
-                star=b.star, level=b.level, skill=b.skill, power=b.power, gear_avg=_median(b.gear),
-                base_attack=_stat(t, "base_attack"), base_def=_stat(t, "base_def"),
-                base_health=_stat(t, "base_health"),
-            ))
+    my: list[Any] = []
+    for b in body.my_heroes:
+        t = cat.get(b.id)
+        my.append(ArenaHero(
+            id=b.id, name=(t.name if t else b.id), hero_class=_cls(b.hero_class, t),
+            rarity=b.rarity if b.rarity is not None else (t.rarity if t else ""),
+            role=b.role if b.role is not None else (t.role if t else ""),
+            tags=tuple(b.tags) if b.tags is not None else (t.tags if t else ()),
+            star=b.star, level=b.level, skill=b.skill, power=b.power, gear_avg=_median(b.gear),
+            base_attack=_stat(t, "base_attack"), base_def=_stat(t, "base_def"),
+            base_health=_stat(t, "base_health"),
+        ))
+    enemy: list[Any] = []
+    for b in body.enemy:
+        t = cat.get(b.id or "")
+        enemy.append(EnemyHero(
+            slot=b.slot, hero_class=_cls(b.hero_class, t), id=b.id or "",
+            name=(t.name if (b.id and t) else (b.id or "")),
+            rarity=b.rarity or (t.rarity if t else ""),
+            star=b.star, level=b.level, skill=b.skill, power=b.power, gear_avg=_median(b.gear),
+            base_attack=_stat(t, "base_attack"), base_def=_stat(t, "base_def"),
+            base_health=_stat(t, "base_health"),
+        ))
 
-        gen = body.current_generation
-        if gen is None and body.server_age_days is not None:
-            gen = _unlock_schedule(body.server_profile).hero_generation_at(body.server_age_days)
+    gen = body.current_generation
+    if gen is None and body.server_age_days is not None:
+        gen = _unlock_schedule(body.server_profile).hero_generation_at(body.server_age_days)
 
-        plan = optimize_lineup(
-            my, enemy, cfg=cfg, locked=body.locked,
-            current_generation=gen, top_k=max(1, body.top_k),
-        )
-        return _asdict(plan)
-
-    return _guard(run)
+    plan = optimize_lineup(
+        my, enemy, cfg=cfg, locked=body.locked,
+        current_generation=gen, top_k=max(1, body.top_k),
+    )
+    return _asdict(plan)
 
 
 @router.get("/arena/roster/{player_id}")
+@guarded
 def get_arena_roster(player_id: str) -> dict[str, Any]:
     """The player's owned heroes (from the read roster state) to pre-fill the board.
 
     State stores level + star per hero, but NOT Power — so the win prediction starts
     at medium confidence; the operator can enter Power per hero to sharpen it.
     """
-    def run() -> dict[str, Any]:
-        snap = _player_store(player_id).snapshot()
-        cat = _arena_catalog()
-        entries = dict(getattr(snap.heroes, "entries", {}) or {})
-        heroes = []
-        for hid, e in entries.items():
-            if not isinstance(e, dict) or not (e.get("available") or e.get("level")):
-                continue
-            t = cat.get(hid)
-            heroes.append({
-                "id": hid,
-                "name": e.get("name") or (t.name if t else hid),
-                "hero_class": t.hero_class if t else "",
-                "rarity": t.rarity if t else "",
-                "role": t.role if t else "",
-                "level": int(e["level"]) if e.get("level") else None,
-                "star": int(e["star"]) if e.get("star") is not None else None,
-                "skill": int(e["skill"]) if e.get("skill") is not None else None,
-                "gear": list(e["gear"]) if isinstance(e.get("gear"), list) else None,
-            })
-        heroes.sort(key=lambda h: (-(h["level"] or 0), h["name"]))
-        return {"player_id": str(player_id), "nickname": snap.nickname, "heroes": heroes}
-
-    return _guard(run)
+    snap = _player_store(player_id).snapshot()
+    cat = _arena_catalog()
+    entries = dict(getattr(snap.heroes, "entries", {}) or {})
+    heroes = []
+    for hid, e in entries.items():
+        if not isinstance(e, dict) or not (e.get("available") or e.get("level")):
+            continue
+        t = cat.get(hid)
+        heroes.append({
+            "id": hid,
+            "name": e.get("name") or (t.name if t else hid),
+            "hero_class": t.hero_class if t else "",
+            "rarity": t.rarity if t else "",
+            "role": t.role if t else "",
+            "level": int(e["level"]) if e.get("level") else None,
+            "star": int(e["star"]) if e.get("star") is not None else None,
+            "skill": int(e["skill"]) if e.get("skill") is not None else None,
+            "gear": list(e["gear"]) if isinstance(e.get("gear"), list) else None,
+        })
+    heroes.sort(key=lambda h: (-(h["level"] or 0), h["name"]))
+    return {"player_id": str(player_id), "nickname": snap.nickname, "heroes": heroes}
 
 
 # --------------------------------------------------------------------------- #
@@ -554,22 +562,20 @@ class PetsBody(BaseModel):
 
 
 @router.post("/pets")
+@guarded
 def post_pets(body: PetsBody) -> dict[str, Any]:
     from games.wos.core.pets.planner import pet_roadmap, plan_next
 
-    def run() -> dict[str, Any]:
-        catalog = _pet_catalog()
-        plan = plan_next(
-            catalog, body.owned, body.resources,
-            server_days=body.server_days, role=_role(body.role),
-        )
-        out = _asdict(plan)
-        if body.target_levels:
-            current = {pid: int(o.get("level", 0) or 0) for pid, o in body.owned.items()}
-            out["roadmap"] = _asdict(pet_roadmap(catalog, current, body.target_levels))
-        return out
-
-    return _guard(run)
+    catalog = _pet_catalog()
+    plan = plan_next(
+        catalog, body.owned, body.resources,
+        server_days=body.server_days, role=_role(body.role),
+    )
+    out = _asdict(plan)
+    if body.target_levels:
+        current = {pid: int(o.get("level", 0) or 0) for pid, o in body.owned.items()}
+        out["roadmap"] = _asdict(pet_roadmap(catalog, current, body.target_levels))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -584,20 +590,18 @@ class CharmsBody(BaseModel):
 
 
 @router.post("/charms")
+@guarded
 def post_charms(body: CharmsBody) -> dict[str, Any]:
     from games.wos.core.charms.planner import charm_roadmap, plan_next
 
-    def run() -> dict[str, Any]:
-        plan = plan_next(
-            body.owned, body.resources,
-            furnace_level=body.furnace_level, role=_role(body.role),
-        )
-        out = _asdict(plan)
-        if body.target_level:
-            out["roadmap"] = _asdict(charm_roadmap(body.owned, body.target_level))
-        return out
-
-    return _guard(run)
+    plan = plan_next(
+        body.owned, body.resources,
+        furnace_level=body.furnace_level, role=_role(body.role),
+    )
+    out = _asdict(plan)
+    if body.target_level:
+        out["roadmap"] = _asdict(charm_roadmap(body.owned, body.target_level))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -612,20 +616,18 @@ class GearBody(BaseModel):
 
 
 @router.post("/gear")
+@guarded
 def post_gear(body: GearBody) -> dict[str, Any]:
     from games.wos.core.gear.planner import gear_roadmap, plan_next
 
-    def run() -> dict[str, Any]:
-        plan = plan_next(
-            body.owned, body.resources,
-            furnace_level=body.furnace_level, role=_role(body.role),
-        )
-        out = _asdict(plan)
-        if body.target_level:
-            out["roadmap"] = _asdict(gear_roadmap(body.owned, body.target_level))
-        return out
-
-    return _guard(run)
+    plan = plan_next(
+        body.owned, body.resources,
+        furnace_level=body.furnace_level, role=_role(body.role),
+    )
+    out = _asdict(plan)
+    if body.target_level:
+        out["roadmap"] = _asdict(gear_roadmap(body.owned, body.target_level))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -640,20 +642,18 @@ class HeroGearBody(BaseModel):
 
 
 @router.post("/hero_gear")
+@guarded
 def post_hero_gear(body: HeroGearBody) -> dict[str, Any]:
     from games.wos.core.hero_gear.planner import hero_gear_roadmap, plan_next
 
-    def run() -> dict[str, Any]:
-        plan = plan_next(
-            body.owned, body.resources,
-            furnace_level=body.furnace_level, role=_role(body.role),
-        )
-        out = _asdict(plan)
-        if body.targets:
-            out["roadmap"] = _asdict(hero_gear_roadmap(body.owned, body.targets))
-        return out
-
-    return _guard(run)
+    plan = plan_next(
+        body.owned, body.resources,
+        furnace_level=body.furnace_level, role=_role(body.role),
+    )
+    out = _asdict(plan)
+    if body.targets:
+        out["roadmap"] = _asdict(hero_gear_roadmap(body.owned, body.targets))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -668,21 +668,19 @@ class VipBody(BaseModel):
 
 
 @router.post("/vip")
+@guarded
 def post_vip(body: VipBody) -> dict[str, Any]:
     from games.wos.core.vip.planner import plan_next, vip_roadmap
 
-    def run() -> dict[str, Any]:
-        plan = plan_next(
-            body.current_level, body.current_xp, body.resources, role=_role(body.role),
+    plan = plan_next(
+        body.current_level, body.current_xp, body.resources, role=_role(body.role),
+    )
+    out = _asdict(plan)
+    if body.target_level:
+        out["roadmap"] = _asdict(
+            vip_roadmap(body.current_level, body.current_xp, body.target_level)
         )
-        out = _asdict(plan)
-        if body.target_level:
-            out["roadmap"] = _asdict(
-                vip_roadmap(body.current_level, body.current_xp, body.target_level)
-            )
-        return out
-
-    return _guard(run)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -701,34 +699,32 @@ class TroopsBody(BaseModel):
 
 
 @router.post("/training")
+@guarded
 def post_training(body: TroopsBody) -> dict[str, Any]:
     from games.wos.heroes.heroes.planner import active_city_buffs
     from games.wos.troops.planner import plan_next, train_eta
 
-    def run() -> dict[str, Any]:
-        plan = plan_next(
-            counts=body.counts,
-            max_tier=body.max_tier,
-            fc=body.fc,
-            target=body.target,
-            batch=body.batch,
+    plan = plan_next(
+        counts=body.counts,
+        max_tier=body.max_tier,
+        fc=body.fc,
+        target=body.target,
+        batch=body.batch,
+    )
+    out = _asdict(plan)
+    # Training-Speed hero buff shortens the ETA (the loop's payoff).
+    speed = active_city_buffs(_hero_catalog(), body.owned_heroes).get("training", 0.0)
+    out["training_speed_pct"] = speed
+    if plan.step is not None and body.target_count:
+        time_s, cost = train_eta(
+            plan.step.tier,
+            body.target_count,
+            speed_pct=speed,
+            troop_type=plan.step.troop_type,
         )
-        out = _asdict(plan)
-        # Training-Speed hero buff shortens the ETA (the loop's payoff).
-        speed = active_city_buffs(_hero_catalog(), body.owned_heroes).get("training", 0.0)
-        out["training_speed_pct"] = speed
-        if plan.step is not None and body.target_count:
-            time_s, cost = train_eta(
-                plan.step.tier,
-                body.target_count,
-                speed_pct=speed,
-                troop_type=plan.step.troop_type,
-            )
-            if time_s or cost:                          # omit when the tier has no data yet
-                out["eta"] = {"count": body.target_count, "time_s": time_s, "cost": cost}
-        return out
-
-    return _guard(run)
+        if time_s or cost:                          # omit when the tier has no data yet
+            out["eta"] = {"count": body.target_count, "time_s": time_s, "cost": cost}
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -749,31 +745,29 @@ class SvsBody(BaseModel):
 
 
 @router.post("/svs")
+@guarded
 def post_svs(body: SvsBody) -> dict[str, Any]:
     from games.wos.core.svs import TroopPlanItem, load_svs_prep, score_plan
 
-    def run() -> dict[str, Any]:
-        prep = load_svs_prep()
-        troops = [
-            TroopPlanItem(
-                action=t.action, qty=t.qty,
-                tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
-            )
-            for t in body.troops
-        ]
-        score = score_plan(body.plan, troops=troops, prep=prep)
-        out = _asdict(score)
-        out["days"] = {d: spec.name for d, spec in sorted(prep.days.items())}
-        if body.target:
-            remaining = max(0, body.target - score.total)
-            out["target"] = {
-                "goal": body.target,
-                "remaining": remaining,
-                "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
-            }
-        return out
-
-    return _guard(run)
+    prep = load_svs_prep()
+    troops = [
+        TroopPlanItem(
+            action=t.action, qty=t.qty,
+            tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
+        )
+        for t in body.troops
+    ]
+    score = score_plan(body.plan, troops=troops, prep=prep)
+    out = _asdict(score)
+    out["days"] = {d: spec.name for d, spec in sorted(prep.days.items())}
+    if body.target:
+        remaining = max(0, body.target - score.total)
+        out["target"] = {
+            "goal": body.target,
+            "remaining": remaining,
+            "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
+        }
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -795,31 +789,29 @@ class KoiBody(BaseModel):
 
 
 @router.post("/koi")
+@guarded
 def post_koi(body: KoiBody) -> dict[str, Any]:
     from games.wos.core.koi import KoiTroopPlanItem, load_koi_points, score_plan
 
-    def run() -> dict[str, Any]:
-        prep = load_koi_points()
-        troops = [
-            KoiTroopPlanItem(
-                action=t.action, qty=t.qty, day=t.day,
-                tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
-            )
-            for t in body.troops
-        ]
-        score = score_plan(body.plan, troops=troops, prep=prep)
-        out = _asdict(score)
-        out["days"] = {d: spec.name for d, spec in sorted(prep.days.items())}
-        if body.target:
-            remaining = max(0, body.target - score.total)
-            out["target"] = {
-                "goal": body.target,
-                "remaining": remaining,
-                "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
-            }
-        return out
-
-    return _guard(run)
+    prep = load_koi_points()
+    troops = [
+        KoiTroopPlanItem(
+            action=t.action, qty=t.qty, day=t.day,
+            tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
+        )
+        for t in body.troops
+    ]
+    score = score_plan(body.plan, troops=troops, prep=prep)
+    out = _asdict(score)
+    out["days"] = {d: spec.name for d, spec in sorted(prep.days.items())}
+    if body.target:
+        remaining = max(0, body.target - score.total)
+        out["target"] = {
+            "goal": body.target,
+            "remaining": remaining,
+            "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
+        }
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -832,19 +824,17 @@ class TowerCaptureBody(BaseModel):
 
 
 @router.post("/tower_capture")
+@guarded
 def post_tower_capture(body: TowerCaptureBody) -> dict[str, Any]:
     from games.wos.core.sunfire_castle import rank_towers
 
-    def run() -> dict[str, Any]:
-        ranking = rank_towers(
-            controlled=body.controlled,
-            role=body.role,
-            target_count=body.target_count,
-            territory=_territory_data(),
-        )
-        return _asdict(ranking)
-
-    return _guard(run)
+    ranking = rank_towers(
+        controlled=body.controlled,
+        role=body.role,
+        target_count=body.target_count,
+        territory=_territory_data(),
+    )
+    return _asdict(ranking)
 
 
 # --------------------------------------------------------------------------- #
@@ -867,6 +857,7 @@ class AllianceShowdownBody(BaseModel):
 
 
 @router.post("/alliance_showdown")
+@guarded
 def post_alliance_showdown(body: AllianceShowdownBody) -> dict[str, Any]:
     from games.wos.core.alliance_showdown import (
         TroopPlanItem,
@@ -876,37 +867,34 @@ def post_alliance_showdown(body: AllianceShowdownBody) -> dict[str, Any]:
 
     PERSONAL_RANKING_FLOOR = 300_000     # source: min points for personal ranking rewards
 
-    def run() -> dict[str, Any]:
-        points = load_showdown_points()
-        troops = [
-            TroopPlanItem(
-                action=t.action, qty=t.qty, stage=t.stage,
-                tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
-            )
-            for t in body.troops
-        ]
-        baldur = {int(s): int(lvl) for s, lvl in body.baldur.items()}
-        score = score_plan(body.plan, troops=troops, baldur=baldur, points=points)
-        out = _asdict(score)
-        out["stages"] = {
-            s: {
-                "name": spec.name,
-                "victory_points": spec.victory_points,
-                "milestone_cap": spec.milestone_cap,
-            }
-            for s, spec in sorted(points.stages.items())
+    points = load_showdown_points()
+    troops = [
+        TroopPlanItem(
+            action=t.action, qty=t.qty, stage=t.stage,
+            tier=t.tier, from_tier=t.from_tier, to_tier=t.to_tier,
+        )
+        for t in body.troops
+    ]
+    baldur = {int(s): int(lvl) for s, lvl in body.baldur.items()}
+    score = score_plan(body.plan, troops=troops, baldur=baldur, points=points)
+    out = _asdict(score)
+    out["stages"] = {
+        s: {
+            "name": spec.name,
+            "victory_points": spec.victory_points,
+            "milestone_cap": spec.milestone_cap,
         }
-        out["personal_ranking_floor"] = PERSONAL_RANKING_FLOOR
-        if body.target:
-            remaining = max(0, body.target - score.total)
-            out["target"] = {
-                "goal": body.target,
-                "remaining": remaining,
-                "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
-            }
-        return out
-
-    return _guard(run)
+        for s, spec in sorted(points.stages.items())
+    }
+    out["personal_ranking_floor"] = PERSONAL_RANKING_FLOOR
+    if body.target:
+        remaining = max(0, body.target - score.total)
+        out["target"] = {
+            "goal": body.target,
+            "remaining": remaining,
+            "pct": round(100.0 * score.total / body.target, 1) if body.target else 0.0,
+        }
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -920,6 +908,7 @@ class RfcBody(BaseModel):
 
 
 @router.post("/rfc")
+@guarded
 def post_rfc(body: RfcBody) -> dict[str, Any]:
     from dataclasses import asdict
 
@@ -930,24 +919,21 @@ def post_rfc(body: RfcBody) -> dict[str, Any]:
         plan_for_rfc,
     )
 
-    def run() -> dict[str, Any]:
-        prep = load_rfc_conversion()
-        out: dict[str, Any] = {
-            "tiers": [asdict(t) for t in prep.tiers],
-            "weekly_cap": prep.weekly_cap,
-            "efficient_weekly": _asdict(efficient_weekly(prep=prep)),
-        }
-        if body.target_rfc is not None:
-            out["plan"] = _asdict(
-                plan_for_rfc(body.target_rfc, with_discount=body.with_discount, prep=prep)
-            )
-        if body.conversions is not None:
-            out["path"] = _asdict(
-                convert_path(body.conversions, body.start_index, prep=prep)
-            )
-        return out
-
-    return _guard(run)
+    prep = load_rfc_conversion()
+    out: dict[str, Any] = {
+        "tiers": [asdict(t) for t in prep.tiers],
+        "weekly_cap": prep.weekly_cap,
+        "efficient_weekly": _asdict(efficient_weekly(prep=prep)),
+    }
+    if body.target_rfc is not None:
+        out["plan"] = _asdict(
+            plan_for_rfc(body.target_rfc, with_discount=body.with_discount, prep=prep)
+        )
+    if body.conversions is not None:
+        out["path"] = _asdict(
+            convert_path(body.conversions, body.start_index, prep=prep)
+        )
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -972,6 +958,7 @@ class IntelBody(BaseModel):
 
 
 @router.post("/intel")
+@guarded
 def post_intel(body: IntelBody) -> dict[str, Any]:
     from games.wos.intel.planner import IntelEvent, plan_next
 
@@ -979,16 +966,14 @@ def post_intel(body: IntelBody) -> dict[str, Any]:
         IntelEvent(kind=e.kind, color=e.color, score=e.score, x=e.x, y=e.y)
         for e in body.events
     ]
-    plan = _guard(
-        lambda: plan_next(
-            events,
-            stamina=body.stamina,
-            cost_per_event=body.cost_per_event,
-            reserve=body.reserve,
-            daily_quota_left=body.daily_quota_left,
-            min_value=body.min_value,
-            priority_only=body.priority_only,
-        )
+    plan = plan_next(
+        events,
+        stamina=body.stamina,
+        cost_per_event=body.cost_per_event,
+        reserve=body.reserve,
+        daily_quota_left=body.daily_quota_left,
+        min_value=body.min_value,
+        priority_only=body.priority_only,
     )
     return _asdict(plan)
 
@@ -1020,6 +1005,7 @@ class CoordinatorBody(BaseModel):
 
 
 @router.post("/coordinator")
+@guarded
 def post_coordinator(body: CoordinatorBody) -> dict[str, Any]:
     from games.wos.core.coordinator import (
         CandidateAction,
@@ -1042,7 +1028,7 @@ def post_coordinator(body: CoordinatorBody) -> dict[str, Any]:
         for c in body.candidates
     ]
     solver = coordinate_optimal if body.optimize else coordinate
-    decision = _guard(lambda: solver(channels, candidates, body.balances))
+    decision = solver(channels, candidates, body.balances)
     return _asdict(decision)
 
 
@@ -1061,11 +1047,12 @@ class SafetyBody(BaseModel):
 
 
 @router.post("/safety")
+@guarded
 def post_safety(body: SafetyBody) -> dict[str, Any]:
     from games.wos.core.coordinator import ThreatState, assess_safety
 
     threat = ThreatState(**body.model_dump())
-    directive = _guard(lambda: assess_safety(threat))
+    directive = assess_safety(threat)
     return _asdict(directive)
 
 
@@ -1079,15 +1066,14 @@ class ChiefOrdersBody(BaseModel):
 
 
 @router.post("/chief_orders")
+@guarded
 def post_chief_orders(body: ChiefOrdersBody) -> dict[str, Any]:
     from games.wos.core.coordinator import recommend_orders
 
-    plan = _guard(
-        lambda: recommend_orders(
-            active_categories=body.active_categories,
-            injured=body.injured,
-            pvp_window=body.pvp_window,
-        )
+    plan = recommend_orders(
+        active_categories=body.active_categories,
+        injured=body.injured,
+        pvp_window=body.pvp_window,
     )
     return _asdict(plan)
 
@@ -1108,6 +1094,7 @@ class SpeedupsBody(BaseModel):
 
 
 @router.post("/speedups")
+@guarded
 def post_speedups(body: SpeedupsBody) -> dict[str, Any]:
     from games.wos.core.coordinator import recommend_speedups
     from games.wos.core.coordinator.premium import SpeedupTask
@@ -1116,10 +1103,8 @@ def post_speedups(body: SpeedupsBody) -> dict[str, Any]:
         SpeedupTask(id=t.id, category=t.category, remaining_s=t.remaining_s)
         for t in body.tasks
     ]
-    plan = _guard(
-        lambda: recommend_speedups(
-            tasks, body.inventory_minutes, spend_now=body.spend_now
-        )
+    plan = recommend_speedups(
+        tasks, body.inventory_minutes, spend_now=body.spend_now
     )
     return _asdict(plan)
 
@@ -1142,6 +1127,7 @@ class CurrencyBody(BaseModel):
 
 
 @router.post("/currency")
+@guarded
 def post_currency(body: CurrencyBody) -> dict[str, Any]:
     from games.wos.core.coordinator import allocate_currency
     from games.wos.core.coordinator.premium import CurrencySink
@@ -1156,9 +1142,7 @@ def post_currency(body: CurrencyBody) -> dict[str, Any]:
         )
         for s in body.sinks
     ]
-    plan = _guard(
-        lambda: allocate_currency(body.balance, sinks, currency=body.currency)
-    )
+    plan = allocate_currency(body.balance, sinks, currency=body.currency)
     return _asdict(plan)
 
 
@@ -1224,6 +1208,7 @@ def _planner_domains_from_snapshot(snap: Any) -> dict[str, Any]:
 
 
 @router.get("/state/{player_id}")
+@guarded
 def get_player_planner_state(player_id: str) -> dict[str, Any]:
     snap = _player_store(player_id).snapshot()
     return {
@@ -1238,6 +1223,7 @@ class PlannerStateBody(BaseModel):
 
 
 @router.put("/state/{player_id}")
+@guarded
 def put_player_planner_state(
     player_id: str, body: PlannerStateBody
 ) -> dict[str, Any]:
@@ -1477,8 +1463,9 @@ def _full_plan(body: FullPlanBody) -> dict[str, Any]:
 
 
 @router.post("/full")
+@guarded
 def post_full(body: FullPlanBody) -> dict[str, Any]:
-    return _guard(lambda: _full_plan(body))
+    return _full_plan(body)
 
 
 # --------------------------------------------------------------------------- #
@@ -1533,8 +1520,9 @@ def _overview(body: OverviewBody) -> dict[str, Any]:
 
 
 @router.post("/overview")
+@guarded
 def post_overview(body: OverviewBody) -> dict[str, Any]:
-    return _guard(lambda: _overview(body))
+    return _overview(body)
 
 
 # --------------------------------------------------------------------------- #
@@ -1556,28 +1544,26 @@ class ProjectionBody(BaseModel):
 
 
 @router.post("/projection")
+@guarded
 def post_projection(body: ProjectionBody) -> dict[str, Any]:
     from games.wos.core.coordinator import project_cycle
     from games.wos.heroes.heroes.planner import active_city_buffs
 
-    def run() -> dict[str, Any]:
-        buffs = active_city_buffs(_hero_catalog(), body.owned_heroes)
-        proj = project_cycle(
-            build_graph=_building_graph(),
-            build_levels=body.building_levels,
-            research_graph=_research_graph(),
-            research_levels=body.research_levels,
-            construction_queues=body.construction_queues,
-            role=_role(body.role),
-            goal_id=body.goal_id,
-            goal_cap=body.goal_cap,
-            horizon_s=(body.horizon_days * 86_400.0) if body.horizon_days else None,
-            construction_speed_pct=buffs.get("construction", 0.0),
-            research_speed_pct=buffs.get("research", 0.0),
-        )
-        return _asdict(proj)
-
-    return _guard(run)
+    buffs = active_city_buffs(_hero_catalog(), body.owned_heroes)
+    proj = project_cycle(
+        build_graph=_building_graph(),
+        build_levels=body.building_levels,
+        research_graph=_research_graph(),
+        research_levels=body.research_levels,
+        construction_queues=body.construction_queues,
+        role=_role(body.role),
+        goal_id=body.goal_id,
+        goal_cap=body.goal_cap,
+        horizon_s=(body.horizon_days * 86_400.0) if body.horizon_days else None,
+        construction_speed_pct=buffs.get("construction", 0.0),
+        research_speed_pct=buffs.get("research", 0.0),
+    )
+    return _asdict(proj)
 
 
 # --------------------------------------------------------------------------- #
@@ -1590,20 +1576,18 @@ class UnlocksBody(BaseModel):
 
 
 @router.post("/unlocks")
+@guarded
 def post_unlocks(body: UnlocksBody) -> dict[str, Any]:
-    def run() -> dict[str, Any]:
-        sched = _unlock_schedule(body.profile)
-        days = body.server_age_days
-        return {
-            "profile": sched.profile,
-            "server_age_days": days,
-            "hero_generation": sched.hero_generation_at(days),
-            "pet_generation": sched.pet_generation_at(days),
-            "unlocked_modes": sched.unlocked_modes(days),
-            "upcoming": [_asdict(e) for e in sched.upcoming(days, within_days=body.within_days)],
-        }
-
-    return _guard(run)
+    sched = _unlock_schedule(body.profile)
+    days = body.server_age_days
+    return {
+        "profile": sched.profile,
+        "server_age_days": days,
+        "hero_generation": sched.hero_generation_at(days),
+        "pet_generation": sched.pet_generation_at(days),
+        "unlocked_modes": sched.unlocked_modes(days),
+        "upcoming": [_asdict(e) for e in sched.upcoming(days, within_days=body.within_days)],
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -1681,6 +1665,7 @@ def _fleet_row(player_id: str) -> dict[str, Any]:
 
 
 @router.get("/fleet")
+@guarded
 def get_fleet_plan(players: str = "") -> dict[str, Any]:
     """Full plan for every player (or a `players=a,b,c` subset)."""
     from api.services.players import list_player_ids
