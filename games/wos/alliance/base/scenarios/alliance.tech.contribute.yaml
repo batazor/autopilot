@@ -2,9 +2,11 @@ enabled: true
 name: Alliance Tech Contribute
 node: alliance.tech
 priority: 70_000
-cond: "active_player != null"
+cron: "17 */6 * * *"
 
 steps:
+  # The green "recommended tech" finger is the ONLY template match here; tapping
+  # it opens the contribution popup, whose layout is fixed.
   - while_match: alliance.tech.add
     max: 1
     retry:
@@ -12,22 +14,20 @@ steps:
       interval: 500ms
     steps:
       - click: alliance.tech.add
-      - wait: 500ms
-      - wait_screen:
-          any: [alliance.tech.contribute]
-          max: 6
-          interval: 500ms
+      - wait: 1s
+      # Right BLUE «Сделать взнос» button is at a FIXED position — blind-tap it
+      # while it stays blue (invest still allowed). It greys out when the daily
+      # contribution limit is spent, which the colour_check catches to end the
+      # loop. NEVER the left ORANGE «💎» button (that spends gems). No OCR —
+      # position is fixed, blue-vs-grey is the only signal.
       - while_match: alliance.tech.contribute.blue
         max: 25
         retry:
-          attempts: 1
-          interval: 100ms
+          attempts: 2
+          interval: 300ms
         steps:
           - long_click: alliance.tech.contribute
             wait: 1s
           - wait: 100ms
       - click: alliance.tech.contribute.close
-      - wait_screen:
-          any: [alliance.tech]
-          max: 6
-          interval: 500ms
+      - wait: 1s
