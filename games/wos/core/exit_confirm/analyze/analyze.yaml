@@ -1,20 +1,22 @@
 overlay:
-  # Auto-dismiss the exit dialog without waiting for the navigator to route. Once
-  # screen_verify has identified `exit_confirm` (via the body crop), re-match the
-  # body as the gate and tap «Отмена» positionally. cta_button can't be used here:
-  # it only knows green/blue (src/analysis/overlay_engine.py:1406-1417) and «Отмена»
-  # is orange — but the dialog layout is fixed, so once we know it's the exit
-  # dialog the Cancel button is always at exit_confirm.cancel. High priority +
-  # device_level so the blocker clears before any other work; ttl dedups the tap.
-  # NEVER tap exit_confirm.confirm — that quits the game.
+  # Auto-dismiss the exit dialog. Once screen_verify has identified `exit_confirm`
+  # (body crop), PUSH the dismiss_exit_confirm scenario rather than tapping inline.
+  # The inline overlay click is gated by the rolling tick (skipped while a task is
+  # busy / screen-detect is skipped), so with active_player empty and who_i_am
+  # looping the dialog sat un-dismissed 24s+ (op-reported bs3 2026-08-12). A pushed
+  # device_level scenario at priority 130k becomes a durable queue item that
+  # preempts who_i_am (101k) and runs to completion, tapping «Отмена». NEVER tap
+  # exit_confirm.confirm — that quits the game.
   - name: exit_confirm.cancel.auto
     region: exit_confirm.body
     action: findIcon
     threshold: 0.9
     device_level: true
-    priority: 120_000
+    priority: 130_000
     ttl: 5s
     screens:
       - exit_confirm
     steps:
-      - click: exit_confirm.cancel
+      - push_scenario:
+          name: dismiss_exit_confirm
+          priority: 130_000

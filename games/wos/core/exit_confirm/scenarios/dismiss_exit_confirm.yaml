@@ -1,0 +1,24 @@
+# Close the «Выйти из игры?» exit-game dialog by tapping «Отмена» (Cancel).
+#
+# Pushed by the exit_confirm.cancel.auto overlay rule the moment the dialog is
+# detected. A PUSHED device_level scenario (not the rule's inline click) is the
+# reliable path: it becomes a queue item at a priority ABOVE who_i_am (101_000),
+# so it preempts the who_i_am identity loop that otherwise sits behind the dialog
+# forever — the inline overlay click is gated by the rolling tick (skipped while
+# a task is busy / screen-detect is skipped), which let bs3 sit on the dialog
+# 24s+ (op-reported 2026-08-12). NEVER tap exit_confirm.confirm — that quits the
+# game.
+name: Dismiss exit-game dialog
+enabled: true
+device_level: true
+priority: 130_000
+# No `node:` — exit_confirm is a Back-press modal, not a navigable destination;
+# navigating TO it would fail. The cond gates on already being on it, and if the
+# dialog cleared before this runs, the cond skips cleanly.
+cond: currentNode == exit_confirm
+steps:
+  - while_match: exit_confirm.body
+    max: 2
+    steps:
+      - click: exit_confirm.cancel
+      - wait: 600ms
