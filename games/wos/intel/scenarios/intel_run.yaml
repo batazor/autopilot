@@ -142,8 +142,24 @@ steps:
           # then back out of the battle → squad → world map. The already-queued
           # chained intel_run reopens the board for the next pin, and the reward
           # is collected on return by the delayed intel_claim_reward + claim_all.
-          - wait: 1s
-          - system_back: true
-          - wait: 800ms
-          - system_back: true
-          - wait: 500ms
+          - wait: 1.5s
+          # SCREEN-AWARE back-out: press Back only WHILE not yet on the map, and
+          # STOP the instant we reach main_world/main_city. Blind system_back ×2
+          # over-pressed — when the fight already dropped us to the map, a Back on
+          # the home screen opened the «Выйти из игры?» exit dialog (op-reported
+          # 2026-08-12). repeat checks until_any_match at the TOP of each iteration
+          # and breaks BEFORE the inner Back, so the extra press never happens.
+          - repeat:
+              max: 3
+              until_any_match: [main_world.to.main_city, main_city.to.world]
+              steps:
+                - system_back: true
+                - wait: 700ms
+          # Safety net: if a Back still slipped into the exit dialog, cancel it
+          # HERE (tap «Отмена») — don't wait for the async dismisser's tick. NEVER
+          # tap exit_confirm.confirm (that quits the game).
+          - while_match: exit_confirm.body
+            max: 1
+            steps:
+              - click: exit_confirm.cancel
+              - wait: 500ms
