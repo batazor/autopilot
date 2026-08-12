@@ -38,6 +38,22 @@ steps:
           - click: claim_button_close
           - wait: 1s
 
+      # Governor-energy «Получить еще» popup: BEFORE closing, grab the free daily
+      # «Тёплый приём» refill if it's on offer (green «Получить», row 1 — matched
+      # by its own template, so it never fires on the paid «Применить N💎» / «Вперёд»
+      # rows). Then blue_card_close (below) shuts the popup. Never buys.
+      - while_match: energy_popup.warm_welcome_claim
+        max: 1
+        steps:
+          - click: energy_popup.warm_welcome_claim
+          - wait: 1s
+          - while_match: button.tap_anywhere_to_exit
+            expected: ["tap anywhere", "для выхода", "нажмите", "любом месте"]
+            max: 1
+            steps:
+              - click: button.tap_anywhere_to_exit
+              - wait: 500ms
+
       # Navy ✕ on a light-blue card header — shop/purchase popups (governor-energy
       # «Получить еще», etc.) whose close sits on the card, not the screen top.
       # claim_button_close scores only 0.82 on it (under 0.9), so it stranded bs5

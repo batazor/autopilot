@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/energy_popup.png",
+      "regions": [
+        {
+          "name": "energy_popup.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.20506125728055,
+            "y": 8.467530172089198,
+            "width": 41.43603133159265,
+            "height": 4.041660303594877,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "energy_popup.warm_welcome_claim",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 70.12616145706694,
+            "y": 27.4929997219621,
+            "width": 20.678851174934945,
+            "height": 4.591429705873386,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "energy_popup.close",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.30063107155303,
+            "y": 9.34911747388751,
+            "width": 4.6214099216710025,
+            "height": 2.392352096759405,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}
