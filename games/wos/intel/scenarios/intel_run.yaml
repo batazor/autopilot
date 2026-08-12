@@ -69,25 +69,20 @@ steps:
           max: 5
           interval: 500ms
 
-      # STAMINA-COST GATE (autonomy safety): the View popup shows the cost on its
-      # Attack/Explore/Rescue button. When we can't afford it the game paints the
-      # cost digit RED; the exec detects that (white digit → absent) and, on «no»,
-      # backs out (system_back) so we never engage a target we can't pay for. It
-      # writes intel.target_affordable; the button taps below are gated on it.
+      # The View opens a target panel over the world map; both panel kinds detect as
+      # main_world, so branch on the BUTTON COLOUR (survives scrcpy H.264, unlike the
+      # title OCR): a blue Explore button ⇒ exploration target, else the orange
+      # Attack button ⇒ combat target. (intel.explore.is_blue is a color_check region.)
+      # No pre-tap stamina-cost check: if we can't afford it the game opens the
+      # «Получить еще» energy popup, which handle_get_more_energy catches (claims the
+      # free «Тёплый приём» refill, then closes) — the popup itself is the
+      # out-of-stamina signal, so red-cost OCR is unnecessary.
       - wait: 1s
-      - exec: intel_check_target_stamina
-      - cond: intel.target_affordable != "no"
+      - match: intel.explore.is_blue
         steps:
-          # The View opens a target panel over the world map; both panel kinds detect
-          # as main_world, so branch on the BUTTON COLOUR (survives scrcpy H.264,
-          # unlike the title OCR): a blue Explore button ⇒ exploration target, else
-          # the orange Attack button ⇒ combat target. (intel.explore.is_blue is a
-          # color_check region.)
-          - match: intel.explore.is_blue
-            steps:
-              - click: intel.explore
-            else:
-              - click: intel.attack
+          - click: intel.explore
+        else:
+          - click: intel.attack
       # Optional: rescue targets («Спасение выживших» / survivor camps) dispatch
       # INSTANTLY on the panel click — no deploy screen ever appears, the march
       # (or instant resolve) just starts and the game drops back to the world

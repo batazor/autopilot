@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 # NOTE: absolute imports only. This module is loaded standalone via
 # ``importlib.spec_from_file_location`` (by the exec registry and the tests), so
@@ -703,132 +703,10 @@ async def _exec_intel_power_gate(ctx: DslExecContext) -> None:
     )
 
 
-# The stamina-cost number on the View popup's Attack/Explore/Rescue button
-# («Атака 10» / «Спасти 12»). When the account CAN afford it the digit is WHITE;
-# when it CAN'T the game paints it RED (operator-confirmed 2026-08-12). The
-# button itself is orange (Attack) or green (Rescue), and orange's hue bleeds
-# into "red", so a dominant-red check false-fires — the reliable signal is the
-# WHITE digit: ~26% white on both button colours when affordable, ~0 when the
-# digit is red. Bbox = the number only (coin icon to its left is excluded, it
-# reads silver-white and would mask the signal). Percent of 720×1280.
-_COST_NUM_BBOX = (54.5, 49.5, 8.5, 3.0)
-# White share below which the digit is no longer white → it's the red
-# "insufficient" colour → abort. Conservative: affordable is 26% (2-digit) and
-# ~12% (1-digit), so this can NEVER false-abort an affordable target; a red
-# (saturated) digit reads ~0-2% white. Refine upward only against a real red
-# frame if it ever under-triggers.
-_COST_WHITE_MIN = 0.08
-
-
-def white_fraction(patch: Any) -> float | None:
-    """Fraction of bright, low-saturation (white) pixels in a BGR patch.
-
-    ``None`` when the patch is empty. White = ``V > 185 and S < 65`` — the cost
-    digit's colour when the target is affordable; a red (insufficient) digit is
-    saturated and scores ~0.
-    """
-    import cv2
-    import numpy as np
-
-    if patch is None or getattr(patch, "size", 0) == 0:
-        return None
-    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
-    s, v = hsv[:, :, 1], hsv[:, :, 2]
-    white = int(np.count_nonzero((v > 185) & (s < 65)))
-    return white / float(s.size)
-
-
-def decide_target_affordable(white_frac: float | None, *, white_min: float = _COST_WHITE_MIN) -> str:
-    """`"yes"` / `"no"` for the target-stamina gate.
-
-    Fail-open: an unreadable patch (``None``) defaults to ``"yes"`` — a capture
-    glitch must never abort an otherwise-good target (the board-stamina planner
-    gate in ``tap_intel_fight`` already filtered by cost). Only a CONFIDENT
-    "digit is not white" (white share below ``white_min``) returns ``"no"``.
-    """
-    if white_frac is None:
-        return "yes"
-    return "no" if white_frac < white_min else "yes"
-
-
-async def _exec_intel_check_target_stamina(ctx: DslExecContext) -> None:
-    """Abort the operation when the View-popup cost digit is RED (can't afford).
-
-    Runs on the target View popup (over main_world) before the Attack/Explore
-    tap. Reads the white share of the cost number; a red digit (game's
-    "insufficient stamina" signal) scores near zero → writes
-    ``intel.target_affordable = "no"`` and backs out (system_back), so the run
-    never engages a target it can't pay for. Fail-open on a bad read.
-    """
-    actions = dsl_runtime.bot_actions()
-    try:
-        image = await asyncio.to_thread(actions.capture_screen_bgr_adb, ctx.instance_id)
-    except Exception:
-        logger.debug("intel cost gate: adb capture failed, falling back", exc_info=True)
-        try:
-            image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
-        except Exception:
-            logger.exception("intel cost gate: capture failed instance=%s", ctx.instance_id)
-            image = None
-
-    white_frac: float | None = None
-    if image is not None:
-        h, w = image.shape[:2]
-        x, y, ww, hh = _COST_NUM_BBOX
-        x0, y0 = int(x / 100.0 * w), int(y / 100.0 * h)
-        x1, y1 = int((x + ww) / 100.0 * w), int((y + hh) / 100.0 * h)
-        white_frac = white_fraction(image[y0:y1, x0:x1])
-
-    decision = decide_target_affordable(white_frac)
-
-    if ctx.redis_client is not None and ctx.player_id:
-        try:
-            await ctx.redis_client.hset(
-                f"wos:player:{ctx.player_id}:state",
-                mapping={
-                    "intel.target_affordable": decision,
-                    "intel.target_affordable.white": (
-                        f"{white_frac:.4f}" if white_frac is not None else ""
-                    ),
-                    "intel.target_affordable.at": str(time.time()),
-                },
-            )
-        except Exception:
-            logger.exception("intel cost gate: hset failed player=%s", ctx.player_id)
-
-    # DSL conds read the durable state store, not the Redis hash (see power_gate).
-    if ctx.player_id:
-        try:
-            from config.state_store import get_state_store
-
-            get_state_store().get_or_create(str(ctx.player_id)).update_from_flat(
-                {"intel.target_affordable": decision}
-            )
-        except Exception:
-            logger.exception(
-                "intel cost gate: state store write failed player=%s", ctx.player_id
-            )
-
-    if decision == "no":
-        try:
-            await asyncio.to_thread(actions.system_back, ctx.instance_id)
-        except Exception:
-            logger.exception("intel cost gate: back-out failed instance=%s", ctx.instance_id)
-
-    ctx.result.update({"action": decision, "white": white_frac})
-    logger.info(
-        "dsl exec intel_check_target_stamina: decision=%s white=%s instance=%s",
-        decision,
-        f"{white_frac:.3f}" if white_frac is not None else "n/a",
-        ctx.instance_id,
-    )
-
-
 DSL_EXEC_HANDLERS = {
     "confirm_intel_march_lease": _exec_confirm_intel_march_lease,
     "queue_next_intel_run": _exec_queue_next_intel_run,
     "tap_intel_fight": _exec_tap_intel_fight,
     "read_intel_stamina": _exec_read_intel_stamina,
     "intel_power_gate": _exec_intel_power_gate,
-    "intel_check_target_stamina": _exec_intel_check_target_stamina,
 }
