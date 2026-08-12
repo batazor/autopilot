@@ -38,6 +38,16 @@ steps:
           - click: claim_button_close
           - wait: 1s
 
+      # Navy ✕ on a light-blue card header — shop/purchase popups (governor-energy
+      # «Получить еще», etc.) whose close sits on the card, not the screen top.
+      # claim_button_close scores only 0.82 on it (under 0.9), so it stranded bs5
+      # 39 min (2026-08-12). Never buys — just closes.
+      - while_match: blue_card_close
+        max: 1
+        steps:
+          - click: blue_card_close
+          - wait: 1s
+
       - while_match: icon.page.back
         max: 1
         steps:

@@ -42,6 +42,22 @@
             "original_height": 1280
           },
           "isSearch": true
+        },
+        {
+          "name": "blue_card_close",
+          "_comment": "Dark-navy ✕ on a light-blue rounded square, top-right of a popup CARD HEADER (not the screen-top). Distinct from claim_button_close (whose template scores only 0.82 here, under its 0.9 gate) and icon.close (at the very screen top). Closes shop/purchase card popups like the governor-energy «Получить еще» that stranded bs5 for 39 min (dismiss_unknown_popup had no matching close). isSearch absorbs the ✕'s vertical drift across popup card sizes. Used by dismiss_unknown_popup only (unknown screens), so a stray blue-✕ match can't fire on a live screen.",
+          "action": "exist",
+          "threshold": 0.85,
+          "bbox": {
+            "x": 89.3,
+            "y": 9.2,
+            "width": 5.8,
+            "height": 3.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
         }
       ]
     },
