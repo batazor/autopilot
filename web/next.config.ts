@@ -11,6 +11,10 @@ const cappedCpus =
   Number.isFinite(buildCpus) && buildCpus >= 1 ? Math.floor(buildCpus) : undefined;
 
 const nextConfig: NextConfig = {
+  // Allow the local dev origins the operator opens the dashboard/labeling from —
+  // Next blocks cross-origin _next/static + HMR by default, which left /labeling
+  // rendering blank JS when opened via 127.0.0.1.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   // Instant Navigations (Next 16.3): dynamic-by-default + Stream/Cache/Block.
   // Every server-side `await` must Stream (<Suspense>), Cache ('use cache'),
   // or Block (`export const instant = false`); `useSearchParams` must sit in a
