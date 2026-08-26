@@ -48,3 +48,31 @@ def test_is_plausible_word_text_accepts_real_words(word: str) -> None:
 )
 def test_is_plausible_word_text_rejects_garbage(garbage: str) -> None:
     assert is_plausible_word_text(garbage) is False
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # The «Белая мгла» client prints item words in Russian; an ASCII-only
+        # filter used to strip them to "", so no RU word ever mapped to a point.
+        ("Резиновая уточка", "резиновая уточка"),
+        ("Шарф", "шарф"),
+        # "ё" and "е" spellings must hash to one key.
+        ("Ёлка", "елка"),
+        ("ЖЁЛУДЬ", "желудь"),
+        # Mixed reads keep both alphabets, punctuation still goes.
+        ("Кот/Cat", "кот cat"),
+    ],
+)
+def test_normalize_word_text_keeps_cyrillic(raw: str, expected: str) -> None:
+    assert normalize_word_text(raw) == expected
+
+
+@pytest.mark.parametrize("word", ["Шарф", "Паутина", "Морская звезда", "Кот"])
+def test_is_plausible_word_text_accepts_russian_words(word: str) -> None:
+    assert is_plausible_word_text(word) is True
+
+
+@pytest.mark.parametrize("garbage", ["ыыыыыы", "кпрст", "ааа ооо"])
+def test_is_plausible_word_text_rejects_russian_garbage(garbage: str) -> None:
+    assert is_plausible_word_text(garbage) is False

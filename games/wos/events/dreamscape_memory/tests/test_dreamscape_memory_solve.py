@@ -2503,3 +2503,96 @@ def test_is_multiplayer_mode() -> None:
     assert solve._is_multiplayer_mode({"mode": " Co-Op "})
     assert not solve._is_multiplayer_mode({"mode": "solo"})
     assert not solve._is_multiplayer_mode({})
+
+
+# --- localized item vocabulary -------------------------------------------
+#
+# Points are named in English; the RU client prints the same items in Russian.
+# What matters is the wiring, not the wording: a Russian read must tap the exact
+# pixel its English name taps, and must never steal a word a real item owns.
+
+
+def _fake_aliases(monkeypatch, mapping: dict[str, list[str]]) -> None:
+    monkeypatch.setattr(dreamscape_db, "item_aliases", lambda: mapping)
+
+
+def test_localized_word_taps_the_canonical_point(monkeypatch) -> None:
+    _fake_aliases(monkeypatch, {"rubber duck": ["резиновая уточка", "уточка"]})
+    targets = solve._points_to_targets(
+        [{"n": 1, "name": "Rubber duck", "xPct": 50, "yPct": 25}]
+    )
+    hits, misses = solve._resolve_taps(
+        ["Резиновая уточка", "Уточка", "Rubber duck"], targets, 720, 1280
+    )
+    assert not misses
+    assert {(p.x, p.y) for _word, p in hits} == {(360, 320)}
+
+
+def test_localized_lookup_leaves_the_target_map_canonical(monkeypatch) -> None:
+    """Aliases resolve at lookup time — they never enter the tap map itself."""
+    _fake_aliases(monkeypatch, {"scarf": ["шарф"]})
+    assert solve._points_to_targets(
+        [{"n": 1, "name": "Scarf", "xPct": 40, "yPct": 60}]
+    ) == {"scarf": (40.0, 60.0)}
+
+
+def test_localized_alias_never_displaces_a_real_item(monkeypatch) -> None:
+    """A scene that really contains "Шарф" keeps its own point for that word."""
+    _fake_aliases(monkeypatch, {"cape": ["шарф"]})
+    targets = solve._points_to_targets(
+        [
+            {"n": 1, "name": "Cape", "xPct": 10, "yPct": 10},
+            {"n": 2, "name": "Шарф", "xPct": 80, "yPct": 80},
+        ]
+    )
+    hits, _misses = solve._resolve_taps(["Шарф"], targets, 720, 1280)
+    assert [(p.x, p.y) for _word, p in hits] == [(576, 1024)]
+
+
+def test_garbled_localized_read_fuzzy_matches_within_its_own_alphabet(
+    monkeypatch,
+) -> None:
+    """OCR noise on a Russian word recovers, and doesn't grab an English item."""
+    _fake_aliases(monkeypatch, {"spider web": ["паутина"]})
+    targets = solve._points_to_targets(
+        [
+            {"n": 1, "name": "Spider web", "xPct": 20, "yPct": 20},
+            {"n": 2, "name": "Sword", "xPct": 90, "yPct": 90},
+        ]
+    )
+    hits, misses = solve._resolve_taps(["Паутина"[:-1] + "а"], targets, 720, 1280)
+    assert not misses
+    assert [(p.x, p.y) for _word, p in hits] == [(144, 256)]
+
+
+def test_unmapped_localized_word_is_reported_verbatim(monkeypatch) -> None:
+    """A word with no wording yet stays a miss — the helper-learn flow gets it."""
+    _fake_aliases(monkeypatch, {})
+    targets = solve._points_to_targets([{"n": 1, "name": "Sword", "xPct": 90, "yPct": 90}])
+    _hits, misses = solve._resolve_taps(["Табуретка"], targets, 720, 1280)
+    assert misses == ["Табуретка"]
+
+
+def test_shipped_item_lexicon_is_normalized() -> None:
+    """The lexicon is keyed the way lookups are: normalized, no self-aliases."""
+    aliases = dreamscape_db.item_aliases()
+    assert aliases, "items_ru.yaml should ship a non-empty vocabulary"
+    for name, localized in aliases.items():
+        assert name == solve._normalize_word(name)
+        assert localized, f"{name!r} maps to an empty alias list"
+        for alias in localized:
+            assert alias == solve._normalize_word(alias)
+            assert alias != name
+
+
+def test_scene_is_detected_from_localized_words_alone(monkeypatch) -> None:
+    _fake_aliases(monkeypatch, {"corn": ["кукуруза"], "feather": ["перо"]})
+    scenes = [
+        {
+            "slug": "garden",
+            "season": 5,
+            "names": dreamscape_db.aliased_names(["Corn", "Feather"]),
+        },
+        {"slug": "kitchen", "season": 5, "names": dreamscape_db.aliased_names(["Kettle"])},
+    ]
+    assert dreamscape_db.match_scene_by_words(["Кукуруза", "Перо"], scenes) == "garden"

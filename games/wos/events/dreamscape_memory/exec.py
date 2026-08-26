@@ -305,6 +305,7 @@ def _points_to_targets(
     game-frame percentages: ``frame = rect_origin + guide/100 * rect_size``.
     With no rect the points are used as-is. Malformed entries are skipped and
     logged rather than aborting the whole solve.
+
     """
     if not isinstance(points, list):
         return {}
@@ -328,6 +329,31 @@ def _points_to_targets(
             x_pct = left + x_pct / 100.0 * width
             y_pct = top + y_pct / 100.0 * height
         out[key] = (x_pct, y_pct)
+    return out
+
+
+def _localized_keys(
+    targets: dict[str, tuple[float, float]],
+) -> dict[str, str]:
+    """``{localized word: canonical item name}`` for the items in ``targets``.
+
+    Scene points are named in English (the upstream catalog); the RU client
+    («Белая мгла», OCR lang ``rus``) prints the same items in Russian. The
+    module's ``items_ru.yaml`` supplies the wording, and resolving here — rather
+    than widening the target map — keeps the tap map canonical and confines each
+    word to the vocabulary it was read in.
+
+    An item that really is named in Russian keeps its own point: a canonical
+    name is never shadowed by another item's alias.
+    """
+    from config.dreamscape_db import item_aliases
+
+    aliases = item_aliases()
+    out: dict[str, str] = {}
+    for name in targets:
+        for alias in aliases.get(name, ()):
+            if alias not in targets:
+                out.setdefault(alias, name)
     return out
 
 
@@ -585,13 +611,19 @@ def _resolve_region_tap_candidates(
     """Resolve ``(region, OCR word)`` pairs while preserving the source slot."""
     candidates: list[TapCandidate] = []
     misses: list[tuple[str, str]] = []
-    choices = list(targets)
+    localized = _localized_keys(targets)
+    # Fuzzy search spans both vocabularies, so a garbled Russian read is matched
+    # against Russian wordings rather than forced onto an English item name.
+    choices = [*targets, *localized]
     for region, word in word_items:
         raw_key = _normalize_word(word)
         if not raw_key:
             continue
         coord = targets.get(raw_key)
         target_key = raw_key
+        if coord is None and raw_key in localized:
+            target_key = localized[raw_key]
+            coord = targets[target_key]
         if coord is None:
             lookup = _fuzzy_lookup(raw_key, choices, fuzz_threshold)
             if lookup.key is not None:
@@ -600,8 +632,8 @@ def _resolve_region_tap_candidates(
                     word,
                     lookup.key,
                 )
-                coord = targets[lookup.key]
-                target_key = lookup.key
+                target_key = localized.get(lookup.key, lookup.key)
+                coord = targets[target_key]
             elif lookup.ambiguous:
                 logger.info(
                     "dreamscape_memory_solve: skipping ambiguous OCR word %r",

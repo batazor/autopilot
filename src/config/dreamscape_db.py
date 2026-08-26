@@ -35,6 +35,7 @@ from config.paths import repo_root
 from ocr.word_cleaning import is_plausible_word_text, normalize_word_text
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
     from sqlalchemy.engine import Engine
@@ -45,6 +46,7 @@ _conn_lock = threading.RLock()
 
 _MODULE_REL = "games/wos/events/dreamscape_memory"
 _LEGACY_MAP_REL = f"{_MODULE_REL}/map.yaml"
+_ITEMS_RU_REL = f"{_MODULE_REL}/items_ru.yaml"
 _DB_FILENAME = "scenes.db"
 
 # ``season`` doubles as the Guides category. Numbered content seasons are
@@ -220,6 +222,71 @@ def _legacy_points_to_list(points: Any) -> list[dict[str, Any]]:
             except (KeyError, TypeError, ValueError):
                 continue
     out.sort(key=lambda p: p["n"])
+    return out
+
+
+# ---------------------------------------------------------------------------
+# localized item vocabulary
+# ---------------------------------------------------------------------------
+
+# Cache keyed on the lexicon's mtime so an operator's edit is picked up without
+# a restart, while the steady state costs one stat() per call.
+_alias_cache: tuple[float, dict[str, list[str]]] | None = None
+
+
+def item_aliases() -> dict[str, list[str]]:
+    """``{normalized item name: [normalized localized alias, ...]}``.
+
+    Scene points are named in English (the upstream catalog), but the RU client
+    prints the same items in Russian. The module's ``items_ru.yaml`` carries the
+    Russian wording per item; both the solver's tap map and word-based scene
+    detection register these aliases so a Russian read resolves to the English
+    point. Missing/broken file = no aliases (English-only behaviour).
+    """
+    global _alias_cache
+    path = repo_root() / _ITEMS_RU_REL
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        _alias_cache = None
+        return {}
+    if _alias_cache is not None and _alias_cache[0] == mtime:
+        return _alias_cache[1]
+    try:
+        import yaml
+
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        logger.exception("dreamscape_db: failed to read item lexicon %s", path)
+        return {}
+    out: dict[str, list[str]] = {}
+    for name, value in (doc.items() if isinstance(doc, dict) else ()):
+        key = normalize_word_text(name)
+        if not key:
+            continue
+        raw = value if isinstance(value, list) else [value]
+        seen: set[str] = set()
+        aliases = [
+            alias
+            for alias in (normalize_word_text(v) for v in raw)
+            if alias and alias != key and not (alias in seen or seen.add(alias))
+        ]
+        if aliases:
+            out.setdefault(key, []).extend(aliases)
+    _alias_cache = (mtime, out)
+    return out
+
+
+def aliased_names(names: Iterable[str]) -> list[str]:
+    """``names`` plus every localized alias mapped to them (de-duplicated)."""
+    aliases = item_aliases()
+    out: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        for candidate in (name, *aliases.get(normalize_word_text(name), ())):
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                out.append(candidate)
     return out
 
 
@@ -405,11 +472,12 @@ def scene_word_index() -> dict[str, Any]:
             "season": int(r.season),
             "active": bool(r.active),
             "archived": bool(r.archived),
-            "names": [
+            # Aliases ride along so Russian reads identify the scene too.
+            "names": aliased_names(
                 str(p.get("name", ""))
                 for p in _load_json(r.points_json, [])
                 if isinstance(p, dict)
-            ],
+            ),
         }
         for r in rows
     ]

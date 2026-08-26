@@ -1,0 +1,646 @@
+# Russian item vocabulary for the «Белая мгла» (``wos_ru``) client.
+#
+# The solver keys taps by item name, and scene points are named in English (the
+# wostools catalog). Under the RU catalog the game prints the same items in
+# Russian, so every OCR'd word misses. This maps each point name to the Russian
+# word(s) the RU client shows for it; the aliases resolve to the same tap point
+# and also let a scene be recognised from Russian words alone.
+#
+# Values may be one word or a list of wordings (the game's exact phrasing isn't
+# always the obvious translation, and OCR under ``rus`` can read either form).
+# Keys mirror the point names verbatim — including the community sheets'
+# misspellings ("Parachutte", "Laddle") — because the alias has to reach the
+# point that actually exists in the scene. Fuzzy matching absorbs the rest.
+#
+# Unknown words are not fatal: the solver's helper-learn flow can still find an
+# unmapped item via the in-game hint. Add what it learns here so the next run is
+# a direct hit.
+
+4-wheel cart: [Телега, Повозка]
+Accordian: Аккордеон
+Accordion: Аккордеон
+Acorn: Жёлудь
+Aeroplane: Самолёт
+Air drop: [Авиадоставка, Груз с воздуха]
+Air pump: Насос
+Airdrop: [Авиадоставка, Груз с воздуха]
+Airship: [Дирижабль, Воздушный корабль]
+Alarm clock: Будильник
+Anchor: Якорь
+Anemometer: [Анемометр, Флюгер]
+Animal hide: [Шкура, Звериная шкура]
+Apple: Яблоко
+Apple Pie: [Яблочный пирог, Пирог]
+Apron: Фартук
+Arrow: Стрела
+Arrow sign: [Указатель, Стрелка-указатель]
+Arrrow sign: [Указатель, Стрелка-указатель]
+Aurora: [Северное сияние, Сияние]
+Axe: Топор
+Backpack: Рюкзак
+Bag: Сумка
+Balance: [Весы, Равновесие]
+Ball: Мяч
+Balloon: [Воздушный шар, Шарик]
+Balloon bear: [Медведь-шарик, Шарик-медведь]
+Balloons: [Воздушные шары, Шарики]
+Banana peel: [Банановая кожура, Кожура банана]
+Bandage: Бинт
+Bandage roll: [Рулон бинта, Бинт]
+Banner: [Знамя, Баннер]
+Barrel: Бочка
+Barrels: Бочки
+Basket: Корзина
+Bear head: [Голова медведя, Медвежья голова]
+Bear trap: [Капкан, Медвежий капкан]
+Beast trap: [Капкан, Ловушка для зверя]
+Beehive: Улей
+Bell: Колокол
+Belt: Ремень
+Bench: Скамейка
+Binoculars: Бинокль
+Bird: Птица
+Bird flock: [Стая птиц, Птицы]
+Bird nest: [Гнездо, Птичье гнездо]
+"Bird's nest": [Гнездо, Птичье гнездо]
+Birdcage: [Клетка, Птичья клетка]
+Birds: Птицы
+Birds Nest: [Гнездо, Птичье гнездо]
+Blackboard: [Доска, Классная доска]
+Blackboard eraser: [Губка для доски, Тряпка для доски]
+Blanket: [Одеяло, Плед]
+Bluefish: [Синяя рыба, Рыба]
+Blueprint: Чертёж
+Blueprints: Чертежи
+Boat: Лодка
+Bomb: Бомба
+Bone: Кость
+Book: Книга
+Boomerang: Бумеранг
+Boot: [Ботинок, Сапог]
+Boots: [Ботинки, Сапоги]
+Bouquet: Букет
+Bow: [Лук, Бант]
+Bow and arrow: [Лук со стрелой, Лук и стрела]
+Bowknot: Бант
+Bowl: [Миска, Чаша]
+Branch: Ветка
+Brazier: [Жаровня, Мангал]
+Bread: Хлеб
+Bread slice: [Ломтик хлеба, Кусок хлеба]
+Briefcase: [Портфель, Чемоданчик]
+Broken glass: [Разбитое стекло, Осколки]
+Broom: [Метла, Веник]
+Brush: [Кисть, Щётка]
+Bubble: [Пузырь, Пузырьки]
+Bucket: Ведро
+Bug net: Сачок
+Bullet: Патрон
+Bullet hole: [Пулевое отверстие, След от пули]
+Bullets: Патроны
+Butterfly: Бабочка
+Button: Пуговица
+Cabinet: [Шкаф, Шкафчик]
+Cake: Торт
+Calendar: Календарь
+Camera: [Фотоаппарат, Камера]
+Candle: Свеча
+Candles: Свечи
+Cane: Трость
+Canned food: [Консервы, Банка консервов]
+Cannon barrel: [Ствол пушки, Пушка]
+Canopy: [Навес, Тент]
+Canteen: [Фляга, Фляжка]
+Cape: [Плащ, Накидка]
+Capsule: Капсула
+Car: [Машина, Автомобиль]
+Caravan: [Фургон, Караван]
+Carriage: [Карета, Повозка]
+Carrot: Морковь
+Cart: [Тележка, Повозка]
+Casefile: [Досье, Папка с делом]
+Cat: Кот
+Catapult: Катапульта
+Cave: Пещера
+Cello: Виолончель
+Chain: Цепь
+Chainmail: Кольчуга
+Chameleon: Хамелеон
+Chandelier: Люстра
+Cheese: Сыр
+Chess board: [Шахматная доска, Шахматы]
+Chess piece: [Шахматная фигура, Шахматная фигурка]
+Chest: Сундук
+Chestplate: [Нагрудник, Кираса]
+Chilli peppers: [Перец чили, Острый перец]
+Chimney: [Труба, Дымоход]
+Claw Mark: [След когтей, Царапины]
+Clay Jug: [Глиняный кувшин, Кувшин]
+Clipboard: Планшет
+Clock: Часы
+Clothes hanger: [Вешалка, Плечики]
+Cloths hanger: [Вешалка, Плечики]
+Coal pile: [Куча угля, Уголь]
+Coat: [Пальто, Куртка]
+Coat rack: Вешалка
+Coffee cup: [Чашка кофе, Кофе]
+Cogwheel: Шестерёнка
+Collar: [Ошейник, Воротник]
+Comb: Расчёска
+Compass: Компас
+Coral: Коралл
+Corn: Кукуруза
+Crab: Краб
+Crack: Трещина
+Crane: [Кран, Журавль]
+Crate: Ящик
+Crescent moon: [Полумесяц, Месяц]
+Crocodile: Крокодил
+Crossbow: Арбалет
+Crow: Ворона
+Crown: Корона
+Crutch: Костыль
+Crutches: Костыли
+Crystal: Кристалл
+Cup: [Чашка, Кружка]
+Curtain: [Занавеска, Штора]
+Cushion: [Подушка, Подушечка]
+Dagger: Кинжал
+Dear doll: [Кукла-олень, Олень-игрушка]
+Dentures: [Зубной протез, Челюсть]
+Diamond: [Алмаз, Бриллиант]
+Diary: Дневник
+Diner sign: [Вывеска кафе, Вывеска]
+Dirt pit: [Яма, Ямка]
+Diving helmet: [Водолазный шлем, Шлем водолаза]
+Diving mask: [Маска для плавания, Водолазная маска]
+Document: Документ
+Dog: Собака
+Dog house: [Будка, Конура]
+Dolphin: Дельфин
+Donut: Пончик
+Door sign: [Табличка на двери, Табличка]
+Doorway: [Дверной проём, Проём]
+Dragonfly: Стрекоза
+Drain: [Слив, Водосток]
+Drawing compass: Циркуль
+Drifting bottle: [Бутылка с посланием, Бутылка]
+Drum: Барабан
+Duffle bag: [Спортивная сумка, Баул]
+Dumbbell: Гантель
+Eagle: Орёл
+Ear of wheat: [Колос, Колосок]
+Earmuff: Наушники
+Earmuffs: Наушники
+Easel: Мольберт
+Easter egg: [Пасхальное яйцо, Крашеное яйцо]
+Egg: Яйцо
+Eggplants: Баклажаны
+Eggs: Яйца
+Envelope: Конверт
+Exhaust fan: [Вытяжка, Вентилятор]
+Exhaust pipe: [Выхлопная труба, Труба]
+Fake limb: [Протез, Искусственная конечность]
+Fan: [Веер, Вентилятор]
+Feather: Перо
+Fence: [Забор, Ограда]
+Ferris Wheel: [Колесо обозрения, Чёртово колесо]
+Fire alarm: [Пожарная сигнализация, Сигнализация]
+Fire extinguisher: Огнетушитель
+Fire tongs: [Щипцы, Каминные щипцы]
+First aid kit: Аптечка
+Fish: Рыба
+Fish bone: [Рыбья кость, Скелет рыбы]
+Fish net: [Рыболовная сеть, Сеть]
+Fishing net: [Рыболовная сеть, Сеть]
+Fishing rod: [Удочка, Удилище]
+Five pointed star: [Пятиконечная звезда, Звезда]
+Flag: Флаг
+Flag garland: [Гирлянда из флажков, Флажки]
+Flame: [Пламя, Огонь]
+Flare: [Сигнальная ракета, Фальшфейер]
+Flour: Мука
+Flower: Цветок
+Flower basket: [Корзина с цветами, Цветочная корзина]
+Flower bed: Клумба
+Flower pot: [Горшок с цветком, Цветочный горшок]
+Flower vase: [Ваза с цветами, Ваза]
+Flowers: Цветы
+Foot print: След
+Footprint: След
+Footprints: Следы
+Fork: Вилка
+"Fork & Knife": [Вилка и нож, Нож и вилка]
+Fork knife: [Вилка и нож, Нож и вилка]
+Fountain pen: [Перьевая ручка, Ручка]
+Four leaf clover: [Четырёхлистный клевер, Клевер]
+Frog: Лягушка
+Frozen waterfall: [Замёрзший водопад, Ледяной водопад]
+Fruit basket: [Корзина с фруктами, Фрукты]
+Fruit stand: [Прилавок с фруктами, Фруктовый лоток]
+Frying pan: Сковорода
+Fuel canister: [Канистра, Канистра с топливом]
+Fur Mantle: [Меховая мантия, Меховая накидка]
+Game board: [Игровая доска, Настольная игра]
+Garlic: Чеснок
+Gavel: [Молоток судьи, Судейский молоток]
+Gear: Шестерёнка
+Gecko: [Геккон, Ящерица]
+Giant elk: [Гигантский лось, Большой лось]
+Gift Box: [Подарок, Подарочная коробка]
+Giftbox: [Подарок, Подарочная коробка]
+Glass bottle: [Стеклянная бутылка, Бутылка]
+Glass bottles: [Стеклянные бутылки, Бутылки]
+Glass display case: [Витрина, Стеклянная витрина]
+Glass jar: [Стеклянная банка, Банка]
+Glider: [Планер, Дельтаплан]
+Globe: Глобус
+Glove: Перчатка
+Gloves: Перчатки
+Goggle: Очки
+Goggles: Очки
+Gold coin: [Золотая монета, Монета]
+Gold coins: [Золотые монеты, Монеты]
+Gong: Гонг
+Gramophone: [Граммофон, Патефон]
+Grapes: Виноград
+Grilled Fish: [Жареная рыба, Рыба на гриле]
+Grilled Skewer: [Шашлык, Шампур]
+Guitar: Гитара
+Hammer: Молоток
+Hand drum: [Бубен, Ручной барабан]
+Hand fan: Веер
+Hand print: [Отпечаток руки, След руки]
+Hand saw: [Ножовка, Пила]
+Hand shovel: [Совок, Лопатка]
+Handcuff: Наручники
+Handgun: [Пистолет, Револьвер]
+Handprint: [Отпечаток руки, След руки]
+Handsaw: [Ножовка, Пила]
+Hanging banner: [Знамя, Висящее знамя]
+Hanging Rug: [Ковёр, Висящий ковёр]
+Harp: Арфа
+Harpoon: Гарпун
+Hat: Шляпа
+Hay bale: [Тюк сена, Сено]
+Haystack: [Стог сена, Сено]
+Headwear: [Головной убор, Шапка]
+Heart: Сердце
+Helmet: Шлем
+High stool: [Высокий стул, Табурет]
+Hole: [Дыра, Яма]
+Hook: Крюк
+Horn: [Рог, Горн]
+Horse: Лошадь
+Horseshoe: Подкова
+Hot air balloon: [Воздушный шар, Аэростат]
+Hourglass: [Песочные часы, Часы]
+Ice skates: Коньки
+Icicle: Сосулька
+Icicles: Сосульки
+Ink bottle: [Чернильница, Пузырёк чернил]
+Iron axe: [Железный топор, Топор]
+Iron pot: [Чугунок, Котелок]
+IV Drip: Капельница
+IV drop: Капельница
+Jam: [Варенье, Джем]
+Jar: [Банка, Кувшин]
+Jellyfish: Медуза
+Kennel: [Будка, Конура]
+Kettle: Чайник
+Kettlebell: Гиря
+Key: Ключ
+Keys: Ключи
+Kite: [Воздушный змей, Змей]
+Knife and fork: [Нож и вилка, Вилка и нож]
+Knight Headguard: [Шлем рыцаря, Рыцарский шлем]
+Labyrinth: Лабиринт
+Ladder: Лестница
+Laddle: [Половник, Черпак]
+Ladle: [Половник, Черпак]
+Lamb Chops: [Бараньи рёбра, Отбивные]
+Lamp: [Лампа, Светильник]
+Lantern: [Фонарь, Фонарик]
+Leaf: Лист
+Leaf pile: [Куча листьев, Листья]
+Lifebouy: [Спасательный круг, Круг]
+Lifebuoy: [Спасательный круг, Круг]
+Lift: [Лифт, Подъёмник]
+Lighthouse: Маяк
+Lightning: Молния
+Lion statue: [Статуя льва, Лев]
+Lion wall art: [Лев на стене, Барельеф льва]
+Loaf of bread: [Буханка хлеба, Батон]
+Lobster: [Лобстер, Омар]
+Lock: [Замок, Навесной замок]
+Lollipop: [Леденец, Чупа-чупс]
+Lounge chair: [Шезлонг, Кресло]
+Magnet: Магнит
+Magnifier: [Лупа, Увеличительное стекло]
+Mailbox: [Почтовый ящик, Ящик]
+Manhole cover: [Люк, Крышка люка]
+Map: Карта
+Maple leaf: [Кленовый лист, Лист клёна]
+Mask: Маска
+Medal: Медаль
+Medkit: Аптечка
+Megaphone: [Мегафон, Рупор]
+Mermaid: Русалка
+Meteorite: Метеорит
+Microphone: Микрофон
+Microscope: Микроскоп
+Milk: Молоко
+Minecart: [Вагонетка, Тележка]
+Mirror: Зеркало
+Moon: Луна
+Moose: Лось
+Moose Antlers: [Рога лося, Лосиные рога]
+Mop: Швабра
+"Mortar & Pestle": [Ступка с пестиком, Ступка]
+Mortar paste: [Паста в ступке, Ступка]
+Mosse Statue: [Статуя лося, Лось]
+Motorcycle: Мотоцикл
+Mouse: Мышь
+Mug: [Кружка, Чашка]
+Mushroom: Гриб
+Music note: [Нота, Нотный знак]
+Musket: [Мушкет, Ружьё]
+Nameplate: [Табличка, Именная табличка]
+Newspaper: Газета
+Note: [Записка, Заметка]
+Notebook: [Блокнот, Тетрадь]
+Notice: [Объявление, Уведомление]
+Notice board: [Доска объявлений, Стенд]
+Number plate: [Номерной знак, Номер]
+Oar: Весло
+Obelisk: Обелиск
+Octopus: [Осьминог, Спрут]
+Oil pot: [Кувшин с маслом, Масло]
+Oil puddle: [Лужа масла, Масляное пятно]
+Oil stain: [Масляное пятно, Пятно]
+Ostrich egg: [Страусиное яйцо, Яйцо]
+Otter: Выдра
+Outfit: [Наряд, Одежда]
+Owl: Сова
+Oxygen tank: [Кислородный баллон, Баллон]
+Paint Blob: [Клякса, Пятно краски]
+Paint bucket: [Ведро с краской, Краска]
+Painting: Картина
+Paper bag: [Бумажный пакет, Пакет]
+Paper ball: [Скомканная бумага, Бумажный комок]
+Paper plane: [Бумажный самолётик, Самолётик]
+Paper windmill: [Вертушка, Бумажная вертушка]
+Parachutte: Парашют
+Parasol: [Зонт, Зонтик]
+Parcel: [Посылка, Свёрток]
+Parrot: Попугай
+Patch: [Заплатка, Нашивка]
+Patio umbrella: [Зонт, Садовый зонт]
+Paw mark: [След лапы, Отпечаток лапы]
+Pearl: Жемчужина
+Penguin: Пингвин
+Pestle: Пестик
+Photo: [Фото, Фотография]
+Photo frame: [Рамка для фото, Фоторамка]
+Piano: [Пианино, Рояль]
+Pickaxe: Кирка
+Picture frame: [Рамка, Картинная рама]
+Pie: Пирог
+Pigeon: Голубь
+Pile of leaves: [Куча листьев, Листья]
+Pine Tree: [Сосна, Ёлка]
+Pinecone: [Шишка, Сосновая шишка]
+Pipe: [Труба, Трубка]
+Pitchfork: Вилы
+Plane: Самолёт
+Plant: Растение
+Plate: Тарелка
+Pliers: [Плоскогубцы, Клещи]
+Plushy: [Плюшевая игрушка, Мягкая игрушка]
+Pocket knife: [Перочинный нож, Складной нож]
+Pocket Watch: [Карманные часы, Часы]
+Polar bear: [Белый медведь, Полярный медведь]
+Pork chop: [Свиная отбивная, Отбивная]
+Portrait: Портрет
+Poster: [Плакат, Постер]
+Pot: [Горшок, Кастрюля]
+Potato: Картофель
+Potatoes: Картофель
+Pouch: [Мешочек, Кошель]
+Pressure gauge: [Манометр, Датчик давления]
+Projector: [Проектор, Кинопроектор]
+Pruning shears: [Секатор, Садовые ножницы]
+Pufferfish: [Рыба-шар, Рыба-ёж]
+Pulley crane: [Лебёдка, Подъёмный кран]
+Pully: [Блок, Лебёдка]
+Pumpkin: Тыква
+Purse: [Кошелёк, Сумочка]
+Quill: [Перо, Гусиное перо]
+Rabbit: [Кролик, Заяц]
+Rag: [Тряпка, Ветошь]
+Rifle: [Винтовка, Ружьё]
+Ring: Кольцо
+Road cone: [Дорожный конус, Конус]
+Road cone or cone: [Дорожный конус, Конус]
+Roast chicken: [Жареная курица, Курица]
+Roast turkey: [Жареная индейка, Индейка]
+Rocket: Ракета
+Rolled Carpet: [Свёрнутый ковёр, Рулон ковра]
+Rolling pin: Скалка
+Rope: [Верёвка, Канат]
+Rope railing: [Верёвочные перила, Канат]
+Rose: Роза
+Rubber ball: [Резиновый мяч, Мяч]
+Rubber duck: [Резиновая уточка, Уточка]
+Rudder: [Руль, Штурвал]
+Rug: [Ковёр, Коврик]
+Ruler: Линейка
+Saber tooth tiger: [Саблезубый тигр, Тигр]
+Sack: [Мешок, Куль]
+Saddle: Седло
+Safety helmet: [Каска, Защитный шлем]
+Sailboat: [Парусник, Парусная лодка]
+Sandbag: [Мешок с песком, Мешок]
+Sandwich: [Бутерброд, Сэндвич]
+Satchel: [Сумка, Ранец]
+Sausage: [Колбаса, Сосиска]
+Saw: Пила
+Scale: [Весы, Чешуя]
+Scalpale: Скальпель
+Scarecrow: [Пугало, Чучело]
+Scarf: Шарф
+Scepter: [Скипетр, Жезл]
+Scissors: Ножницы
+Scoreboard: [Табло, Счётное табло]
+Scratch mark: [Царапина, Царапины]
+Screwdriver: Отвёртка
+Scroll: Свиток
+Scrolls: Свитки
+Scythe: Коса
+Sea anemone: [Актиния, Морской анемон]
+Sea cucumber: [Морской огурец, Трепанг]
+Sea horse: [Морской конёк, Конёк]
+Sea shell: [Ракушка, Морская раковина]
+Sea turtle: [Морская черепаха, Черепаха]
+Sea urchin: [Морской ёж, Ёж]
+Seagull: Чайка
+Seahorse: [Морской конёк, Конёк]
+Seal: [Тюлень, Печать]
+Search light: [Прожектор, Поисковый прожектор]
+Searchlight: [Прожектор, Поисковый прожектор]
+Shark: Акула
+Shell: [Ракушка, Раковина]
+Shield: Щит
+Ship: Корабль
+Ship wheel: [Штурвал, Корабельный штурвал]
+Shoe: [Туфля, Ботинок]
+Shoe Print: [След обуви, Отпечаток ботинка]
+Shoes: [Туфли, Обувь]
+Shotgun: [Дробовик, Ружьё]
+Shoulder bag: [Сумка через плечо, Сумка]
+Shovel: Лопата
+Sign: [Знак, Табличка]
+Sign post: [Указатель, Столб с указателем]
+Signboard: [Вывеска, Табличка]
+Silk scarf: [Шёлковый шарф, Платок]
+Ski: Лыжа
+Skies: Лыжи
+Skis: Лыжи
+Skylight: [Люк в крыше, Окно в крыше]
+Slingshot: Рогатка
+Slipper: Тапок
+Slippers: Тапки
+Smile: [Улыбка, Смайлик]
+Smoke: Дым
+Snake: Змея
+Snow boots: [Зимние сапоги, Валенки]
+Snowboard: Сноуборд
+Snowflake: Снежинка
+Snowman: Снеговик
+Snowmobile: Снегоход
+Socks: Носки
+Spatula: [Лопатка, Кулинарная лопатка]
+Spear: Копьё
+Spider: Паук
+Spider web: Паутина
+Spiked Flail: [Кистень, Булава]
+Spiked mace: [Булава, Шипастая булава]
+Spotlight: Прожектор
+Spring: [Пружина, Родник]
+Squirrel: Белка
+Stag head: [Голова оленя, Оленья голова]
+Stain: [Пятно, Клякса]
+Stamp: [Марка, Печать]
+Star: Звезда
+Star or Frost Star: [Звезда, Ледяная звезда]
+Starfish: [Морская звезда, Звезда]
+Statue: Статуя
+Staute: Статуя
+Steak: [Стейк, Мясо]
+Stethoscope: [Стетоскоп, Фонендоскоп]
+Stone statue: [Каменная статуя, Статуя]
+Stool: [Табурет, Табуретка]
+Straw hat: [Соломенная шляпа, Шляпа]
+Strawberries: Клубника
+Streetlight: [Фонарь, Уличный фонарь]
+Stretcher: Носилки
+Stuffed bunny: [Плюшевый заяц, Игрушечный кролик]
+Submarine: [Подводная лодка, Субмарина]
+Suitcase: Чемодан
+Sun: Солнце
+Sunflower: Подсолнух
+Sunken ship: [Затонувший корабль, Корабль]
+Suspension bridge: [Подвесной мост, Мост]
+Swan: Лебедь
+Sword: Меч
+Syringe: Шприц
+Tape: [Скотч, Лента]
+Target: Мишень
+Tarp: [Брезент, Тент]
+Tea pot: [Чайник, Заварник]
+Tea set: [Чайный сервиз, Сервиз]
+Teapot: [Чайник, Заварник]
+Teddy: [Мишка, Плюшевый мишка]
+Teddy bear: [Плюшевый мишка, Мишка]
+Telescope: Телескоп
+Tentacles: [Щупальца, Щупальце]
+Test tube: Пробирка
+Test tubes: Пробирки
+Thermometer: [Термометр, Градусник]
+Three leaf clover: [Трилистник, Клевер]
+Throwing knife: [Метательный нож, Нож]
+Tie: Галстук
+Tomato: Помидор
+Tomatoes: Помидоры
+Toolbox: [Ящик с инструментами, Инструменты]
+Torch: [Факел, Фонарь]
+Towel: Полотенце
+Tower: Башня
+Toy aeroplane: [Игрушечный самолёт, Самолётик]
+Toy car: [Игрушечная машинка, Машинка]
+Toy figure: [Игрушечная фигурка, Фигурка]
+Toy plane: [Игрушечный самолёт, Самолётик]
+Training dummy: [Манекен, Тренировочный манекен]
+Trash can: [Мусорный бак, Урна]
+Tree: Дерево
+Triangle: Треугольник
+Trident: Трезубец
+Trophy: [Кубок, Трофей]
+Trumpet: [Труба, Горн]
+Turkey: Индейка
+Tweezers: Пинцет
+Twezzer: Пинцет
+Twin sword: [Парные мечи, Два меча]
+Twin swords: [Парные мечи, Два меча]
+Typewriter: [Печатная машинка, Пишущая машинка]
+Typewritter: [Печатная машинка, Пишущая машинка]
+Umbrella: [Зонт, Зонтик]
+Valve: [Вентиль, Клапан]
+Vase: Ваза
+Vent: [Вентиляция, Решётка]
+Vine: [Лиана, Лоза]
+Vines: [Лианы, Лозы]
+Violin: Скрипка
+Volleyball: [Волейбольный мяч, Мяч]
+Walking Stick: [Трость, Посох]
+Wall light: [Бра, Настенный светильник]
+Wallet: [Кошелёк, Бумажник]
+Watchtower: [Сторожевая башня, Вышка]
+Water bag: [Бурдюк, Мешок с водой]
+Water Cup: [Стакан воды, Стакан]
+Water stain: [Пятно от воды, Мокрое пятно]
+Waterbag: [Бурдюк, Мешок с водой]
+Watering can: [Лейка, Садовая лейка]
+Wave: Волна
+Weapon rack: [Стойка с оружием, Оружейная стойка]
+Weighing scale: Весы
+Whale: Кит
+Wheat: Пшеница
+Wheel: Колесо
+Wheelbarrow: Тачка
+Whip: [Кнут, Хлыст]
+Whisk: [Венчик, Взбивалка]
+Whistle: Свисток
+Wind Chime: [Музыка ветра, Колокольчики]
+Wind cone: [Ветроуказатель, Конус]
+Wind vane: [Флюгер, Ветроуказатель]
+Windmill: [Мельница, Ветряная мельница]
+Window: Окно
+Windsock: [Ветроуказатель, Ветровой конус]
+Wing: Крыло
+Wings: Крылья
+Withered branch: [Сухая ветка, Засохшая ветка]
+Wolf: Волк
+Wood pile: [Поленница, Дрова]
+Wood wall art: [Резьба по дереву, Панно]
+Wooden boat: [Деревянная лодка, Лодка]
+Wooden cart: [Деревянная телега, Телега]
+Wooden pallet: [Поддон, Паллета]
+Wooden pile: [Поленница, Дрова]
+Wooden stake: [Деревянный кол, Кол]
+Wreath: Венок
+Wrench: [Гаечный ключ, Ключ]
+Wrist watch: [Наручные часы, Часы]
+Wristwatch: [Наручные часы, Часы]
+Yak: Як
+Yarn ball: [Клубок, Клубок ниток]
