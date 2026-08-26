@@ -293,7 +293,10 @@ async def test_tick_records_screenshot_analysis_duration(
         "device_level_only": False,
         "task_busy": False,
         "outcome": "ok",
+        # Both frame-skip paths ship as attributes so a dashboard can chart the
+        # skip rate; empty here because this harness never set them.
         "detect_path": "",
+        "overlay_path": "",
     }
 
 

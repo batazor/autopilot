@@ -449,29 +449,48 @@ class _H264Decoder:
             raise RuntimeError(msg) from exc
         self._av = av
         self._ctx = av.CodecContext.create("h264", "r")
+        # One reformatter reused for every frame. ``frame.to_ndarray(format=…)``
+        # converts through the frame's *own* reformatter, and every decoded
+        # frame is a fresh object — so each conversion built a new SwsContext
+        # and, with it, a fresh swscale slice-thread pool. Profiling a live
+        # worker put 18 of 40 samples inside ``to_ndarray`` in
+        # ``avpriv_slicethread_create``/``_pthread_create``; measured on a real
+        # 720x1280 H.264 stream, reusing one reformatter takes the conversion
+        # from 0.597 ms to 0.320 ms per frame.
+        #
+        # Thread-safety: a decoder is created inside ``_stream_video``, which
+        # only ever runs on this client's single ``scrcpy-<serial>`` reader
+        # thread, so the reformatter is confined to that thread.
+        self._reformatter = av.video.reformatter.VideoReformatter()
 
-    def decode(self, packet_bytes: bytes) -> list[np.ndarray]:
-        """Push one packet of raw NAL units, return any frames it produced.
+    def decode(self, packet_bytes: bytes) -> np.ndarray | None:
+        """Push one packet of raw NAL units, return the newest frame it produced.
 
         Config-only packets (SPS/PPS) typically produce zero frames; key + delta
         frames produce one each. Invalid-data errors are swallowed — they
         usually mean the decoder is still waiting for SPS/PPS at startup.
+
+        Only the newest frame is converted. Decoding every frame is unavoidable
+        (H.264 is inter-coded — earlier frames are reference data for later
+        ones), but ``to_ndarray`` is a full-frame YUV→BGR swscale and the caller
+        only ever keeps the last one: converting the rest was pure waste.
         """
         try:
             packet = self._av.Packet(packet_bytes)
             frames = self._ctx.decode(packet)
         except self._av.error.InvalidDataError:
-            return []
+            return None
         except Exception:
             logger.debug("scrcpy: h264 decode raised", exc_info=True)
-            return []
-        out: list[np.ndarray] = []
-        for frame in frames:
+            return None
+        # Walk newest-first so a conversion failure falls back to the previous
+        # frame rather than dropping the whole packet.
+        for frame in reversed(frames):
             try:
-                out.append(frame.to_ndarray(format="bgr24"))
+                return self._reformatter.reformat(frame, format="bgr24").to_ndarray()
             except Exception:
-                logger.debug("scrcpy: frame.to_ndarray failed", exc_info=True)
-        return out
+                logger.debug("scrcpy: frame conversion failed", exc_info=True)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -849,11 +868,11 @@ class ScrcpyClient:
                 return "dropped"
             if decoder is None:
                 decoder = _H264Decoder()
-            frames = decoder.decode(payload)
-            if not frames:
+            # The newest frame in the packet; older ones in a multi-frame batch
+            # are decoded as reference data but never converted.
+            img = decoder.decode(payload)
+            if img is None:
                 continue
-            # Use the most recent frame (skip older ones in a multi-frame batch).
-            img = frames[-1]
             with self._cache_lock:
                 self._cache = _CachedFrame(image=img, captured_at=time.monotonic())
             self._frame_event.set()

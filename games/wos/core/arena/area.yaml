@@ -21,6 +21,7 @@
         },
         {
           "name": "arena.challenge",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -85,6 +86,7 @@
         },
         {
           "name": "arena.fight_button.1",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -99,6 +101,7 @@
         },
         {
           "name": "arena.fight_button.2",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -113,6 +116,7 @@
         },
         {
           "name": "arena.fight_button.3",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -127,6 +131,7 @@
         },
         {
           "name": "arena.fight_button.4",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -141,6 +146,7 @@
         },
         {
           "name": "arena.fight_button.5",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -155,6 +161,7 @@
         },
         {
           "name": "arena.free_refresh",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -182,6 +189,7 @@
         },
         {
           "name": "arena.buy_attempt",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -281,6 +289,7 @@
         },
         {
           "name": "arena.squad.fight",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -295,6 +304,7 @@
         },
         {
           "name": "arena.squad.quick_deploy",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -349,6 +359,7 @@
         },
         {
           "name": "arena.buy.confirm",
+          "static": true,
           "action": "exist",
           "threshold": 0.9,
           "bbox": {

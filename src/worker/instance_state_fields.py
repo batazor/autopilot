@@ -52,6 +52,27 @@ def queue_blocked_mapping(reason: str, *, at: float | None = None) -> dict[str, 
     return {"queue_blocked_reason": text, "queue_blocked_reason_at": _stamp(at)}
 
 
+def tick_path_mapping(
+    detect_path: str, overlay_path: str, *, at: float | None = None
+) -> dict[str, str]:
+    """Mapping for the last rolling tick's screen-detect / overlay decision.
+
+    Both paths are either a real computation (``full_scan`` / ``sticky_hit`` /
+    ``full``) or a reuse of the previous frame's verdict (``skipped_phash``).
+    That distinction is the only external evidence that the phash skips are
+    working — a reuse window shorter than the tick interval silently disables
+    them, which is exactly the regression this field exists to make visible.
+
+    Carries a stamp because a stale path is meaningless: it must be possible to
+    tell "the last tick skipped" from "some tick skipped an hour ago".
+    """
+    return {
+        "tick_detect_path": (detect_path or "").strip(),
+        "tick_overlay_path": (overlay_path or "").strip(),
+        "tick_path_at": _stamp(at),
+    }
+
+
 def field_age_s(raw_at: str | bytes | None, *, now: float | None = None) -> float | None:
     """Seconds since ``raw_at``; ``None`` when absent or unparseable.
 

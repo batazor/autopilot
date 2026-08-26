@@ -34,7 +34,7 @@ from navigation.lifecycle_states import InstanceState
 from popup import PopupDetector
 from tasks.base import BaseTask, TaskResult
 from tasks.dsl_scenario import DslScenarioTask
-from worker.instance_state_fields import last_error_mapping
+from worker.instance_state_fields import last_error_mapping, tick_path_mapping
 from worker.instance_worker_blocking import InstanceWorkerBlockingMixin
 from worker.instance_worker_health import InstanceWorkerHealthMixin
 from worker.instance_worker_overlay import InstanceWorkerOverlayMixin
@@ -536,10 +536,22 @@ class InstanceWorker(
                 return
             if self._redis is not None:
                 try:
+                    now = time.time()
+                    # The rolling tick's skip decision rides along with the
+                    # heartbeat rather than being written per tick: it is a
+                    # sampled diagnostic, and a per-tick hset would add a Redis
+                    # round-trip to the worker's hottest loop to report on an
+                    # optimisation meant to make that loop cheaper.
                     await self._redis.hset(
                         _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
-                        "last_seen_at",
-                        str(time.time()),
+                        mapping={
+                            "last_seen_at": str(now),
+                            **tick_path_mapping(
+                                getattr(self, "_last_detect_path", ""),
+                                getattr(self, "_last_overlay_path", ""),
+                                at=now,
+                            ),
+                        },
                     )
                     await self._publish_fleet_heartbeat(time.time())
                 except asyncio.CancelledError:

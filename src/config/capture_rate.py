@@ -41,6 +41,36 @@ IDLE_SCRCPY_MAX_FPS = 8
 DEEP_IDLE_SCRCPY_MAX_FPS = 2
 DEEP_IDLE_AFTER_S = 60.0
 
+# How many rolling ticks a frame-unchanged reuse window must span. The workers'
+# phash skips (screen detect, overlay sweep, preview PNG) reuse the last result
+# while the frame is visually unchanged, bounded by a "force a real one anyway"
+# window so a sub-threshold change self-heals. Those windows were absolute
+# constants (~4-5 s) chosen against the ~1 s base tick — but the idle backoff
+# stretches the tick to 2.5 s and then 5.0 s, at which point the window is
+# shorter than the gap between ticks and the skip *never* fires: every deep-idle
+# tick paid a full detect + full overlay sweep, exactly the work the backoff
+# existed to shed. Expressing the window in ticks keeps the original intent
+# (~4 ticks of tolerated staleness) at every cadence.
+FORCE_REFRESH_MIN_TICKS = 3
+
+# Ceiling for the derived window, so a future slower tick can't stretch reuse
+# without bound.
+FORCE_REFRESH_MAX_S = 15.0
+
+
+def force_refresh_window_s(base_window_s: float, tick_interval_s: float | None) -> float:
+    """Reuse-window length for a phash skip running at ``tick_interval_s``.
+
+    Never shorter than ``base_window_s`` (so the fast-tick behaviour is exactly
+    what it was) and never longer than :data:`FORCE_REFRESH_MAX_S`.
+    """
+    if not tick_interval_s or tick_interval_s <= 0:
+        return base_window_s
+    return min(
+        FORCE_REFRESH_MAX_S,
+        max(base_window_s, FORCE_REFRESH_MIN_TICKS * tick_interval_s),
+    )
+
 
 def scrcpy_max_fps_for_capture_interval(
     capture_interval_override_s: float | None,

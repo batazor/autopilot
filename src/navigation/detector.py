@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import threading
 import time
 from enum import StrEnum
@@ -686,11 +685,29 @@ def _landmark_worker_count() -> int:
     """Worker count for parallel landmark batches.
 
     cv2.matchTemplate releases the GIL, so real CPU parallelism is possible.
-    Cap at 4 to leave headroom for the worker's snapshot capture, OCR client,
-    and Redis I/O on the same machine.
+    Capped to leave headroom for the worker's snapshot capture, OCR client, and
+    Redis I/O — and divided by the number of workers sharing the host, since
+    each device runs its own process and they all detect against the same cores
+    (see :mod:`config.cpu_budget`).
     """
-    cpu = os.cpu_count() or 1
-    return max(1, min(4, cpu))
+    from config.cpu_budget import landmark_worker_count
+
+    return landmark_worker_count(_host_instance_count())
+
+
+def _host_instance_count() -> int | None:
+    """How many worker processes share this host, or None when unknown.
+
+    Read from settings rather than passed in: the detector is constructed deep
+    inside the worker and this is a process-wide property. Failures fall back to
+    the single-instance sizing.
+    """
+    try:
+        from config.loader import get_settings
+
+        return len(get_settings().instances) or None
+    except Exception:
+        return None
 
 
 async def _evaluate_overlay_rules_in_thread(

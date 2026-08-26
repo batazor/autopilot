@@ -166,11 +166,13 @@ async def _exec_arena_pick_and_open(ctx: DslExecContext) -> None:
             ctx.result.update({"action": "capture_failed"})
             return
 
-        # Filter off -> base behaviour: open the top opponent, no OCR. Keeps the
-        # live scenario byte-for-byte equivalent to the old direct click.
+        # Filter off -> base behaviour: fight the BOTTOM opponent, no OCR. The
+        # challenge list is ranked so the last seat is the lowest-ranked rival —
+        # the operator's "weakest → best win odds" pick. Points are only gained by
+        # attacking (never lost on defeat), so no strength read is needed.
         if not enabled:
-            await _tap_region(ctx, actions, area_doc, state_flat, img, _FIGHT_REGIONS[0])
-            ctx.result.update({"action": "fight", "fight_region": _FIGHT_REGIONS[0]})
+            await _tap_region(ctx, actions, area_doc, state_flat, img, _FIGHT_REGIONS[-1])
+            ctx.result.update({"action": "fight", "fight_region": _FIGHT_REGIONS[-1]})
             return
 
         labels = await _read_opponents(area_doc, state_flat, img)
@@ -227,6 +229,27 @@ _PANEL_CITY_TAB_REGION = "main_menu.city"         # «Город» tab — the p
 _MARKSMAN_NAV_X_FRAC = 0.40            # tap the row card body → navigate to the camp
 _PANEL_RESET_SWIPES = 3
 _PANEL_FIND_SWEEPS = 6
+
+# The Arena of Glory building sits directly to the RIGHT of the Marksman camp,
+# so once the camera centres on the camp a swipe LEFT pans the view onto the
+# Arena (the pan is inverted: drag left → content moves right). Then a blind tap
+# on the centre opens it. The ``wait_screen: [arena]`` gate in arena.fight
+# confirms the Arena opened (OCR «Арена») and aborts cleanly on a miss, so a
+# mis-tap never runs the fight blind.
+#
+# We use a FIXED-lane ``swipe`` here, NOT ``swipe_direction`` — the latter
+# randomises its start x (0.58–0.76 w) and clamps the end to the edge, so the
+# actual pan distance varies run-to-run and the Arena never lands reliably at
+# centre (this is why the original leg was pulled). Fixed start/end px make the
+# pan deterministic. Tuned live on bs5 (wos_ru, 720×1280).
+_ARENA_SWIPE_START_X = 620
+_ARENA_SWIPE_END_X = 220
+_ARENA_SWIPE_Y = 660
+_ARENA_SWIPE_DURATION_MS = 400
+# The fixed pan lands the Arena colosseum at ~0.65 w / 0.55 h (deterministic),
+# so tap THERE, not the geometric screen centre — the camp is left, Arena right.
+_ARENA_CENTER_X_FRAC = 0.65
+_ARENA_CENTER_Y_FRAC = 0.55
 
 
 async def _find_marksman_cy(actions, ocr, instance_id: str) -> tuple[int, int] | None:  # noqa: ANN001
@@ -299,21 +322,41 @@ async def _exec_open_arena_via_city(ctx: DslExecContext) -> None:
         return
     cy, frame_w = found
 
-    # 3. Tap the row → jump the camera to the Marksman camp. This is where the
-    #    route now ends; the swipe-and-blind-tap leg that followed is disabled.
+    # 3. Tap the row → jump the camera to the Marksman camp.
     nav_x = int(_MARKSMAN_NAV_X_FRAC * frame_w)
     await asyncio.to_thread(
         actions.tap, inst, Point(nav_x, cy), approval_source="open_arena_via_city:marksman"
     )
     await asyncio.sleep(1.9)
 
+    # 4. Pan onto the Arena (RIGHT of the camp → swipe LEFT) and open it with a
+    #    blind centre tap. The arena.fight `wait_screen: [arena]` gate verifies
+    #    the Arena screen (OCR «Арена») and aborts on a miss.
+    dev_h, dev_w = img.shape[:2]
+    await asyncio.to_thread(
+        actions.swipe,
+        inst,
+        Point(_ARENA_SWIPE_START_X, _ARENA_SWIPE_Y),
+        Point(_ARENA_SWIPE_END_X, _ARENA_SWIPE_Y),
+        duration_ms=_ARENA_SWIPE_DURATION_MS,
+    )
+    await asyncio.sleep(1.2)
+    await asyncio.to_thread(
+        actions.tap,
+        inst,
+        Point(int(_ARENA_CENTER_X_FRAC * dev_w), int(_ARENA_CENTER_Y_FRAC * dev_h)),
+        approval_source="open_arena_via_city:arena",
+    )
+    await asyncio.sleep(1.9)
+
     logger.info(
-        "open_arena_via_city: reached Marksman camp via row cy=%d (inst=%s); "
-        "arena-open swipe leg disabled",
+        "open_arena_via_city: camp via row cy=%d, swiped %d→%d → centre tap (inst=%s)",
         cy,
+        _ARENA_SWIPE_START_X,
+        _ARENA_SWIPE_END_X,
         inst,
     )
-    ctx.result.update({"action": "marksman_camp_reached", "marksman_cy": cy})
+    ctx.result.update({"action": "arena_open_attempt", "marksman_cy": cy})
 
 
 DSL_EXEC_HANDLERS = {

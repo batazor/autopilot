@@ -11,10 +11,11 @@ from analysis.overlay_ttl_state import (
     maybe_persist_overlay_ttl_state_to_redis,
     sync_overlay_ttl_state_if_needed,
 )
+from config.capture_rate import force_refresh_window_s
 from config.log_context import set_log_context
 from config.paths import repo_root
 from config.tracing import dismiss_unknown_popup_counter, popup_detected_counter
-from layout.template_match import _hamming64, _phash64
+from layout.template_match import _hamming64, frame_phash64
 from navigation.detector import ScreenName
 from popup.models import PopupKind
 
@@ -27,7 +28,10 @@ logger = logging.getLogger(__name__)
 # last screen instead of detecting again. A DCT phash is tolerant of ambient
 # animation (snow/fire/water flip few low-frequency bits); a real screen change
 # moves a large region and clears the threshold. ``_FORCE_FULL_DETECT_S`` bounds
-# any miss by forcing a real detect periodically regardless of the hash.
+# any miss by forcing a real detect periodically regardless of the hash — it is
+# a *floor*, scaled up to the rolling tick's cadence by
+# :func:`config.capture_rate.force_refresh_window_s` so the skip still fires
+# once the idle backoff stretches the tick past this constant.
 _PHASH_SKIP_MAX_BITS = 4
 _FORCE_FULL_DETECT_S = 4.0
 
@@ -80,6 +84,17 @@ class InstanceWorkerScreenMixin(_Base):
 
     async def _detect_current_screen_on_frame(self, image_bgr: np.ndarray) -> str | None:
         raise NotImplementedError
+
+    def _force_refresh_window_s(self) -> float:
+        """How stale a reused phash verdict may get before we recompute anyway.
+
+        Sized against the rolling loop's *current* tick, which the idle backoff
+        stretches to 2.5 s and then 5.0 s. A fixed 4 s window is shorter than
+        the deep-idle gap between ticks, so the skip could never fire there.
+        """
+        return force_refresh_window_s(
+            _FORCE_FULL_DETECT_S, getattr(self, "_rolling_tick_interval_s", None)
+        )
 
     def _grab_layout_bgr(self) -> np.ndarray:
         return self._bot_actions.capture_screen_bgr_direct(self._cfg.instance_id)
@@ -149,18 +164,19 @@ class InstanceWorkerScreenMixin(_Base):
             # the full rule sweep (per-region template match + phash + OCR, plus
             # the area_doc load) — the worker's hottest path. Same correctness
             # boundary as the screen-detect skip above; bounded by
-            # _FORCE_FULL_DETECT_S so a sub-threshold change self-heals within
-            # ~4s. Downstream scheduling still runs with the reused results, so
-            # behaviour matches a recompute (which on a static screen, called
-            # every tick today, already yields the same dict).
+            # _FORCE_FULL_DETECT_S (scaled to the tick cadence) so a
+            # sub-threshold change self-heals within a few ticks. Downstream
+            # scheduling still runs with the reused results, so behaviour
+            # matches a recompute (which on a static screen, called every tick
+            # today, already yields the same dict).
             overlay_sig = (current_screen, active_player, bool(device_level_only))
-            frame_phash = _phash64(image_bgr)
+            frame_phash = frame_phash64(image_bgr)
             now = time.monotonic()
             if (
                 self._last_overlay_results is not None
                 and self._last_overlay_sig == overlay_sig
                 and self._last_overlay_phash is not None
-                and (now - self._last_overlay_at) < _FORCE_FULL_DETECT_S
+                and (now - self._last_overlay_at) < self._force_refresh_window_s()
                 and _hamming64(frame_phash, self._last_overlay_phash)
                 <= _PHASH_SKIP_MAX_BITS
             ):
@@ -592,15 +608,15 @@ class InstanceWorkerScreenDetectMixin(_Base):
         # Frame-unchanged skip: if this frame is visually identical to the last
         # frame we actually detected on, reuse that verdict instead of running
         # the detector again. Never while navigating (nav_expected set) — a BFS
-        # hop must detect to catch arrival/popups — and force a real detect at
-        # least every _FORCE_FULL_DETECT_S to self-heal a same-phash transition.
-        frame_phash = _phash64(image_bgr)
+        # hop must detect to catch arrival/popups — and force a real detect
+        # every few ticks to self-heal a same-phash transition.
+        frame_phash = frame_phash64(image_bgr)
         now = time.monotonic()
         if (
             sticky_hint is not None
             and nav_expected is None
             and self._last_detect_phash is not None
-            and (now - self._last_full_detect_at) < _FORCE_FULL_DETECT_S
+            and (now - self._last_full_detect_at) < self._force_refresh_window_s()
             and _hamming64(frame_phash, self._last_detect_phash) <= _PHASH_SKIP_MAX_BITS
         ):
             self._last_detect_path = "skipped_phash"

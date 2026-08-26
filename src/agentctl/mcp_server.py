@@ -108,9 +108,14 @@ def bot_scenarios(grep: str | None = None, module_scope: str = "all") -> dict[st
     return _run(core.scenarios, grep=grep, module_scope=module_scope)
 
 
-def bot_devices() -> dict[str, Any]:
-    """Configured devices + screenshot/input backends + ADB-online status."""
-    return _run(core.devices)
+def bot_devices(cpu: bool = False) -> dict[str, Any]:
+    """Devices + backends + ADB-online + whether the bot actually drives each.
+
+    ``driven=false`` on an online device means an emulator is running outside
+    ``WOS_INSTANCES`` — burning CPU for nobody. Pass ``cpu=True`` to also sample
+    per-emulator CPU (adds a ~0.4s window) and get ``undriven_cpu_pct``.
+    """
+    return _run(core.devices, cpu=cpu)
 
 
 def bot_logs(instance: str | None = None, limit: int = 200) -> dict[str, Any]:

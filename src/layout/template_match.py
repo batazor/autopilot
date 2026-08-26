@@ -117,6 +117,38 @@ def _phash64(patch_bgr: np.ndarray) -> int:
     return _phash64_from_gray(gray)
 
 
+# Last full frame hashed, as ``(frame, phash)``. The tuple holds a *strong*
+# reference to the array on purpose: it both keeps the value alive and stops
+# CPython recycling its ``id`` onto a different array, so an identity hit really
+# is the same buffer.
+_frame_phash_memo: tuple[np.ndarray, int] | None = None
+
+
+def frame_phash64(frame_bgr: np.ndarray) -> int:
+    """``_phash64`` for a captured frame, memoised on the frame itself.
+
+    Every rolling tick hashes the same frame three times — once to decide
+    whether the preview PNG changed, once for the screen-detect skip, once for
+    the overlay skip. At ~3 ms a go on a 720x1280 frame that was the tick's
+    largest avoidable cost after the PNG encode.
+
+    Identity is the whole key, which is sound *because captured frames are
+    read-only*: the scrcpy cache hands the same array to every consumer of a
+    tick and nobody draws into it. Anything that does mutate a frame in place
+    must copy first (as the annotated-preview paths already do) or call
+    :func:`_phash64` directly.
+    """
+    global _frame_phash_memo
+    memo = _frame_phash_memo
+    if memo is not None and memo[0] is frame_bgr:
+        return memo[1]
+    digest = _phash64(frame_bgr)
+    # Single atomic rebind — a concurrent reader sees the old or the new tuple,
+    # never a half-written one, so no lock is needed.
+    _frame_phash_memo = (frame_bgr, digest)
+    return digest
+
+
 def _template_cache_key_bytes(template_bgr: np.ndarray) -> bytes:
     return hashlib.blake2b(np.ascontiguousarray(template_bgr).tobytes(), digest_size=16).digest()
 

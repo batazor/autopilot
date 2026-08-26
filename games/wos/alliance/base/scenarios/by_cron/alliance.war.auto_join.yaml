@@ -4,30 +4,27 @@ priority: 70_000
 
 cron: "0 */6 * * *"
 node: alliance.war
-cond: "active_player != null"
 
+# The whole path is static blind-taps at fixed positions — no OCR, no template
+# match (the RU «Белая мгла» reskin fails the button crops, e.g. the bottom
+# «Присоединиться автоматически» scored 0.56). Screen node guards entry; the
+# modal layout is fixed, so the inner taps are blind.
 steps:
-  - while_match: alliance.war.auto_join
-    max: 1
-    retry:
-      attempts: 3
-      interval: 500ms
+  - cond: currentNode == alliance.war
     steps:
+      # Force the «Рейд» (rally) tab — the auto-join button only exists there.
+      # Static blind tap: a no-op if already on it, and it stops the blind taps
+      # below from misfiring when nav lands on the «Соло»/«События» tab.
+      - click: alliance.war.tab.rally
+      - wait: 500ms
+      # Bottom «Присоединиться автоматически» button → opens the auto-join modal.
       - click: alliance.war.auto_join
       - wait: 1s
-      - while_match: alliance.war.auto_join.enable
-        max: 1
-        retry:
-          attempts: 3
-          interval: 500ms
-        steps:
-          - click: alliance.war.auto_join.enable
-          - wait: 1s
-          - while_match: alliance.war.auto_join.close
-            max: 1
-            retry:
-              attempts: 3
-              interval: 500ms
-            steps:
-              - click: alliance.war.auto_join.close
-              - wait: 500ms
+      # Right BLUE «Включить» button — always present and always means "enable"
+      # (the separate left GREY «Стоп» is the disable; we never tap it). So this
+      # is idempotent: re-running just re-confirms auto-join ON.
+      - click: alliance.war.auto_join.enable
+      - wait: 1s
+      # Close X (top-right of the modal).
+      - click: alliance.war.auto_join.close
+      - wait: 500ms

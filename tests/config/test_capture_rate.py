@@ -4,9 +4,11 @@ from __future__ import annotations
 from config.capture_rate import (
     DEEP_IDLE_AFTER_S,
     DEEP_IDLE_SCRCPY_MAX_FPS,
+    FORCE_REFRESH_MAX_S,
     IDLE_SCRCPY_MAX_FPS,
     MIN_CAPTURE_INTERVAL_S,
     capture_interval_s_for_scenario_key,
+    force_refresh_window_s,
     module_capture_interval_ms,
     scrcpy_max_fps_for_capture_interval,
 )
@@ -65,3 +67,39 @@ def test_empty_or_coreless_scenario_key_is_none() -> None:
 def test_floor_is_sane() -> None:
     # 20 fps hard cap guards against a typo'd sub-millisecond interval.
     assert 0.0 < MIN_CAPTURE_INTERVAL_S <= 0.1
+
+
+def test_reuse_window_always_outlives_the_tick_that_uses_it() -> None:
+    """The regression this function exists for.
+
+    A phash skip compares ``now - last_computed`` against the window; if the
+    window is no longer than the gap between ticks, the comparison is false on
+    every tick and the skip can never fire — the worker silently pays a full
+    detect + overlay sweep forever. Assert the invariant across the whole range
+    of cadences the rolling loop can pick, so a future tier change can't
+    reintroduce it.
+    """
+    base = 4.0
+    for tick in (0.05, 0.3, 1.0, 2.5, 5.0):
+        window = force_refresh_window_s(base, tick)
+        assert window > tick, f"skip can never fire at a {tick}s tick"
+
+
+def test_reuse_window_never_shrinks_below_its_base() -> None:
+    # Fast cadences must keep exactly the staleness bound they had before the
+    # window became tick-relative.
+    assert force_refresh_window_s(4.0, 0.3) == 4.0
+    assert force_refresh_window_s(4.0, 1.0) == 4.0
+
+
+def test_reuse_window_is_capped() -> None:
+    # A future slower tick must not stretch reuse without bound.
+    assert force_refresh_window_s(4.0, 600.0) == FORCE_REFRESH_MAX_S
+    assert FORCE_REFRESH_MAX_S > 0
+
+
+def test_reuse_window_falls_back_to_base_without_a_known_tick() -> None:
+    # Before the rolling loop has published a cadence (or in a non-rolling
+    # caller) the original constant applies unchanged.
+    assert force_refresh_window_s(4.0, None) == 4.0
+    assert force_refresh_window_s(4.0, 0.0) == 4.0

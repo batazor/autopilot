@@ -754,3 +754,94 @@ def test_drive_auto_pause_stops_and_restarts_isolated_worker(
     assert out["worker_paused"] is True
     assert ("stop", "bs1") in calls
     assert ("start", "bs1") in calls
+
+
+def _fake_registry(names: list[str]):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        devices=[
+            SimpleNamespace(
+                name=n,
+                effective_serial=f"127.0.0.1:{5600 + i}",
+                screenshot_backend="",
+                input_backend="",
+            )
+            for i, n in enumerate(names)
+        ]
+    )
+
+
+def _patch_devices(monkeypatch, *, names, online, driven) -> None:
+    from types import SimpleNamespace
+
+    monkeypatch.setattr("config.devices.load_devices", lambda: _fake_registry(names))
+    monkeypatch.setattr(core, "_online_serials", lambda: set(online))
+    monkeypatch.setattr(
+        "config.loader.load_settings",
+        lambda: SimpleNamespace(
+            instances=[SimpleNamespace(instance_id=n) for n in driven]
+        ),
+    )
+
+
+def test_devices_flags_online_emulators_the_bot_does_not_drive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An emulator can be ONLINE and still be pure waste.
+
+    ONLINE alone never revealed this: a running emulator outside WOS_INSTANCES
+    keeps rendering its game at full cost while the bot ignores it.
+    """
+    _patch_devices(
+        monkeypatch,
+        names=["bs1", "bs2", "bs3"],
+        online=["127.0.0.1:5601", "127.0.0.1:5602"],  # bs2, bs3 up; bs1 down
+        driven=["bs2"],                                # bot only drives bs2
+    )
+    out = core.devices()
+
+    by_name = {d["name"]: d for d in out["devices"]}
+    assert by_name["bs2"]["driven"] is True
+    assert by_name["bs3"]["driven"] is False
+    assert out["undriven_online"] == ["bs3"]
+    # bs1 is not driven either, but it isn't running — nothing to reclaim.
+    assert "bs1" not in out["undriven_online"]
+
+
+def test_devices_reports_no_waste_when_every_running_emulator_is_driven(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_devices(
+        monkeypatch,
+        names=["bs1", "bs2"],
+        online=["127.0.0.1:5600", "127.0.0.1:5601"],
+        driven=["bs1", "bs2"],
+    )
+    out = core.devices()
+    assert out["undriven_online"] == []
+
+
+def test_devices_skips_cpu_sampling_unless_asked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The plain call must stay instant — CPU sampling needs a time window."""
+    _patch_devices(monkeypatch, names=["bs1"], online=["127.0.0.1:5600"], driven=[])
+    called = False
+
+    def _sampler(entries):
+        nonlocal called
+        called = True
+        return {"bs1": 42.0}
+
+    monkeypatch.setattr(core, "_emulator_cpu_percent", _sampler)
+
+    out = core.devices()
+    assert called is False
+    assert out["devices"][0]["cpu_pct"] is None
+    assert out["undriven_cpu_pct"] is None
+
+    out = core.devices(cpu=True)
+    assert called is True
+    assert out["devices"][0]["cpu_pct"] == 42.0
+    assert out["undriven_cpu_pct"] == 42.0

@@ -246,16 +246,42 @@ def _render_scenarios(d: dict[str, Any]) -> str:
 
 def _render_devices(d: dict[str, Any]) -> str:
     note = "" if d.get("adb_online_known") else "  (adb unavailable — online unknown)"
-    return _table(
-        d.get("devices", []),
+    rows = []
+    for r in d.get("devices", []):
+        row = dict(r)
+        # UPPERCASE the actionable state, per the reader-health/planners style:
+        # an emulator that is up but outside WOS_INSTANCES is burning CPU.
+        row["_driven"] = (
+            "yes" if r.get("driven") else ("IDLE" if r.get("online") else "no")
+        )
+        cpu = r.get("cpu_pct")
+        row["_cpu"] = f"{cpu:.1f}" if isinstance(cpu, (int, float)) else "—"
+        rows.append(row)
+
+    out = _table(
+        rows,
         [
             ("name", "NAME"),
             ("adb_serial", "SERIAL"),
             ("online", "ONLINE"),
+            ("_driven", "DRIVEN"),
+            ("_cpu", "CPU%"),
             ("screenshot_backend", "SCREEN"),
             ("input_backend", "INPUT"),
         ],
     ) + note
+
+    idle = d.get("undriven_online") or []
+    if idle:
+        wasted = d.get("undriven_cpu_pct")
+        cost = f"{wasted:.1f}% CPU on " if isinstance(wasted, (int, float)) else ""
+        out += (
+            f"\n\n! {cost}{len(idle)} emulator(s) the bot does not drive: "
+            f"{', '.join(idle)}"
+            + ("" if cost else "  (pass --cpu to measure)")
+            + "\n  they keep rendering for nobody — stop them or add them to WOS_INSTANCES"
+        )
+    return out
 
 
 def _render_logs(d: dict[str, Any]) -> str:
@@ -366,6 +392,16 @@ def _render_detection(d: dict[str, Any]) -> str:
         )
     else:
         lines.append("  (none persisted)")
+    tick = d.get("tick") or {}
+    if tick.get("detect_path") or tick.get("overlay_path"):
+        age = tick.get("age_s")
+        lines.append(
+            "\nlast tick: "
+            f"detect={tick.get('detect_path') or '—'}  "
+            f"overlay={tick.get('overlay_path') or '—'}"
+            + (f"  ({age:.0f}s ago)" if isinstance(age, (int, float)) else "")
+            + "\n  skipped_phash = frame unchanged, previous verdict reused"
+        )
     ctx = d.get("context") or {}
     flags = [f"{k}={_cell(v)}" for k, v in ctx.items() if v not in (None, "", False)]
     lines.append("\ncontext: " + ("  ".join(flags) if flags else "(clean)"))
@@ -551,7 +587,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--grep", help="filter by key/name substring")
     p.add_argument("--module", default="all", help="module scope (default: all)")
 
-    sub.add_parser("devices", parents=[common], help="devices + backends + adb-online")
+    p_devices = sub.add_parser(
+        "devices", parents=[common], help="devices + backends + adb-online + driven/CPU"
+    )
+    p_devices.add_argument(
+        "--cpu",
+        action="store_true",
+        help="also sample each emulator's CPU (adds a ~0.4s sampling window)",
+    )
 
     p = sub.add_parser("logs", parents=[common], help="tail local worker logfile if present")
     p.add_argument("--inst", dest="instance", help="filter lines for this instance")
@@ -659,7 +702,7 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, Callable[[dict], str]]:
     if cmd == "scenarios":
         return core.scenarios(grep=args.grep, module_scope=args.module), _render_scenarios
     if cmd == "devices":
-        return core.devices(), _render_devices
+        return core.devices(cpu=args.cpu), _render_devices
     if cmd == "logs":
         return core.logs(instance=args.instance, limit=args.limit), _render_logs
     if cmd == "run":

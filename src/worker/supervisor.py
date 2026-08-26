@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from config import telemetry
+from config.cpu_budget import export_blas_thread_env
 from config.loader import InstanceConfig, get_settings, load_settings, set_settings
 from config.runtime_bootstrap import (
     bootstrap_runtime_observability,
@@ -606,6 +607,11 @@ def main() -> None:
     assert_startup_configs_valid()
     cleanup_orphaned_sck_capture_helpers()
     ensure_health_watchdog_process()
+    # Must precede the first spawn: OpenMP/BLAS read these when the native
+    # libraries load, and under ``spawn`` the child imports cv2/numpy (via this
+    # module) before its own entrypoint runs. Children inherit os.environ, so
+    # setting them here is the only point that lands in time.
+    export_blas_thread_env()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
     # The ``autopilot.workers.active`` gauge needs to peek at the supervisor's

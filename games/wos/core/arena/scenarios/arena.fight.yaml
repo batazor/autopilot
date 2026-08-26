@@ -1,13 +1,11 @@
-# DISABLED: the city → Arena route can no longer open the Arena building. The
-# swipe-and-blind-tap leg of `open_arena_via_city` was removed (see
-# games/wos/core/arena/exec.py), so the exec stops at the Marksman camp and every
-# run would abort at the `wait_screen: [arena]` gate below — once a day, on cron,
-# for nothing. Re-enable once an Arena entry is wired through the main-menu panel.
-#
-# NOTE when re-enabling: the `expected:` guard on the result-dismiss loop further
-# down is still UNVERIFIED live — the fight that exposed the bug it fixes was the
-# last one that ran.
-enabled: false
+# The city → Arena route works again: open_arena_via_city navigates to the
+# Marksman camp (City panel → OCR «Стрелки» row), then a FIXED-lane swipe left
+# pans onto the adjacent Arena building and a blind tap opens it (see
+# games/wos/core/arena/exec.py). The `wait_screen: [arena]` gate below confirms
+# the Arena of Glory screen (OCR «Арена») and aborts cleanly on a miss.
+# Verified live E2E on bs5 (wos_ru): nav → arena → challenge list → fight →
+# result dismiss, looped over the free challenges.
+enabled: true
 name: "Arena: spend daily free challenges"
 priority: 70_000
 

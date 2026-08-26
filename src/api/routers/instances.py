@@ -15,6 +15,7 @@ from api.services.dashboard_stream import instance_revision
 from api.services.http_cache import conditional_png_response
 from api.services.instances import list_instance_ids
 from config.devices import invalidate_device_registry
+from config.preview_demand import mark_preview_demand
 from config.test_module import (
     get_instance_test_module,
     set_instance_test_module,
@@ -186,9 +187,15 @@ def get_instance(
 
 
 @router.get("/{instance_id}/preview")
-def get_instance_preview(instance_id: str, request: Request) -> Response:
+def get_instance_preview(
+    instance_id: str, request: Request, client: RedisDep
+) -> Response:
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    # Tell the worker its preview is being read, so it keeps the PNG fresh
+    # instead of dropping to the unwatched keepalive. Marked even on a 304 —
+    # a conditional request is still an active reader.
+    mark_preview_demand(client, instance_id)
     resp = conditional_png_response(rolling_live_preview_path(instance_id), request)
     if resp is None:
         raise HTTPException(status_code=404, detail="no preview image available")

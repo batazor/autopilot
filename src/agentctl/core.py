@@ -236,12 +236,27 @@ def screenshot(instance: str | None = None, *, fresh: bool = False) -> dict[str,
     caller (CLI/agent) then reads the PNG. With ``fresh=True`` a new ADB
     screencap is captured to the rolling-preview path first (best effort — falls
     back to the existing file if ADB is unavailable).
+
+    An unwatched worker only refreshes its preview on a slow keepalive (see
+    :mod:`config.preview_demand`), so this also (a) marks demand, which returns
+    the worker to its fast cadence for subsequent calls, and (b) captures fresh
+    on its own when the file on disk is already older than that keepalive —
+    otherwise "show me the screen" could hand back a visibly stale frame.
     """
+    from config.preview_demand import UNWATCHED_KEEPALIVE_S, mark_preview_demand
     from dashboard.reference_preview import rolling_live_preview_path
 
     iid = resolve_instance(instance)
     path = rolling_live_preview_path(iid)
     out: dict[str, Any] = {"instance_id": iid, "path": str(path), "captured": False, "error": ""}
+
+    with contextlib.suppress(Exception):
+        mark_preview_demand(_redis(), iid)
+
+    if not fresh and path.is_file():
+        # Stale beyond the unwatched keepalive → the worker wasn't refreshing
+        # it for anyone; grab a live frame rather than reporting an old one.
+        fresh = (time.time() - path.stat().st_mtime) > UNWATCHED_KEEPALIVE_S
 
     if fresh:
         try:
@@ -338,13 +353,31 @@ def scenarios(*, grep: str | None = None, module_scope: str = "all", game: str |
     return {"count": len(rows), "scenarios": rows}
 
 
-def devices() -> dict[str, Any]:
-    """Configured devices + per-device backends + ADB-online status."""
+def devices(*, cpu: bool = False) -> dict[str, Any]:
+    """Configured devices + per-device backends + ADB-online status.
+
+    ``driven`` answers the question ONLINE cannot: is the bot actually using
+    this emulator? An emulator that is up but outside ``WOS_INSTANCES`` keeps
+    rendering its game at full tilt for nobody — measured at 20-130 % CPU each
+    on a live machine, dwarfing the bot's own cost.
+
+    ``cpu=True`` additionally samples each emulator's CPU. It needs a sampling
+    window (~0.4 s), so it is opt-in and the plain call stays instant.
+    """
     from config.devices import load_devices
+    from config.loader import load_settings
 
     online = _online_serials()
+    try:
+        driven_ids = {i.instance_id for i in load_settings().instances}
+    except Exception:
+        driven_ids = set()
+
+    entries = list(load_devices().devices)
+    cpu_by_name = _emulator_cpu_percent(entries) if cpu else {}
+
     out: list[dict[str, Any]] = []
-    for d in load_devices().devices:
+    for d in entries:
         serial = d.effective_serial
         out.append(
             {
@@ -353,9 +386,67 @@ def devices() -> dict[str, Any]:
                 "screenshot_backend": (d.screenshot_backend or "(default)"),
                 "input_backend": (d.input_backend or "(default)"),
                 "online": (serial in online) if online is not None else None,
+                "driven": d.name in driven_ids,
+                "cpu_pct": cpu_by_name.get(d.name),
             }
         )
-    return {"devices": out, "adb_online_known": online is not None}
+
+    idle = [
+        r for r in out if r["online"] and not r["driven"]
+    ]
+    return {
+        "devices": out,
+        "adb_online_known": online is not None,
+        "undriven_online": [r["name"] for r in idle],
+        "undriven_cpu_pct": (
+            round(sum(r["cpu_pct"] or 0.0 for r in idle), 1) if cpu else None
+        ),
+    }
+
+
+def _emulator_cpu_percent(entries: list[Any]) -> dict[str, float]:
+    """CPU% per device name, by finding whoever listens on its adb port.
+
+    Vendor-neutral on purpose: an emulator binds its own ADB port, and
+    ``DeviceEntry.effective_serial`` is already ``host:port`` — so the registry
+    we already have maps a device to a process without reading any emulator's
+    configuration files or knowing which emulator it is.
+    """
+    import time
+
+    try:
+        from worker.launch import _port_listener_processes
+    except Exception:
+        return {}
+
+    procs: dict[str, Any] = {}
+    for d in entries:
+        serial = str(getattr(d, "effective_serial", "") or "")
+        if ":" not in serial:
+            continue
+        try:
+            port = int(serial.rsplit(":", 1)[1])
+        except ValueError:
+            continue
+        try:
+            found = _port_listener_processes(port)
+        except Exception:
+            continue
+        if found:
+            procs[d.name] = found[0]
+
+    for proc in procs.values():
+        with contextlib.suppress(Exception):
+            proc.cpu_percent(None)  # prime; the first call always returns 0.0
+    if not procs:
+        return {}
+    time.sleep(0.4)
+
+    out: dict[str, float] = {}
+    for name, proc in procs.items():
+        with contextlib.suppress(Exception):
+            out[name] = round(float(proc.cpu_percent(None)), 1)
+    return out
 
 
 def _online_serials() -> set[str] | None:
@@ -839,11 +930,20 @@ def current_detection(instance: str | None = None) -> dict[str, Any]:
         "current_scenario": (row.get("current_scenario") or "").strip(),
         "active_player": (row.get("active_player") or row.get("current_task_player") or "").strip(),
     }
+    # What the last rolling tick actually did: recompute, or reuse the previous
+    # frame's verdict because the frame was unchanged (``skipped_phash``). This
+    # is the only external read on whether the phash skips are firing at all.
+    tick = {
+        "detect_path": (row.get("tick_detect_path") or "").strip(),
+        "overlay_path": (row.get("tick_overlay_path") or "").strip(),
+        "age_s": _age(row.get("tick_path_at")),
+    }
     return {
         "instance_id": iid,
         "current_screen": (row.get("current_screen") or "").strip(),
         "last_overlay": last_overlay,
         "regions": regions,
+        "tick": tick,
         "context": context,
         "note": "last persisted overlay tick, not a fresh scan — use screenshot(fresh=True)/drive for a live frame",
     }

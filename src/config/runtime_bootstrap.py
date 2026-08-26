@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from config.cpu_budget import apply_process_thread_caps
 from config.crash_logging import install_crash_logging
 from config.env_loader import load_env_once
 from config.logging_otel import setup_otel_logging
@@ -74,6 +75,13 @@ def bootstrap_runtime_observability(
     """Load process env and attach stdout + optional OTel telemetry + Pyroscope profiling."""
     load_env_once()
     setup_stdout_logging()
+    # Cap OpenCV's intra-op threads so N per-device worker processes don't each
+    # assume they own every core during a detect spike. Runtime API, so it works
+    # even though cv2 is already imported by the time we get here — the matching
+    # BLAS env vars have to be exported by the parent before spawn instead (see
+    # config.cpu_budget).
+    if component in ("worker", "scheduler"):
+        apply_process_thread_caps()
     # Inject baked-in OTLP creds *before* setup_tracing — that function reads
     # ``OTEL_EXPORTER_OTLP_ENDPOINT`` and bails out (no-op tracer) when empty.
     _apply_baked_telemetry_secrets()

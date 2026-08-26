@@ -16,6 +16,7 @@ from worker.instance_state_fields import (
     format_age,
     last_error_mapping,
     queue_blocked_mapping,
+    tick_path_mapping,
 )
 
 
@@ -79,3 +80,29 @@ def test_clock_skew_does_not_produce_negative_age() -> None:
 )
 def test_age_formatting(age: float | None, expected: str) -> None:
     assert format_age(age) == expected
+
+
+def test_tick_path_is_always_stamped() -> None:
+    """A skip path without a stamp cannot be read.
+
+    "the last tick reused its verdict" and "some tick an hour ago reused its
+    verdict" look identical without the age, and only the first says the phash
+    skip is currently working.
+    """
+    mapping = tick_path_mapping("skipped_phash", "skipped_phash", at=1000.0)
+
+    assert mapping == {
+        "tick_detect_path": "skipped_phash",
+        "tick_overlay_path": "skipped_phash",
+        "tick_path_at": "1000.000000",
+    }
+
+
+def test_tick_path_stamps_even_when_paths_are_unknown() -> None:
+    """Empty paths still carry a stamp — the tick happened, it just had no
+    verdict to report, and a reader must be able to age that out."""
+    mapping = tick_path_mapping("", "", at=1000.0)
+
+    assert mapping["tick_detect_path"] == ""
+    assert mapping["tick_overlay_path"] == ""
+    assert mapping["tick_path_at"] == "1000.000000"

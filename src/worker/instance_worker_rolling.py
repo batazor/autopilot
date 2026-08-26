@@ -12,19 +12,23 @@ from typing import TYPE_CHECKING, Any
 from config.capture_rate import (
     DEEP_IDLE_AFTER_S,
     MIN_CAPTURE_INTERVAL_S,
+    force_refresh_window_s,
     scrcpy_max_fps_for_capture_interval,
 )
 from config.paths import repo_root
+from config.preview_demand import UNWATCHED_KEEPALIVE_S, demand_key
 from config.reference_naming import rolling_preview_basename, temporal_png_abs_path
 from config.tracing import screenshot_analysis_duration_histogram
-from layout.template_match import _hamming64, _phash64
+from layout.template_match import _hamming64, frame_phash64
 
 logger = logging.getLogger(__name__)
 
 # Preview-PNG write skip: when the grabbed frame is visually unchanged since the
 # last write, the on-disk preview already shows it — skip the (CPU-heavy) PNG
 # encode+write. ``_PREVIEW_FORCE_WRITE_S`` bounds staleness so the file's mtime
-# stays fresh for liveness heuristics and self-heals if it was removed. The live
+# stays fresh for liveness heuristics and self-heals if it was removed; it is a
+# floor, scaled to the tick cadence by ``force_refresh_window_s`` so the skip
+# still fires once the idle backoff stretches the tick to match it. The live
 # stream (frame_bus) is fed inside the grab, so it is unaffected.
 _PREVIEW_SKIP_MAX_BITS = 4
 _PREVIEW_FORCE_WRITE_S = 5.0
@@ -175,6 +179,7 @@ def _record_screenshot_analysis_duration(
     task_busy: bool,
     outcome: str,
     detect_path: str = "",
+    overlay_path: str = "",
 ) -> None:
     screenshot_analysis_duration_histogram().record(
         max(0.0, float(elapsed_s)),
@@ -188,6 +193,12 @@ def _record_screenshot_analysis_duration(
             # sticky_hit | full_scan | "") — lets Grafana show the phash-skip
             # rate vs. real detections without an extra metric.
             "detect_path": detect_path or "",
+            # Same for the overlay sweep (skipped_phash | full). Both skips are
+            # bounded by a reuse window; when that window is shorter than the
+            # tick interval the skip can never fire and the worker silently
+            # pays full price every tick. That regression existed and was
+            # invisible precisely because this attribute was not exported.
+            "overlay_path": overlay_path or "",
         },
     )
 
@@ -236,27 +247,45 @@ class InstanceWorkerRollingMixin(_Base):
     def _grab_layout_bgr(self) -> np.ndarray:
         raise NotImplementedError
 
-    def _capture_and_write_rolling_preview(self, path: Path) -> np.ndarray | None:
+    def _capture_and_write_rolling_preview(
+        self, path: Path, *, watched: bool = True
+    ) -> np.ndarray | None:
         """Grab, publish to ``frame_bus``, and write PNG on the rolling thread.
 
         Keeps preview updates flowing when the asyncio loop is busy with sync
         overlay/navigation work — the write must not wait for a second executor
         trip on the main loop.
+
+        The frame itself is always grabbed and published — analysis needs it.
+        ``watched=False`` (nothing is reading the preview file) only relaxes the
+        PNG *write* to a keepalive cadence; the encode is the tick's single
+        most expensive step.
         """
         image_bgr = self._grab_layout_bgr()
+        if not watched:
+            now = time.monotonic()
+            last_write = getattr(self, "_last_preview_write_at", 0.0)
+            if (now - last_write) < UNWATCHED_KEEPALIVE_S and path.exists():
+                return image_bgr
+            if _write_png_atomic(path, image_bgr):
+                self._last_preview_phash = frame_phash64(image_bgr)
+                self._last_preview_write_at = now
+            return image_bgr
         # Skip the PNG encode+write when the frame is visually unchanged since
         # the last write (the on-disk preview already shows it); the periodic
         # force keeps mtime fresh and self-heals a removed file. The grab above
         # already fed the live frame_bus stream, so skipping the disk write is
         # invisible to the operator's preview.
         now = time.monotonic()
-        phash = _phash64(image_bgr)
+        phash = frame_phash64(image_bgr)
         last = getattr(self, "_last_preview_phash", None)
         if (
             last is not None
             and _hamming64(phash, last) <= _PREVIEW_SKIP_MAX_BITS
             and (now - getattr(self, "_last_preview_write_at", 0.0))
-            < _PREVIEW_FORCE_WRITE_S
+            < force_refresh_window_s(
+                _PREVIEW_FORCE_WRITE_S, getattr(self, "_rolling_tick_interval_s", None)
+            )
             and path.exists()
         ):
             return image_bgr
@@ -390,6 +419,7 @@ class InstanceWorkerRollingMixin(_Base):
                 task_busy=task_busy,
                 outcome=outcome,
                 detect_path=getattr(self, "_last_detect_path", ""),
+                overlay_path=getattr(self, "_last_overlay_path", ""),
             )
 
     def _schedule_rolling_snapshot_analysis(self, image_bgr: np.ndarray) -> None:
@@ -433,10 +463,12 @@ class InstanceWorkerRollingMixin(_Base):
             path,
         )
 
+        watched = await self._preview_is_watched()
         try:
             image_bgr = await self._run_rolling_blocking(
                 self._capture_and_write_rolling_preview,
                 path,
+                watched=watched,
             )
         except asyncio.CancelledError:
             raise
@@ -586,6 +618,32 @@ class InstanceWorkerRollingMixin(_Base):
         """Run overlay analysis immediately at startup."""
         await self._overlay_tick_now(reason="startup")
 
+    async def _preview_is_watched(self) -> bool:
+        """True when something is actually consuming the rolling preview PNG.
+
+        Either a live-stream viewer (which drives the fast capture cadence) or a
+        recent read of the PNG itself — the instance page's polled image or
+        ``botctl screenshot``, both of which mark demand via
+        :mod:`config.preview_demand`. When neither holds, the PNG encode drops
+        to a keepalive so an unwatched device stops paying the tick's most
+        expensive step.
+
+        Fails *open*: if Redis is unreachable we keep writing, because a missing
+        preview is worse than a wasted encode.
+        """
+        r = getattr(self, "_redis", None)
+        if r is None:
+            return True
+        try:
+            return bool(
+                await r.exists(
+                    f"wos:instance:{self._cfg.instance_id}:screen_viewers",
+                    demand_key(self._cfg.instance_id),
+                )
+            )
+        except Exception:
+            return True
+
     async def _screen_stream_viewer_active(self) -> bool:
         """True when a dashboard live-view is attached (API sets a TTL flag).
 
@@ -687,7 +745,11 @@ class InstanceWorkerRollingMixin(_Base):
                             self._rolling_deep_idle = True
                         elif dwell >= _IDLE_BACKOFF_AFTER_S:
                             interval = max(base, _IDLE_MAX_INTERVAL_S)
-                await asyncio.sleep(max(floor, interval))
+                sleep_s = max(floor, interval)
+                # Publish the cadence the phash skips size their reuse windows
+                # against — see config.capture_rate.force_refresh_window_s.
+                self._rolling_tick_interval_s = sleep_s
+                await asyncio.sleep(sleep_s)
                 if self._stopping:
                     return
                 if self._ui_paused:

@@ -876,3 +876,70 @@ def test_set_max_fps_updates_cap_and_noops_when_unchanged() -> None:
 
     client.set_max_fps(-5)  # clamped to 0
     assert client.max_fps == 0
+
+
+def _h264_packets(frames: int = 12) -> list[bytes]:
+    """Encode a moving pattern to raw H.264 packets, as scrcpy would deliver."""
+    av = pytest.importorskip("av")
+    import io
+
+    base = np.zeros((1280, 720, 3), dtype=np.uint8)
+    base[:, :240] = (255, 0, 0)  # distinct per-channel blocks in RGB order
+    base[:, 240:480] = (0, 255, 0)
+    base[:, 480:] = (0, 0, 255)
+
+    buf = io.BytesIO()
+    container = av.open(buf, mode="w", format="h264")
+    stream = container.add_stream("libx264", rate=30)
+    stream.width, stream.height, stream.pix_fmt = 720, 1280, "yuv420p"
+    packets: list[bytes] = []
+    for i in range(frames):
+        frame = av.VideoFrame.from_ndarray(
+            np.roll(base, i * 11, axis=1), format="rgb24"
+        ).reformat(format="yuv420p")
+        packets += [bytes(p) for p in stream.encode(frame)]
+    packets += [bytes(p) for p in stream.encode(None)]
+    container.close()
+    return packets
+
+
+def test_decoder_returns_bgr_frames_matching_the_per_frame_conversion() -> None:
+    """The decoder converts through one reused reformatter, not per frame.
+
+    Reuse is a pure performance change, so the contract under test is that the
+    pixels are unchanged: a colour-plane mix-up here would not crash anything —
+    it would silently poison every template match and OCR read downstream.
+    """
+    av = pytest.importorskip("av")
+    from adb.scrcpy import _H264Decoder
+
+    packets = _h264_packets()
+    decoder = _H264Decoder()
+    reference_ctx = av.CodecContext.create("h264", "r")
+
+    compared = 0
+    for payload in packets:
+        got = decoder.decode(payload)
+        ref_frames = reference_ctx.decode(av.Packet(payload))
+        expected = ref_frames[-1].to_ndarray(format="bgr24") if ref_frames else None
+        if got is None and expected is None:
+            continue
+        assert got is not None and expected is not None
+        assert got.shape == (1280, 720, 3)
+        assert got.dtype == np.uint8
+        assert np.array_equal(got, expected)
+        compared += 1
+
+    assert compared, "no frames decoded — the fixture produced no usable packets"
+
+
+def test_decoder_reuses_a_single_reformatter_across_frames() -> None:
+    """Guards the actual optimisation: a fresh SwsContext per frame was the cost."""
+    pytest.importorskip("av")
+    from adb.scrcpy import _H264Decoder
+
+    decoder = _H264Decoder()
+    reformatter = decoder._reformatter
+    for payload in _h264_packets(6):
+        decoder.decode(payload)
+    assert decoder._reformatter is reformatter
