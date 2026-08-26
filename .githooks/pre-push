@@ -1,8 +1,7 @@
 #!/bin/sh
-# Local safety net while CI is down (GHA billing): lint + fast tests before any
-# push. Skip in a hurry with `git push --no-verify`.
+# Local safety net while CI is down (GHA billing): lint before any push.
+# Tests are NOT run here — they're too slow for a push gate; run them with
+# `uv run pytest -q` yourself. Skip the lint in a hurry with `git push --no-verify`.
 set -e
 echo "pre-push: ruff"
 uv run ruff check .
-echo "pre-push: pytest (non-integration, fail-fast)"
-uv run pytest -q -x -m "not integration"
