@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Import Dreamscape Memory **Season 5** scenes (wostools catalog) into the scene DB.
+"""Import Dreamscape Memory scenes from the wostools catalog (Season 4+).
+
+Written for Season 5 and parameterized since: ``--season N`` imports any season
+the site's inline registry carries in this format (4 and 5 today; 1-3 came from
+other sources via their own tools).
 
 The catalog moved since ``web/scripts/fetch_dreamscape.py`` was written: the
 scene registry now lives inline in a client chunk of
@@ -26,7 +30,7 @@ directly. Crops whose aspect is off by more than ``_ASPECT_TOL`` are a different
 framing (the wide co-op Dock); they import with no rect and are reported so an
 operator can set one in the onboarding editor before the solver taps them.
 
-    uv run python games/wos/events/dreamscape_memory/tools/import_maps_s5.py [--dry-run] [--no-extras]
+    uv run python games/wos/events/dreamscape_memory/tools/import_maps_s5.py [--season N] [--dry-run] [--no-extras]
 """
 
 from __future__ import annotations
@@ -44,8 +48,6 @@ from config.paths import repo_root
 BASE = "https://wostools.net"
 PAGE_URL = f"{BASE}/games/dreamscape-memory"
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-
-SEASON = 5
 
 _MODULE_REL = "games/wos/events/dreamscape_memory"
 _MAPS_DIR = repo_root() / _MODULE_REL / "references" / "maps"
@@ -196,9 +198,10 @@ def _to_png(raw: bytes) -> bytes:
     return buf.tobytes()
 
 
-def _target_slug(scene: dict) -> str:
-    base = re.sub(r"-s5$", "", scene["slug"])
-    return f"{base}-s5-mp" if scene["multiplayer"] else f"{base}-s5"
+def _target_slug(scene: dict, season: int) -> str:
+    base = re.sub(rf"-s{season}$", "", scene["slug"])
+    suffix = f"-s{season}-mp" if scene["multiplayer"] else f"-s{season}"
+    return f"{base}{suffix}"
 
 
 def _title(name: str) -> str:
@@ -215,15 +218,20 @@ def _rect_for(scene: dict) -> dict | None:
 def main() -> None:
     dry = "--dry-run" in sys.argv
     extras = "--no-extras" not in sys.argv
-    scenes = _parse_scenes(_registry_chunk(_get(PAGE_URL).decode("utf-8", "ignore")), SEASON)
+    season = 5
+    if "--season" in sys.argv:
+        season = int(sys.argv[sys.argv.index("--season") + 1])
+    scenes = _parse_scenes(_registry_chunk(_get(PAGE_URL).decode("utf-8", "ignore")), season)
     if not scenes:
-        sys.exit(f"abort: no Season {SEASON} scenes with coordinates in the catalog")
-    print(f"parsed {len(scenes)} Season {SEASON} scene(s)")
+        sys.exit(f"abort: no Season {season} scenes with coordinates in the catalog")
+    print(f"parsed {len(scenes)} Season {season} scene(s)")
 
     total = 0
     needs_rect: list[str] = []
-    for scene in scenes:
-        slug = _target_slug(scene)
+    # The registry's array order is the in-game season order — the UI's scene
+    # picker sorts by it, so stamp each scene with its catalog position.
+    for order, scene in enumerate(scenes, start=1):
+        slug = _target_slug(scene, season)
         points = _points(scene)
         rect = _rect_for(scene)
         total += len(points)
@@ -253,8 +261,9 @@ def main() -> None:
             scene_rect=rect,
             points=points,
             activate=False,
-            archived=False,  # Season 5 is the current rotation
-            season=(dreamscape_db.SEASON_MULTIPLAYER if scene["multiplayer"] else SEASON),
+            archived=False,
+            season=(dreamscape_db.SEASON_MULTIPLAYER if scene["multiplayer"] else season),
+            sort_order=order,
             images=rels,
         )
 

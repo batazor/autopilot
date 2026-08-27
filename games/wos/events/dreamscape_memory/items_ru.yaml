@@ -50,7 +50,7 @@ Bandage roll: [Рулон бинта, Бинт]
 Banner: [Знамя, Баннер]
 Barrel: Бочка
 Barrels: Бочки
-Basket: Корзина
+Basket: [Корзина, Бамбуковая корзина]
 Bear head: [Голова медведя, Медвежья голова]
 Bear trap: [Капкан, Медвежий капкан]
 Beast trap: [Капкан, Ловушка для зверя]
@@ -135,7 +135,7 @@ Chestplate: [Нагрудник, Кираса]
 Chilli peppers: [Перец чили, Острый перец]
 Chimney: [Труба, Дымоход]
 Claw Mark: [След когтей, Царапины]
-Clay Jug: [Глиняный кувшин, Кувшин]
+Clay Jug: [Глиняный кувшин, Кувшин, Глиняный сосуд, Сосуд]
 Clipboard: Планшет
 Clock: Часы
 Clothes hanger: [Вешалка, Плечики]
@@ -267,7 +267,7 @@ Grapes: Виноград
 Grilled Fish: [Жареная рыба, Рыба на гриле]
 Grilled Skewer: [Шашлык, Шампур]
 Guitar: Гитара
-Hammer: Молоток
+Hammer: [Молоток, Молот]
 Hand drum: [Бубен, Ручной барабан]
 Hand fan: Веер
 Hand print: [Отпечаток руки, След руки]
@@ -607,7 +607,7 @@ Wall light: [Бра, Настенный светильник]
 Wallet: [Кошелёк, Бумажник]
 Watchtower: [Сторожевая башня, Вышка]
 Water bag: [Бурдюк, Мешок с водой]
-Water Cup: [Стакан воды, Стакан]
+Water Cup: [Стакан воды, Стакан, Кружка для воды, Кружка воды]
 Water stain: [Пятно от воды, Мокрое пятно]
 Waterbag: [Бурдюк, Мешок с водой]
 Watering can: [Лейка, Садовая лейка]
@@ -644,3 +644,76 @@ Wrist watch: [Наручные часы, Часы]
 Wristwatch: [Наручные часы, Часы]
 Yak: Як
 Yarn ball: [Клубок, Клубок ниток]
+
+# --- Season 4 additions (wostools catalog import) ---
+Badminton racket: [Ракетка для бадминтона, Ракетка]
+Bamboo carving: [Резьба по бамбуку, Бамбук]
+Bear: Медведь
+Bedroll: [Спальник, Спальный мешок]
+Beetle: Жук
+Blocks: [Кубики, Блоки]
+Bubbles: [Пузыри, Мыльные пузыри]
+Cactus: Кактус
+Calligraphy brush: [Кисть для каллиграфии, Кисть]
+Candies: [Конфеты, Сладости]
+Carpet roll: [Рулон ковра, Свёрнутый ковёр]
+Chalk box: [Коробка мела, Мел]
+Chili peppers: [Перец чили, Острый перец]
+Chinese drum: [Китайский барабан, Барабан]
+Clay bust: [Глиняный бюст, Бюст]
+Clock tower: [Часовая башня, Башня с часами]
+Cloud: [Облако, Туча]
+Conch: [Раковина, Морская раковина]
+Deer doll: [Кукла-олень, Олень]
+Firecracker: [Петарда, Хлопушка]
+Fireworks: [Фейерверк, Салют]
+Folding fan: [Складной веер, Веер]
+Folding stool: [Складной стул, Складной табурет]
+Fresh Fish: [Свежая рыба, Рыба]
+Gourd: Тыква-горлянка
+Handkerchief: [Платок, Носовой платок]
+Hoe: [Мотыга, Тяпка]
+Ice cream plaque: [Вывеска мороженого, Мороженое]
+Ice pickaxe: [Ледоруб, Ледовая кирка]
+Ink painting: [Тушь, Картина тушью]
+Lotus: Лотос
+Lotus leaf: [Лист лотоса, Лотос]
+Machete: Мачете
+Marching drum: [Маршевый барабан, Барабан]
+Meteor: [Метеор, Метеорит]
+Monkey: Обезьяна
+Mounted lion head: [Голова льва, Львиная голова]
+Music stand: [Пюпитр, Нотная стойка]
+Palette: Палитра
+Panda: Панда
+Paper crane: [Бумажный журавлик, Журавлик]
+Paper fan: [Бумажный веер, Веер]
+Paper umbrella: [Бумажный зонт, Зонтик]
+Pearl necklace: [Жемчужное ожерелье, Ожерелье]
+Pencil case: Пенал
+Picnic basket: [Корзина для пикника, Корзина]
+Plum blossom: [Цветок сливы, Слива]
+Popcorn: Попкорн
+Porcelain plate: [Фарфоровая тарелка, Тарелка]
+Radio: [Радио, Радиоприёмник]
+Rake: Грабли
+Red triangle flag: [Красный флажок, Треугольный флаг]
+Red-crowned crane: [Журавль, Красноголовый журавль]
+Saxophone: Саксофон
+Seat cushion: [Подушка для сиденья, Подушка]
+Sheathed sword: [Меч в ножнах, Ножны]
+Silver water jug: [Серебряный кувшин, Кувшин]
+Skateboard: Скейтборд
+Sledgehammer: Кувалда
+Snow cannon: [Снежная пушка, Пушка]
+Steamed bun: [Пампушка, Булочка]
+Stone bench: [Каменная скамья, Скамья]
+Stone lion: [Каменный лев, Лев]
+Sunglasses: [Солнечные очки, Очки]
+Tent: Палатка
+Tire tracks: [Следы шин, След колеса]
+Toy hammer: [Игрушечный молоток, Молоточек]
+Tulips: Тюльпаны
+Water jar: [Кувшин с водой, Кувшин]
+Wooden horse: [Деревянная лошадка, Лошадка]
+
