@@ -222,7 +222,11 @@ def _dreamscape_region_def(name: str) -> dict:
     raise AssertionError(msg)
 
 
-def test_practice_level_aurora_title_ocr_with_title_line() -> None:
+def test_practice_level_aurora_title_ocr_with_title_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # EN reference screenshot — pin the capture language (see the word test).
+    monkeypatch.setattr(OcrClient, "_resolve_lang", lambda _self: "eng")
     settings = get_settings()
     tesseract_cmd = str(settings.ocr.tesseract_cmd or "tesseract")
     if shutil.which(tesseract_cmd) is None and not Path(tesseract_cmd).exists():
@@ -256,7 +260,12 @@ def test_practice_level_aurora_title_ocr_with_title_line() -> None:
     assert confidence >= 0.9
 
 
-def test_practice_level_word_ocr_with_word_line() -> None:
+def test_practice_level_word_ocr_with_word_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The EN reference screenshot reads as garbage under an operator's
+    # WOS_OCR_LANG=rus — the fixture pins the language it was captured in.
+    monkeypatch.setattr(OcrClient, "_resolve_lang", lambda _self: "eng")
     settings = get_settings()
     tesseract_cmd = str(settings.ocr.tesseract_cmd or "tesseract")
     if shutil.which(tesseract_cmd) is None and not Path(tesseract_cmd).exists():
@@ -481,27 +490,18 @@ def test_detect_help_highlight_motion_multi_uses_repeated_candidate() -> None:
 
 
 def test_word_region_visual_found_detects_struck_pill_only() -> None:
-    active = np.full((54, 290, 3), (188, 122, 86), dtype=np.uint8)
+    # Real pill fills (medians from live 720x1280 frames): pale-lavender active
+    # vs slate struck. The classifier is nearest-centroid over the background —
+    # the text colour must not matter.
+    active = np.full((54, 290, 3), (224, 183, 178), dtype=np.uint8)
     cv2.putText(
-        active,
-        "Scrolls",
-        (70, 36),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (250, 250, 255),
-        2,
-        cv2.LINE_AA,
+        active, "Scrolls", (70, 36), cv2.FONT_HERSHEY_SIMPLEX,
+        1.0, (250, 250, 255), 2, cv2.LINE_AA,
     )
-    found = np.full((54, 290, 3), (186, 131, 118), dtype=np.uint8)
+    found = np.full((54, 290, 3), (207, 147, 132), dtype=np.uint8)
     cv2.putText(
-        found,
-        "Pouch",
-        (82, 36),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (55, 58, 70),
-        2,
-        cv2.LINE_AA,
+        found, "Pouch", (82, 36), cv2.FONT_HERSHEY_SIMPLEX,
+        1.0, (55, 58, 70), 2, cv2.LINE_AA,
     )
     cv2.line(found, (85, 28), (205, 28), (45, 48, 65), 4, cv2.LINE_AA)
 
@@ -510,57 +510,25 @@ def test_word_region_visual_found_detects_struck_pill_only() -> None:
 
 
 def test_word_region_visual_found_ignores_long_active_word() -> None:
-    # A vivid (active) pill bearing a long, dense word ("Grilled Skewer") has
-    # enough dark letter pixels to trip the dark-text fallback. The vivid
-    # background must veto that so the active slot is not locked as "found" and
-    # then never OCR'd / tapped.
-    active = np.full((54, 320, 3), (188, 122, 86), dtype=np.uint8)
+    # The regression that shipped: a long dense word ("Морская звезда") on an
+    # ACTIVE pill false-positived the old dark-text heuristic, locking the slot
+    # as found so it was never tapped. Background classification must not care
+    # how much text there is.
+    active = np.full((54, 320, 3), (224, 183, 178), dtype=np.uint8)
     cv2.putText(
-        active,
-        "Grilled Skewer",
-        (24, 36),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.9,
-        (40, 40, 55),
-        2,
-        cv2.LINE_AA,
+        active, "Morskaya zvezda", (10, 36), cv2.FONT_HERSHEY_SIMPLEX,
+        0.9, (250, 250, 255), 2, cv2.LINE_AA,
     )
-    assert solve._is_word_region_visually_found(active) is False
-
-
-def test_word_region_visual_found_ignores_selected_active_word() -> None:
-    # A selected active pill can have saturation in the "found" colour band
-    # (observed on "Pocket Watch"), but it has no dark strike-through.
-    hsv = np.full((54, 320, 3), (111, 73, 189), dtype=np.uint8)
-    active = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-    cv2.putText(
-        active,
-        "Pocket Watch",
-        (28, 36),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.9,
-        (250, 250, 255),
-        2,
-        cv2.LINE_AA,
-    )
-
-    sat = solve._word_pill_background_saturation(active)
-    assert sat is not None
-    assert solve._FOUND_WORD_BG_SAT_MIN <= sat <= solve._FOUND_WORD_BG_SAT_MAX
     assert solve._is_word_region_visually_found(active) is False
 
 
 def test_word_region_visual_found_ignores_dark_or_blank_crop() -> None:
-    # A black / empty region (no pill) is never "found" — the brightness guard
-    # rejects it even though its saturation is ~0 (which would otherwise fall in
-    # the desaturated "found" band).
-    assert solve._is_word_region_visually_found(np.zeros((40, 200, 3), np.uint8)) is False
-    assert (
-        solve._is_word_region_visually_found(np.full((40, 200, 3), 255, np.uint8))
-        is False
-    )
-
-
+    # Non-pill content (the pre-round shade, a popup) is near NEITHER reference
+    # colour — never "found".
+    dark = np.full((54, 290, 3), 25, dtype=np.uint8)
+    blank = np.full((54, 290, 3), 245, dtype=np.uint8)
+    assert solve._is_word_region_visually_found(dark) is False
+    assert solve._is_word_region_visually_found(blank) is False
 def test_word_region_visual_found_uses_background_saturation_on_real_frame() -> None:
     # Real capture: slot 2 ("Smoke") is already solved/greyed; slots 1 and 3 are
     # active. The detector must flag only the desaturated found pill — the signal
@@ -653,6 +621,13 @@ class _FakeDreamscapeOcr:
         region_preprocess: list[str | None] | None = None,
     ) -> list[OCRResult]:
         ids = list(region_ids or [])
+        # The two-line retry re-reads weak word slots in block mode; the fake
+        # models single-line pills, so those calls return nothing and must not
+        # consume the per-tick word queue below.
+        if region_preprocess and all(p == "word_block" for p in region_preprocess):
+            return [
+                OCRResult(region_id=rid, text="", confidence=0.0) for rid in ids
+            ]
         word_region_ids = {
             "dreamscape_memory.1",
             "dreamscape_memory.2",
@@ -2239,23 +2214,45 @@ async def test_solve_loop_stops_on_all_items_found_after_tap(
 async def test_solve_loop_requests_bot_stop_on_time_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """time_up after watched gameplay (words were read) ends the run as a loss."""
     actions = _FakeDreamscapeActions()
     stop_reasons: list[str] = []
+    terminal_calls = {"n": 0}
 
     async def detect_terminal(_image, hint=None):
-        return solve._TERMINAL_TIME_UP
+        # First tick: live round (no terminal). Later ticks: the timer ran out.
+        terminal_calls["n"] += 1
+        return "" if terminal_calls["n"] == 1 else solve._TERMINAL_TIME_UP
 
     def request_stop(reason: str) -> dict[str, object]:
         stop_reasons.append(reason)
         return {"requested": True, "mode": "embedded", "reason": reason}
 
-    ocr = _FakeDreamscapeOcr(word_values_by_call=[{}])
+    # One readable word on tick 1, nothing afterwards (pills gone with the round).
+    ocr = _FakeDreamscapeOcr(
+        word_values_by_call=[{"dreamscape_memory.1": "Book"}, {}, {}]
+    )
     monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: ocr)
     monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
     monkeypatch.setattr(solve, "_detect_terminal_screen", detect_terminal)
     monkeypatch.setattr(solve, "_request_local_bot_stop", request_stop)
-    monkeypatch.setattr(solve, "_select_scene", lambda _level_name, _fuzz_threshold: None)
+    # Confirm the tap via the colour detector so the slot settles — the
+    # terminal check only runs once no tap is in flight.
+    monkeypatch.setattr(
+        solve,
+        "_found_word_regions_from_frame",
+        _grey_when_point_tapped(actions, {(360, 512): "dreamscape_memory.1"}),
+    )
+    monkeypatch.setattr(
+        solve,
+        "_select_scene",
+        lambda _level_name, _fuzz_threshold: {
+            "slug": "practice-level",
+            "scene_rect": None,
+            "points": [{"name": "Book", "xPct": 50.0, "yPct": 40.0}],
+        },
+    )
 
     class _Ctx:
         def __init__(self) -> None:
@@ -2267,15 +2264,13 @@ async def test_solve_loop_requests_bot_stop_on_time_up(
                 "ttl": "10s",
                 "wait": "0ms",
                 "tap_delay": "0ms",
-                "max_iterations": 3,
+                "max_iterations": 5,
             }
             self.result: dict[str, object] = {}
 
     ctx = _Ctx()
     await solve._exec_dreamscape_memory_solve_loop(ctx)
 
-    assert actions.taps == []
-    assert ctx.result["iterations"] == 1
     assert ctx.result["terminal_screen"] == solve._TERMINAL_TIME_UP
     assert ctx.result["status"] == "lost"
     assert stop_reasons == [
@@ -2596,3 +2591,242 @@ def test_scene_is_detected_from_localized_words_alone(monkeypatch) -> None:
         {"slug": "kitchen", "season": 5, "names": dreamscape_db.aliased_names(["Kettle"])},
     ]
     assert dreamscape_db.match_scene_by_words(["Кукуруза", "Перо"], scenes) == "garden"
+
+
+# --- operator-picked scene (scene_source: active) -------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("scene_db")
+async def test_solve_loop_scene_source_active_skips_detection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The operator picked the round: the active scene is locked from tick 1
+    and word-based detection is never consulted."""
+    dreamscape_db.upsert_scene(
+        "yard", title="Yard", source_image="", scene_rect=None,
+        points=[{"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0}],
+        activate=True,
+    )
+    actions = _FakeDreamscapeActions()
+    ocr = _FakeDreamscapeOcr()
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: ocr)
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+    monkeypatch.setattr(
+        solve,
+        "_found_word_regions_from_frame",
+        _grey_when_point_tapped(actions, {(360, 512): "dreamscape_memory.1"}),
+    )
+
+    def _boom(*_a: object, **_k: object) -> None:
+        msg = "scene detection must not run under scene_source=active"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(solve, "_select_scene_ex", _boom)
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1"],
+                "scene_source": "active",
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                "max_iterations": 2,
+            }
+            self.result: dict[str, object] = {}
+
+        def fail(self, reason: str, **extra: object) -> None:
+            self.result.update({"ok": False, "reason": reason, **extra})
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+    assert ctx.result.get("scene") == "yard"
+    assert actions.taps == [(360, 512)]
+
+
+@pytest.mark.asyncio
+async def test_solve_loop_scene_source_active_fails_without_active_scene(
+    monkeypatch: pytest.MonkeyPatch, scene_db: object
+) -> None:
+    actions = _FakeDreamscapeActions()
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {"scene_source": "active", "ttl": "1s", "max_iterations": 1}
+            self.result: dict[str, object] = {}
+
+        def fail(self, reason: str, **extra: object) -> None:
+            self.result.update({"ok": False, "reason": reason, **extra})
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+    assert ctx.result == {
+        "ok": False,
+        "reason": "scene_source_active_without_active_scene",
+    }
+
+
+@pytest.mark.asyncio
+async def test_solve_loop_ignores_stale_time_up_before_any_word(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A standalone/manual run can boot while the previous round's time-up is
+    still on screen — it must be ignored until this run has read a word."""
+    actions = _FakeDreamscapeActions()
+    stop_reasons: list[str] = []
+
+    async def detect_terminal(_image, hint=None):
+        return solve._TERMINAL_TIME_UP
+
+    ocr = _FakeDreamscapeOcr(word_values_by_call=[{}])
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: ocr)
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+    monkeypatch.setattr(solve, "_detect_terminal_screen", detect_terminal)
+    monkeypatch.setattr(
+        solve,
+        "_request_local_bot_stop",
+        lambda reason: stop_reasons.append(reason),
+    )
+    monkeypatch.setattr(solve, "_select_scene", lambda _l, _f: None)
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1"],
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                "max_iterations": 3,
+            }
+            self.result: dict[str, object] = {}
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+
+    # The stale screen never terminates the run; it ends on max_iterations.
+    assert ctx.result["iterations"] == 3
+    assert ctx.result["terminal_screen"] == ""
+    assert stop_reasons == []
+
+
+# --- helper-flow alias learning (scenes.db self-vocabulary) ----------------
+#
+# The in-game hint proves a (word -> position) pair; learn_point_alias persists
+# it on the nearest scene point so the next round taps the word directly.
+
+
+@pytest.mark.usefixtures("scene_db")
+def test_learn_point_alias_snaps_to_the_nearest_point() -> None:
+    dreamscape_db.upsert_scene(
+        "yard", title="Yard", source_image="",
+        scene_rect={"left": 10.0, "top": 20.0, "width": 50.0, "height": 40.0},
+        points=[
+            {"n": 1, "name": "Clay Jug", "xPct": 50.0, "yPct": 50.0},
+            {"n": 2, "name": "Saw", "xPct": 90.0, "yPct": 90.0},
+        ],
+        activate=True,
+    )
+    # Frame % for guide (52, 48): frame = rect + guide/100*size — within the
+    # 3% snap radius of the point at (50, 50).
+    res = dreamscape_db.learn_point_alias(
+        "yard", word="Глиняный сосуд", frame_x_pct=10 + 0.52 * 50, frame_y_pct=20 + 0.48 * 40
+    )
+    assert res["learned"] is True
+    assert res["point"] == "Clay Jug"
+    scene = dreamscape_db.get_scene("yard")
+    assert scene["points"][0]["aliases"] == ["Глиняный сосуд"]
+    # The learned wording now taps the point (through the rect mapping).
+    targets = solve._targets_for_scene(scene)
+    assert targets["глиняный сосуд"] == targets["clay jug"]
+
+
+@pytest.mark.usefixtures("scene_db")
+def test_learn_point_alias_far_word_becomes_its_own_point() -> None:
+    """The proven position is authoritative: far from every point, the word
+    lands as a NEW point at exactly those coordinates — snapping to a
+    merely-nearest point would tap the wrong pixel forever."""
+    dreamscape_db.upsert_scene(
+        "yard", title="Yard", source_image="", scene_rect=None,
+        points=[{"n": 1, "name": "Saw", "xPct": 10.0, "yPct": 10.0}],
+        activate=True,
+    )
+    far = dreamscape_db.learn_point_alias(
+        "yard", word="Сосуд", frame_x_pct=90.0, frame_y_pct=90.0
+    )
+    assert far["learned"] is True
+    assert far["new_point"] is True
+    scene = dreamscape_db.get_scene("yard")
+    assert scene["points"][-1] == {
+        "n": 2, "name": "Сосуд", "xPct": 90.0, "yPct": 90.0, "learned": True,
+    }
+    targets = solve._targets_for_scene(scene)
+    assert targets["сосуд"] == (90.0, 90.0)
+
+
+@pytest.mark.usefixtures("scene_db")
+def test_learn_point_alias_rejects_known_and_junk_words() -> None:
+    dreamscape_db.upsert_scene(
+        "yard", title="Yard", source_image="", scene_rect=None,
+        points=[{"n": 1, "name": "Saw", "xPct": 10.0, "yPct": 10.0}],
+        activate=True,
+    )
+    known = dreamscape_db.learn_point_alias(
+        "yard", word="Saw", frame_x_pct=10.0, frame_y_pct=10.0
+    )
+    assert known == {"learned": False, "reason": "already_mapped"}
+    junk = dreamscape_db.learn_point_alias(
+        "yard", word="ыыыыыы", frame_x_pct=10.0, frame_y_pct=10.0
+    )
+    assert junk == {"learned": False, "reason": "implausible_word"}
+
+
+@pytest.mark.usefixtures("scene_db")
+def test_learned_alias_feeds_scene_detection() -> None:
+    dreamscape_db.upsert_scene(
+        "yard", title="Yard", source_image="", scene_rect=None,
+        points=[
+            {"n": 1, "name": "Saw", "xPct": 10.0, "yPct": 10.0},
+            {"n": 2, "name": "Bell", "xPct": 30.0, "yPct": 30.0},
+        ],
+        activate=True,
+    )
+    dreamscape_db.learn_point_alias(
+        "yard", word="Глиняный сосуд", frame_x_pct=11.0, frame_y_pct=11.0
+    )
+    index = dreamscape_db.scene_word_index()
+    assert dreamscape_db.match_scene_by_words(
+        ["Глиняный сосуд"], index["scenes"]
+    ) == "yard"
+
+
+@pytest.mark.usefixtures("scene_db")
+def test_learn_point_alias_never_aliases_a_junk_point() -> None:
+    """OCR debris in a scene ("a at") takes no vocabulary — the confirmed word
+    becomes its own point instead of laundering the junk name."""
+    dreamscape_db.upsert_scene(
+        "yard", title="Yard", source_image="", scene_rect=None,
+        points=[{"n": 1, "name": "a at", "xPct": 10.0, "yPct": 10.0}],
+        activate=True,
+    )
+    res = dreamscape_db.learn_point_alias(
+        "yard", word="Мешочек", frame_x_pct=10.0, frame_y_pct=10.0
+    )
+    assert res["learned"] is True
+    assert res["new_point"] is True
+    scene = dreamscape_db.get_scene("yard")
+    assert scene["points"][0].get("aliases") is None
+    assert scene["points"][-1]["name"] == "Мешочек"

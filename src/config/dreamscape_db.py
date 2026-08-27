@@ -110,6 +110,9 @@ class DreamscapeSceneRow(SQLModel, table=True):
     # See ``SEASON_PRACTICE`` / ``SEASON_MULTIPLAYER``. Independent of
     # ``archived`` (rotation status).
     season: int = Field(default=1)
+    # In-game position within the season (the upstream catalog's array order).
+    # 0 = unknown; the UI falls back to title order for those.
+    sort_order: int = Field(default=0)
     updated_at: float = 0.0
 
 
@@ -149,6 +152,10 @@ def _add_missing_columns(engine: Engine) -> None:
             conn.exec_driver_sql(
                 "ALTER TABLE dreamscape_scenes "
                 "ADD COLUMN alt_title VARCHAR NOT NULL DEFAULT ''"
+            )
+        if "sort_order" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE dreamscape_scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"
             )
         if "alt_titles_json" not in cols:
             conn.exec_driver_sql(
@@ -357,6 +364,7 @@ def _row_to_detail(row: DreamscapeSceneRow) -> dict[str, Any]:
         "active": bool(row.active),
         "archived": bool(row.archived),
         "season": int(row.season),
+        "sort_order": int(row.sort_order),
     }
 
 
@@ -375,6 +383,7 @@ def upsert_scene(
     activate: bool,
     archived: bool | None = None,
     season: int | None = None,
+    sort_order: int | None = None,
     images: list[str] | None = None,
     alt_title: str | None = None,
     alt_titles: list[str] | None = None,
@@ -414,6 +423,8 @@ def upsert_scene(
             row.archived = bool(archived)
         if season is not None:
             row.season = int(season)
+        if sort_order is not None:
+            row.sort_order = int(sort_order)
         row.updated_at = now
         if activate:
             for other in s.exec(
@@ -450,10 +461,156 @@ def list_scenes() -> dict[str, Any]:
                 "active": bool(r.active),
                 "archived": bool(r.archived),
                 "season": int(r.season),
+                "sort_order": int(r.sort_order),
             }
         )
     scenes.sort(key=lambda d: d["slug"])
     return {"active": active, "scenes": scenes}
+
+
+def _point_names_with_aliases(points: Any) -> list[str]:
+    """Every name a scene's points answer to: canonical names + learned aliases."""
+    out: list[str] = []
+    if not isinstance(points, list):
+        return out
+    for p in points:
+        if not isinstance(p, dict):
+            continue
+        name = str(p.get("name", "")).strip()
+        if name:
+            out.append(name)
+        aliases = p.get("aliases")
+        if isinstance(aliases, list):
+            out.extend(str(a).strip() for a in aliases if str(a).strip())
+    return out
+
+
+def learn_point_alias(
+    slug: str,
+    *,
+    word: str,
+    frame_x_pct: float,
+    frame_y_pct: float,
+    snap_radius_pct: float = 3.0,
+) -> dict[str, Any]:
+    """Persist a game-confirmed (word → screen position) pair on the scene.
+
+    The helper flow proves the pair the hard way: the game highlighted the
+    item and greyed the pill after our tap. The position is what's proven, so
+    it is authoritative; the mapping to an existing point is only an
+    inference. The tap arrives in game-frame %, is mapped back into
+    guide-image % (inverting ``scene_rect``), and then:
+
+    - a point within ``snap_radius_pct`` gets the wording as an alias — the
+      word is another name for an item we already hold;
+    - otherwise the wording becomes a NEW learned point at the proven
+      coordinates. Snapping to a merely-nearest point would send future taps
+      to the wrong pixel when the sheet's position is off (a live round
+      attached "Шашлычок" to the Snowman point that way).
+
+    An alias never displaces a canonical name, and a word the scene already
+    answers to is a no-op. Returns ``{"learned": bool, ...}`` — never raises
+    for data reasons (the solver calls this mid-round; learning is
+    best-effort).
+    """
+    key = normalize_word_text(word)
+    display = " ".join(str(word).split())
+    if not key or not is_plausible_word_text(display):
+        return {"learned": False, "reason": "implausible_word"}
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(DreamscapeSceneRow, slug)
+        if row is None:
+            return {"learned": False, "reason": "unknown_scene"}
+        points = _load_json(row.points_json, [])
+        if not isinstance(points, list) or not points:
+            return {"learned": False, "reason": "scene_has_no_points"}
+        known = {
+            normalize_word_text(n) for n in _point_names_with_aliases(points)
+        }
+        if key in known:
+            return {"learned": False, "reason": "already_mapped"}
+        rect = _load_json(row.scene_rect_json, None)
+        gx, gy = float(frame_x_pct), float(frame_y_pct)
+        if isinstance(rect, dict):
+            try:
+                w = float(rect["width"]) or 100.0
+                h = float(rect["height"]) or 100.0
+                gx = (gx - float(rect["left"])) / w * 100.0
+                gy = (gy - float(rect["top"])) / h * 100.0
+            except (KeyError, TypeError, ValueError, ZeroDivisionError):
+                pass
+        best: dict[str, Any] | None = None
+        best_d = float("inf")
+        for point in points:
+            if not isinstance(point, dict):
+                continue
+            try:
+                d = ((float(point["xPct"]) - gx) ** 2 + (float(point["yPct"]) - gy) ** 2) ** 0.5
+            except (KeyError, TypeError, ValueError):
+                continue
+            if d < best_d:
+                best, best_d = point, d
+        # Junk points never take vocabulary: the community sheets left OCR
+        # debris in some scenes ("a at", "Dle", "ml at") and an alias would
+        # launder it into a confidently-tapped word. Real item names carry at
+        # least one 3+ letter token on top of the plausibility gate ("a at"
+        # passes the gate — its three letters are spread over junk tokens).
+        best_name = str(best.get("name", "")) if best else ""
+        longest_token = max((len(t) for t in best_name.split()), default=0)
+        snappable = (
+            best is not None
+            and best_d <= float(snap_radius_pct)
+            and is_plausible_word_text(best_name)
+            and longest_token >= 3
+        )
+        if snappable and best is not None:
+            aliases = best.get("aliases")
+            if not isinstance(aliases, list):
+                aliases = []
+            best["aliases"] = _clean_alias_list([*aliases, display])
+            outcome: dict[str, Any] = {
+                "learned": True,
+                "scene": slug,
+                "point": best_name,
+                "alias": display,
+                "distance": round(best_d, 2),
+            }
+        else:
+            # The proven position is its own point — future rounds tap exactly
+            # where the game confirmed the item to be.
+            next_n = 1 + max(
+                (int(p.get("n", 0)) for p in points if isinstance(p, dict)),
+                default=0,
+            )
+            points.append(
+                {
+                    "n": next_n,
+                    "name": display,
+                    "xPct": round(gx, 2),
+                    "yPct": round(gy, 2),
+                    "learned": True,
+                }
+            )
+            outcome = {
+                "learned": True,
+                "scene": slug,
+                "point": display,
+                "new_point": True,
+                "nearest": best_name,
+                "distance": round(best_d, 2),
+            }
+        row.points_json = json.dumps(points)
+        row.updated_at = time.time()
+        s.add(row)
+        s.commit()
+        logger.info(
+            "dreamscape_db: learned %r in %s -> %s (d=%.2f%%)",
+            display,
+            slug,
+            f"alias of {best_name!r}" if snappable else "new point",
+            best_d,
+        )
+        return outcome
 
 
 def scene_word_index() -> dict[str, Any]:
@@ -472,11 +629,10 @@ def scene_word_index() -> dict[str, Any]:
             "season": int(r.season),
             "active": bool(r.active),
             "archived": bool(r.archived),
-            # Aliases ride along so Russian reads identify the scene too.
+            # Lexicon + learned per-point aliases ride along so Russian
+            # reads identify the scene too.
             "names": aliased_names(
-                str(p.get("name", ""))
-                for p in _load_json(r.points_json, [])
-                if isinstance(p, dict)
+                _point_names_with_aliases(_load_json(r.points_json, []))
             ),
         }
         for r in rows

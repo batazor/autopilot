@@ -199,7 +199,16 @@ def _render_trace(d: dict[str, Any]) -> str:
             "summary": s.get("summary"),
             "region": s.get("region"),
             "score": s.get("match_score"),
-            "reason": s.get("reason") or s.get("match_detail") or s.get("ocr_status") or "",
+            # ``error`` carries an exec step's exception text — without it a
+            # crashed solver run showed a bare "exec_failed" and nothing else.
+            "reason": " · ".join(
+                str(v)
+                for v in (
+                    s.get("reason") or s.get("match_detail") or s.get("ocr_status") or "",
+                    s.get("error") or "",
+                )
+                if v
+            ),
         }
         for s in steps
     ]

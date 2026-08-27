@@ -49,12 +49,6 @@ from games.wos.events.dreamscape_memory.solver.constants import (
     _DEFAULT_TAP_CONFIRM_WAIT_ITERS,
     _DEFAULT_TAP_DELAY_S,
     _DEFAULT_WORD_OCR_THRESHOLD,
-    _FOUND_WORD_BG_SAT_MAX,
-    _FOUND_WORD_BG_SAT_MIN,
-    _FOUND_WORD_DARK_PIXEL_THRESHOLD,
-    _FOUND_WORD_MIN_DARK_RATIO,
-    _FOUND_WORD_MIN_DARK_ROW_RATIO,
-    _FOUND_WORD_MIN_MEAN_GRAY,
     _HELP_CAPTURE_FRAMES,
     _LEVEL_PROGRESS_RE,
     _LIVE_STATE_FIELD,
@@ -62,6 +56,9 @@ from games.wos.events.dreamscape_memory.solver.constants import (
     _MIN_UNMAPPED_CONFIRM_READS,
     _MIN_UNMAPPED_WORD_LETTERS,
     _MULTIPLAYER_MODES,
+    _PILL_BG_ACTIVE_BGR,
+    _PILL_BG_MAX_REF_DIST,
+    _PILL_BG_STRUCK_BGR,
     _SEASON_TAG_RE,
     _SLOT_CLICKED,
     _SLOT_HELP_DETECTING,
@@ -80,6 +77,8 @@ from games.wos.events.dreamscape_memory.solver.constants import (
     _TERMINAL_ALL_FOUND,
     _TERMINAL_SCREENS,
     _TERMINAL_TIME_UP,
+    _TWO_LINE_GROW_FRAC,
+    _TWO_LINE_RETRY_CONF,
     _WIN_TERMINAL_SCREENS,
 )
 from games.wos.events.dreamscape_memory.solver.models import (
@@ -133,9 +132,22 @@ def _append_event(
         del events[: len(events) - _MAX_LIVE_EVENTS]
 
 
-def _terminal_screen_is_valid(screen: str, *, taps_total: int) -> bool:
-    """Guard stale win screens from a previous run before gameplay starts."""
-    return screen not in _WIN_TERMINAL_SCREENS or taps_total > 0
+def _terminal_screen_is_valid(
+    screen: str, *, taps_total: int, saw_words: bool = True
+) -> bool:
+    """Guard stale terminal screens from a previous round.
+
+    Win screens require at least one tap this run. ``time_up`` requires the loop
+    to have read at least one word pill this run: a standalone/manual run can
+    boot while the previous round's time-up (or the overview) is still on
+    screen, and stopping on it would end the run before the round even starts.
+    A real loss always follows gameplay the loop was watching.
+    """
+    if screen in _WIN_TERMINAL_SCREENS:
+        return taps_total > 0
+    if screen == _TERMINAL_TIME_UP:
+        return saw_words
+    return True
 
 
 def _public_slot_fsm_status(state: SlotFsmState | None) -> str:
@@ -310,6 +322,7 @@ def _points_to_targets(
     if not isinstance(points, list):
         return {}
     out: dict[str, tuple[float, float]] = {}
+    aliased: dict[str, tuple[float, float]] = {}
     for point in points:
         if not isinstance(point, dict):
             continue
@@ -329,6 +342,16 @@ def _points_to_targets(
             x_pct = left + x_pct / 100.0 * width
             y_pct = top + y_pct / 100.0 * height
         out[key] = (x_pct, y_pct)
+        # Learned wordings (helper flow / operator) answer to the same pixel.
+        # ``setdefault`` so an alias never displaces a canonical item name.
+        raw_aliases = point.get("aliases")
+        if isinstance(raw_aliases, list):
+            for raw_alias in raw_aliases:
+                alias_key = _normalize_word(raw_alias)
+                if alias_key:
+                    aliased.setdefault(alias_key, (x_pct, y_pct))
+    for alias_key, coord in aliased.items():
+        out.setdefault(alias_key, coord)
     return out
 
 
@@ -355,6 +378,69 @@ def _localized_keys(
             if alias not in targets:
                 out.setdefault(alias, name)
     return out
+
+
+# Vocabulary learning trusts only reads Tesseract itself was sure of: real pill
+# words read at 0.92-0.97 after the crop/whitelist fixes, while the garbage that
+# fooled a live run ("дай", "Чень") came in at 0.0-0.44.
+_MIN_LEARN_WORD_CONF = 0.85
+
+
+def _publish_rolling_preview(instance_id: str, frame: Any) -> None:
+    """Write ``frame`` as the instance's rolling live preview PNG.
+
+    The dashboard's Current screen / Debug view read this file; the worker's
+    rolling loop normally writes it, but the ISOLATED solver (standalone
+    runner, no worker) is the only frame source in its mode — publishing here
+    keeps the page live. Best-effort and cheap (~5ms imwrite, throttled by the
+    caller).
+    """
+    try:
+        import cv2
+
+        from dashboard.reference_preview import rolling_live_preview_path
+
+        path = rolling_live_preview_path(instance_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # The tmp name must keep the .png suffix — imwrite picks the encoder
+        # by extension and silently has none for ".tmp".
+        tmp = path.with_name(f".{path.stem}.tmp.png")
+        if cv2.imwrite(str(tmp), frame):
+            tmp.replace(path)
+    except Exception:
+        logger.debug("rolling preview publish failed", exc_info=True)
+
+
+def _learn_alias_from_help(
+    scene_slug: str,
+    word: str,
+    point: Point,
+    dev_w: int,
+    dev_h: int,
+) -> dict[str, Any]:
+    """Persist a helper-proven (word -> tap point) as a scene-point alias.
+
+    Best-effort by contract: any failure returns ``{"learned": False}`` — the
+    round must never stall on bookkeeping.
+    """
+    if not scene_slug or dev_w <= 0 or dev_h <= 0:
+        return {"learned": False, "reason": "no_scene"}
+    try:
+        from config.dreamscape_db import learn_point_alias
+
+        return learn_point_alias(
+            scene_slug,
+            word=word,
+            frame_x_pct=point.x / dev_w * 100.0,
+            frame_y_pct=point.y / dev_h * 100.0,
+        )
+    except Exception:
+        logger.exception(
+            "dreamscape_memory_solve_loop: alias learn failed word=%r scene=%s",
+            word,
+            scene_slug,
+        )
+        return {"learned": False, "reason": "error"}
 
 
 def _load_targets() -> dict[str, tuple[float, float]]:
@@ -724,15 +810,12 @@ def _region_center_for_frame(
     return px.center() if px is not None else None
 
 
-def _word_pill_background_saturation(crop: Any) -> float | None:
-    """Median HSV saturation of a word pill's background fill.
+def _pill_background_bgr(crop: Any) -> tuple[float, float, float] | None:
+    """Median BGR of a word pill's background fill (text excluded).
 
-    Sampled from two short vertical strips just inside the pill's left and right
-    ends, vertically centred and inset from the rounded corners. The centred word
-    text never reaches there, so this reads the pill chrome itself rather than the
-    letters: an active pill keeps the vivid lavender fill (high saturation), while
-    a found/struck pill is greyed out (low saturation). Frame-stable — unlike the
-    strike-through it does not depend on the word or the strike-in animation.
+    Median over the brighter half of the pill's inner band: the dark struck
+    text falls below the mean and drops out, the white active text is a
+    minority the median shrugs off — what remains is the fill colour itself.
     """
     if crop is None or not hasattr(crop, "shape") or len(crop.shape) != 3:
         return None
@@ -745,72 +828,41 @@ def _word_pill_background_saturation(crop: Any) -> float | None:
     except Exception:
         logger.debug("dreamscape_memory_solve_loop: cv2/numpy unavailable", exc_info=True)
         return None
-    y1, y2 = int(round(height * 0.25)), int(round(height * 0.75))
-    sat = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)[..., 1]
-    left = sat[y1:y2, int(round(width * 0.05)) : int(round(width * 0.16))]
-    right = sat[y1:y2, int(round(width * 0.84)) : int(round(width * 0.95))]
-    bands = np.concatenate([left.ravel(), right.ravel()])
-    if bands.size == 0:
+    x1, x2 = int(round(width * 0.08)), int(round(width * 0.92))
+    y1, y2 = int(round(height * 0.18)), int(round(height * 0.82))
+    inner = crop[y1:y2, x1:x2]
+    if inner.size == 0:
         return None
-    return float(np.median(bands))
+    gray = cv2.cvtColor(inner, cv2.COLOR_BGR2GRAY)
+    mask = gray > gray.mean()
+    if int(mask.sum()) < 20:
+        return None
+    return tuple(
+        float(np.median(inner[..., ch][mask])) for ch in range(3)
+    )  # type: ignore[return-value]
 
 
 def _is_word_region_visually_found(crop: Any) -> bool:
     """True when a Dreamscape word pill is already greyed out (word found).
 
-    The pill-background colour is the first gate: active chrome is usually vivid,
-    while found/struck pills are desaturated. A selected active pill can also be
-    desaturated, though, so the found colour must be confirmed by darkened text or
-    a strike-through in the center band. A vivid background means the pill is
-    active — return early without consulting the dark-text heuristic, since a
-    long/dense active word can have enough dark letter pixels to trip it.
+    A pill has exactly TWO background colours — the pale-lavender active fill
+    and the darker slate struck fill — so the check is a nearest-centroid
+    classification of the background colour, nothing else. The previous
+    heuristic stack (saturation bands + dark-text ratios) had an overlap zone
+    where a long active word ("Морская звезда") false-positived as found,
+    which silently locked the slot and the solver never tapped it.
+
+    A background far from BOTH references is not a pill at all (dark shade,
+    popup, mid-animation frame) → not found.
     """
-    if crop is None or not hasattr(crop, "shape") or len(crop.shape) != 3:
+    bg = _pill_background_bgr(crop)
+    if bg is None:
         return False
-    height, width = int(crop.shape[0]), int(crop.shape[1])
-    if width < 20 or height < 8:
+    dist_active = sum((a - b) ** 2 for a, b in zip(bg, _PILL_BG_ACTIVE_BGR, strict=True)) ** 0.5
+    dist_struck = sum((a - b) ** 2 for a, b in zip(bg, _PILL_BG_STRUCK_BGR, strict=True)) ** 0.5
+    if min(dist_active, dist_struck) > _PILL_BG_MAX_REF_DIST:
         return False
-    try:
-        import cv2
-    except Exception:
-        logger.debug("dreamscape_memory_solve_loop: cv2 unavailable", exc_info=True)
-        return False
-
-    # Ignore rounded edges; the center band contains the dark strike-through
-    # and darkened text when the word has already been found.
-    x1 = int(round(width * 0.08))
-    x2 = int(round(width * 0.92))
-    y1 = int(round(height * 0.18))
-    y2 = int(round(height * 0.82))
-    inner = crop[y1:y2, x1:x2]
-    if inner.size == 0:
-        return False
-    gray = cv2.cvtColor(inner, cv2.COLOR_BGR2GRAY)
-    # A real pill (active or found) is bright; a dark/empty region is neither.
-    if float(gray.mean()) < _FOUND_WORD_MIN_MEAN_GRAY:
-        return False
-
-    dark = gray < _FOUND_WORD_DARK_PIXEL_THRESHOLD
-    dark_ratio = float(dark.mean())
-    row_ratio = float(dark.mean(axis=1).max()) if dark.shape[0] else 0.0
-    has_dark_strike = (
-        dark_ratio >= _FOUND_WORD_MIN_DARK_RATIO
-        and row_ratio >= _FOUND_WORD_MIN_DARK_ROW_RATIO
-    )
-
-    bg_sat = _word_pill_background_saturation(crop)
-    if bg_sat is not None:
-        if _FOUND_WORD_BG_SAT_MIN <= bg_sat <= _FOUND_WORD_BG_SAT_MAX:
-            return has_dark_strike
-        if bg_sat > _FOUND_WORD_BG_SAT_MAX:
-            # Vivid lavender chrome → the pill is still active. Do NOT fall through
-            # to the dark-text heuristic: a long, dense word ("Grilled Skewer")
-            # has enough dark letter pixels to trip it, which would lock an active
-            # slot as "found" so it is never OCR'd or tapped.
-            return False
-
-    # Fallback when the background sample is unreadable or unusually desaturated.
-    return has_dark_strike
+    return dist_struck < dist_active
 
 
 def _round_started_pixels(
@@ -890,10 +942,17 @@ async def _ocr_current_frame(
     image: Any,
     area_doc: dict[str, Any],
     names: list[str],
-) -> dict[str, str]:
-    """OCR named regions from the current frame, skipping low-confidence reads."""
+) -> tuple[dict[str, str], dict[str, float]]:
+    """OCR named regions from the current frame, skipping low-confidence reads.
+
+    Returns ``(texts, confidences)`` keyed by region name. The confidence rides
+    along because downstream consumers differ in how much certainty they need:
+    tapping a word tolerates a shaky read (fuzzy matching absorbs it), but
+    LEARNING a word must not — a garbage read that gets persisted taps the
+    wrong thing forever.
+    """
     if image is None or not hasattr(image, "shape"):
-        return {}
+        return {}, {}
     frame_h, frame_w = int(image.shape[0]), int(image.shape[1])
 
     regions: list[Region] = []
@@ -925,7 +984,7 @@ async def _ocr_current_frame(
         )
 
     if not regions:
-        return {}
+        return {}, {}
 
     results = await dsl_runtime.ocr_client().ocr_regions(
         image,
@@ -935,6 +994,7 @@ async def _ocr_current_frame(
     )
 
     out: dict[str, str] = {}
+    confs: dict[str, float] = {}
     for result in results:
         rid = str(result.region_id or "").strip()
         text = str(result.text or "").strip()
@@ -952,7 +1012,64 @@ async def _ocr_current_frame(
             )
             continue
         out[rid] = text
-    return out
+        confs[rid] = confidence
+
+    # Two-line pills: long RU names wrap, and the single-line band through the
+    # pill's middle reads nothing (or shreds). Retry the weak word slots with
+    # the band grown vertically, in block mode; keep whichever read is more
+    # confident.
+    retry_regions: list[Region] = []
+    retry_ids: list[str] = []
+    for name, px, pre in zip(ids, regions, preprocess, strict=True):
+        if pre != "word_line":
+            continue
+        if confs.get(name, 0.0) >= _TWO_LINE_RETRY_CONF:
+            continue
+        grow = int(round(px.h * _TWO_LINE_GROW_FRAC))
+        retry_regions.append(Region(px.x, max(0, px.y - grow), px.w, px.h + 2 * grow))
+        retry_ids.append(name)
+    if retry_regions:
+        tall = await dsl_runtime.ocr_client().ocr_regions(
+            image,
+            retry_regions,
+            region_ids=retry_ids,
+            region_preprocess=["word_block"] * len(retry_ids),
+        )
+
+        def _letters(text: str) -> str:
+            return "".join(ch for ch in _normalize_word(text) if ch.isalpha())
+
+        for result in tall:
+            rid = str(result.region_id or "").strip()
+            text = str(result.text or "").strip()
+            confidence = float(result.confidence or 0.0)
+            if not rid or not text:
+                continue
+            prev_letters = _letters(out.get(rid, ""))
+            new_letters = _letters(text)
+            if prev_letters and new_letters == prev_letters:
+                # Two independent passes (single-line PSM 7 and block PSM 6)
+                # agreeing letter-for-letter can't be an accident — trust the
+                # word even when Tesseract's own confidence is low (a SELECTED
+                # pill's dark chrome reads correct text at conf ~0.04).
+                confs[rid] = max(confs.get(rid, 0.0), confidence, 0.8)
+                continue
+            if confidence <= confs.get(rid, 0.0):
+                continue
+            if len(new_letters) < len(prev_letters):
+                # Never let a higher-confidence SHORTER read displace a longer
+                # one: the tall window once read "ро"@0.51 over the correct
+                # "Резиновая уточка"@0.04 and stole the slot.
+                continue
+            logger.info(
+                "dreamscape_memory_solve_loop: two-line retry read %s -> %r (%.2f)",
+                rid,
+                text,
+                confidence,
+            )
+            out[rid] = text
+            confs[rid] = confidence
+    return out, confs
 
 
 # ── Redis IO ────────────────────────────────────────────────────────────────
@@ -1371,11 +1488,14 @@ async def _check_terminal_screen(
     *,
     hint: str | None,
     taps_total: int,
+    saw_words: bool = True,
 ) -> tuple[str, bool]:
     terminal_screen = await _detect_terminal_screen(image, hint=hint)
     if not terminal_screen:
         return "", False
-    if _terminal_screen_is_valid(terminal_screen, taps_total=taps_total):
+    if _terminal_screen_is_valid(
+        terminal_screen, taps_total=taps_total, saw_words=saw_words
+    ):
         await _write_current_screen(ctx, terminal_screen)
         logger.info(
             "dreamscape_memory_solve_loop: terminal screen detected %s; stopping instance=%s",
@@ -1694,12 +1814,32 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     deadline = time.monotonic() + ttl_s if ttl_s > 0 else None
 
     last_scene_slug = ""
-    # The scene is the operator's active scene (selected on the game page). It is
-    # resolved once on the first tick and cached for the rest of the run; the
-    # title detector is removed, so there is nothing to re-read (see the
-    # scene-resolution branch in the loop below).
+    # The scene is normally detected from the on-screen item words on the first
+    # tick and cached for the rest of the run. ``scene_source: active`` skips
+    # detection entirely: the operator picked the round themselves (game page /
+    # standalone runner), so the active scene is locked from tick 1 and the loop
+    # spends its time on nothing but word OCR and taps.
     title_locked = False
     cached_scene: dict[str, Any] | None = None
+    # Isolated mode (standalone runner): no worker exists, so the solver is
+    # the only one who can keep the dashboard's live preview fresh.
+    publish_preview = bool(args.get("publish_preview"))
+    last_preview_ts = 0.0
+    events: list[dict[str, Any]] = []
+    if str(args.get("scene_source") or "").strip().lower() == "active":
+        from config.dreamscape_db import get_active_scene
+
+        cached_scene = await asyncio.to_thread(get_active_scene)
+        if not cached_scene:
+            ctx.fail("scene_source_active_without_active_scene")
+            return
+        title_locked = True
+        _append_event(
+            events,
+            "scene_ready",
+            f"Scene fixed by operator: {cached_scene.get('slug')}",
+            scene=str(cached_scene.get("slug") or ""),
+        )
     seen_keys: set[str] = set()
     seen_words: list[str] = []
     clicked_keys: set[str] = set()
@@ -1707,6 +1847,9 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     clicked_regions: set[str] = set()
     settled_regions: set[str] = set()
     region_words: dict[str, str] = {}
+    # Confidence of the LATEST successful read per region — consulted by the
+    # vocabulary learner, which only trusts high-confidence words.
+    region_confs: dict[str, float] = {}
     slot_states: dict[str, SlotFsmState] = {}
     pending_clicks: dict[str, PendingClick] = {}
     click_retry_counts: dict[str, int] = {}
@@ -1719,10 +1862,12 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     helped_keys: set[str] = set()
     helped_words: list[str] = []
     help_target_taps: list[HelpTargetTap] = []
+    # Helper-tap words awaiting the game's own confirmation (pill greys) before
+    # they may enter the learned vocabulary. Keyed by word region.
+    pending_learns: dict[str, HelpTargetTap] = {}
     learned_help_points: list[dict[str, Any]] = []
     help_learn_errors: list[dict[str, Any]] = []
     help_counter_reads: list[int] = []
-    events: list[dict[str, Any]] = []
     help_remaining = _DEFAULT_HELP_COUNT
     unmapped: list[str] = []
     # Count of iterations each (region, normalized-key) miss has been observed,
@@ -1835,6 +1980,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                     image,
                     hint=terminal_screen or last_scene_slug or None,
                     taps_total=taps_total,
+                    saw_words=bool(seen_keys),
                 )
                 if terminal_stop:
                     stop_bot_after_result = True
@@ -1942,6 +2088,32 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 iteration=iterations,
                 instance_id=ctx.instance_id,
             )
+        # Helper-proven vocabulary: the game greyed a pill AFTER we tapped the
+        # highlight it pointed at — that word/position pair is now confirmed,
+        # so persist the wording on the nearest scene point. (Learning at tap
+        # time was wrong: motion detect can chase the wrong sparkle, and an
+        # unconfirmed guess must never enter the vocabulary.)
+        for region in sorted(greyed_regions & set(pending_learns)):
+            candidate = pending_learns.pop(region)
+            learned = await asyncio.to_thread(
+                _learn_alias_from_help,
+                last_scene_slug,
+                candidate.word,
+                candidate.point,
+                dev_w,
+                dev_h,
+            )
+            if learned.get("learned"):
+                learned_help_points.append(learned)
+                _append_event(
+                    events,
+                    "helper_learned",
+                    f"Learned {candidate.word!r} = {learned.get('point')!r}",
+                    iteration=iterations,
+                    word=candidate.word,
+                    point=learned.get("point"),
+                    scene=last_scene_slug,
+                )
         external_found = greyed_regions - clicked_regions - set(pending_clicks)
         for region in sorted(external_found):
             prev = slot_states.get(region)
@@ -1986,11 +2158,42 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
         if scene_known_before_ocr and help_region and help_counter_region:
             ocr_region_names.append(help_counter_region)
 
-        ocr_values = await _ocr_current_frame(image, area_doc, ocr_region_names)
+        # OCR always reads a LOSSLESS adb screencap, never the scrcpy stream:
+        # H.264 smears small pill text (a frame `screencap` reads at 0.96 came
+        # off the stream as "Виши"@0.1), and no retry fixes pixels that aren't
+        # there. The stream stays in charge of everything колор/motion — the
+        # found-detector, the help-highlight burst, the start gate — where its
+        # frame rate matters and compression doesn't. The content-addressed OCR
+        # cache also works BETTER on lossless frames (stable pixels → hits).
+        # ~0.3s per capture, only on ticks that actually read words.
+        frame_for_ocr = image
+        if ocr_region_names:
+            try:
+                frame_for_ocr = await asyncio.to_thread(
+                    actions.capture_screen_bgr_adb, ctx.instance_id
+                )
+            except Exception:
+                logger.debug(
+                    "dreamscape_memory_solve_loop: lossless capture failed; "
+                    "reading the stream frame",
+                    exc_info=True,
+                )
+                frame_for_ocr = image
+        if publish_preview and time.monotonic() - last_preview_ts >= 1.0:
+            last_preview_ts = time.monotonic()
+            await asyncio.to_thread(
+                _publish_rolling_preview, ctx.instance_id, frame_for_ocr
+            )
+        ocr_values, ocr_confs = await _ocr_current_frame(
+            frame_for_ocr, area_doc, ocr_region_names
+        )
+        region_confs.update(ocr_confs)
 
         if title_locked:
             scene = cached_scene
-            scene_slug = last_scene_slug
+            # Not ``last_scene_slug``: on the first locked tick (operator-fixed
+            # scene) that is still "" and the slug drives target loading below.
+            scene_slug = str(scene.get("slug") or "") if scene else ""
         else:
             detected_words = [ocr_values.get(region, "") for region in pending_regions]
             scene, scene_locked = await asyncio.to_thread(
@@ -2024,6 +2227,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             clicked_regions.clear()
             settled_regions.clear()
             region_words.clear()
+            region_confs.clear()
             slot_states.clear()
             pending_clicks.clear()
             click_retry_counts.clear()
@@ -2034,6 +2238,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             helped_keys.clear()
             helped_words.clear()
             help_target_taps.clear()
+            pending_learns.clear()
             learned_help_points.clear()
             help_learn_errors.clear()
             help_counter_reads.clear()
@@ -2081,7 +2286,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             # frame and double-advance staged test word values.
             if help_region and help_counter_region:
                 ocr_values.update(
-                    await _ocr_current_frame(image, area_doc, [help_counter_region])
+                    (await _ocr_current_frame(image, area_doc, [help_counter_region]))[0]
                 )
             _append_event(
                 events,
@@ -2104,6 +2309,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 image,
                 hint=terminal_screen or last_scene_slug or None,
                 taps_total=taps_total,
+                saw_words=bool(seen_keys),
             )
             if terminal_stop:
                 stop_bot_after_result = True
@@ -2714,6 +2920,27 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                     )
                     if target_point is not None:
                         help_target_taps.append(HelpTargetTap(help_word, target_point))
+                        # Candidate for vocabulary learning — gated twice:
+                        # nothing is persisted until the game confirms the tap
+                        # by greying the pill (motion detect can chase the
+                        # wrong sparkle), AND the word itself must be a read
+                        # OCR was confident about. The in-game hint highlights
+                        # an item on its own — it never validates our word — so
+                        # a garbage read ("Чень" for "Олень") would otherwise
+                        # be persisted at a perfectly confirmed position.
+                        word_conf = region_confs.get(help_region_name, 0.0)
+                        if help_region_name and word_conf >= _MIN_LEARN_WORD_CONF:
+                            pending_learns[help_region_name] = HelpTargetTap(
+                                help_word, target_point
+                            )
+                        elif help_region_name:
+                            logger.info(
+                                "dreamscape_memory_solve_loop: not learning %r "
+                                "(read confidence %.2f < %.2f)",
+                                help_word,
+                                word_conf,
+                                _MIN_LEARN_WORD_CONF,
+                            )
                         clicked_keys.add(help_key)
                         clicked_words.append(help_word)
                         if help_region_name:
@@ -2798,6 +3025,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 image,
                 hint=terminal_screen or last_scene_slug or None,
                 taps_total=taps_total,
+                saw_words=bool(seen_keys),
             )
             if terminal_stop:
                 stop_bot_after_result = True

@@ -66,18 +66,23 @@ _MIN_UNMAPPED_WORD_LETTERS = 3
 # transient read — e.g. OCR of an animating slot — is never enough; the slot
 # usually settles into a real, mappable word on the next frame.
 _MIN_UNMAPPED_CONFIRM_READS = 2
-_FOUND_WORD_DARK_PIXEL_THRESHOLD = 100
-_FOUND_WORD_MIN_MEAN_GRAY = 70
-_FOUND_WORD_MIN_DARK_RATIO = 0.035
-_FOUND_WORD_MIN_DARK_ROW_RATIO = 0.16
-# A word pill has only two states: active (vivid lavender chrome) and found
-# (greyed out / desaturated). The pill-background saturation separates them
-# cleanly and, unlike the strike-through, does not flicker with the strike-in
-# animation — so it is the primary "found" signal. Observed medians: active
-# ~124-138, found ~92. The floor rejects near-greyscale non-pill crops (a black
-# or washed-out region reads saturation ~0).
-_FOUND_WORD_BG_SAT_MIN = 55
-_FOUND_WORD_BG_SAT_MAX = 108
+# Long RU item names wrap onto TWO lines inside the pill; the labeled OCR band
+# is a single-line strip through the middle and reads garbage on them. A weak
+# first read (below the confidence floor) retries with the band grown
+# vertically by this fraction of its height on each side, in block mode
+# (PSM 6) — measured on a live two-line pill: narrow single-line read
+# "океана"@0.06 vs grown block read "Бамбуковая корзина"@0.94.
+_TWO_LINE_RETRY_CONF = 0.6
+_TWO_LINE_GROW_FRAC = 0.55
+
+# A word pill has exactly TWO background colours; classify by nearest centroid.
+# Medians measured over 18 pills / 6 real frames (720x1280 RU client): active
+# pale-lavender ~(224,183,178) BGR, struck slate ~(207,147,132) BGR — centroid
+# gap ~62. A background farther than the cutoff from BOTH references is not a
+# pill (dark shade, popup, animation frame).
+_PILL_BG_ACTIVE_BGR = (224.0, 183.0, 178.0)
+_PILL_BG_STRUCK_BGR = (207.0, 147.0, 132.0)
+_PILL_BG_MAX_REF_DIST = 60.0
 # Pixel-based round-start gate (multiplayer). Before the round starts the
 # screen sits behind a dark shade and every word pill reads ~0 bright pixels;
 # the instant the shade lifts the pills appear with hundreds of near-white

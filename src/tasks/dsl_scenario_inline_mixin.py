@@ -311,9 +311,15 @@ class DslScenarioInlineMixin(_Base):
         )
         try:
             await fn(ctx)
-        except Exception:
+        except Exception as exc:
             logger.exception("dsl_scenario: exec %r failed", name)
-            return {"reason": "exec_failed"}
+            # Carry the exception into the step result: the worker's stdout is
+            # often not captured (botctl-started supervisors), and a bare
+            # "exec_failed" in history left a crashed solver run undiagnosable.
+            return {
+                "reason": "exec_failed",
+                "error": f"{exc.__class__.__name__}: {str(exc).strip() or '(no message)'}",
+            }
         return dict(ctx.result)
 
     async def _run_system_back_step(

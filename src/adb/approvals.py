@@ -104,7 +104,14 @@ def click_approval_enabled(instance_id: str) -> bool:
 
     Default is **enabled** when the Redis key is missing (opt-out via explicit ``0`` /
     ``false`` / ``no`` / ``off``).
+
+    ``WOS_CLICK_APPROVAL=0`` in the environment disables gating for the whole
+    process without touching Redis — for standalone/headless runners (e.g. the
+    Dreamscape ``tools/solve.py``) that run with no Redis and no approver at
+    all; even this read would otherwise die on the missing connection.
     """
+    if os.environ.get("WOS_CLICK_APPROVAL", "").strip() == "0":
+        return False
     enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
     raw = str(_r_get(enabled_key) or "").strip().lower()
     if not raw:

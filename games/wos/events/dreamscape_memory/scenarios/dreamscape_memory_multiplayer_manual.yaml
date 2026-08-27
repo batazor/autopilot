@@ -1,0 +1,25 @@
+name: Dreamscape Memory — solve picked scene (multiplayer, no detection)
+enabled: true
+# Device-level: screen-driven solver with no per-account state, so it runs
+# standalone (manual "Start solving" / overlay rule) without a bound player.
+device_level: true
+priority: 90_000
+
+# Co-op variant of the operator-picked round: scene fixed to the DB's active
+# scene, six word slots, no scene detection.
+steps:
+  - exec: dreamscape_memory_solve_loop
+    mode: multiplayer
+    scene_source: active
+    # The operator presses Play once and then plays chapter after chapter:
+    # the solver idles between rounds (reading empty slots) and must survive
+    # the whole session, not one round. A 5m ttl died while the operator was
+    # still in the "choose your ending" dialog — the round then started
+    # against an empty queue.
+    ttl: 45m
+    max_iterations: 30000
+    # Fast tick: no scene detection in this loop, OCR runs concurrently
+    # (~40ms for the word slots) and capture streams at 10fps — 100ms keeps
+    # the solver hot without outrunning the capture interval.
+    wait: 100ms
+    tap_delay: 0ms

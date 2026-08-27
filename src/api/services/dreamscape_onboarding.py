@@ -17,7 +17,7 @@ import logging
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 import cv2  # type: ignore[import-untyped]
 import numpy as np
@@ -68,6 +68,9 @@ class ScenePoint(TypedDict):
     name: str
     xPct: float
     yPct: float
+    # Learned wordings (helper flow) that answer to this point. Optional —
+    # most points carry none.
+    aliases: NotRequired[list[str]]
 
 
 class SceneRect(TypedDict):
@@ -87,6 +90,8 @@ class SceneSummary(TypedDict):
     active: bool
     archived: bool
     season: int
+    # In-game position within the season (0 = unknown → UI falls back to title).
+    sort_order: int
 
 
 class ListMapsResult(TypedDict):
@@ -106,6 +111,7 @@ class SceneDetail(TypedDict):
     active: bool
     archived: bool
     season: int
+    sort_order: int
 
 
 class SaveMapResult(TypedDict):
@@ -318,6 +324,17 @@ def save_scene(
     slug = _clean_slug(slug)
     rect = _coerce_rect(scene_rect)
 
+    # The labeling editor round-trips only {n,name,xPct,yPct}; learned aliases
+    # (helper flow) live on the stored points and must survive an operator's
+    # region edit — merge them back in by point name when the payload has none.
+    stored = dreamscape_db.get_scene(slug)
+    stored_aliases: dict[str, list[str]] = {}
+    for sp in (stored or {}).get("points") or []:
+        if isinstance(sp, dict) and isinstance(sp.get("aliases"), list):
+            stored_aliases[" ".join(str(sp.get("name") or "").split())] = [
+                str(a) for a in sp["aliases"]
+            ]
+
     points_out: list[ScenePoint] = []
     seen_names: set[str] = set()
     collisions: list[str] = []
@@ -336,7 +353,16 @@ def save_scene(
             collisions.append(name)
             continue
         seen_names.add(name)
-        points_out.append({"n": n, "name": name, "xPct": x, "yPct": y})
+        point: ScenePoint = {"n": n, "name": name, "xPct": x, "yPct": y}
+        raw_aliases = p.get("aliases")
+        aliases = (
+            [str(a).strip() for a in raw_aliases if str(a).strip()]
+            if isinstance(raw_aliases, list)
+            else stored_aliases.get(name, [])
+        )
+        if aliases:
+            point["aliases"] = aliases
+        points_out.append(point)
     if collisions:
         msg = f"duplicate item name(s) in scene {slug!r}: {sorted(set(collisions))}"
         raise ValueError(msg)
@@ -414,6 +440,7 @@ def list_scenes() -> ListMapsResult:
             "active": bool(s["active"]),
             "archived": bool(s.get("archived", False)),
             "season": int(s.get("season", 1)),
+            "sort_order": int(s.get("sort_order", 0)),
         }
         for s in data["scenes"]
     ]
@@ -449,4 +476,5 @@ def get_scene(slug: str) -> SceneDetail:
         "active": bool(scene.get("active")),
         "archived": bool(scene.get("archived", False)),
         "season": int(scene.get("season", 1)),
+        "sort_order": int(scene.get("sort_order", 0)),
     }
