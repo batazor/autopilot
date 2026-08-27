@@ -21,6 +21,7 @@ from ocr.digit_markers import DigitMarker, detect_digit_markers
 from ocr.preprocess import (
     DIGITS_CHAR_WHITELIST,
     WORD_CHAR_WHITELIST,
+    WORD_CHAR_WHITELIST_CYRILLIC,
     badge_digits_for_ocr,
     badge_white_for_ocr,
     badge_yellow_for_ocr,
@@ -36,6 +37,11 @@ if TYPE_CHECKING:
     from layout.types import Region
 
 logger = logging.getLogger(__name__)
+
+# Max concurrent tesseract processes per ``ocr_regions`` batch. A word tick has
+# 3-7 crops; cold full-screen sweeps can queue far more — cap them so a sweep
+# never forks an unbounded process herd.
+_OCR_BATCH_CONCURRENCY = 8
 
 # Highlight only the region **name** (region_id) in terminal OCR logs; bbox/conf/text stay plain.
 _OCR_YELLOW = "\033[33m"
@@ -286,13 +292,25 @@ class OcrClient:
             upscale=upscale,
         )
 
+    # Breathing room around word crops, in px. Item-word regions are labeled
+    # tight to the pill text, and a glyph touching the crop edge gets
+    # mis-shaped: a leading "С" read as "з" ("Северное сияние" → "зеверное"),
+    # and a long phrase overflowing its pill lost its last letter ("Кружка для
+    # воды" → "…водь"). 6px of X restores both ends (long RU phrases render
+    # wider than the pill), 2px of Y keeps the line clear of the pill border —
+    # validated over 15 pills / 5 frames with zero misreads.
+    _WORD_CROP_PAD_X_PX = 6
+    _WORD_CROP_PAD_Y_PX = 2
+
     @staticmethod
-    def _clamped_crop(image: np.ndarray, region: Region) -> np.ndarray:
+    def _clamped_crop(
+        image: np.ndarray, region: Region, *, pad_x: int = 0, pad_y: int = 0
+    ) -> np.ndarray:
         hi, wi = int(image.shape[0]), int(image.shape[1])
-        x1 = max(0, min(int(region.x), wi))
-        y1 = max(0, min(int(region.y), hi))
-        x2 = max(x1, min(int(region.x + region.w), wi))
-        y2 = max(y1, min(int(region.y + region.h), hi))
+        x1 = max(0, min(int(region.x) - pad_x, wi))
+        y1 = max(0, min(int(region.y) - pad_y, hi))
+        x2 = max(x1, min(int(region.x + region.w) + pad_x, wi))
+        y2 = max(y1, min(int(region.y + region.h) + pad_y, hi))
         return image[y1:y2, x1:x2]
 
     @staticmethod
@@ -325,6 +343,10 @@ class OcrClient:
             return "7", None
         if pre_tag == "word_line":
             return "7", WORD_CHAR_WHITELIST
+        if pre_tag == "word_block":
+            # Two-line word pill (long RU names wrap): PSM 6 reads the block,
+            # the TSV join + word cleaner collapse it back to one line.
+            return "6", WORD_CHAR_WHITELIST
         if pre_tag in ("enhance_line", "title_line", "bar_timer"):
             return "7", None
         if pre_tag in ("badge_digits", "badge_white", "badge_yellow"):
@@ -351,7 +373,7 @@ class OcrClient:
         return clean_word_text(raw)
 
     @staticmethod
-    def _parse_tesseract_tsv(tsv: str) -> tuple[str, float]:
+    def _parse_tesseract_tsv(tsv: str, *, min_word_conf: float = 0.0) -> tuple[str, float]:
         lines = [line for line in tsv.splitlines() if line.strip()]
         if len(lines) < 2:
             return "", 0.0
@@ -379,7 +401,7 @@ class OcrClient:
                 conf = float(cols[conf_idx])
             except ValueError:
                 conf = -1.0
-            if conf < 0:
+            if conf < 0 or conf / 100.0 < min_word_conf:
                 continue
             key = (cols[block_idx], cols[par_idx], cols[line_idx])
             line_parts.setdefault(key, []).append(word)
@@ -424,6 +446,10 @@ class OcrClient:
             raise RuntimeError(msg)
 
         psm, char_whitelist = self._tesseract_psm_and_whitelist(preprocess)
+        resolved_lang = self._resolve_lang()
+        if char_whitelist == WORD_CHAR_WHITELIST and resolved_lang.startswith("rus"):
+            # Item words on the RU build are Cyrillic-only; see preprocess.py.
+            char_whitelist = WORD_CHAR_WHITELIST_CYRILLIC
         # Pipe the PNG to tesseract via stdin (``tesseract stdin stdout``) rather
         # than writing a temp file: no per-OCR disk I/O, and no dependency on the
         # system temp dir being readable by the spawned process (sandboxed runs
@@ -433,7 +459,7 @@ class OcrClient:
             "stdin",
             "stdout",
             "-l",
-            self._resolve_lang(),
+            resolved_lang,
             "--oem",
             "1",
             "--psm",
@@ -461,11 +487,17 @@ class OcrClient:
         if proc.returncode != 0:
             detail = (stderr or stdout or "").strip()
             raise RuntimeError(detail or f"tesseract exited with status {proc.returncode}")
-        text, confidence = self._parse_tesseract_tsv(stdout)
         pre_tag = (preprocess or "").strip().lower()
+        # Block mode sweeps a taller window that clips scene art above/below the
+        # pill; Tesseract renders the clutter as low-confidence junk tokens
+        # ("ЖГРАРРПрещЕАрчЕЧЩЬ Бамбуковая корзина"). Real pill words read at
+        # 0.9+, so a per-word floor removes the clutter without touching them.
+        text, confidence = self._parse_tesseract_tsv(
+            stdout, min_word_conf=0.5 if pre_tag == "word_block" else 0.0
+        )
         if pre_tag == "title_line":
             text = self._clean_title_line_text(text)
-        elif pre_tag == "word_line":
+        elif pre_tag in ("word_line", "word_block"):
             text = self._clean_word_line_text(text)
         return text, confidence
 
@@ -609,16 +641,29 @@ class OcrClient:
         rep_indices = [key_to_fanout[k][0] for k in unique_keys]
 
         t0 = time.perf_counter()
-        raw_results = [
-            await self._ocr_crop(
-                self._clamped_crop(image, regions[idx]),
-                region_id=_rid(idx),
-                preprocess=_pre(idx) or None,
-                digit_count=_digit_count(idx),
-                digit_x0=_digit_x0(idx),
-            )
-            for idx in rep_indices
-        ]
+        # Fan the unique crops out to concurrent tesseract processes instead of
+        # awaiting them one by one — the processes are independent, and a word
+        # tick (3-6 pill slots + counter) shrinks to the slowest single call.
+        # The semaphore caps a cold full-screen sweep (screen_verify can miss
+        # dozens of cells at once) at a sane process count.
+        sem = asyncio.Semaphore(_OCR_BATCH_CONCURRENCY)
+
+        async def _ocr_rep(idx: int) -> OCRResult:
+            async with sem:
+                return await self._ocr_crop(
+                    self._clamped_crop(
+                        image,
+                        regions[idx],
+                        pad_x=self._WORD_CROP_PAD_X_PX if _pre(idx) == "word_line" else 0,
+                        pad_y=self._WORD_CROP_PAD_Y_PX if _pre(idx) == "word_line" else 0,
+                    ),
+                    region_id=_rid(idx),
+                    preprocess=_pre(idx) or None,
+                    digit_count=_digit_count(idx),
+                    digit_x0=_digit_x0(idx),
+                )
+
+        raw_results = list(await asyncio.gather(*(_ocr_rep(idx) for idx in rep_indices)))
         elapsed_ms = 1000.0 * (time.perf_counter() - t0)
         _report_ocr_batch(
             hits=len(regions) - len(miss_indices),

@@ -19,9 +19,10 @@ from ocr.client import OcrClient
 def pytest_configure(config: pytest.Config) -> None:
     """Strip operator ``.env`` fleet slices before ANY fixture runs.
 
-    ``WOS_INSTANCES`` / ``WOS_MODULES`` / ``WOS_SCENARIOS`` in the repo-root
-    ``.env`` (auto-loaded into the process env) pin local runs to a subset of
-    devices/modules/scenarios. Module- and session-scoped fixtures load the
+    ``WOS_INSTANCES`` / ``WOS_MODULES`` / ``WOS_SCENARIOS`` /
+    ``WOS_OCR_LANG`` in the repo-root ``.env`` (auto-loaded into the process
+    env) pin local runs to a subset of devices/modules/scenarios or a
+    non-default OCR language. Module- and session-scoped fixtures load the
     device registry and area docs at setup time — earlier than a
     function-scoped ``monkeypatch.delenv`` — so those slices must be removed
     here, at session start, or unrelated tests fail on a filtered registry
@@ -33,7 +34,7 @@ def pytest_configure(config: pytest.Config) -> None:
     # Set to "" (not pop): the .env auto-loader uses ``override=False``, so a
     # POPPED var would be re-added from ``.env`` on the next lazy load. An empty
     # value both survives that (already present) and reads as "no allowlist".
-    for var in ("WOS_INSTANCES", "WOS_MODULES", "WOS_SCENARIOS"):
+    for var in ("WOS_INSTANCES", "WOS_MODULES", "WOS_SCENARIOS", "WOS_OCR_LANG"):
         os.environ[var] = ""
     # Drop any discovery/area caches already warmed with the allowlist during
     # import (env_loader auto-loads ``.env`` at import time).

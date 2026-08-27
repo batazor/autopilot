@@ -15,10 +15,19 @@ _OCR_BINARY_UPSCALE = 3.0
 # Tesseract whitelist for digit-only regions (``digits`` preprocess / ``type: int``).
 DIGITS_CHAR_WHITELIST = "0123456789"
 
-# Tesseract whitelist for item word regions. Spaces are restored by TSV line
+# Tesseract whitelists for item word regions — one per script. The RU
+# «Белая мгла» build reads item words under ``rus``; that traineddata knows the
+# Latin alphabet too, and a combined whitelist lets it "solve" a tight Cyrillic
+# pill with Latin lookalikes ("Северное сияние" → "Se Bep Hoe cua Hue"), so
+# each language gets ONLY its own script. Spaces are restored by TSV line
 # joining and final cleanup; keeping them out of the whitelist avoids shell/CLI
 # ambiguity around trailing whitespace in the config value.
 WORD_CHAR_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+WORD_CHAR_WHITELIST_CYRILLIC = (
+    "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+    "абвгдежзийклмнопрстуфхцчшщъыьэюя"
+    "Ёё"
+)
 
 
 def crop_region(image: np.ndarray, region: Region) -> np.ndarray:

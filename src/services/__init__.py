@@ -239,6 +239,15 @@ def get_repo_root() -> Path:
     return repo_root()
 
 
+def reset_ocr_client() -> None:
+    """Drop the cached OCR client so the next access rebuilds from Settings.
+
+    Used by the dashboard's OCR-language setter: after a live settings swap the
+    old client would keep reading with the previous language forever.
+    """
+    _state.pop(_K_OCR)
+
+
 def get_ocr_client() -> OcrClient:
     """Lazy :class:`OcrClient`. Tests that monkeypatch ``ocr.client.OcrClient``
     with a zero-arg stub still work — we fall back to no-args construction."""
