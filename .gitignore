@@ -89,3 +89,6 @@ src/modules/radar/radar_corner_ref.yaml
 
 # Astro-generated type stubs (recreated by `astro sync` / dev server).
 .astro/
+
+# Local worker logs (botctl/dashboard-started supervisor)
+logs/

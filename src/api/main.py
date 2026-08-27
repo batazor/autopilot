@@ -224,6 +224,28 @@ def _exception_message(exc: Exception) -> str:
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    # Redis being down is an OPERATIONAL state, not an "unexpected error" — the
+    # whole bot stack runs on it. Say so, with the actionable fix, instead of a
+    # generic 500 (which is what the operator saw when redis-server died).
+    import redis as redis_lib
+
+    if isinstance(exc, (redis_lib.ConnectionError, redis_lib.TimeoutError)):
+        logger.error(
+            "Redis unreachable during %s %s: %s",
+            request.method,
+            request.url.path,
+            exc,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "Redis is unreachable — the bot stack cannot run without it. "
+                    "Start it (docker compose up -d redis, or redis-server) and retry."
+                ),
+                "error": {"type": "redis_unreachable", "message": _exception_message(exc)},
+            },
+        )
     request_id = uuid.uuid4().hex[:12]
     logger.error(
         "Unhandled API error %s %s request_id=%s",

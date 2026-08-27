@@ -32,6 +32,45 @@ from api.services.dreamscape_onboarding import (
 router = APIRouter(prefix="/api/dreamscape", tags=["dreamscape-onboarding"])
 
 
+class SolverStartBody(BaseModel):
+    instance_id: str
+    scene: str
+    mode: str = "solo"
+
+
+@router.get("/solver/status")
+def get_solver_status() -> dict:
+    from api.services import dreamscape_solver
+
+    return dreamscape_solver.status()
+
+
+@router.post("/solver/start")
+def post_solver_start(body: SolverStartBody) -> dict:
+    from api.services import dreamscape_solver
+
+    try:
+        return dreamscape_solver.start(
+            instance_id=body.instance_id, scene=body.scene, mode=body.mode
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/solver/stop")
+def post_solver_stop() -> dict:
+    from api.services import dreamscape_solver
+
+    return dreamscape_solver.stop()
+
+
+@router.get("/solver/log")
+def get_solver_log(lines: int = 80) -> dict:
+    from api.services import dreamscape_solver
+
+    return {"lines": dreamscape_solver.tail_log(lines)}
+
+
 class ParseNamesBody(BaseModel):
     text: str
 

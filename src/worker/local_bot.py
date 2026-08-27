@@ -222,10 +222,23 @@ def start_supervisor_subprocess() -> dict[str, Any]:
     }
     if sys.platform != "win32":
         kwargs["start_new_session"] = True
+    # Tee the supervisor's output to a logfile: started from botctl or the
+    # dashboard there is no console, and crashes (a solver traceback, an
+    # import error) used to vanish. ``botctl logs`` reads this same path.
+    log_path = repo / "logs" / "bot.log"
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file = log_path.open("ab")
+        kwargs["stdout"] = log_file
+        kwargs["stderr"] = subprocess.STDOUT
+    except OSError:
+        log_file = None
     proc = subprocess.Popen(
         [sys.executable, "-m", _SUPERVISOR_MODULE],
         **kwargs,  # type: ignore[arg-type]
     )
+    if log_file is not None:
+        log_file.close()  # the child holds its own descriptor
     return {"running": True, "mode": "supervisor", "pid": proc.pid}
 
 
@@ -244,15 +257,42 @@ def start_embedded_bot() -> dict[str, Any]:
 
 
 def stop_supervisor_subprocess() -> dict[str, Any]:
-    """Terminate repo-local ``worker.supervisor`` processes."""
+    """Kill repo-local ``worker.supervisor`` processes AND their children.
+
+    The supervisor spawns one worker subprocess per instance; terminating only
+    the parent left those children alive — the "stopped" bot kept holding
+    scrcpy and tapping the device. Stop means the whole tree is dead: children
+    first, then the parent, SIGKILL for anything that survives a short grace.
+    """
+    import contextlib
+
     from worker.health_watchdog_process import stop_health_watchdog_process
 
+    victims: list[psutil.Process] = []
     for proc in _supervisor_processes():
-        proc.terminate()
-        try:
-            proc.wait(timeout=8.0)
-        except psutil.TimeoutExpired:
+        with contextlib.suppress(psutil.Error):
+            victims.extend(proc.children(recursive=True))
+        victims.append(proc)
+    for proc in victims:
+        with contextlib.suppress(psutil.Error):
+            proc.terminate()
+    _gone, alive = psutil.wait_procs(victims, timeout=3.0)
+    for proc in alive:
+        with contextlib.suppress(psutil.Error):
             proc.kill()
+    psutil.wait_procs(alive, timeout=3.0)
+    # The killed workers' Redis heartbeats stay fresh for a few seconds and
+    # made the status report "running: external" right after a stop. The
+    # processes are dead — expire their liveness marks so status is truthful
+    # immediately.
+    try:
+        from dashboard.redis_client import get_redis
+
+        client = get_redis()
+        for key in client.scan_iter(match="wos:instance:*:state"):
+            client.hdel(key, "last_seen_at")
+    except Exception:
+        logger.debug("heartbeat cleanup after stop failed", exc_info=True)
     stop_health_watchdog_process()
     return bot_status()
 

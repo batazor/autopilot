@@ -241,13 +241,26 @@ def test_start_supervisor_subprocess_starts_health_watchdog() -> None:
     assert events == ["watchdog", "supervisor"]
 
 
-def test_stop_supervisor_subprocess_stops_health_watchdog() -> None:
+def test_stop_supervisor_subprocess_kills_the_whole_tree() -> None:
+    """Stop is a kill of parent AND children: the supervisor spawns one worker
+    subprocess per instance, and terminating only the parent left the children
+    holding scrcpy and tapping the device after a "stop"."""
     events: list[str] = []
+    child = MagicMock()
+    child.terminate.side_effect = lambda: events.append("child.terminate")
+    child.kill.side_effect = lambda: events.append("child.kill")
     proc = MagicMock()
-    proc.wait.side_effect = lambda timeout: events.append(f"wait:{timeout}")
+    proc.children.return_value = [child]
+    proc.terminate.side_effect = lambda: events.append("parent.terminate")
 
     with (
         patch.object(local_bot, "_supervisor_processes", return_value=[proc]),
+        # First grace: the child survives terminate; second: it dies to kill.
+        patch.object(
+            local_bot.psutil,
+            "wait_procs",
+            side_effect=[([proc], [child]), ([child], [])],
+        ),
         patch(
             "worker.health_watchdog_process.stop_health_watchdog_process",
             side_effect=lambda: events.append("watchdog"),
@@ -260,9 +273,9 @@ def test_stop_supervisor_subprocess_stops_health_watchdog() -> None:
     ):
         out = local_bot.stop_supervisor_subprocess()
 
-    proc.terminate.assert_called_once_with()
     assert out["running"] is False
-    assert events == ["wait:8.0", "watchdog"]
+    # Children are terminated before the parent; a survivor gets SIGKILL.
+    assert events == ["child.terminate", "parent.terminate", "child.kill", "watchdog"]
 
 
 # ── Isolated instance_runner detection + Stop bot reaping ────────────────────
