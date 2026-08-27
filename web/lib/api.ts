@@ -976,6 +976,51 @@ export async function saveDreamscapeScene(
   );
 }
 
+export type DreamscapeSolverStatus = {
+  running: boolean;
+  pid: number | null;
+  scene: string;
+  instance_id: string;
+};
+
+/** Isolated solver lifecycle — no worker/queue/Redis, just words + taps. */
+export async function fetchDreamscapeSolverStatus(): Promise<DreamscapeSolverStatus> {
+  return apiFetch<DreamscapeSolverStatus>("/api/dreamscape/solver/status");
+}
+
+export async function startDreamscapeSolver(body: {
+  instance_id: string;
+  scene: string;
+  mode: string;
+}): Promise<DreamscapeSolverStatus> {
+  return apiFetch<DreamscapeSolverStatus>(
+    "/api/dreamscape/solver/start",
+    jsonInit("POST", body),
+  );
+}
+
+export async function stopDreamscapeSolver(): Promise<DreamscapeSolverStatus> {
+  return apiFetch<DreamscapeSolverStatus>("/api/dreamscape/solver/stop", {
+    method: "POST",
+  });
+}
+
+export type OcrLangResult = { lang: string; available: string[] };
+
+/** Current OCR language + installed Tesseract languages. */
+export async function fetchOcrLang(): Promise<OcrLangResult> {
+  return apiFetch<OcrLangResult>("/api/config/ocr-lang");
+}
+
+/** Set the OCR language (persists to .env; applies to the API immediately —
+ * a running bot worker keeps its old language until restarted). */
+export async function setOcrLang(lang: string): Promise<{ ok: boolean; lang: string }> {
+  return apiFetch<{ ok: boolean; lang: string }>(
+    "/api/config/ocr-lang",
+    jsonInit("POST", { lang }),
+  );
+}
+
 export async function fetchDreamscapeScenes(): Promise<DreamscapeListMapsResult> {
   return apiFetch<DreamscapeListMapsResult>("/api/dreamscape/scenes");
 }

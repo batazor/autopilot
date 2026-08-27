@@ -16,10 +16,13 @@ export const DREAMSCAPE_MULTIPLAYER_WORDS_REF =
 export const DREAMSCAPE_SCOPE = "wos:events/dreamscape_memory";
 
 /** Scenario keys (filename stems) the live view enqueues to run the solver.
- * Both wrap their OCR+solve in a ~300ms loop so the bot keeps up with the
- * dynamic recall-road animation (see the scenario YAMLs). */
-export const DREAMSCAPE_SOLO_SCENARIO = "dreamscape_memory";
-export const DREAMSCAPE_MULTIPLAYER_SCENARIO = "dreamscape_memory_multiplayer";
+ * Operator-picked-round loops (`scene_source: active`): the solver locks onto
+ * the scene the picker activated and spends every ~300ms tick on word OCR +
+ * taps — no word-based scene detection. (The auto-detect scenarios
+ * `dreamscape_memory` / `_multiplayer` still exist for headless runs.) */
+export const DREAMSCAPE_SOLO_MANUAL_SCENARIO = "dreamscape_memory_manual";
+export const DREAMSCAPE_MULTIPLAYER_MANUAL_SCENARIO =
+  "dreamscape_memory_multiplayer_manual";
 
 /** The screen-title region holding the level/room name (e.g. "Aquarium").
  * The solver OCRs this to auto-pick the scene; we read it live too so the

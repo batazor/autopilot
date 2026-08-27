@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { ApiStatusProvider } from "@/components/ApiStatusProvider";
@@ -34,6 +35,7 @@ function GameBadge() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
   // Desktop-only: whole-sidebar collapse, persisted across sessions.
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -69,6 +71,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleNavCollapsed]);
+
+  // Bare single-page mode (e.g. /solve): the page content with none of the
+  // dashboard chrome — no sidebar, banners, palette, or onboarding.
+  if (pathname === "/solve" || pathname?.startsWith("/solve/")) {
+    return (
+      <ApiStatusProvider>
+        <FeedbackProvider>
+          <main className="min-h-screen bg-wos-bg p-4 text-wos-text sm:p-6">
+            {children}
+          </main>
+          <AppTooltipHost />
+        </FeedbackProvider>
+      </ApiStatusProvider>
+    );
+  }
 
   return (
     <ApiStatusProvider>

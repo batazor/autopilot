@@ -5,22 +5,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useFleet } from "@/components/FleetContextProvider";
 import { AppListbox } from "@/components/headless";
+import { useApiStatus } from "@/components/ApiStatusProvider";
 import {
   ApiError,
   activateDreamscapeScene,
   captureLabelingScreenshot,
   clickApprovalImageUrl,
-  createQueueTask,
-  detectDreamscapeScene,
-  fetchBotStatus,
   fetchInstanceDetail,
   fetchDreamscapeScene,
   fetchDreamscapeScenes,
+  fetchDreamscapeSolverStatus,
+  fetchOcrLang,
   fetchRegionOcr,
   fetchScreenDetect,
-  resetCurrentScreen,
-  startLocalBot,
-  stopLocalBot,
+  setOcrLang,
+  startDreamscapeSolver,
+  stopDreamscapeSolver,
 } from "@/lib/api";
 import {
   DREAMSCAPE_ALL_ITEM_FOUND_SCREEN,
@@ -46,6 +46,7 @@ import type {
   LiveStatus,
   WordBadge,
 } from "@/lib/dreamscape-live";
+import type { DreamscapeSceneDetail } from "@/lib/types";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import { DetectedWordsBadges } from "./DetectedWordsBadges";
 import { Button } from "./Button";
@@ -122,14 +123,20 @@ export type LiveEditorTabProps = {
   wordRegions?: readonly string[];
   /** Reference screen this mode keys its OCR poll on (defaults to solo's). */
   wordsRef?: string;
-  /** Scenario key enqueued by "Start solving" (the mode's fast solve loop). */
+  /** Scenario key enqueued by "Play" — the mode's operator-picked-round solve
+   * loop (`scene_source: active`): the solver locks onto the picked scene and
+   * spends every tick on word OCR + taps. */
   scenarioKey?: string;
+  /** When false, unknown words never auto-capture/redirect to /labeling —
+   * for the bare one-page runner (/solve), which must stay on its page. */
+  autoCapture?: boolean;
 };
 
 export function LiveEditorTab({
   wordRegions = DREAMSCAPE_WORD_REGIONS,
   wordsRef = DREAMSCAPE_WORDS_REF,
   scenarioKey,
+  autoCapture = true,
 }: LiveEditorTabProps = {}) {
   const { instanceId, instances, setInstanceId, instancesLoading } = useFleet();
   const router = useRouter();
@@ -146,17 +153,27 @@ export function LiveEditorTab({
   // so it cannot fire while the run is still sitting on the start screen.
   const enteredGameplayRef = useRef(false);
 
+  // ── Isolated solver status: one process, no worker/queue/Redis ──
+  const botQuery = useQuery({
+    queryKey: ["dreamscape-solver-status"],
+    queryFn: fetchDreamscapeSolverStatus,
+    refetchInterval: 3000,
+  });
+  const botRunning = Boolean(botQuery.data?.running);
+
   // ── Live polling (status + detected words) ──
+  // Poll ONLY while the solver runs: it is the sole frame/detection producer,
+  // so with it stopped there is nothing to refresh.
   const screenQuery = useQuery({
     queryKey: ["dreamscape-screen", instanceId],
     queryFn: () => fetchScreenDetect(instanceId),
-    enabled: Boolean(instanceId),
+    enabled: Boolean(instanceId) && botRunning,
     refetchInterval: POLL_MS,
   });
   const instanceDetailQuery = useQuery({
     queryKey: ["dreamscape-instance-detail", instanceId],
     queryFn: () => fetchInstanceDetail(instanceId),
-    enabled: Boolean(instanceId),
+    enabled: Boolean(instanceId) && botRunning,
     refetchInterval: POLL_MS,
   });
   const instanceDetail =
@@ -188,7 +205,7 @@ export function LiveEditorTab({
   const wordOcrQuery = useQuery({
     queryKey: ["dreamscape-word-ocr", instanceId, wordsRef],
     queryFn: () => fetchRegionOcr(instanceId, [...wordRegions]),
-    enabled: Boolean(instanceId),
+    enabled: Boolean(instanceId) && botRunning,
     refetchInterval: POLL_MS,
   });
   const rawBadges = useMemo(
@@ -203,34 +220,48 @@ export function LiveEditorTab({
         .filter((t) => isActionableDreamscapeWord(t)),
     [rawBadges],
   );
-  const detectKey = useMemo(
-    () => detectedWords.map((w) => w.toLowerCase()).sort().join("|"),
-    [detectedWords],
-  );
-
   const scenesQuery = useQuery({
     queryKey: ["dreamscape-scenes"],
     queryFn: fetchDreamscapeScenes,
   });
 
-  // ── Scene detection: which scene holds the words on screen (3→2→1 overlap) ──
-  const detectQuery = useQuery({
-    queryKey: ["dreamscape-detect-scene", detectKey],
-    queryFn: () => detectDreamscapeScene(detectedWords),
-    enabled: Boolean(instanceId) && detectedWords.length > 0,
+  // ── OCR language: an explicit operator setting, never auto-detected ──
+  const ocrLangQuery = useQuery({
+    queryKey: ["ocr-lang"],
+    queryFn: fetchOcrLang,
   });
-  const autoSlug = detectQuery.data?.slug || null;
+  const ocrLangMutation = useMutation({
+    mutationFn: (lang: string) => setOcrLang(lang),
+    onSuccess: (res) => {
+      void ocrLangQuery.refetch();
+      setMessage(
+        `OCR language set to ${res.lang}.` +
+          (botRunning ? " Restart the bot to apply it to the solver." : ""),
+      );
+    },
+    onError: (err: unknown) => setMessage(`OCR language change failed: ${formatApiError(err)}`),
+  });
+  const ocrLangOptions = (ocrLangQuery.data?.available ?? []).map((code) => ({
+    value: code,
+    label: code,
+  }));
 
-  // Manual override (operator-picked scene), deep-linked via ?scene=slug and
-  // synced shallowly (History API). It wins over auto-detection when set.
+  // The scene is ALWAYS the operator's pick — no word-based auto-detection.
+  // Deep-linked via ?scene=slug (History API); with no link the pick starts
+  // from the DB's active scene, so a reload keeps the last choice.
   const [overrideSlug, setOverrideSlug] = useState<string | null>(
     () => params.get("scene")?.trim() || null,
   );
   useEffect(() => {
-    setOverrideSlug(params.get("scene")?.trim() || null);
+    const fromUrl = params.get("scene")?.trim();
+    if (fromUrl) setOverrideSlug(fromUrl);
   }, [params]);
-  const matchedSlug = overrideSlug || autoSlug;
-  const sceneMatched = Boolean(matchedSlug);
+  useEffect(() => {
+    if (!overrideSlug && scenesQuery.data?.active) {
+      setOverrideSlug(scenesQuery.data.active);
+    }
+  }, [overrideSlug, scenesQuery.data]);
+  const matchedSlug = overrideSlug;
   const solveStateRaw =
     instanceDetail?.state?.["dreamscape_memory.solve_state"] ?? null;
   const parsedSolveState = useMemo(
@@ -292,22 +323,48 @@ export function LiveEditorTab({
   const mode = wordRegions === DREAMSCAPE_MULTIPLAYER_WORD_REGIONS ? "multiplayer" : "solo";
   const sceneTitle = sceneQuery.data?.title ?? null;
 
-  // ── Manual override selector ──
-  // Tag each option with its season ("S3 · Garden", "Practice ·", "MP ·") so the
-  // operator can tell apart same-named rooms reused across seasons.
+  // ── Manual override selector: Season first, then the scene within it ──
+  // Scenes follow the in-game order (`sort_order`, stamped from the upstream
+  // catalog), NOT the alphabet; unordered legacy scenes fall back to title.
+  const allScenes = scenesQuery.data?.scenes;
+  const seasonOptions = useMemo(() => {
+    const seasons = [...new Set((allScenes ?? []).map((s) => s.season))];
+    // Newest content first (S5, S4, …), then Multiplayer, then Practice.
+    seasons.sort((a, b) => {
+      const special = (n: number) =>
+        n === PRACTICE_SEASON ? 2 : n === MULTIPLAYER_SEASON ? 1 : 0;
+      return special(a) - special(b) || b - a;
+    });
+    return seasons.map((n) => ({
+      value: String(n),
+      label:
+        n === PRACTICE_SEASON
+          ? "Practice"
+          : n === MULTIPLAYER_SEASON
+            ? "Multiplayer"
+            : `Season ${n}`,
+    }));
+  }, [allScenes]);
+  const overrideSeason = useMemo(() => {
+    if (!overrideSlug) return null;
+    const scene = (allScenes ?? []).find((s) => s.slug === overrideSlug);
+    return scene ? String(scene.season) : null;
+  }, [allScenes, overrideSlug]);
+  const [seasonChoice, setSeasonChoice] = useState<string | null>(null);
+  const seasonValue =
+    seasonChoice ?? overrideSeason ?? seasonOptions[0]?.value ?? "";
   const sceneOptions = useMemo(
     () =>
-      [...(scenesQuery.data?.scenes ?? [])]
+      (allScenes ?? [])
+        .filter((s) => String(s.season) === seasonValue)
         .sort(
           (a, b) =>
-            seasonRank(a.season) - seasonRank(b.season) ||
+            (a.sort_order || Number.MAX_SAFE_INTEGER) -
+              (b.sort_order || Number.MAX_SAFE_INTEGER) ||
             a.title.localeCompare(b.title, undefined, { sensitivity: "base" }),
         )
-        .map((s) => ({
-          value: s.slug,
-          label: `${seasonTag(s.season)} · ${s.title}`,
-        })),
-    [scenesQuery.data],
+        .map((s) => ({ value: s.slug, label: s.title })),
+    [allScenes, seasonValue],
   );
   const activateMutation = useMutation({
     mutationFn: (slug: string) => activateDreamscapeScene(slug),
@@ -327,13 +384,7 @@ export function LiveEditorTab({
     if (next) activateMutation.mutate(next);
   };
 
-  // ── Bot/instance status ──
-  const botQuery = useQuery({
-    queryKey: ["bot-status"],
-    queryFn: fetchBotStatus,
-    refetchInterval: 4000,
-  });
-  const botRunning = Boolean(botQuery.data?.running);
+
   const solverButtonLabel = "Play";
   const solverPendingLabel = "Starting...";
 
@@ -341,6 +392,9 @@ export function LiveEditorTab({
   // preview PNG, refreshed the instant the instance revision advances (SSE
   // below) by bumping a cache-busting tick.
   const [imageTick, setImageTick] = useState(0);
+  // Debug popup: the live frame with every scene point + solver plans drawn on
+  // top — «что бот находит и куда собирается кликать».
+  const [debugOpen, setDebugOpen] = useState(false);
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const previewMtime =
     instanceDetail?.preview_mtime == null
@@ -369,6 +423,15 @@ export function LiveEditorTab({
     },
     onFallbackPoll: () => setImageTick((t) => t + 1),
   });
+  // Isolated mode has no worker publishing instance revisions, so the SSE
+  // stream stays silent (open but eventless) and the fallback never fires —
+  // the frame froze. The solver rewrites the preview file every second; bump
+  // the cache-busting tick on a plain timer so the <img> actually re-fetches.
+  useEffect(() => {
+    if (!instanceId || !botRunning) return undefined;
+    const timer = window.setInterval(() => setImageTick((t) => t + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [instanceId, botRunning]);
 
   // Grab the current device frame as a fresh labeling capture and jump to the
   // full labeling editor on it, so an operator can label anything new on screen
@@ -377,7 +440,10 @@ export function LiveEditorTab({
     mutationFn: () => captureLabelingScreenshot(instanceId, DREAMSCAPE_SCOPE),
     onSuccess: ({ ref }) => {
       const q = new URLSearchParams({ module: DREAMSCAPE_SCOPE, ref });
-      router.push(`/labeling?${q.toString()}`);
+      // New tab: the operator keeps playing on this page and can snap more
+      // screenshots as the round progresses.
+      window.open(`/labeling?${q.toString()}`, "_blank", "noopener");
+      setMessage(`Screenshot captured — opened in a new tab (${ref}).`);
     },
     onError: (err: unknown) => setMessage(`Screenshot failed: ${String(err)}`),
   });
@@ -385,61 +451,42 @@ export function LiveEditorTab({
   // ── Bot control: start the worker + enqueue this mode's fast solve loop ──
   const liveFramePlaceholder = !instanceId
     ? "Select an instance"
-    : !botRunning
-      ? "Bot stopped — rolling preview is not being published."
-      : instanceDetailQuery.isLoading
-        ? "Checking rolling preview…"
-        : !instanceDetail?.preview_available
-          ? "No rolling preview PNG from worker yet."
-          : previewIsFromStaleRun
-            ? "Waiting for a fresh frame from the new Dreamscape run..."
-            : cardImageUrl === failedImageUrl
-            ? "Rolling preview image failed to load."
-            : "Waiting for a live frame…";
+    : cardImageUrl === failedImageUrl
+      ? "No frame yet — press Play; the solver publishes the preview itself."
+      : "Waiting for a live frame…";
 
   const startMutation = useMutation({
     // Start the local worker (idempotent if already up), then enqueue the
     // solver so it begins reading + tapping the level right away.
     mutationFn: async (action: "start" | "restart" = "start") => {
-      const scenario = (scenarioKey || "").trim();
       const selectedInstance = instanceId.trim();
-      if (!scenario) throw new Error("No solver scenario is configured for this mode.");
       if (!selectedInstance) throw new Error("Select an instance before starting Dreamscape.");
+      if (!overrideSlug) throw new Error("Pick a scene before starting Dreamscape.");
+      // Re-assert the pick right before the run — the pick may come from a
+      // deep link (?scene=) while the DB's active scene points elsewhere.
+      await activateDreamscapeScene(overrideSlug);
       const startedAt = Date.now() / 1000;
       setRunStartedAtSec(startedAt);
       enteredGameplayRef.current = false;
       setConfettiVisible(false);
       setFailedImageUrl(null);
       setImageTick((t) => t + 1);
-      setMessage(
-        action === "restart"
-          ? "Resetting solver state for a fresh Dreamscape run..."
-          : "Preparing a fresh Dreamscape run...",
-      );
-      await resetCurrentScreen(selectedInstance);
-      void screenQuery.refetch();
-      void wordOcrQuery.refetch();
-      setMessage(botRunning ? "Bot is already running." : "Starting bot worker...");
-      if (!botRunning) await startLocalBot();
-      setMessage("Starting Dreamscape solver...");
-      const queued = await createQueueTask({
-        scenario_key: scenario,
+      setMessage(action === "restart" ? "Restarting solver..." : "Starting solver...");
+      // Isolated mode: one standalone process that detects words and taps.
+      // No worker, no queue, no Redis — start IS restart (the backend kills a
+      // previous solver first).
+      return startDreamscapeSolver({
         instance_id: selectedInstance,
-        scheduled_at: Date.now() / 1000,
-        priority: 90_000,
-        replace_existing: true,
-        abort_running: action === "restart",
+        scene: overrideSlug,
+        mode: wordRegions === DREAMSCAPE_MULTIPLAYER_WORD_REGIONS ? "multiplayer" : "solo",
       });
-      return queued;
     },
-    onSuccess: (queued, action) => {
+    onSuccess: (res, action) => {
       setAutoCaptureArmed(true);
       void botQuery.refetch();
-      void instanceDetailQuery.refetch();
-      void screenQuery.refetch();
       void wordOcrQuery.refetch();
       setMessage(
-        `Dreamscape solver ${action === "restart" ? "restarted" : "started"} (${queued.task_id}).`,
+        `Solver ${action === "restart" ? "restarted" : "started"} on ${res.scene} (pid ${res.pid}).`,
       );
     },
     onError: (err: unknown, action) =>
@@ -449,7 +496,7 @@ export function LiveEditorTab({
   });
 
   const stopMutation = useMutation({
-    mutationFn: () => stopLocalBot(),
+    mutationFn: () => stopDreamscapeSolver(),
     onSuccess: () => {
       setAutoCaptureArmed(false);
       void botQuery.refetch();
@@ -460,6 +507,10 @@ export function LiveEditorTab({
   });
 
   const instanceOptions = instances.map((id) => ({ value: id, label: id }));
+
+  // Stack health, loudly: the bot cannot run without the API and Redis, and a
+  // dead redis-server used to surface only as generic 500s on Play.
+  const { connectivity } = useApiStatus();
 
   useEffect(() => {
     if (!autoCaptureArmed) return undefined;
@@ -494,6 +545,7 @@ export function LiveEditorTab({
   }, [autoCaptureArmed, terminalScreen, solveState]);
 
   useEffect(() => {
+    if (!autoCapture) return;
     if (!autoCaptureArmed || !botRunning || !instanceId || autoCaptureBusy.current) return;
     if (scenesQuery.isLoading || sceneQuery.isLoading) return;
 
@@ -543,6 +595,7 @@ export function LiveEditorTab({
         autoCaptureBusy.current = false;
       });
   }, [
+    autoCapture,
     autoCaptureArmed,
     botRunning,
     instanceId,
@@ -556,6 +609,16 @@ export function LiveEditorTab({
 
   return (
     <div className="mt-4 space-y-4">
+      {connectivity === "api_offline" || connectivity === "redis_unreachable" ? (
+        <div
+          role="alert"
+          className="rounded-md border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+        >
+          {connectivity === "api_offline"
+            ? "API is offline — the dashboard cannot reach the backend (uv run api)."
+            : "Redis is unreachable — the bot cannot run. Start it (docker compose up -d redis or redis-server) and press Play again."}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-end gap-3">
         <AppListbox
           label="Instance"
@@ -566,17 +629,31 @@ export function LiveEditorTab({
           placeholder="Select a device"
           inline
         />
+        <AppListbox
+          label="OCR"
+          options={ocrLangOptions}
+          value={ocrLangQuery.data?.lang ?? ""}
+          onChange={(lang) => ocrLangMutation.mutate(lang)}
+          loading={ocrLangQuery.isLoading || ocrLangMutation.isPending}
+          placeholder="lang"
+          minWidth={90}
+          inline
+        />
         {!botRunning ? (
           <Button
             variant="primary"
-            disabled={startMutation.isPending || !instanceId || !scenarioKey}
+            disabled={
+              startMutation.isPending || !instanceId || !scenarioKey || !overrideSlug
+            }
             onClick={() => startMutation.mutate("start")}
             title={
               !instanceId
                 ? "Select an instance before starting Dreamscape"
                 : !scenarioKey
                   ? "No solver scenario is configured for this mode"
-                  : "Start the bot and Dreamscape solver"
+                  : !overrideSlug
+                    ? "Pick a scene before starting Dreamscape"
+                    : "Start the bot and Dreamscape solver"
             }
           >
             {startMutation.isPending ? solverPendingLabel : solverButtonLabel}
@@ -645,7 +722,17 @@ export function LiveEditorTab({
 
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         <section className="panel">
-          <h2 className="mb-3 text-base font-semibold">Current screen</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold">Current screen</h2>
+            <button
+              type="button"
+              className="rounded-md border border-wos-border px-2 py-1 text-xs text-wos-text-muted hover:text-wos-text"
+              onClick={() => setDebugOpen(true)}
+              title="Show the live frame with every scene point and the solver's planned taps"
+            >
+              Debug view
+            </button>
+          </div>
           <div className="relative mx-auto aspect-[9/16] w-full max-w-[280px] overflow-hidden rounded-lg border border-wos-border bg-wos-bg-deep">
             {showImage && cardImageUrl ? (
               <img
@@ -662,21 +749,32 @@ export function LiveEditorTab({
             {confettiVisible ? <WinConfetti /> : null}
           </div>
         </section>
+        {debugOpen ? (
+          <DreamscapeDebugOverlay
+            imageUrl={showImage ? cardImageUrl : null}
+            scene={sceneQuery.data ?? null}
+            badges={badges}
+            wordRunState={wordRunState}
+            onClose={() => setDebugOpen(false)}
+          />
+        ) : null}
         <WordSearchPanel
           badges={badges}
           status={status}
           sceneTitle={sceneTitle}
           matchedSlug={matchedSlug}
-          autoSlug={autoSlug}
           overrideSlug={overrideSlug}
           sceneOptions={sceneOptions}
+          seasonOptions={seasonOptions}
+          seasonValue={seasonValue}
+          onSelectSeason={setSeasonChoice}
           onSelectScene={selectScene}
           detectedCount={detectedWords.length}
           scenesLoading={scenesQuery.isLoading}
           scenesError={scenesQuery.isError}
           wordKnown={wordKnown}
           wordRunState={wordRunState}
-          loading={detectQuery.isFetching || wordOcrQuery.isFetching}
+          loading={wordOcrQuery.isFetching}
           instanceSelected={Boolean(instanceId)}
         />
       </div>
@@ -875,9 +973,11 @@ function WordSearchPanel({
   status,
   sceneTitle,
   matchedSlug,
-  autoSlug,
   overrideSlug,
   sceneOptions,
+  seasonOptions,
+  seasonValue,
+  onSelectSeason,
   onSelectScene,
   detectedCount,
   scenesLoading,
@@ -891,11 +991,12 @@ function WordSearchPanel({
   status: LiveStatus;
   sceneTitle: string | null;
   matchedSlug: string | null;
-  /** Scene auto-detected from the words (null when nothing matched). */
-  autoSlug: string | null;
-  /** Operator-pinned scene (null when auto-detection is in charge). */
+  /** Operator-picked scene (the solver plays exactly this one). */
   overrideSlug: string | null;
   sceneOptions: { value: string; label: string }[];
+  seasonOptions: { value: string; label: string }[];
+  seasonValue: string;
+  onSelectSeason: (season: string) => void;
   onSelectScene: (slug: string) => void;
   /** Count of actionable words feeding detection. */
   detectedCount: number;
@@ -930,6 +1031,15 @@ function WordSearchPanel({
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <AppListbox
+              label="Season"
+              options={seasonOptions}
+              value={seasonValue}
+              onChange={onSelectSeason}
+              loading={scenesLoading}
+              minWidth={130}
+              inline
+            />
+            <AppListbox
               label="Scene"
               options={sceneOptions}
               value={matchedSlug ?? ""}
@@ -942,27 +1052,11 @@ function WordSearchPanel({
               inline
             />
             <span className="meta">
-              {overrideSlug ? (
-                <>
-                  pinned{" "}
-                  <button
-                    type="button"
-                    onClick={() => onSelectScene("")}
-                    className="underline hover:text-wos-text"
-                    title="Clear the manual override and return to auto-detection"
-                  >
-                    (use auto)
-                  </button>
-                </>
-              ) : autoSlug ? (
-                <>auto-detected from words</>
-              ) : scenesError ? (
-                "scene list failed"
-              ) : detectedCount === 0 ? (
-                "no words read yet"
-              ) : (
-                "no scene matches these words"
-              )}
+              {overrideSlug
+                ? "the solver plays this scene"
+                : scenesError
+                  ? "scene list failed"
+                  : "pick a scene to play"}
             </span>
           </div>
           <DetectedWordsBadges
@@ -977,5 +1071,125 @@ function WordSearchPanel({
         <p className="meta">Select an instance to read the level&apos;s words.</p>
       ) : null}
     </section>
+  );
+}
+
+
+/** Full-screen debug popup: the live frame with every scene point drawn on it.
+ * Green = a word currently on the pills maps to this point (the solver's next
+ * taps); red = already clicked this run; grey = the rest of the scene map. */
+function DreamscapeDebugOverlay({
+  imageUrl,
+  scene,
+  badges,
+  wordRunState,
+  onClose,
+}: {
+  imageUrl: string | null;
+  scene: DreamscapeSceneDetail | null;
+  badges: WordBadge[];
+  wordRunState: DreamscapeWordRunState[];
+  onClose: () => void;
+}) {
+  const rect = scene?.scene_rect ?? { left: 0, top: 0, width: 100, height: 100 };
+  const toFrame = (p: { xPct: number; yPct: number }) => ({
+    x: rect.left + (p.xPct / 100) * rect.width,
+    y: rect.top + (p.yPct / 100) * rect.height,
+  });
+  const onScreen = new Set(
+    badges.map((b) => normalizeWord(b.text)).filter(Boolean),
+  );
+  const clicked = new Set(
+    badges
+      .map((b, i) => ({ b, s: wordRunState[i] }))
+      .filter((x) => x.s === "clicked" || x.s === "found")
+      .map((x) => normalizeWord(x.b.text)),
+  );
+  const pointNames = (p: { name: string; aliases?: string[] }) => [
+    normalizeWord(p.name),
+    ...(p.aliases ?? []).map(normalizeWord),
+  ];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-full overflow-auto rounded-lg bg-wos-panel p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 flex items-center justify-between gap-6">
+          <div className="text-sm font-semibold">
+            {scene ? `${scene.title} (${scene.slug})` : "no scene picked"}
+          </div>
+          <button
+            type="button"
+            className="rounded border border-wos-border px-2 py-0.5 text-xs"
+            onClick={onClose}
+          >
+            close
+          </button>
+        </div>
+        <div className="relative w-[360px]">
+          {imageUrl ? (
+            <img src={imageUrl} alt="frame" className="w-full rounded" />
+          ) : (
+            <div className="flex aspect-[9/16] items-center justify-center text-sm text-wos-text-muted">
+              no live frame
+            </div>
+          )}
+          {(scene?.points ?? []).map((p) => {
+            const f = toFrame(p);
+            const names = pointNames(p);
+            const isClicked = names.some((n) => clicked.has(n));
+            const isPlanned = !isClicked && names.some((n) => onScreen.has(n));
+            const color = isClicked ? "#ef4444" : isPlanned ? "#22c55e" : "#94a3b8";
+            return (
+              <div
+                key={p.n}
+                title={`${p.name}${p.aliases?.length ? ` (${p.aliases.join(", ")})` : ""}`}
+                style={{
+                  position: "absolute",
+                  left: `${f.x}%`,
+                  top: `${f.y}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
+              >
+                <div
+                  style={{
+                    width: isPlanned || isClicked ? 18 : 8,
+                    height: isPlanned || isClicked ? 18 : 8,
+                    borderRadius: "50%",
+                    border: `2px solid ${color}`,
+                    background: isPlanned ? "rgba(34,197,94,.25)" : "transparent",
+                  }}
+                />
+                {isPlanned || isClicked ? (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 20,
+                      top: -2,
+                      whiteSpace: "nowrap",
+                      font: "11px monospace",
+                      color,
+                      textShadow: "0 0 3px #000",
+                    }}
+                  >
+                    {p.name}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-2 text-xs text-wos-text-muted">
+          <span style={{ color: "#22c55e" }}>●</span> next taps ·{" "}
+          <span style={{ color: "#ef4444" }}>●</span> clicked ·{" "}
+          <span style={{ color: "#94a3b8" }}>●</span> scene map
+        </div>
+      </div>
+    </div>
   );
 }

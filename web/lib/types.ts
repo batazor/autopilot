@@ -839,6 +839,8 @@ export type DreamscapeScenePoint = {
   name: string;
   xPct: number;
   yPct: number;
+  /** Learned wordings (helper flow) that answer to this point. */
+  aliases?: string[];
 };
 
 export type DreamscapeSceneRect = {
@@ -859,6 +861,8 @@ export type DreamscapeSceneSummary = {
   point_count: number;
   active: boolean;
   archived: boolean;
+  /** In-game position within the season (0 = unknown → sort by title). */
+  sort_order: number;
   season: number;
 };
 

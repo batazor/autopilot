@@ -11,10 +11,10 @@ import { NewItemsTab } from "@/components/dreamscape/NewItemsTab";
 import { RegionEditorTab } from "@/components/dreamscape/RegionEditorTab";
 import { TestTab } from "@/components/dreamscape/TestTab";
 import {
-  DREAMSCAPE_MULTIPLAYER_SCENARIO,
+  DREAMSCAPE_MULTIPLAYER_MANUAL_SCENARIO,
   DREAMSCAPE_MULTIPLAYER_WORD_REGIONS,
   DREAMSCAPE_MULTIPLAYER_WORDS_REF,
-  DREAMSCAPE_SOLO_SCENARIO,
+  DREAMSCAPE_SOLO_MANUAL_SCENARIO,
   DREAMSCAPE_WORD_REGIONS,
   DREAMSCAPE_WORDS_REF,
 } from "@/lib/dreamscape-live";
@@ -101,8 +101,8 @@ function DreamscapePageInner() {
       : DREAMSCAPE_WORDS_REF;
   const scenarioKey =
     view === "multiplayer"
-      ? DREAMSCAPE_MULTIPLAYER_SCENARIO
-      : DREAMSCAPE_SOLO_SCENARIO;
+      ? DREAMSCAPE_MULTIPLAYER_MANUAL_SCENARIO
+      : DREAMSCAPE_SOLO_MANUAL_SCENARIO;
 
   return (
     <>
