@@ -704,14 +704,32 @@ def _resolve_region_tap_candidates(
     dev_h: int,
     *,
     fuzz_threshold: float = _DEFAULT_FUZZ_THRESHOLD,
+    exclude_keys: set[str] | frozenset[str] = frozenset(),
 ) -> tuple[list[TapCandidate], list[tuple[str, str]]]:
-    """Resolve ``(region, OCR word)`` pairs while preserving the source slot."""
+    """Resolve ``(region, OCR word)`` pairs while preserving the source slot.
+
+    ``exclude_keys`` (canonical target keys already found this batch or
+    assigned to another slot) shrink the FUZZY pool only: the batch's words
+    are all distinct, so a solved word can never be the right answer for a
+    garbled read, and dropping it makes the leftover candidates unambiguous.
+    Exact matches stay untouched — re-reads of settled words feed the
+    batch-reopen probe and are deduped downstream.
+    """
     candidates: list[TapCandidate] = []
     misses: list[tuple[str, str]] = []
     localized = _localized_keys(targets)
-    # Fuzzy search spans both vocabularies, so a garbled Russian read is matched
-    # against Russian wordings rather than forced onto an English item name.
-    choices = [*targets, *localized]
+    taken: set[str] = set(exclude_keys)
+
+    def _fuzzy_choices() -> list[str]:
+        # Fuzzy search spans both vocabularies, so a garbled Russian read is
+        # matched against Russian wordings rather than forced onto an English
+        # item name; keys whose canonical item is already taken drop out.
+        return [
+            key
+            for key in (*targets, *localized)
+            if localized.get(key, key) not in taken
+        ]
+
     for region, word in word_items:
         raw_key = _normalize_word(word)
         if not raw_key:
@@ -728,7 +746,7 @@ def _resolve_region_tap_candidates(
             misses.append((region, word))
             continue
         if coord is None:
-            lookup = _fuzzy_lookup(raw_key, choices, fuzz_threshold)
+            lookup = _fuzzy_lookup(raw_key, _fuzzy_choices(), fuzz_threshold)
             if lookup.key is not None:
                 logger.info(
                     "dreamscape_memory_solve: fuzzy-matched %r -> %r",
@@ -760,6 +778,9 @@ def _resolve_region_tap_candidates(
                 region=region,
             )
         )
+        # This slot claimed the item: later slots in the same batch must not
+        # fuzzy onto it (the on-screen words are always distinct).
+        taken.add(target_key)
     return candidates, misses
 
 
@@ -2883,8 +2904,21 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 seen_words.append(word)
 
         targets = _targets_for_scene(scene)
+        # Words already confirmed this batch leave the fuzzy pool: the three
+        # on-screen words are distinct, so with two solved even a garbled read
+        # of the third has only unambiguous candidates left.
+        solved_keys = set(clicked_keys) | {
+            state.key
+            for state in slot_states.values()
+            if state.key and state.status in {_SLOT_CLICKED, _SLOT_SETTLED}
+        }
         candidates, misses = _resolve_region_tap_candidates(
-            new_word_items, targets, dev_w, dev_h, fuzz_threshold=fuzz_threshold
+            new_word_items,
+            targets,
+            dev_w,
+            dev_h,
+            fuzz_threshold=fuzz_threshold,
+            exclude_keys=solved_keys,
         )
         for _miss_region, miss in misses:
             if _is_actionable_unmapped_word(miss) and miss not in unmapped:
