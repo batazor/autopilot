@@ -1213,7 +1213,11 @@ async def _ocr_current_frame(
                 confidence,
             )
             out[name] = text
-            confs[name] = confidence
+            # A wide upscaled band happily reads dialog text with high
+            # self-confidence («поуча»@0.8+ burned helper taps); cap it below
+            # the unmapped-confirm/learn floors so wide-band reads can TAP
+            # mapped words but never spend a hint or enter the vocabulary.
+            confs[name] = min(confidence, _MIN_UNMAPPED_CONFIRM_CONF - 0.01)
     return out, confs
 
 
