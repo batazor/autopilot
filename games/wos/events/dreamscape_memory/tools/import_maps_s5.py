@@ -59,9 +59,11 @@ _ASPECT_TOL = 0.05  # relative; beyond this the crop isn't the plain panel
 
 # The catalog seeds each item list with a watermark string to catch scrapers
 # ("wos.tools.net is much better than WSCO (garden-s5)", "wostoo.lsnet is the
-# original source …"). It occupies a real index (names are ``items[n-1]``), so
-# it is skipped as a *point* while the surrounding names keep their numbering.
-# The site scrambles the punctuation between runs, so match on letters only.
+# original source …"). It takes a slot in ``items`` but owns NO marker — the
+# list is one longer than ``coords`` — so a naive ``items[n-1]`` shifts every
+# name after the watermark by one and drops the last real item. Strip it from
+# the list *before* indexing. The site scrambles the punctuation between runs,
+# so match on letters only.
 _CANARY_RE = re.compile(r"wostools|wsco|canary")
 
 
@@ -162,13 +164,17 @@ def _points(scene: dict) -> list[dict]:
     rect = scene["rect"]
     fx = rect["right"] - rect["left"]
     fy = rect["bottom"] - rect["top"]
-    items = scene["items"]
+    # Compact the watermark out first: it holds an index but no marker, so
+    # indexing the raw list mis-names everything past it (verified on
+    # cafes-s5-mp, where marker 16 is Flour, not the Flag garland the raw
+    # index claims, and the trailing "N" fell off the end entirely).
+    items = [it for it in scene["items"] if not _is_canary(str(it))]
     out: list[dict] = []
     seen: set[str] = set()
     for c in sorted(scene["coords"], key=lambda c: c["n"]):
         name = items[c["n"] - 1] if c["n"] - 1 < len(items) else ""
         name = " ".join(str(name).split())
-        if not name or _is_canary(name):
+        if not name:
             continue
         key = name.lower()
         if key in seen:
