@@ -69,6 +69,13 @@ _MIN_READ_WORD_LETTERS = 2
 # shred degenerates to substring matching («Па» -> «фотоаппарат» at 90) and
 # taps the wrong item. Short words still map via EXACT lookup («Ёж», «Як»).
 _MIN_FUZZY_WORD_LETTERS = 4
+# Uniqueness-scaled acceptance (word lookups only): when the best candidate
+# towers over every DIFFERENT item by this margin, accept it from this floor
+# even below _DEFAULT_FUZZ_THRESHOLD — the scene vocabulary is closed, so a
+# big gap is stronger evidence than the absolute score («бунва п» -> «Буква N»
+# at 77 with nothing else above 55 is unambiguous).
+_FUZZ_UNIQUE_FLOOR = 62.0
+_FUZZ_UNIQUE_MARGIN = 15.0
 # A helper-learn is credited to OUR highlight tap only when the pill greys
 # within this window after the tap. The operator plays alongside the solver:
 # a grey that arrives later means a human finger found the item, and the

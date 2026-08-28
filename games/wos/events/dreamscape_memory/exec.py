@@ -49,6 +49,8 @@ from games.wos.events.dreamscape_memory.solver.constants import (
     _DEFAULT_TAP_CONFIRM_WAIT_ITERS,
     _DEFAULT_TAP_DELAY_S,
     _DEFAULT_WORD_OCR_THRESHOLD,
+    _FUZZ_UNIQUE_FLOOR,
+    _FUZZ_UNIQUE_MARGIN,
     _HELP_CAPTURE_FRAMES,
     _LEARN_CONFIRM_WINDOW_S,
     _LEVEL_PROGRESS_RE,
@@ -630,30 +632,51 @@ def _fuzzy_lookup(
     threshold: float,
     *,
     ambiguity_margin: float = _DEFAULT_FUZZ_AMBIGUITY_MARGIN,
+    canonical: dict[str, str] | None = None,
 ) -> FuzzyLookup:
-    """Best fuzzy match, unless another choice is nearly as plausible."""
+    """Best fuzzy match, unless a DIFFERENT item is nearly as plausible.
+
+    ``canonical`` (alias key -> item key, word lookups only) folds aliases of
+    one item together: «буква n»/«буква н» tying at the top is agreement, not
+    ambiguity. It also arms uniqueness-scaled acceptance — with a closed scene
+    vocabulary, a best candidate that towers over every other ITEM by
+    ``_FUZZ_UNIQUE_MARGIN`` is accepted from ``_FUZZ_UNIQUE_FLOOR`` even when
+    it misses the absolute threshold.
+    """
     if threshold <= 0 or not choices:
         return FuzzyLookup(None)
-    matches = process.extract(key, choices, scorer=fuzz.WRatio, limit=2)
+    matches = process.extract(key, choices, scorer=fuzz.WRatio, limit=4)
     if not matches:
         return FuzzyLookup(None)
 
     best_key, best_score, _best_idx = matches[0]
-    if best_score < threshold:
+    canon = (lambda k: canonical.get(k, k)) if canonical is not None else (lambda k: k)
+    rival = next(
+        (
+            (str(mk), float(ms))
+            for mk, ms, _idx in matches[1:]
+            if canon(str(mk)) != canon(str(best_key))
+        ),
+        None,
+    )
+    accept = best_score >= threshold or (
+        canonical is not None
+        and best_score >= _FUZZ_UNIQUE_FLOOR
+        and (rival is None or best_score - rival[1] >= _FUZZ_UNIQUE_MARGIN)
+    )
+    if not accept:
         return FuzzyLookup(None)
-    if len(matches) > 1:
-        second_key, second_score, _second_idx = matches[1]
-        if best_score - second_score < ambiguity_margin:
-            logger.info(
-                "dreamscape_memory_solve: fuzzy match for %r is ambiguous: "
-                "%r=%.1f vs %r=%.1f",
-                key,
-                best_key,
-                best_score,
-                second_key,
-                second_score,
-            )
-            return FuzzyLookup(None, ambiguous=True)
+    if rival is not None and best_score - rival[1] < ambiguity_margin:
+        logger.info(
+            "dreamscape_memory_solve: fuzzy match for %r is ambiguous: "
+            "%r=%.1f vs %r=%.1f",
+            key,
+            best_key,
+            best_score,
+            rival[0],
+            rival[1],
+        )
+        return FuzzyLookup(None, ambiguous=True)
     return FuzzyLookup(str(best_key))
 
 
@@ -746,7 +769,9 @@ def _resolve_region_tap_candidates(
             misses.append((region, word))
             continue
         if coord is None:
-            lookup = _fuzzy_lookup(raw_key, _fuzzy_choices(), fuzz_threshold)
+            lookup = _fuzzy_lookup(
+                raw_key, _fuzzy_choices(), fuzz_threshold, canonical=localized
+            )
             if lookup.key is not None:
                 logger.info(
                     "dreamscape_memory_solve: fuzzy-matched %r -> %r",

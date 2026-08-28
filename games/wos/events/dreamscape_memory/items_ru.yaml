@@ -224,7 +224,7 @@ Flower: Цветок
 Flower basket: [Корзина с цветами, Цветочная корзина]
 Flower bed: Клумба
 Flower pot: [Горшок с цветком, Цветочный горшок]
-Flower vase: [Ваза с цветами, Ваза]
+Flower vase: [Ваза с цветами, Ваза, Букет]
 Flowers: Цветы
 Foot print: След
 Footprint: След
@@ -280,7 +280,7 @@ Handsaw: [Ножовка, Пила]
 Hanging banner: [Знамя, Висящее знамя, Стяг]
 Hanging Rug: [Ковёр, Висящий ковёр]
 Harp: Арфа
-N: [Буква N, N]
+N: [Буква N, Буква Н, N]
 Harpoon: Гарпун
 Hat: Шляпа
 Hay bale: [Тюк сена, Сено]
@@ -358,6 +358,7 @@ Moose: Лось
 Moose Antlers: [Рога лося, Лосиные рога]
 Mop: Швабра
 "Mortar & Pestle": [Ступка с пестиком, Ступка]
+Mortar & Pestle: [Ступка и пестик, Ступка, Пестик]
 Mortar paste: [Паста в ступке, Ступка]
 Mosse Statue: [Статуя лося, Лось]
 Motorcycle: Мотоцикл
@@ -412,6 +413,7 @@ Pigeon: [Голубь, Голуби]
 Pile of leaves: [Куча листьев, Листья]
 Pine Tree: [Сосна, Ёлка]
 Pinecone: [Шишка, Сосновая шишка]
+Pinwheel: [Вертушка, Бумажная вертушка]
 Pipe: [Труба, Трубка]
 Pitchfork: Вилы
 Plane: Самолёт
@@ -511,7 +513,7 @@ Skis: [Лыжи, Сноуборд]
 Skylight: [Люк в крыше, Окно в крыше]
 Slingshot: Рогатка
 Slipper: Тапок
-Slippers: Тапки
+Slippers: [Тапки, Тапочки]
 Smile: [Улыбка, Смайлик]
 Smoke: Дым
 Snake: Змея
