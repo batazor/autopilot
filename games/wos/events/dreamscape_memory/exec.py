@@ -50,15 +50,20 @@ from games.wos.events.dreamscape_memory.solver.constants import (
     _DEFAULT_TAP_DELAY_S,
     _DEFAULT_WORD_OCR_THRESHOLD,
     _HELP_CAPTURE_FRAMES,
+    _LEARN_CONFIRM_WINDOW_S,
     _LEVEL_PROGRESS_RE,
     _LIVE_STATE_FIELD,
     _MAX_LIVE_EVENTS,
+    _MIN_FUZZY_WORD_LETTERS,
+    _MIN_READ_WORD_LETTERS,
+    _MIN_UNMAPPED_CONFIRM_CONF,
     _MIN_UNMAPPED_CONFIRM_READS,
     _MIN_UNMAPPED_WORD_LETTERS,
     _MULTIPLAYER_MODES,
     _PILL_BG_ACTIVE_BGR,
     _PILL_BG_MAX_REF_DIST,
     _PILL_BG_STRUCK_BGR,
+    _PILL_TMPL_MATCH_CONF,
     _SEASON_TAG_RE,
     _SLOT_CLICKED,
     _SLOT_HELP_DETECTING,
@@ -78,7 +83,9 @@ from games.wos.events.dreamscape_memory.solver.constants import (
     _TERMINAL_SCREENS,
     _TERMINAL_TIME_UP,
     _TWO_LINE_GROW_FRAC,
+    _TWO_LINE_GROW_FRAC_WIDE,
     _TWO_LINE_RETRY_CONF,
+    _TWO_LINE_UPSCALE,
     _WIN_TERMINAL_SCREENS,
 )
 from games.wos.events.dreamscape_memory.solver.models import (
@@ -86,9 +93,11 @@ from games.wos.events.dreamscape_memory.solver.models import (
     HelpMotionCandidate,
     HelpTargetTap,
     PendingClick,
+    PillCropCandidate,
     SlotFsmState,
     TapCandidate,
 )
+from games.wos.events.dreamscape_memory.solver.pill_bank import PillTemplateBank
 from rapidfuzz import fuzz, process
 
 from config.paths import repo_root
@@ -247,7 +256,9 @@ def _discard_tap_signatures_for_region(
     signatures: set[tuple[str, str, int, int]],
     region: str,
 ) -> None:
-    signatures.difference_update(sig for sig in signatures if sig[0] == region)
+    # Materialize before mutating: difference_update over a generator that
+    # reads the SAME set raises "Set changed size during iteration" mid-run.
+    signatures.difference_update([sig for sig in signatures if sig[0] == region])
 
 
 def _word_keys_overlap(current_key: str, *previous_keys: str) -> bool:
@@ -710,6 +721,12 @@ def _resolve_region_tap_candidates(
         if coord is None and raw_key in localized:
             target_key = localized[raw_key]
             coord = targets[target_key]
+        if coord is None and sum(ch.isalpha() for ch in raw_key) < _MIN_FUZZY_WORD_LETTERS:
+            # Too little signal for fuzzy: a shred like «Па» substring-matches
+            # half the vocabulary at 90. Exact lookups above already served any
+            # real short word; surface the read as a miss instead.
+            misses.append((region, word))
+            continue
         if coord is None:
             lookup = _fuzzy_lookup(raw_key, choices, fuzz_threshold)
             if lookup.key is not None:
@@ -810,6 +827,49 @@ def _region_center_for_frame(
     return px.center() if px is not None else None
 
 
+_pill_bank_singleton: PillTemplateBank | None = None
+
+
+def _pill_bank() -> PillTemplateBank:
+    """The module-global pill template bank (worker and standalone runner)."""
+    global _pill_bank_singleton
+    if _pill_bank_singleton is None:
+        from pathlib import Path
+
+        _pill_bank_singleton = PillTemplateBank(
+            Path(__file__).resolve().parent / "pill_bank"
+        )
+    return _pill_bank_singleton
+
+
+def _slot_band_crop(
+    image: Any,
+    area_doc: dict[str, Any],
+    name: str,
+) -> Any | None:
+    """Word-slot crop grown vertically like the two-line OCR retry band.
+
+    The labeled bbox is a single-line strip through the pill's middle; growing
+    it by ``_TWO_LINE_GROW_FRAC`` on each side covers the full pill so
+    two-line words are captured/matched whole. Store and match use the same
+    geometry, so the template always fits inside the search band.
+    """
+    if image is None or not hasattr(image, "shape") or len(image.shape) != 3:
+        return None
+    frame_h, frame_w = int(image.shape[0]), int(image.shape[1])
+    pair = screen_region_by_name(area_doc, name)
+    region_def = pair[1] if pair else None
+    if not isinstance(region_def, dict):
+        return None
+    px = _region_to_px(region_def, frame_w, frame_h)
+    if px is None:
+        return None
+    grow = int(round(px.h * _TWO_LINE_GROW_FRAC))
+    y0 = max(0, px.y - grow)
+    crop = image[y0 : px.y + px.h + grow, px.x : px.x + px.w]
+    return crop if crop.size else None
+
+
 def _pill_background_bgr(crop: Any) -> tuple[float, float, float] | None:
     """Median BGR of a word pill's background fill (text excluded).
 
@@ -840,6 +900,23 @@ def _pill_background_bgr(crop: Any) -> tuple[float, float, float] | None:
     return tuple(
         float(np.median(inner[..., ch][mask])) for ch in range(3)
     )  # type: ignore[return-value]
+
+
+def _is_pill_crop(crop: Any) -> bool:
+    """True when the crop's background is a word pill at all (active OR struck).
+
+    Story/ending dialogs cover the word-slot band with their own text; OCR then
+    reads dialog fragments («В РАБ», «анна») as "words", requests helper taps on
+    them, and can even learn them into the scene DB. The pill fill colours are
+    the one thing a covered slot cannot fake — a background far from BOTH
+    centroids means no pill is on screen, and the read must not happen.
+    """
+    bg = _pill_background_bgr(crop)
+    if bg is None:
+        return False
+    dist_active = sum((a - b) ** 2 for a, b in zip(bg, _PILL_BG_ACTIVE_BGR, strict=True)) ** 0.5
+    dist_struck = sum((a - b) ** 2 for a, b in zip(bg, _PILL_BG_STRUCK_BGR, strict=True)) ** 0.5
+    return min(dist_active, dist_struck) <= _PILL_BG_MAX_REF_DIST
 
 
 def _is_word_region_visually_found(crop: Any) -> bool:
@@ -969,18 +1046,27 @@ async def _ocr_current_frame(
         if px is None:
             logger.warning("dreamscape_memory_solve_loop: OCR region malformed: %s", name)
             continue
+        pre = resolve_preprocess(
+            explicit=region_def.get("preprocess"),
+            type_hint=region_def.get("type"),
+        )
+        # A word slot whose background is not a pill (dialog overlay, dark
+        # shade, mid-animation) carries no word — don't OCR it at all, so
+        # dialog text never enters the FSM/helper/learn paths.
+        if pre == "word_line" and not _is_pill_crop(
+            image[px.y : px.y + px.h, px.x : px.x + px.w]
+        ):
+            logger.debug(
+                "dreamscape_memory_solve_loop: slot %s background is not a pill; "
+                "skipping OCR",
+                name,
+            )
+            continue
         regions.append(px)
         ids.append(name)
-        preprocess.append(
-            resolve_preprocess(
-                explicit=region_def.get("preprocess"),
-                type_hint=region_def.get("type"),
-            )
-        )
+        preprocess.append(pre)
         thresholds[name] = (
-            _DEFAULT_WORD_OCR_THRESHOLD
-            if preprocess[-1] == "word_line"
-            else _threshold(region_def)
+            _DEFAULT_WORD_OCR_THRESHOLD if pre == "word_line" else _threshold(region_def)
         )
 
     if not regions:
@@ -993,13 +1079,33 @@ async def _ocr_current_frame(
         region_preprocess=preprocess if any(preprocess) else None,
     )
 
+    pre_by_id = dict(zip(ids, preprocess, strict=True))
+
+    def _accept_word_read(rid: str, text: str) -> bool:
+        """Reject reads a word pill cannot produce (single letters, noise runs).
+
+        Degraded live frames shred short words to one character ('ь' for
+        «Мышь»); a one-letter key then fuzzy-ties against half the vocabulary
+        every tick. Real item words — «Ёж» and «Як» included — keep ≥2 letters.
+        """
+        if pre_by_id.get(rid) != "word_line":
+            return True
+        if is_plausible_word_text(text, min_letters=_MIN_READ_WORD_LETTERS):
+            return True
+        logger.debug(
+            "dreamscape_memory_solve_loop: implausible word read region=%s text=%r",
+            rid,
+            text,
+        )
+        return False
+
     out: dict[str, str] = {}
     confs: dict[str, float] = {}
     for result in results:
         rid = str(result.region_id or "").strip()
         text = str(result.text or "").strip()
         confidence = float(result.confidence or 0.0)
-        if not rid or not text:
+        if not rid or not text or not _accept_word_read(rid, text):
             continue
         if confidence < thresholds.get(rid, 0.0):
             logger.debug(
@@ -1043,7 +1149,7 @@ async def _ocr_current_frame(
             rid = str(result.region_id or "").strip()
             text = str(result.text or "").strip()
             confidence = float(result.confidence or 0.0)
-            if not rid or not text:
+            if not rid or not text or not _accept_word_read(rid, text):
                 continue
             prev_letters = _letters(out.get(rid, ""))
             new_letters = _letters(text)
@@ -1069,6 +1175,45 @@ async def _ocr_current_frame(
             )
             out[rid] = text
             confs[rid] = confidence
+
+    # Last resort for tall pills both passes missed («Канистра с топливом»
+    # reads '' even at grow 0.55): a wider band + upscale recovers at least one
+    # full line ('топливом'@0.65), which fuzzy recovery maps to the item.
+    weak = [
+        (name, px)
+        for name, px, pre in zip(ids, regions, preprocess, strict=True)
+        if pre == "word_line" and confs.get(name, 0.0) < _TWO_LINE_RETRY_CONF
+    ]
+    if weak:
+        import cv2
+
+        def _wide_read(px: Region) -> tuple[str, float]:
+            reader = getattr(dsl_runtime.ocr_client(), "_run_tesseract", None)
+            if reader is None:
+                return "", 0.0
+            grow = int(round(px.h * _TWO_LINE_GROW_FRAC_WIDE))
+            crop = image[max(0, px.y - grow) : px.y + px.h + grow, px.x : px.x + px.w]
+            up = cv2.resize(
+                crop, None, fx=_TWO_LINE_UPSCALE, fy=_TWO_LINE_UPSCALE,
+                interpolation=cv2.INTER_CUBIC,
+            )
+            return reader(up, preprocess="word_block")
+
+        for name, px in weak:
+            text, confidence = await asyncio.to_thread(_wide_read, px)
+            text = str(text or "").strip()
+            if not text or not _accept_word_read(name, text):
+                continue
+            if confidence <= confs.get(name, 0.0):
+                continue
+            logger.info(
+                "dreamscape_memory_solve_loop: wide-band retry read %s -> %r (%.2f)",
+                name,
+                text,
+                confidence,
+            )
+            out[name] = text
+            confs[name] = confidence
     return out, confs
 
 
@@ -1615,6 +1760,7 @@ async def _dispatch_mapped_taps(
             raw_key=state.raw_key,
             raw_word=state.raw_word,
             point=state.point,
+            tapped_at=time.monotonic(),
         )
         click_retry_counts[region] = 1
         tap_attempt_iter[region] = iteration
@@ -1867,6 +2013,12 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     pending_learns: dict[str, HelpTargetTap] = {}
     learned_help_points: list[dict[str, Any]] = []
     help_learn_errors: list[dict[str, Any]] = []
+    # Pill template bank: active-pill crops held from read time, persisted on
+    # colour-confirm; matched pre-OCR on later rounds (see solver/pill_bank.py).
+    pill_bank = _pill_bank()
+    pill_crop_candidates: dict[str, PillCropCandidate] = {}
+    pill_templates_saved: list[dict[str, Any]] = []
+    pill_matches_total = 0
     help_counter_reads: list[int] = []
     help_remaining = _DEFAULT_HELP_COUNT
     unmapped: list[str] = []
@@ -2088,6 +2240,39 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 iteration=iterations,
                 instance_id=ctx.instance_id,
             )
+            # Feed the template bank: the game just confirmed this slot showed
+            # ``pending.key`` (our tap at its map point struck the pill), so
+            # the ACTIVE crop held from read time is a proven rendering of the
+            # word. Same trust rule as vocabulary learning — a grey outside
+            # the learn window is credited to the operator's finger, and an
+            # unproven crop must never enter the bank.
+            candidate_crop = pill_crop_candidates.pop(region, None)
+            if (
+                candidate_crop is not None
+                and candidate_crop.key == pending.key
+                and pending.tapped_at > 0
+                and time.monotonic() - pending.tapped_at <= _LEARN_CONFIRM_WINDOW_S
+            ):
+                stored = await asyncio.to_thread(
+                    pill_bank.store,
+                    pending.key,
+                    candidate_crop.word,
+                    candidate_crop.crop,
+                    source=f"{ctx.instance_id}:{region}",
+                )
+                if stored:
+                    pill_templates_saved.append(
+                        {"key": pending.key, "word": candidate_crop.word}
+                    )
+                    _append_event(
+                        events,
+                        "pill_template_saved",
+                        f"Saved pill template for {candidate_crop.word!r}",
+                        iteration=iterations,
+                        region=region,
+                        word=candidate_crop.word,
+                        key=pending.key,
+                    )
         # Helper-proven vocabulary: the game greyed a pill AFTER we tapped the
         # highlight it pointed at — that word/position pair is now confirmed,
         # so persist the wording on the nearest scene point. (Learning at tap
@@ -2095,6 +2280,19 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
         # unconfirmed guess must never enter the vocabulary.)
         for region in sorted(greyed_regions & set(pending_learns)):
             candidate = pending_learns.pop(region)
+            # The grey must follow OUR highlight tap promptly. The operator
+            # plays alongside the solver: a late grey means a human found the
+            # item, and the solver's highlight point may be off ("Колокол" =
+            # Feather) — credit the find, learn nothing.
+            if time.monotonic() - candidate.tapped_at > _LEARN_CONFIRM_WINDOW_S:
+                _append_event(
+                    events,
+                    "helper_learn_skipped",
+                    f"Grey came too late after the highlight tap for {candidate.word!r}",
+                    iteration=iterations,
+                    word=candidate.word,
+                )
+                continue
             learned = await asyncio.to_thread(
                 _learn_alias_from_help,
                 last_scene_slug,
@@ -2184,9 +2382,76 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             await asyncio.to_thread(
                 _publish_rolling_preview, ctx.instance_id, frame_for_ocr
             )
+        # Pill-template pass BEFORE OCR: with the scene locked, each unsettled
+        # word slot is matched against the stored renderings of the keys still
+        # expected in this scene. A word's pill draws pixel-identically every
+        # round, so a confident match (see solver/pill_bank.py thresholds)
+        # settles the slot without Tesseract — no more «ша» for «Шарики»
+        # hanging a slot. Misses fall through to the normal OCR path.
+        pill_matched_values: dict[str, str] = {}
+        pill_matched_confs: dict[str, float] = {}
+        if ocr_region_names and title_locked and cached_scene is not None:
+            bank_targets = _targets_for_scene(cached_scene)
+            expected_keys = (
+                (set(bank_targets) & pill_bank.keys())
+                - clicked_keys
+                - {p.key for p in pending_clicks.values()}
+            )
+            match_regions = [
+                name
+                for name in ocr_region_names
+                if name in regions and name not in pending_clicks
+            ]
+            if expected_keys and match_regions:
+                localized_now = _localized_keys(bank_targets)
+
+                def _match_slots(
+                    frame: Any, names: list[str], keys: set[str]
+                ) -> list[tuple[str, Any]]:
+                    hits: list[tuple[str, Any]] = []
+                    for name in names:
+                        crop = _slot_band_crop(frame, area_doc, name)
+                        if crop is None:
+                            continue
+                        hit = pill_bank.match(crop, keys)
+                        if hit is not None:
+                            hits.append((name, hit))
+                    return hits
+
+                slot_hits = await asyncio.to_thread(
+                    _match_slots, frame_for_ocr, match_regions, expected_keys
+                )
+                for name, hit in slot_hits:
+                    display = hit.word
+                    display_key = _normalize_word(display)
+                    if display_key not in bank_targets and display_key not in localized_now:
+                        # The stored wording no longer resolves in this scene
+                        # (alias removed?) — the canonical key always does.
+                        display = hit.key
+                    pill_matched_values[name] = display
+                    pill_matched_confs[name] = _PILL_TMPL_MATCH_CONF
+                    pill_matches_total += 1
+                    _append_event(
+                        events,
+                        "pill_match",
+                        f"Pill template matched {display!r} "
+                        f"(score {hit.score:.3f}, iou {hit.iou:.3f})",
+                        iteration=iterations,
+                        region=name,
+                        word=display,
+                        key=hit.key,
+                    )
+                if pill_matched_values:
+                    ocr_region_names = [
+                        name
+                        for name in ocr_region_names
+                        if name not in pill_matched_values
+                    ]
         ocr_values, ocr_confs = await _ocr_current_frame(
             frame_for_ocr, area_doc, ocr_region_names
         )
+        ocr_values.update(pill_matched_values)
+        ocr_confs.update(pill_matched_confs)
         region_confs.update(ocr_confs)
 
         if title_locked:
@@ -2241,6 +2506,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             pending_learns.clear()
             learned_help_points.clear()
             help_learn_errors.clear()
+            pill_crop_candidates.clear()
             help_counter_reads.clear()
             help_remaining = _DEFAULT_HELP_COUNT
             skipped_clicked.clear()
@@ -2566,6 +2832,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 next_attempt = attempts + 1
                 click_retry_counts[region] = next_attempt
                 tap_attempt_iter[region] = iterations
+                pending_clicks[region] = pending._replace(tapped_at=time.monotonic())
                 click_retries.append(
                     {
                         "region": region,
@@ -2627,7 +2894,16 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                     word=miss,
                     key=_normalize_word(miss),
                 )
-            if _is_actionable_unmapped_word(miss) and _miss_region:
+            if (
+                _is_actionable_unmapped_word(miss)
+                and _miss_region
+                # Only a read OCR itself trusted advances the helper counter:
+                # low-confidence shreds may repeat stably (dialog bleed, frozen
+                # animation frame) but must never earn a helper tap. This tick's
+                # ``ocr_confs`` is the authority — ``region_confs`` is cleared
+                # mid-tick when the scene is first matched.
+                and ocr_confs.get(_miss_region, 0.0) >= _MIN_UNMAPPED_CONFIRM_CONF
+            ):
                 miss_key = _normalize_word(miss)
                 unmapped_seen_counts[(_miss_region, miss_key)] = (
                     unmapped_seen_counts.get((_miss_region, miss_key), 0) + 1
@@ -2679,6 +2955,21 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 continue
             if candidate.region:
                 region_words[candidate.region] = candidate.raw_word
+                # Hold the ACTIVE pill crop for the template bank: by the time
+                # the tap colour-confirms, the pill is already struck, so the
+                # rendering must be captured now, from the lossless frame the
+                # word was read on. Slots resolved by a template match this
+                # tick already have a stored rendering — skip those.
+                if candidate.region not in pill_matched_values:
+                    band_crop = _slot_band_crop(
+                        frame_for_ocr, area_doc, candidate.region
+                    )
+                    if band_crop is not None:
+                        pill_crop_candidates[candidate.region] = PillCropCandidate(
+                            key=candidate.key,
+                            word=candidate.raw_word,
+                            crop=band_crop,
+                        )
             if candidate.region:
                 _set_slot(
                     slot_states,
@@ -2931,7 +3222,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                         word_conf = region_confs.get(help_region_name, 0.0)
                         if help_region_name and word_conf >= _MIN_LEARN_WORD_CONF:
                             pending_learns[help_region_name] = HelpTargetTap(
-                                help_word, target_point
+                                help_word, target_point, time.monotonic()
                             )
                         elif help_region_name:
                             logger.info(
@@ -3078,6 +3369,8 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             ],
             "learned_help_points": learned_help_points,
             "help_learn_errors": help_learn_errors,
+            "pill_templates_saved": pill_templates_saved,
+            "pill_matches": pill_matches_total,
             "help_counter_reads": help_counter_reads,
             "help_remaining": help_remaining,
             "skipped_clicked": skipped_clicked,

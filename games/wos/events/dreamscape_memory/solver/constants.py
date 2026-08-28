@@ -61,11 +61,30 @@ _DEFAULT_WORD_OCR_THRESHOLD = 0.0
 _DEFAULT_BATCH_REOPEN_OCR_PROBE_ITERS = 2
 _MAX_LIVE_EVENTS = 120
 _MIN_UNMAPPED_WORD_LETTERS = 3
+# Read-level floor is looser than the helper floor above: real 2-letter items
+# exist («Ёж», «Як») and must stay readable, while 1-letter shreds ('ь' for
+# «Мышь») only feed fuzzy-ambiguity spam and can never be an item.
+_MIN_READ_WORD_LETTERS = 2
+# Fuzzy recovery needs enough signal to be meaningful: WRatio on a 2-3 letter
+# shred degenerates to substring matching («Па» -> «фотоаппарат» at 90) and
+# taps the wrong item. Short words still map via EXACT lookup («Ёж», «Як»).
+_MIN_FUZZY_WORD_LETTERS = 4
+# A helper-learn is credited to OUR highlight tap only when the pill greys
+# within this window after the tap. The operator plays alongside the solver:
+# a grey that arrives later means a human finger found the item, and the
+# solver's (possibly mis-detected) highlight point must not be learned —
+# that is exactly how «Колокол» got attached to Feather's coordinates.
+_LEARN_CONFIRM_WINDOW_S = 4.0
 # An unmapped word must be read on this many separate iterations before it is
 # allowed to spend a (slow, irreversible) helper tap + scene-DB learn. A single
 # transient read — e.g. OCR of an animating slot — is never enough; the slot
 # usually settles into a real, mappable word on the next frame.
 _MIN_UNMAPPED_CONFIRM_READS = 2
+# A read only counts toward the helper confirmation above when OCR itself was
+# confident in it. Dialog text bleeding into the slot band reads stably but
+# weakly (0.0–0.4), so without this floor a covered screen "confirms" garbage
+# and burns a helper tap on it ("В РАБ" → help). Real pill words read 0.9+.
+_MIN_UNMAPPED_CONFIRM_CONF = 0.8
 # Long RU item names wrap onto TWO lines inside the pill; the labeled OCR band
 # is a single-line strip through the middle and reads garbage on them. A weak
 # first read (below the confidence floor) retries with the band grown
@@ -74,6 +93,12 @@ _MIN_UNMAPPED_CONFIRM_READS = 2
 # "океана"@0.06 vs grown block read "Бамбуковая корзина"@0.94.
 _TWO_LINE_RETRY_CONF = 0.6
 _TWO_LINE_GROW_FRAC = 0.55
+# Last-resort pass for tall two-line pills the first retry still misses
+# («Канистра с топливом» read as '' at grow 0.55): grow the band almost a full
+# pill height each side and upscale — reads the second line ('топливом'@0.65),
+# which fuzzy recovery maps to the item.
+_TWO_LINE_GROW_FRAC_WIDE = 0.9
+_TWO_LINE_UPSCALE = 3
 
 # A word pill has exactly TWO background colours; classify by nearest centroid.
 # Medians measured over 18 pills / 6 real frames (720x1280 RU client): active
@@ -83,6 +108,33 @@ _TWO_LINE_GROW_FRAC = 0.55
 _PILL_BG_ACTIVE_BGR = (224.0, 183.0, 178.0)
 _PILL_BG_STRUCK_BGR = (207.0, 147.0, 132.0)
 _PILL_BG_MAX_REF_DIST = 60.0
+
+# Pill template bank (solver/pill_bank.py): a word's pill renders
+# pixel-identically every round at the fixed resolution, so a tight crop of
+# the WHITE TEXT matched with TM_CCOEFF_NORMED beats OCR outright on repeat
+# words. Thresholds calibrated on 86 labeled slot crops from 96 real lossless
+# frames (720x1280 RU client): same-word pairs across frames/slots score
+# ≥0.999 with text-mask IoU ≥0.997; the closest different-word impostor
+# («мяч» vs «меч») reaches only 0.914 / 0.807, and an active-pill template
+# never exceeds 0.45 against a struck pill. Whole-band matching was rejected:
+# the pill fill dominates and «мяч»/«меч» collide at 0.965 there.
+_PILL_TMPL_SCORE_THR = 0.96
+_PILL_TMPL_IOU_THR = 0.92
+# White-glyph binarization floor (gray ≥ this = text) shared by template
+# extraction and the IoU gate; the pale-lavender fill sits far below it.
+_PILL_TMPL_TEXT_THR = 200
+_PILL_TMPL_MARGIN_PX = 3
+# A real word's glyphs light hundreds of pixels; fewer means an empty band or
+# stray sparkle — nothing worth storing.
+_PILL_TMPL_MIN_TEXT_PX = 40
+# Renderings per key: single-player and multiplayer pills may differ, plus one
+# spare; an unmatched rendering beyond the cap is dropped loudly, because a
+# key needing many variants means the key itself is being mis-assigned.
+_PILL_TMPL_MAX_VARIANTS = 4
+# Synthetic confidence injected for template-matched words: above every OCR
+# gate in the loop (the match margin is far stronger evidence than a Tesseract
+# self-score, see the calibration numbers above).
+_PILL_TMPL_MATCH_CONF = 0.99
 # Pixel-based round-start gate (multiplayer). Before the round starts the
 # screen sits behind a dark shade and every word pill reads ~0 bright pixels;
 # the instant the shade lifts the pills appear with hundreds of near-white

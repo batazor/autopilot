@@ -1,0 +1,131 @@
+{
+ "version": 1,
+ "templates": [
+  {
+   "key": "lock",
+   "word": "Замок",
+   "file": "lock__0.png",
+   "w": 86,
+   "h": 27,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787886646.115715
+  },
+  {
+   "key": "вытяжной",
+   "word": "Вытяжной",
+   "file": "вытяжной__0.png",
+   "w": 134,
+   "h": 58,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787886646.1176882
+  },
+  {
+   "key": "paper bag",
+   "word": "Бумажнай мешок",
+   "file": "paper-bag__0.png",
+   "w": 204,
+   "h": 29,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787886648.3551412
+  },
+  {
+   "key": "glass bottle",
+   "word": "Стеклянная бутылка",
+   "file": "glass-bottle__0.png",
+   "w": 138,
+   "h": 59,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787886650.548
+  },
+  {
+   "key": "blueprint",
+   "word": "Чертеж",
+   "file": "blueprint__0.png",
+   "w": 103,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787886650.549682
+  },
+  {
+   "key": "lighthouse",
+   "word": "Маяк",
+   "file": "lighthouse__0.png",
+   "w": 71,
+   "h": 27,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787886652.36942
+  },
+  {
+   "key": "magnet",
+   "word": "Магнит",
+   "file": "magnet__0.png",
+   "w": 99,
+   "h": 27,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787886653.215326
+  },
+  {
+   "key": "seagull",
+   "word": "Чайка",
+   "file": "seagull__0.png",
+   "w": 83,
+   "h": 27,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787886655.648791
+  },
+  {
+   "key": "air pump",
+   "word": "Насос",
+   "file": "air-pump__0.png",
+   "w": 84,
+   "h": 26,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787886658.298225
+  },
+  {
+   "key": "mop",
+   "word": "Швабра",
+   "file": "mop__0.png",
+   "w": 108,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787886664.2489102
+  },
+  {
+   "key": "medkit",
+   "word": "Аптечка",
+   "file": "medkit__0.png",
+   "w": 112,
+   "h": 27,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787886672.298798
+  },
+  {
+   "key": "feather",
+   "word": "Перо",
+   "file": "feather__0.png",
+   "w": 71,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787886852.530727
+  },
+  {
+   "key": "balloon",
+   "word": "Шарики",
+   "file": "balloon__0.png",
+   "w": 105,
+   "h": 32,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787886855.04731
+  },
+  {
+   "key": "карты",
+   "word": "Карты",
+   "file": "карты__0.png",
+   "w": 84,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787886857.0994508
+  }
+ ]
+}

@@ -64,6 +64,45 @@ def test_actionable_unmapped_word_rejects_ocr_garbage() -> None:
         assert solve._is_actionable_unmapped_word(word) is True, word
 
 
+def test_read_word_floor_keeps_two_letter_items_drops_single_letters() -> None:
+    # The read-level floor must stay below the catalog's shortest real words
+    # («Ёж», «Як») while still dropping the one-letter shreds a degraded live
+    # frame produces ('ь' for «Мышь» fuzzy-ties half the vocabulary).
+    from ocr.word_cleaning import is_plausible_word_text
+
+    floor = solve._MIN_READ_WORD_LETTERS
+    assert is_plausible_word_text("Ёж", min_letters=floor)
+    assert is_plausible_word_text("Як", min_letters=floor)
+    assert not is_plausible_word_text("ь", min_letters=floor)
+    assert not is_plausible_word_text("ш", min_letters=floor)
+
+
+# ── _is_pill_crop (dialog-overlay read gate) ─────────────────────────────────
+
+
+def _pill_like_crop(
+    fill_bgr: tuple[int, int, int],
+    text_bgr: tuple[int, int, int] = (40, 30, 30),
+) -> np.ndarray:
+    """A slot-sized crop: solid fill with a darker word stripe through it."""
+    crop = np.full((38, 200, 3), fill_bgr, dtype=np.uint8)
+    crop[14:26, 60:140] = text_bgr
+    return crop
+
+
+def test_is_pill_crop_accepts_active_and_struck_fills() -> None:
+    assert solve._is_pill_crop(_pill_like_crop((224, 183, 178))) is True  # active
+    assert solve._is_pill_crop(_pill_like_crop((207, 147, 132))) is True  # struck
+
+
+def test_is_pill_crop_rejects_dialog_shade_and_bad_input() -> None:
+    # Story/ending dialogs cover the slot band: dark shade or a pale card, both
+    # far from the two pill fills — the read must not happen at all.
+    assert solve._is_pill_crop(_pill_like_crop((70, 50, 80))) is False
+    assert solve._is_pill_crop(_pill_like_crop((245, 240, 245))) is False
+    assert solve._is_pill_crop(None) is False
+
+
 # ── _points_to_targets (pure) ─────────────────────────────────────────────────
 
 
@@ -569,11 +608,27 @@ def test_word_region_visual_found_two_of_three_solved_on_real_frame() -> None:
     assert found == {"found_1": True, "found_2": True, "active_3": False}
 
 
+def _paint_pill_band(frame: np.ndarray) -> np.ndarray:
+    """Make the word-slot band read as pills to the ``_is_pill_crop`` gate.
+
+    The loop refuses to OCR a slot whose background is not a pill fill (that is
+    how dialog overlays are kept out), so a harness frame must carry the active
+    fill — with dark text-like stripes, or a uniform crop has no background
+    median at all — wherever the slot regions sit. ``_minimal_solver_area_doc``
+    parks every word slot at bbox (0, 0, 10%, 5%) → rows 0:64, cols 0:72.
+    """
+    band = frame[0:64, 0:72]
+    band[:] = (224, 183, 178)
+    band[::8] = (40, 30, 30)
+    band[1::8] = (40, 30, 30)
+    return frame
+
+
 class _FakeDreamscapeActions:
     def __init__(self) -> None:
         self.taps: list[tuple[int, int]] = []
         self.require_approval_values: list[bool] = []
-        self.frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+        self.frame = _paint_pill_band(np.zeros((1280, 720, 3), dtype=np.uint8))
 
     def screen_resolution(self, _instance_id: str) -> tuple[int, int]:
         return (720, 1280)
@@ -1812,9 +1867,16 @@ async def test_solve_loop_taps_help_highlight_without_saving_point(
 
 
 @pytest.mark.asyncio
-async def test_solve_loop_taps_help_for_low_confidence_unmapped_word(
+async def test_solve_loop_defers_help_for_low_confidence_unmapped_word(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A stably-repeating but low-confidence read earns NO helper tap.
+
+    Dialog bleed and frozen animation frames repeat identically at conf
+    0.0-0.4; before the confidence floor they "confirmed" and burnt a helper
+    ("В РАБ" → help). A genuine dark-chrome pill still gets help: the two-line
+    retry's pass-agreement path raises its confidence to 0.8 first.
+    """
     actions = _FakeDreamscapeActions()
     ocr = _FakeDreamscapeOcr(
         word_values_by_call=[
@@ -1869,10 +1931,12 @@ async def test_solve_loop_taps_help_for_low_confidence_unmapped_word(
     ctx = _Ctx()
     await solve._exec_dreamscape_memory_solve_loop(ctx)
 
-    assert actions.taps == [(360, 512), (612, 1088)]
+    # Only the mapped Book tap; the conf-0.0 PocketWatch is surfaced as
+    # unmapped but never confirms, so no helper tap is spent on it.
+    assert actions.taps == [(360, 512)]
     assert ctx.result["unmapped"] == ["PocketWatch"]
-    assert ctx.result["helped"] == ["PocketWatch"]
-    assert ctx.result["help_remaining"] == 1
+    assert ctx.result["helped"] == []
+    assert ctx.result["help_remaining"] == 2
 
 
 @pytest.mark.asyncio
@@ -1936,7 +2000,7 @@ async def test_solve_loop_taps_static_help_highlight_without_saving_point(
     class _StaticHintActions(_FakeDreamscapeActions):
         def __init__(self) -> None:
             super().__init__()
-            self.before = np.zeros((1280, 720, 3), dtype=np.uint8)
+            self.before = _paint_pill_band(np.zeros((1280, 720, 3), dtype=np.uint8))
             self.after = self.before.copy()
             cv2.circle(self.after, (325, 627), 44, (0, 180, 255), 10)
             cv2.circle(self.after, (325, 627), 58, (80, 120, 255), 6)
@@ -2830,3 +2894,133 @@ def test_learn_point_alias_never_aliases_a_junk_point() -> None:
     scene = dreamscape_db.get_scene("yard")
     assert scene["points"][0].get("aliases") is None
     assert scene["points"][-1]["name"] == "Мешочек"
+
+
+# ── Pill template bank wiring ───────────────────────────────────────────────
+
+
+def _paint_pill_word(frame: np.ndarray, text: str) -> np.ndarray:
+    """White glyphs on the harness pill band so the bank has text to crop."""
+    cv2.putText(
+        frame, text, (5, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2
+    )
+    return frame
+
+
+@pytest.mark.asyncio
+async def test_solve_loop_saves_pill_template_on_colour_confirm(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A colour-confirmed tap persists the slot's ACTIVE rendering in the bank."""
+    from games.wos.events.dreamscape_memory.solver.pill_bank import PillTemplateBank
+
+    bank = PillTemplateBank(tmp_path / "bank")
+    monkeypatch.setattr(solve, "_pill_bank", lambda: bank)
+    actions = _FakeDreamscapeActions()
+    _paint_pill_word(actions.frame, "BOOK")
+    ocr = _FakeDreamscapeOcr(word_values_by_call=[{"dreamscape_memory.1": "Book"}])
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: ocr)
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+    monkeypatch.setattr(
+        solve,
+        "_found_word_regions_from_frame",
+        _grey_when_point_tapped(actions, {(360, 512): "dreamscape_memory.1"}),
+    )
+    monkeypatch.setattr(
+        solve,
+        "_select_scene",
+        lambda _words, _fuzz: {
+            "slug": "practice-level",
+            "scene_rect": None,
+            "points": [{"name": "Book", "xPct": 50.0, "yPct": 40.0}],
+        },
+    )
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1"],
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                "max_iterations": 3,
+            }
+            self.result: dict[str, object] = {}
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+
+    assert ctx.result["clicked_keys"] == ["book"]
+    assert ctx.result["pill_templates_saved"] == [{"key": "book", "word": "Book"}]
+    # A fresh instance over the same directory sees the persisted template.
+    assert PillTemplateBank(tmp_path / "bank").keys() == {"book"}
+
+
+@pytest.mark.asyncio
+async def test_solve_loop_pill_match_settles_slot_without_word_ocr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With a template banked, the slot is solved pre-OCR: no word-region reads."""
+    from games.wos.events.dreamscape_memory.solver.pill_bank import PillTemplateBank
+
+    actions = _FakeDreamscapeActions()
+    _paint_pill_word(actions.frame, "BOOK")
+    area_doc = _minimal_solver_area_doc()
+    bank = PillTemplateBank(tmp_path / "bank")
+    band = solve._slot_band_crop(actions.frame, area_doc, "dreamscape_memory.1")
+    assert bank.store("book", "Book", band)
+    monkeypatch.setattr(solve, "_pill_bank", lambda: bank)
+
+    # No word values staged: any OCR read of a word slot would map nothing and
+    # the tap below would never happen.
+    ocr = _FakeDreamscapeOcr(word_values_by_call=[{}])
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: ocr)
+    monkeypatch.setattr(solve, "_load_area", lambda: area_doc)
+    monkeypatch.setattr(
+        solve,
+        "_found_word_regions_from_frame",
+        _grey_when_point_tapped(actions, {(360, 512): "dreamscape_memory.1"}),
+    )
+    monkeypatch.setattr(
+        dreamscape_db,
+        "get_active_scene",
+        lambda: {
+            "slug": "practice-level",
+            "scene_rect": None,
+            "points": [{"name": "Book", "xPct": 50.0, "yPct": 40.0}],
+        },
+    )
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1"],
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                # Two ticks: match+tap, then colour confirm. A third tick would
+                # start the settled-batch OCR probe, which reads word slots by
+                # design (the clicked key is excluded from template matching).
+                "max_iterations": 2,
+                "scene_source": "active",
+            }
+            self.result: dict[str, object] = {}
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+
+    assert actions.taps == [(360, 512)]
+    assert ctx.result["clicked_keys"] == ["book"]
+    assert ctx.result["pill_matches"] == 1
+    word_ids = {"dreamscape_memory.1", "dreamscape_memory.2", "dreamscape_memory.3"}
+    assert all(
+        rid not in word_ids for call in ocr.region_id_calls for rid in call
+    ), ocr.region_id_calls
