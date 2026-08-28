@@ -1143,6 +1143,573 @@
    "h": 27,
    "source": "phone:dreamscape_memory.2",
    "created_at": 1787890881.6379
+  },
+  {
+   "key": "windsock",
+   "word": "Флюгер",
+   "file": "windsock__0.png",
+   "w": 107,
+   "h": 32,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891347.301928
+  },
+  {
+   "key": "windmill",
+   "word": "Ветряная мельница",
+   "file": "windmill__0.png",
+   "w": 115,
+   "h": 56,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891349.005567
+  },
+  {
+   "key": "giant elk",
+   "word": "Огромный олень",
+   "file": "giant-elk__0.png",
+   "w": 205,
+   "h": 30,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891352.399658
+  },
+  {
+   "key": "flare",
+   "word": "Сигнальная ракета",
+   "file": "flare__0.png",
+   "w": 137,
+   "h": 59,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891365.998281
+  },
+  {
+   "key": "toolbox",
+   "word": "инструментами",
+   "file": "toolbox__0.png",
+   "w": 178,
+   "h": 58,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891367.8324711
+  },
+  {
+   "key": "mailbox",
+   "word": "Почтовый ЯЩИК",
+   "file": "mailbox__0.png",
+   "w": 205,
+   "h": 31,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891370.216898
+  },
+  {
+   "key": "giant elk",
+   "word": "Огромной олень",
+   "file": "giant-elk__1.png",
+   "w": 202,
+   "h": 30,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891373.231911
+  },
+  {
+   "key": "sign post",
+   "word": "Указательный столб",
+   "file": "sign-post__0.png",
+   "w": 166,
+   "h": 53,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891391.684733
+  },
+  {
+   "key": "whip",
+   "word": "Кнут",
+   "file": "whip__0.png",
+   "w": 63,
+   "h": 33,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891407.158887
+  },
+  {
+   "key": "axe",
+   "word": "Топор",
+   "file": "axe__0.png",
+   "w": 84,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891412.666529
+  },
+  {
+   "key": "конь",
+   "word": "Конь",
+   "file": "конь__0.png",
+   "w": 66,
+   "h": 27,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891414.4212449
+  },
+  {
+   "key": "watchtower",
+   "word": "Смотровая башня",
+   "file": "watchtower__0.png",
+   "w": 205,
+   "h": 28,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891416.746582
+  },
+  {
+   "key": "mailbox",
+   "word": "Почтовый ЯЩИК",
+   "file": "mailbox__1.png",
+   "w": 202,
+   "h": 31,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891419.550745
+  },
+  {
+   "key": "flower bed",
+   "word": "Клумба",
+   "file": "flower-bed__0.png",
+   "w": 103,
+   "h": 33,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891434.3496902
+  },
+  {
+   "key": "snowmobile",
+   "word": "Снегоход",
+   "file": "snowmobile__0.png",
+   "w": 129,
+   "h": 31,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891438.883627
+  },
+  {
+   "key": "birds",
+   "word": "Птицы",
+   "file": "birds__0.png",
+   "w": 90,
+   "h": 31,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891438.885632
+  },
+  {
+   "key": "waterbag",
+   "word": "ро Бурдюк",
+   "file": "waterbag__0.png",
+   "w": 104,
+   "h": 33,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891442.619499
+  },
+  {
+   "key": "mailbox",
+   "word": "Почтовый ЯЩИК",
+   "file": "mailbox__2.png",
+   "w": 204,
+   "h": 30,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891463.4592052
+  },
+  {
+   "key": "колокольчик",
+   "word": "Колокольчик",
+   "file": "колокольчик__0.png",
+   "w": 174,
+   "h": 26,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891470.6492732
+  },
+  {
+   "key": "megaphone",
+   "word": "Мегафон",
+   "file": "megaphone__0.png",
+   "w": 123,
+   "h": 32,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891531.200588
+  },
+  {
+   "key": "hammer",
+   "word": "Молот",
+   "file": "hammer__0.png",
+   "w": 88,
+   "h": 27,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891545.9011781
+  },
+  {
+   "key": "canned food",
+   "word": "Консервная банка",
+   "file": "canned-food__0.png",
+   "w": 205,
+   "h": 28,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891600.2336519
+  },
+  {
+   "key": "mushroom",
+   "word": "Грибы",
+   "file": "mushroom__0.png",
+   "w": 87,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891610.4012349
+  },
+  {
+   "key": "kettle",
+   "word": "Железный котелок",
+   "file": "kettle__0.png",
+   "w": 124,
+   "h": 53,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891624.047317
+  },
+  {
+   "key": "motorcycle",
+   "word": "Мотоцикл",
+   "file": "motorcycle__0.png",
+   "w": 134,
+   "h": 31,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891633.934183
+  },
+  {
+   "key": "wheel",
+   "word": "Колесо",
+   "file": "wheel__0.png",
+   "w": 98,
+   "h": 27,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891655.716649
+  },
+  {
+   "key": "glass bottle",
+   "word": "Стеклянная бутыль",
+   "file": "glass-bottle__1.png",
+   "w": 138,
+   "h": 59,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891659.190418
+  },
+  {
+   "key": "skis",
+   "word": "Сноуборд",
+   "file": "skis__0.png",
+   "w": 136,
+   "h": 33,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891666.71535
+  },
+  {
+   "key": "pickaxe",
+   "word": "Кирка",
+   "file": "pickaxe__0.png",
+   "w": 80,
+   "h": 32,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891688.1154351
+  },
+  {
+   "key": "crystal",
+   "word": "Кристалл",
+   "file": "crystal__0.png",
+   "w": 129,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891693.908931
+  },
+  {
+   "key": "canned food",
+   "word": "Консервная банка",
+   "file": "canned-food__1.png",
+   "w": 204,
+   "h": 28,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891704.624199
+  },
+  {
+   "key": "snowman",
+   "word": "Снеговик",
+   "file": "snowman__0.png",
+   "w": 127,
+   "h": 27,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891722.965452
+  },
+  {
+   "key": "wheelbarrow",
+   "word": "Тачка",
+   "file": "wheelbarrow__0.png",
+   "w": 81,
+   "h": 27,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891729.453851
+  },
+  {
+   "key": "shovel",
+   "word": "Лопата",
+   "file": "shovel__0.png",
+   "w": 99,
+   "h": 27,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891734.934183
+  },
+  {
+   "key": "paper bag",
+   "word": "Бумажной мешок",
+   "file": "paper-bag__2.png",
+   "w": 202,
+   "h": 29,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891844.6955478
+  },
+  {
+   "key": "kettle",
+   "word": "Чайник",
+   "file": "kettle__1.png",
+   "w": 101,
+   "h": 27,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891862.8022552
+  },
+  {
+   "key": "paint bucket",
+   "word": "Ведроскраской",
+   "file": "paint-bucket__0.png",
+   "w": 204,
+   "h": 31,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891872.782326
+  },
+  {
+   "key": "paint bucket",
+   "word": "Ведро краской",
+   "file": "paint-bucket__1.png",
+   "w": 202,
+   "h": 31,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891890.887216
+  },
+  {
+   "key": "arrow sign",
+   "word": "Стрелка",
+   "file": "arrow-sign__0.png",
+   "w": 115,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787891920.497238
+  },
+  {
+   "key": "goggles",
+   "word": "Защитные ки",
+   "file": "goggles__1.png",
+   "w": 204,
+   "h": 31,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787891949.270713
+  },
+  {
+   "key": "paper bag",
+   "word": "Бумажный мешок",
+   "file": "paper-bag__3.png",
+   "w": 205,
+   "h": 29,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787891997.458476
+  },
+  {
+   "key": "n",
+   "word": "БукваМ",
+   "file": "n__0.png",
+   "w": 106,
+   "h": 33,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787892228.022517
+  },
+  {
+   "key": "giftbox",
+   "word": "Подарок",
+   "file": "giftbox__0.png",
+   "w": 117,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787892232.618741
+  },
+  {
+   "key": "sun",
+   "word": "Солаице",
+   "file": "sun__1.png",
+   "w": 105,
+   "h": 31,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892261.332008
+  },
+  {
+   "key": "cat",
+   "word": "Кот",
+   "file": "cat__0.png",
+   "w": 48,
+   "h": 27,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892278.3426502
+  },
+  {
+   "key": "star",
+   "word": "Звезда",
+   "file": "star__0.png",
+   "w": 98,
+   "h": 31,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787892280.490052
+  },
+  {
+   "key": "ladle",
+   "word": "Половник",
+   "file": "ladle__0.png",
+   "w": 134,
+   "h": 27,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892497.610689
+  },
+  {
+   "key": "hole",
+   "word": "Яма",
+   "file": "hole__0.png",
+   "w": 61,
+   "h": 27,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787892497.6130738
+  },
+  {
+   "key": "basket",
+   "word": "Корзина",
+   "file": "basket__0.png",
+   "w": 113,
+   "h": 32,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787892525.808576
+  },
+  {
+   "key": "gold coins",
+   "word": "Золотые монеты",
+   "file": "gold-coins__0.png",
+   "w": 204,
+   "h": 25,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787892544.2608068
+  },
+  {
+   "key": "jam",
+   "word": "Варенье",
+   "file": "jam__0.png",
+   "w": 116,
+   "h": 32,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892547.430756
+  },
+  {
+   "key": "bread",
+   "word": "Хлеб",
+   "file": "bread__0.png",
+   "w": 71,
+   "h": 27,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787892569.424524
+  },
+  {
+   "key": "apple pie",
+   "word": "Яблоч НЫЙ пирог",
+   "file": "apple-pie__0.png",
+   "w": 204,
+   "h": 30,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892574.7796102
+  },
+  {
+   "key": "milk",
+   "word": "Молоко",
+   "file": "milk__0.png",
+   "w": 104,
+   "h": 27,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787892604.005963
+  },
+  {
+   "key": "gloves",
+   "word": "Перчатки",
+   "file": "gloves__0.png",
+   "w": 128,
+   "h": 32,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892620.092323
+  },
+  {
+   "key": "apple pie",
+   "word": "Яблоч НЫЙ пирог",
+   "file": "apple-pie__1.png",
+   "w": 204,
+   "h": 30,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787892620.094409
+  },
+  {
+   "key": "bell",
+   "word": "Колокольчик",
+   "file": "bell__1.png",
+   "w": 174,
+   "h": 26,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787892622.7285419
+  },
+  {
+   "key": "moose antlers",
+   "word": "Лосиныерога",
+   "file": "moose-antlers__0.png",
+   "w": 187,
+   "h": 32,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787892625.462236
+  },
+  {
+   "key": "maple leaf",
+   "word": "Кленовый лист",
+   "file": "maple-leaf__0.png",
+   "w": 204,
+   "h": 27,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892632.461418
+  },
+  {
+   "key": "fish bone",
+   "word": "Рыбийскелет",
+   "file": "fish-bone__1.png",
+   "w": 189,
+   "h": 27,
+   "source": "phone:dreamscape_memory.3",
+   "created_at": 1787892657.315938
+  },
+  {
+   "key": "ladle",
+   "word": "Полозник",
+   "file": "ladle__1.png",
+   "w": 134,
+   "h": 26,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892662.4531388
+  },
+  {
+   "key": "fork",
+   "word": "Вилка",
+   "file": "fork__0.png",
+   "w": 83,
+   "h": 27,
+   "source": "phone:dreamscape_memory.1",
+   "created_at": 1787892683.792361
+  },
+  {
+   "key": "bread",
+   "word": "Хлеб",
+   "file": "bread__1.png",
+   "w": 71,
+   "h": 27,
+   "source": "phone:dreamscape_memory.2",
+   "created_at": 1787892733.183846
   }
  ]
 }
