@@ -8,7 +8,7 @@ _ACRONYM_BOUNDARY_RE = re.compile(r"(?<=[A-Z])(?=[A-Z][a-z])")
 # ``rus``) prints item words in Russian, and an ASCII-only class stripped them
 # to "" — every RU word then read as empty and no item was ever mapped. For
 # ASCII text the two classes are equivalent, so the English path is unchanged.
-_NON_LETTER_RE = re.compile(r"[^A-Za-zА-Яа-яЁё]+")
+_NON_LETTER_RE = re.compile(r"[^A-Za-zА-Яа-яЁё0-9]+")
 
 
 def clean_word_text(raw: object) -> str:
@@ -55,6 +55,13 @@ def is_plausible_word_text(raw: object, *, min_letters: int = 3) -> bool:
     """
     cleaned = clean_word_text(raw).casefold()
     letters = [ch for ch in cleaned if ch.isalpha()]
+    if not letters:
+        # Digit-only item words exist (the «8» on the city-hall wall). A short
+        # digit run is a real word for lenient callers (the read gate,
+        # min_letters<=2); strict callers (helper/learn, min_letters>=3) still
+        # reject digits so timer bleed can never spend a hint.
+        compact = cleaned.replace(" ", "")
+        return bool(compact) and compact.isdigit() and min_letters <= 2 and len(compact) <= 3
     if len(letters) < min_letters:
         return False
     if not any(ch in _VOWELS for ch in letters):
