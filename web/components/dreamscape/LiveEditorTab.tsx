@@ -327,8 +327,16 @@ export function LiveEditorTab({
   // Scenes follow the in-game order (`sort_order`, stamped from the upstream
   // catalog), NOT the alphabet; unordered legacy scenes fall back to title.
   const allScenes = scenesQuery.data?.scenes;
+  // Co-op maps are only playable in multiplayer and vice versa, so the season
+  // list is scoped to the mode: PvP offers the Multiplayer bucket alone, solo
+  // offers everything but it.
   const seasonOptions = useMemo(() => {
-    const seasons = [...new Set((allScenes ?? []).map((s) => s.season))];
+    const inMode = (allScenes ?? []).filter((s) =>
+      mode === "multiplayer"
+        ? s.season === MULTIPLAYER_SEASON
+        : s.season !== MULTIPLAYER_SEASON,
+    );
+    const seasons = [...new Set(inMode.map((s) => s.season))];
     // Newest content first (S5, S4, …), then Multiplayer, then Practice.
     seasons.sort((a, b) => {
       const special = (n: number) =>
@@ -344,19 +352,26 @@ export function LiveEditorTab({
             ? "Multiplayer"
             : `Season ${n}`,
     }));
-  }, [allScenes]);
+  }, [allScenes, mode]);
   const overrideSeason = useMemo(() => {
     if (!overrideSlug) return null;
     const scene = (allScenes ?? []).find((s) => s.slug === overrideSlug);
     return scene ? String(scene.season) : null;
   }, [allScenes, overrideSlug]);
   const [seasonChoice, setSeasonChoice] = useState<string | null>(null);
-  const seasonValue =
-    seasonChoice ?? overrideSeason ?? seasonOptions[0]?.value ?? "";
+  // A season the current mode doesn't offer (a stale choice, or an override
+  // pointing at a solo scene while PvP is selected) would leave the scene
+  // picker empty — fall back to the mode's first bucket instead.
+  const preferredSeason = seasonChoice ?? overrideSeason ?? "";
+  const seasonValue = seasonOptions.some((o) => o.value === preferredSeason)
+    ? preferredSeason
+    : (seasonOptions[0]?.value ?? "");
   const sceneOptions = useMemo(
     () =>
       (allScenes ?? [])
-        .filter((s) => String(s.season) === seasonValue)
+        // Archived = rotated out of the game. The flag was stored but never
+        // read here, so past co-op rotations kept crowding the live picker.
+        .filter((s) => !s.archived && String(s.season) === seasonValue)
         .sort(
           (a, b) =>
             (a.sort_order || Number.MAX_SAFE_INTEGER) -
