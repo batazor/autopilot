@@ -8,11 +8,13 @@ import time
 from typing import TYPE_CHECKING, Annotated, Any
 
 import redis
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from api.deps import get_redis
-from api.services import screen_stream
+from api.services import remote_control, screen_stream
+from api.services.instances import list_instance_ids
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -22,6 +24,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["screen"])
 
 RedisDep = Annotated[redis.Redis, Depends(get_redis)]
+
+
+class TapBody(BaseModel):
+    """A click on the streamed image, as fractions of its width/height."""
+
+    x: float = Field(ge=0.0, le=1.0)
+    y: float = Field(ge=0.0, le=1.0)
 
 _BOUNDARY = "frame"
 # Endpoint poll cadence — a bit faster than the worker's ~22 fps publish so we
@@ -58,14 +67,15 @@ def _png_to_jpeg(png: bytes) -> bytes | None:
     return buf.tobytes()
 
 
-@router.get("/instances/{instance_id}/screen/stream")
-async def get_screen_stream(
-    instance_id: str, request: Request, client: RedisDep
+def stream_response(
+    instance_id: str, request: Request, client: redis.Redis
 ) -> StreamingResponse:
     """Live screen as multipart/x-mixed-replace (renders natively in <img>).
 
     Relays the worker's rolling-preview frames (it captures fast while the viewer
-    flag is set) — no second scrcpy server is started.
+    flag is set) — no second scrcpy server is started. Shared with the
+    token-addressed remote-control route, which serves the same stream to a
+    helper who never sees the instance id.
     """
 
     async def body() -> AsyncIterator[bytes]:
@@ -113,6 +123,50 @@ async def get_screen_stream(
     )
 
 
+@router.get("/instances/{instance_id}/screen/stream")
+async def get_screen_stream(
+    instance_id: str, request: Request, client: RedisDep
+) -> StreamingResponse:
+    return stream_response(instance_id, request, client)
+
+
 @router.get("/instances/{instance_id}/screen/status")
 def get_screen_status(instance_id: str, client: RedisDep) -> dict[str, Any]:
     return screen_stream.status(client, instance_id)
+
+
+@router.post("/instances/{instance_id}/screen/tap")
+def post_screen_tap(
+    instance_id: str, body: TapBody, client: RedisDep
+) -> dict[str, Any]:
+    """Tap the live screen from the dashboard — same path a helper's click takes.
+
+    ``delivered == 0`` means no worker is subscribed; the click is dropped
+    rather than queued, since a coordinate is only meaningful against the frame
+    the clicker was looking at.
+    """
+    delivered = remote_control.publish_tap(client, instance_id, body.x, body.y)
+    return {"ok": delivered > 0, "delivered": delivered}
+
+
+@router.get("/instances/{instance_id}/screen/share")
+def get_screen_share(instance_id: str, client: RedisDep) -> dict[str, Any]:
+    """Current share link for this instance (does not mint one)."""
+    token, ttl = remote_control.current_token(client, instance_id)
+    return {"token": token, "path": f"/remote/{token}" if token else None, "ttl_s": ttl}
+
+
+@router.post("/instances/{instance_id}/screen/share")
+def post_screen_share(instance_id: str, client: RedisDep) -> dict[str, Any]:
+    """Mint (or refresh) the link a helper opens to watch and tap this screen."""
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    token, ttl = remote_control.issue(client, instance_id)
+    return {"token": token, "path": f"/remote/{token}", "ttl_s": ttl}
+
+
+@router.delete("/instances/{instance_id}/screen/share")
+def delete_screen_share(instance_id: str, client: RedisDep) -> dict[str, bool]:
+    """Revoke every link handed out for this instance."""
+    remote_control.revoke(client, instance_id)
+    return {"ok": True}

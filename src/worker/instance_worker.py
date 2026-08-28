@@ -231,6 +231,7 @@ class InstanceWorker(
         self._screen_stream_publish_task: asyncio.Task[None] | None = None
         self._startup_overlay_task: asyncio.Task[None] | None = None
         self._abort_task_listener_task: asyncio.Task[None] | None = None
+        self._manual_tap_listener_task: asyncio.Task[None] | None = None
         self._blocking_executor_live: bool = True
         self._stopping: bool = False
         self._task_registry = _TASK_REGISTRY
@@ -648,6 +649,88 @@ class InstanceWorker(
                     payload = {}
                 reason = str(payload.get("reason") or "external abort request")
                 await self._cancel_current_task(reason)
+        except asyncio.CancelledError:  # noqa: TRY203 — explicit cancellation pass-through
+            raise
+        finally:
+            with suppress(Exception):
+                await pubsub.unsubscribe(channel)
+            with suppress(Exception):
+                await pubsub.aclose()
+
+    async def _run_manual_tap_listener(self) -> None:
+        """Execute operator taps from the remote-control page, even mid-task.
+
+        Channel: ``wos:events:manual_tap:<instance_id>`` — pubsub for the same
+        reason the abort listener uses one: ``wos:ui:command:<iid>`` is drained
+        only between tasks, so a helper clicking during a long scenario would
+        wait for it to finish. Coordinates arrive normalized (0..1 of the
+        streamed frame) and are mapped to bot-frame pixels here, where the
+        frame's real size is known.
+
+        The tap runs with ``require_approval=False``: a human pressing the
+        screen *is* the approval, and routing it through the click-approval
+        queue would ask that same human to confirm their own click.
+        """
+        import json as _json
+
+        from layout.types import Point
+        from worker import frame_bus
+
+        client = self._redis
+        if client is None:
+            return
+        channel = f"wos:events:manual_tap:{self._cfg.instance_id}"
+        pubsub = client.pubsub()
+        try:
+            await pubsub.subscribe(channel)
+        except Exception:
+            logger.exception("Failed to subscribe to %s", channel)
+            return
+
+        try:
+            while True:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if msg is None or msg.get("type") != "message":
+                    continue
+                raw = msg.get("data")
+                if isinstance(raw, bytes):
+                    raw = raw.decode()
+                try:
+                    payload = _json.loads(raw) if raw else {}
+                except _json.JSONDecodeError:
+                    continue
+                try:
+                    x_frac = float(payload.get("x"))
+                    y_frac = float(payload.get("y"))
+                except (TypeError, ValueError):
+                    continue
+                if not (0.0 <= x_frac <= 1.0 and 0.0 <= y_frac <= 1.0):
+                    continue
+
+                frame_w, frame_h = 720, 1280
+                snap = frame_bus.latest_snapshot(self._cfg.instance_id)
+                if snap is not None and getattr(snap.frame_bgr, "shape", None):
+                    frame_h, frame_w = snap.frame_bgr.shape[:2]
+                point = Point(
+                    min(int(x_frac * frame_w), frame_w - 1),
+                    min(int(y_frac * frame_h), frame_h - 1),
+                )
+                logger.info(
+                    "manual tap instance=%s point=(%d,%d)",
+                    self._cfg.instance_id,
+                    point.x,
+                    point.y,
+                )
+                try:
+                    await asyncio.to_thread(
+                        self._bot_actions.tap,
+                        self._cfg.instance_id,
+                        point,
+                        require_approval=False,
+                        approval_source="remote_operator",
+                    )
+                except Exception:
+                    logger.exception("manual tap failed instance=%s", self._cfg.instance_id)
         except asyncio.CancelledError:  # noqa: TRY203 — explicit cancellation pass-through
             raise
         finally:
@@ -1154,6 +1237,10 @@ class InstanceWorker(
                 self._run_abort_task_listener(),
                 name=f"abort-task-{self._cfg.instance_id}",
             )
+            self._manual_tap_listener_task = asyncio.create_task(
+                self._run_manual_tap_listener(),
+                name=f"manual-tap-{self._cfg.instance_id}",
+            )
             self._stuck_task_watchdog_task = asyncio.create_task(
                 self._run_stuck_task_watchdog(),
                 name=f"stuck-watchdog-{self._cfg.instance_id}",
@@ -1268,6 +1355,12 @@ class InstanceWorker(
                 al.cancel()
                 with suppress(asyncio.CancelledError):
                     await al
+            mt = self._manual_tap_listener_task
+            self._manual_tap_listener_task = None
+            if mt is not None and not mt.done():
+                mt.cancel()
+                with suppress(asyncio.CancelledError):
+                    await mt
             watchdog = self._stuck_task_watchdog_task
             self._stuck_task_watchdog_task = None
             if watchdog is not None and not watchdog.done():

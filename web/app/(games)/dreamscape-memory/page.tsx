@@ -9,6 +9,7 @@ import { DreamscapeGuides } from "@/components/dreamscape/DreamscapeGuides";
 import { LiveEditorTab } from "@/components/dreamscape/LiveEditorTab";
 import { NewItemsTab } from "@/components/dreamscape/NewItemsTab";
 import { RegionEditorTab } from "@/components/dreamscape/RegionEditorTab";
+import { RemoteHelpTab } from "@/components/dreamscape/RemoteHelpTab";
 import { TestTab } from "@/components/dreamscape/TestTab";
 import {
   DREAMSCAPE_MULTIPLAYER_MANUAL_SCENARIO,
@@ -23,7 +24,14 @@ import {
   loadDreamscapeNewCaptures,
 } from "@/lib/dreamscape-new-captures";
 
-type View = "guides" | "solo" | "multiplayer" | "new" | "editor" | "test";
+type View =
+  | "guides"
+  | "solo"
+  | "multiplayer"
+  | "new"
+  | "editor"
+  | "help"
+  | "test";
 
 const VIEW_TABS: { key: View; label: string }[] = [
   { key: "guides", label: "Guides" },
@@ -31,6 +39,7 @@ const VIEW_TABS: { key: View; label: string }[] = [
   { key: "multiplayer", label: "Multiplayer · 6 words" },
   { key: "new", label: "New" },
   { key: "editor", label: "Region editor" },
+  { key: "help", label: "Live help" },
   { key: "test", label: "Test" },
 ];
 
@@ -126,6 +135,10 @@ function DreamscapePageInner() {
       ) : view === "new" ? (
         <FleetContextProvider>
           <NewItemsTab />
+        </FleetContextProvider>
+      ) : view === "help" ? (
+        <FleetContextProvider>
+          <RemoteHelpTab />
         </FleetContextProvider>
       ) : view === "test" ? (
         <FleetContextProvider>

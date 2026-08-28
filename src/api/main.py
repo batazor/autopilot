@@ -115,6 +115,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     quests,
     queue,
     radar,
+    remote,
     research,
     routes,
     screen,
@@ -208,6 +209,7 @@ app.include_router(modules.router)
 app.include_router(gallery.router)
 app.include_router(adb.router)
 app.include_router(dev_bot.router)
+app.include_router(remote.router)
 app.include_router(screen.router)
 app.include_router(balance.router)
 app.include_router(optimizer.router)

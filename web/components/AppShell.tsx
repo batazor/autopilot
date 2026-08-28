@@ -72,6 +72,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleNavCollapsed]);
 
+  // Share-link mode (/remote/<token>): whoever opens the link is not an
+  // operator — they get the screen they were sent and literally nothing else,
+  // so none of the dashboard's providers or chrome mount here.
+  if (pathname?.startsWith("/remote/")) {
+    return <>{children}</>;
+  }
+
   // Bare single-page mode (e.g. /solve): the page content with none of the
   // dashboard chrome — no sidebar, banners, palette, or onboarding.
   if (pathname === "/solve" || pathname?.startsWith("/solve/")) {

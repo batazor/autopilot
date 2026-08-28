@@ -366,6 +366,51 @@ export function screenStreamUrl(
   return `${base}/api/instances/${encodeURIComponent(instanceId)}/screen/stream${q}`;
 }
 
+export type ScreenShare = {
+  /** ``null`` when no link has been minted (or it expired). */
+  token: string | null;
+  /** Path to open, e.g. ``/remote/<token>``. */
+  path: string | null;
+  ttl_s: number;
+};
+
+/** The share link a helper opens to watch and tap this device's screen. */
+export async function fetchScreenShare(instanceId: string): Promise<ScreenShare> {
+  return apiFetch<ScreenShare>(
+    `/api/instances/${encodeURIComponent(instanceId)}/screen/share`,
+  );
+}
+
+/** Mint the link, or refresh the existing one's expiry (same URL either way). */
+export async function createScreenShare(instanceId: string): Promise<ScreenShare> {
+  return apiFetch<ScreenShare>(
+    `/api/instances/${encodeURIComponent(instanceId)}/screen/share`,
+    { method: "POST" },
+  );
+}
+
+/** Invalidate every link handed out for this device. */
+export async function revokeScreenShare(
+  instanceId: string,
+): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/api/instances/${encodeURIComponent(instanceId)}/screen/share`,
+    { method: "DELETE" },
+  );
+}
+
+/** Tap the live screen — ``x``/``y`` are fractions (0..1) of the frame. */
+export async function postScreenTap(
+  instanceId: string,
+  x: number,
+  y: number,
+): Promise<{ ok: boolean; delivered: number }> {
+  return apiFetch<{ ok: boolean; delivered: number }>(
+    `/api/instances/${encodeURIComponent(instanceId)}/screen/tap`,
+    jsonInit("POST", { x, y }),
+  );
+}
+
 export type ScreenStatus = {
   instance_id: string;
   running: boolean;

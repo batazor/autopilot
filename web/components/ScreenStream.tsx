@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { screenStreamUrl } from "@/lib/api";
 import { drawOverlays } from "@/lib/overlay-draw";
 import type { OverlayShape } from "@/lib/types";
@@ -18,17 +19,28 @@ const DEFAULT_H = 1280;
  * Mounting opens the HTTP stream (ref-counts a scrcpy client server-side);
  * unmounting closes it. Overlays are optional, so this is reusable for any
  * live-screen view, not just fish-detect.
+ *
+ * Pass ``onTap`` to make the view interactive: clicks report where they landed
+ * as fractions of the frame (0..1), which is the only coordinate space the
+ * browser can speak — it knows the displayed size, not the device's. A ping
+ * marks the spot so a helper on a laggy phone can see the click registered
+ * before the frame catches up.
  */
 export function ScreenStream({
   instanceId,
+  streamUrl,
   width = 0,
   height = 0,
   overlays = [],
+  onTap,
 }: {
-  instanceId: string;
+  instanceId?: string;
+  /** Override the stream source (e.g. the token-addressed remote route). */
+  streamUrl?: string;
   width?: number;
   height?: number;
   overlays?: OverlayShape[];
+  onTap?: (x: number, y: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -40,6 +52,10 @@ export function ScreenStream({
 
   // Bump to force the <img> to reconnect after an error (new query string).
   const [streamKey, setStreamKey] = useState(0);
+  const [ping, setPing] = useState<{ x: number; y: number; id: number } | null>(
+    null,
+  );
+  const pingId = useRef(0);
   const [status, setStatus] = useState<"connecting" | "live" | "error">(
     "connecting",
   );
@@ -97,13 +113,32 @@ export function ScreenStream({
     return () => window.clearTimeout(t);
   }, [status]);
 
-  const src = screenStreamUrl(instanceId, streamKey);
+  const src = streamUrl
+    ? `${streamUrl}${streamUrl.includes("?") ? "&" : "?"}t=${streamKey}`
+    : screenStreamUrl(instanceId ?? "", streamKey);
+
+  const handleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onTap) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    // The container's aspect ratio matches the frame's, so the contained image
+    // fills it exactly — container fractions are frame fractions.
+    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    setPing({ x, y, id: pingId.current++ });
+    onTap(x, y);
+  };
 
   return (
     <div
       ref={containerRef}
       className="preview-wrap"
-      style={{ position: "relative", aspectRatio: `${gameW} / ${gameH}` }}
+      onClick={handleClick}
+      style={{
+        position: "relative",
+        aspectRatio: `${gameW} / ${gameH}`,
+        cursor: onTap ? "crosshair" : undefined,
+      }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -135,6 +170,16 @@ export function ScreenStream({
           background: "transparent",
         }}
       />
+      {ping ? (
+        <span
+          key={ping.id}
+          className="screen-tap-ping"
+          style={{ left: `${ping.x * 100}%`, top: `${ping.y * 100}%` }}
+          onAnimationEnd={() =>
+            setPing((cur) => (cur && cur.id === ping.id ? null : cur))
+          }
+        />
+      ) : null}
       {status !== "live" ? (
         <span
           style={{
