@@ -75,7 +75,7 @@ farm = []
 # needs none of this; only ``uv run botctl-mcp`` imports the MCP SDK. Install
 # with ``uv sync --extra agent``.
 agent = [
-    "mcp>=1.2",
+    "mcp>=1.28.1",
 ]
 [project.scripts]
 play = "worker.launch:main"
