@@ -52,7 +52,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/ui": "^4.1.7",
-    "happy-dom": "^20.9.0",
+    "happy-dom": "^21.0.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
   }
